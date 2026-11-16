@@ -6535,13 +6535,63 @@ private suspend fun WhoopRepository.workoutsAllSources(
  *  bespoke control). Shared by the empty and populated card branches so the pills stay put whether or
  *  not the chosen window has data. */
 @Composable
-private fun HrWindowPills(selection: HrWindow, onSelect: (HrWindow) -> Unit) {
-    SegmentedPillControl(
-        items = HrWindow.entries.toList(),
-        selection = selection,
-        label = { uiString(it.labelRes) },
-        onSelect = onSelect,
-    )
+private fun HrWindowPills(
+    selection: HrWindow,
+    onSelect: (HrWindow) -> Unit,
+    alkeStyle: Boolean = false,
+) {
+    if (!alkeStyle) {
+        SegmentedPillControl(
+            items = HrWindow.entries.toList(),
+            selection = selection,
+            label = { uiString(it.labelRes) },
+            onSelect = onSelect,
+        )
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            HrWindow.entries.forEach { option ->
+                val active = option == selection
+                val shape = RoundedCornerShape(50)
+                Text(
+                    uiString(option.labelRes),
+                    modifier = Modifier.clip(shape)
+                        .background(if (active) Color(0xFF26DEEB) else Color(0xFF163449))
+                        .clickable { onSelect(option) }
+                        .padding(horizontal = 13.dp, vertical = 9.dp),
+                    color = if (active) Color(0xFF061523) else Color(0xFFB2CFD8),
+                    fontSize = 12.sp,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+/** Brand-neutral data/interaction logic, with a dedicated ALKE presentation shell. */
+@Composable
+private fun HeartRateChartShell(
+    alkeStyle: Boolean,
+    content: @Composable () -> Unit,
+) {
+    if (alkeStyle) AlkePanel { content() }
+    else NoopCard { content() }
+}
+
+@Composable
+private fun AlkeHeartRateStat(label: String, value: String, tint: Color) {
+    Column(
+        modifier = Modifier.clip(RoundedCornerShape(13.dp))
+            .background(Color(0xFF123344))
+            .padding(horizontal = 7.dp, vertical = 11.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Text(label, color = Color(0xFF9BB9C5), fontSize = 10.sp, maxLines = 1)
+        Text(value, color = tint, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+    }
 }
 
 /** The width of the Today HR card's buckets.
@@ -6555,7 +6605,7 @@ private fun HrWindowPills(selection: HrWindow, onSelect: (HrWindow) -> Unit) {
 internal const val HR_CARD_BUCKET_SECONDS = 300L
 
 @Composable
-private fun HeartRateTrendCard(
+internal fun HeartRateTrendCard(
     viewModel: AppViewModel,
     days: List<DailyMetric>,
     selectedDay: LocalDate,
@@ -6566,6 +6616,7 @@ private fun HeartRateTrendCard(
     // daily row — so on an active morning the badge trailed the hero ring by the whole morning's load.
     effortForDay: Double? = null,
     dayCycleMode: DayCycleMode = DayCycleMode.SLEEP_ONSET,
+    alkeStyle: Boolean = false,
 ) {
     // "Today" here is the LOGICAL day (rolls at 04:00 local), so in the small hours after midnight the
     // trend keeps the evening's curve, window start at the logical day's own midnight, "since midnight"
@@ -6674,11 +6725,11 @@ private fun HeartRateTrendCard(
     // too-narrow rolling window (say 1h with no recent offload) is never a dead end — the user widens it
     // or steps back to Today, and the message says which window came up empty.
     if (winBuckets.size < 2) {
-        NoopCard {
+        HeartRateChartShell(alkeStyle) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Overline(uiString(R.string.today_hr_beats_per_minute))
+                if (alkeStyle) Text("HEART RATE · BPM", color = Color(0xFF26DEEB), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp) else Overline(uiString(R.string.today_hr_beats_per_minute))
                 if (selectedDay == today) {
-                    HrWindowPills(hrWindow) { hrWindowOrdinal = it.ordinal }
+                    HrWindowPills(hrWindow, alkeStyle = alkeStyle) { hrWindowOrdinal = it.ordinal }
                 }
                 Text(
                     when {
@@ -6690,7 +6741,7 @@ private fun HeartRateTrendCard(
                             uiString(R.string.today_hr_calibrating)
                     },
                     style = NoopType.footnote,
-                    color = Palette.textTertiary,
+                    color = if (alkeStyle) Color(0xFFB2CFD8) else Palette.textTertiary,
                 )
             }
         }
@@ -6736,12 +6787,12 @@ private fun HeartRateTrendCard(
     }
     val visTimestamps = remember(visBuckets) { visBuckets.map { it.bucket } }
 
-    NoopCard {
+    HeartRateChartShell(alkeStyle) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Header, mirrors the macOS ChartCard (title + subtitle, trailing read-out).
             Row(verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Overline(uiString(R.string.today_hr_beats_per_minute))
+                    if (alkeStyle) Text("HEART RATE · BPM", color = Color(0xFF26DEEB), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp) else Overline(uiString(R.string.today_hr_beats_per_minute))
                     // #985: the buckets stay the same 5-minute means whatever the window (view-only
                     // narrowing, no re-read), so the resolution half of the label never changes — only
                     // the span half tells the truth about what's on screen.
@@ -6753,15 +6804,22 @@ private fun HeartRateTrendCard(
                     Text(
                         subtitle,
                         style = NoopType.footnote,
-                        color = Palette.textTertiary,
+                        color = if (alkeStyle) Color(0xFF9BB9C5) else Palette.textTertiary,
                     )
                 }
-                Text(uiString(R.string.l10n_today_screen_latest_bpm_e7bec767, latest), style = NoopType.chartValueLarge, color = Palette.accent)
+                if (alkeStyle) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("$latest", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF5FCFF))
+                        Text("BPM", fontSize = 11.sp, color = Color(0xFF26DEEB), letterSpacing = 1.6.sp)
+                    }
+                } else {
+                    Text(uiString(R.string.l10n_today_screen_latest_bpm_e7bec767, latest), style = NoopType.chartValueLarge, color = Palette.accent)
+                }
             }
             // #985: the window selector, current day only — Today (since midnight, the default) or a
             // rolling last-N-hours cut of the same loaded buckets. A past day has no "now" → no selector.
             if (selectedDay == today) {
-                HrWindowPills(hrWindow) { hrWindowOrdinal = it.ordinal }
+                HrWindowPills(hrWindow, alkeStyle = alkeStyle) { hrWindowOrdinal = it.ordinal }
             }
             // Chart with a max/avg/min Y-axis label column on the left and an HH:mm X-axis row below.
             // The line spaces points by index, but the X labels read each bucket's REAL timestamp in
@@ -6780,9 +6838,9 @@ private fun HeartRateTrendCard(
                     modifier = Modifier.height(Metrics.chartHeight),
                     verticalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text(uiString(R.string.l10n_today_screen_vismax_80b2c2fc, visMax), style = NoopType.footnote, color = Palette.textTertiary, maxLines = 1)
-                    Text(uiString(R.string.l10n_today_screen_visavg_8c9a4746, visAvg), style = NoopType.footnote, color = Palette.textTertiary, maxLines = 1)
-                    Text(uiString(R.string.l10n_today_screen_vismin_5d665ceb, visMin), style = NoopType.footnote, color = Palette.textTertiary, maxLines = 1)
+                    Text(uiString(R.string.l10n_today_screen_vismax_80b2c2fc, visMax), style = NoopType.footnote, color = if (alkeStyle) Color(0xFF9BB9C5) else Palette.textTertiary, maxLines = 1)
+                    Text(uiString(R.string.l10n_today_screen_visavg_8c9a4746, visAvg), style = NoopType.footnote, color = if (alkeStyle) Color(0xFF9BB9C5) else Palette.textTertiary, maxLines = 1)
+                    Text(uiString(R.string.l10n_today_screen_vismin_5d665ceb, visMin), style = NoopType.footnote, color = if (alkeStyle) Color(0xFF9BB9C5) else Palette.textTertiary, maxLines = 1)
                 }
                 // The HR line, with the Overview marker layers (sleep band · Charge · Effort · sport
                 // glyphs) overlaid on top, markers are positioned by mapping each event's wall-clock
@@ -6803,6 +6861,7 @@ private fun HeartRateTrendCard(
                         sleep = sleepToday,
                         workouts = workoutsToday,
                         timeTicks = timeTicks,
+                        alkeStyle = alkeStyle,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(Metrics.chartHeight)
@@ -6823,6 +6882,7 @@ private fun HeartRateTrendCard(
                         ticks = timeTicks,
                         timestamps = visTimestamps,
                         showNow = selectedDay == today && hrZoom == null,
+                        alkeStyle = alkeStyle,
                     )
                 }
             }
@@ -6836,10 +6896,19 @@ private fun HeartRateTrendCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                HrStatTile(uiString(R.string.today_hr_min), min, Icons.Filled.Favorite, Palette.metricRose, Modifier.weight(1f))
-                HrStatTile(uiString(R.string.today_hr_avg), avg, Icons.Filled.MonitorHeart, Palette.accent, Modifier.weight(1f))
-                HrStatTile(uiString(R.string.today_hr_max), max, Icons.Filled.Timeline, Palette.strain100, Modifier.weight(1f))
-                HrStatTile("Resting", displayMetric?.restingHr, Icons.Filled.Bedtime, Palette.sleepLight, Modifier.weight(1f))
+                if (alkeStyle) {
+                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("MIN", "$min", Color(0xFF26DEEB)) }
+                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("AVG", "$avg", Color(0xFFF5FCFF)) }
+                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("MAX", "$max", Color(0xFFF0BF60)) }
+                    Box(Modifier.weight(1f)) {
+                        AlkeHeartRateStat("REST", displayMetric?.restingHr?.toString() ?: "—", Color(0xFF9BB9C5))
+                    }
+                } else {
+                    HrStatTile(uiString(R.string.today_hr_min), min, Icons.Filled.Favorite, Palette.metricRose, Modifier.weight(1f))
+                    HrStatTile(uiString(R.string.today_hr_avg), avg, Icons.Filled.MonitorHeart, Palette.accent, Modifier.weight(1f))
+                    HrStatTile(uiString(R.string.today_hr_max), max, Icons.Filled.Timeline, Palette.strain100, Modifier.weight(1f))
+                    HrStatTile("Resting", displayMetric?.restingHr, Icons.Filled.Bedtime, Palette.sleepLight, Modifier.weight(1f))
+                }
             }
             // #829 - the pinch/drag affordance + Reset, mirroring the iOS hrZoomHint row: teaches the
             // gesture, and once zoomed shows a Reset link that mirrors the chart's own double-tap reset.
@@ -6851,14 +6920,14 @@ private fun HeartRateTrendCard(
                     if (hrZoom == null) uiString(R.string.timeline_pinch_to_zoom)
                     else uiString(R.string.today_hr_zoomed_hint),
                     style = NoopType.footnote,
-                    color = Palette.textTertiary,
+                    color = if (alkeStyle) Color(0xFF9BB9C5) else Palette.textTertiary,
                     modifier = Modifier.weight(1f),
                 )
                 if (hrZoom != null) {
                     Text(
                         uiString(R.string.l10n_today_screen_reset_44c57abd),
                         style = NoopType.footnote,
-                        color = Palette.accent,
+                        color = if (alkeStyle) Color(0xFF26DEEB) else Palette.accent,
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
                             .clickable(onClickLabel = uiString(R.string.today_action_reset_hr_zoom)) { hrZoom = null }
@@ -6879,15 +6948,16 @@ private fun HrTimeAxisLabels(
     ticks: List<Pair<Long, String>>,
     timestamps: List<Long>,
     showNow: Boolean,
+    alkeStyle: Boolean = false,
 ) {
     Layout(
         modifier = Modifier.fillMaxWidth(),
         content = {
             ticks.forEach { (_, label) ->
-                Text(label, style = NoopType.footnote, color = Palette.textTertiary, maxLines = 1)
+                Text(label, style = NoopType.footnote, color = if (alkeStyle) Color(0xFF9BB9C5) else Palette.textTertiary, maxLines = 1)
             }
             if (showNow) {
-                Text(uiString(R.string.l10n_today_screen_now_e3b82040), style = NoopType.footnote, color = Palette.textTertiary, maxLines = 1)
+                Text(uiString(R.string.l10n_today_screen_now_e3b82040), style = NoopType.footnote, color = if (alkeStyle) Color(0xFF9BB9C5) else Palette.textTertiary, maxLines = 1)
             }
         },
     ) { measurables, constraints ->
@@ -7054,6 +7124,7 @@ private fun OverviewHRChart(
     // The matching labels render OUTSIDE this plot-height composable (HrTimeAxisLabels), sharing
     // the same tick list + timestamp mapping so they align. Empty = no gridlines.
     timeTicks: List<Pair<Long, String>> = emptyList(),
+    alkeStyle: Boolean = false,
 ) {
     // The line itself stays the existing shared component, unchanged, markers are a sibling overlay.
     val bucketTimestamps = remember(buckets) { buckets.map { it.bucket } }
@@ -7169,7 +7240,7 @@ private fun OverviewHRChart(
                     val frac = timestampFraction(bucketTimestamps, ts) ?: return@forEach
                     val x = frac * size.width
                     drawLine(
-                        color = Palette.hairline.copy(alpha = 0.55f),
+                        color = if (alkeStyle) Color(0xFF285064).copy(alpha = 0.7f) else Palette.hairline.copy(alpha = 0.55f),
                         start = Offset(x, 0f),
                         end = Offset(x, size.height),
                         strokeWidth = 1f,
@@ -7194,7 +7265,7 @@ private fun OverviewHRChart(
         LineChart(
             values = displayBpm,
             modifier = Modifier.fillMaxSize(),
-            color = Palette.accent,
+            color = if (alkeStyle) Color(0xFF26DEEB) else Palette.accent,
             fill = true,
             selectionEnabled = true,
             // Scrub read-out: the timestamps prefix the sample's local clock time and the #463
@@ -7231,9 +7302,9 @@ private fun OverviewHRChart(
                     val lastX = size.width
                     val lastY = yForBpm(displayBpm.last())
                     val end = Offset(lastX.coerceIn(0f, size.width), lastY)
-                    drawCircle(color = Palette.accent.copy(alpha = 0.18f), radius = 8f, center = end)
-                    drawCircle(color = Palette.accent.copy(alpha = 0.82f), radius = 4.8f, center = end)
-                    drawCircle(color = Palette.tipCore, radius = 2.0f, center = end)
+                    drawCircle(color = if (alkeStyle) Color(0xFF26DEEB) else Palette.accent.copy(alpha = 0.18f), radius = 8f, center = end)
+                    drawCircle(color = if (alkeStyle) Color(0xFF26DEEB) else Palette.accent.copy(alpha = 0.82f), radius = 4.8f, center = end)
+                    drawCircle(color = if (alkeStyle) Color.White else Palette.tipCore, radius = 2.0f, center = end)
                 }
             }
 

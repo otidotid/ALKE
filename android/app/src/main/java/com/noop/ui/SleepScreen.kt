@@ -1227,7 +1227,7 @@ private fun DeletedSleepWindowsCard(
 // fill is a translucent near-black (mock rgba(13,14,20,.80)) so the card floats OVER the day-of-sky and the
 // vessel + white count-up number stay crisp — the CARD does the contrast work, not a muted sky. Radius 26 +
 // a white@0.11 hairline give the frosted-glass edge. Same constants as the liquid Today heroCard.
-private val LIQUID_HERO_RADIUS: Dp = 26.dp
+private val LIQUID_HERO_RADIUS: Dp = 18.dp
 
 // MARK: - 0. REST HERO — liquid sky + sleep-performance vessel (liquid restyle)
 //
@@ -1250,8 +1250,8 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
                 // the frosted-glass edge of the liquid Today heroCard (fill rgba(13,14,20,.80), stroke
                 // white@0.11). Replaces the per-hero night atmosphere (the sky now lives at screen level).
                 .clip(RoundedCornerShape(LIQUID_HERO_RADIUS))
-                .background(Palette.heroFill.copy(alpha = Palette.heroFill.alpha * CardAppearance.opacity))
-                .border(1.dp, Palette.heroBorder.copy(alpha = Palette.heroBorder.alpha * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS)),
+                .background(Palette.surfaceRaised.copy(alpha = CardAppearance.opacity))
+                .border(1.dp, Palette.hairlineStrong.copy(alpha = CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS)),
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(Metrics.space24),
@@ -1304,24 +1304,42 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
  */
 @Composable
 private fun SleepHeroVessel(fraction: Double, value: Double, tint: Color, diameter: Dp) {
-    Box(modifier = Modifier.size(diameter), contentAlignment = Alignment.Center) {
-        LiquidVessel(
-            value = fraction.coerceIn(0.0, 1.0),
-            tint = tint,
-            animated = true,
-            modifier = Modifier.size(diameter),
+    // A legible, static sleep score: no liquid motion or decorative glow.
+    // The measured value and Rest score calculation are unchanged.
+    val displayedFraction = fraction.coerceIn(0.0, 1.0).toFloat()
+    Column(
+        modifier = Modifier.size(diameter),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = value.roundToInt().toString(),
+            style = NoopType.number(
+                (diameter.value * 0.30f).coerceIn(30f, 58f),
+                weight = FontWeight.Bold,
+            ),
+            color = Palette.textPrimary,
         )
-        // Count-up number over the vessel — white, tabular, a soft shadow for legibility, hit-transparent so
-        // the tap reaches the vessel (splash). Size ≈ diameter × 0.27 (the Today 96→26 ratio), capped.
-        val numberSp = (diameter.value * 0.27f).coerceIn(20f, 52f)
-        CountUpText(
-            value = value,
-            format = { it.roundToInt().toString() },
-            style = NoopType.number(numberSp, weight = FontWeight.Bold)
-                .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
-            color = Color.White,
-            modifier = Modifier.clearAndSetSemantics {},
-        )
+        Text("REST SCORE", style = NoopType.caption, color = Palette.textSecondary)
+        Spacer(modifier = Modifier.height(18.dp))
+        Canvas(modifier = Modifier.width(diameter * 0.72f).height(6.dp)) {
+            val mid = size.height / 2f
+            val strokeWidth = 4.dp.toPx()
+            drawLine(
+                color = Palette.hairlineStrong,
+                start = Offset(0f, mid),
+                end = Offset(size.width, mid),
+                strokeWidth = strokeWidth,
+            )
+            if (displayedFraction > 0f) {
+                drawLine(
+                    color = tint,
+                    start = Offset(0f, mid),
+                    end = Offset(size.width * displayedFraction, mid),
+                    strokeWidth = strokeWidth,
+                )
+            }
+        }
     }
 }
 

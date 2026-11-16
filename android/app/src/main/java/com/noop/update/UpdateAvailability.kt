@@ -19,18 +19,13 @@ package com.noop.update
 object UpdateAvailability {
 
     /**
-     * ALKE defaults this OFF until independent public release discovery is configured.
+     * New ALKE installs disable automatic release discovery until ALKE's release
+     * distribution channel is configured. This avoids querying an unrelated
+     * upstream release feed or making unexpected background requests.
      *
-     * It shipped off first, on the reading that "fully offline, on-device, no telemetry" made an
-     * unasked-for launch request wrong on principle. The counter-argument won: a sideloaded app has no
-     * store to update it, so a user who never finds this setting is a user who silently runs an old
-     * build — which is the whole problem the issue reported. A default nobody discovers is not a
-     * compromise, it is the feature not existing.
-     *
-     * What keeps it honest is what the request IS: one read of a public version number, once a day,
-     * after onboarding. Nothing about the user is sent, nothing is uploaded, and no data leaves the
-     * device — the offline promise is about the user's HEALTH DATA, and that is untouched. Anyone who
-     * disagrees turns it off in Settings, and it then makes no request at all.
+     * Existing installations may explicitly opt into release checks in Settings.
+     * The manual check resolves ALKE's own GitHub Releases endpoint; for a private
+     * GitHub repository an unauthenticated request may return unavailable.
      */
     const val DEFAULT_ENABLED = false
 

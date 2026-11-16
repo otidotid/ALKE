@@ -16,8 +16,8 @@ class BackupSyncTest {
     @Test fun nameRoundTripsToUtcSecond() {
         val ms = 1_782_000_000_000L // whole-second instant (UTC)
         val name = BackupSync.snapshotName(ms)
-        assertTrue(name.startsWith("noop-backup-"))
-        assertTrue(name.endsWith(".noopbak"))
+        assertTrue(name.startsWith("alke-backup-"))
+        assertTrue(name.endsWith(".alkebak"))
         assertEquals(ms, BackupSync.snapshotTimeMs(name)) // second-resolution round-trip
     }
 
@@ -27,6 +27,14 @@ class BackupSyncTest {
         assertFalse(BackupSync.isSnapshot("noop-backup-notadate.noopbak"))
         assertFalse(BackupSync.isSnapshot("noop-backup-20260627-123456.zip"))
         assertNull(BackupSync.snapshotTimeMs("random.txt"))
+    }
+
+    @Test fun legacyNoopbakRemainsRestorableButNeverPruned() {
+        val legacy = "noop-backup-20260627-123456.noopbak"
+        assertTrue(BackupSync.isBackupFile(legacy))
+        assertFalse(BackupSync.isSnapshot(legacy))
+        assertTrue(BackupSync.snapshotTimeMs(legacy) != null)
+        assertFalse(BackupSync.snapshotsToPrune(listOf(legacy), keep = 0).contains(legacy))
     }
 
     @Test fun latestPicksNewest() {

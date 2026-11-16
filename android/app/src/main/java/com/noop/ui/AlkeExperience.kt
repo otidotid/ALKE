@@ -169,9 +169,11 @@ internal fun AlkeGlobalHeader(
             .statusBarsPadding()
             .padding(horizontal = 20.dp, vertical = 10.dp),
     ) {
+        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AlkeHeader(
     vm: AppViewModel,

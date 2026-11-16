@@ -8099,7 +8099,7 @@ private fun greetingWord(): String {
 }
 
 @Composable
-private fun synthesisWord(score: Double?): String {
+internal fun synthesisWord(score: Double?): String {
     if (score == null) return uiString(R.string.today_no_data)
     // #1405: these are CHARGE/recovery-level words, a different axis from the ReadinessEngine training
     // verdict (Run down / Strained / Balanced / Primed). They must NOT share a word, or the Synthesis
@@ -8116,7 +8116,7 @@ private fun synthesisWord(score: Double?): String {
 }
 
 @Composable
-private fun synthesisDetail(d: DailyMetric?): String {
+internal fun synthesisDetail(d: DailyMetric?): String {
     val rec = d?.recovery
         ?: return uiString(R.string.today_synthesis_no_metrics)
     val res = when {

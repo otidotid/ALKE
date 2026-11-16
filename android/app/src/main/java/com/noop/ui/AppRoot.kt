@@ -147,6 +147,7 @@ internal enum class Destination(
     // ALKE's full-detail routes retain advanced analytics and every original capability
     // without overloading the new five-tab experience.
     AlkeDetailedToday("alke_detailed_today", R.string.nav_today, Icons.Filled.Home),
+    AlkeHeartRateTimeline("alke_hr_timeline", R.string.nav_hr_timeline, Icons.Filled.MonitorHeart),
     AlkeRecovery("alke_recovery", R.string.nav_sleep, Icons.Filled.Bedtime),
     AlkeWorkoutHistory("alke_workout_history", R.string.nav_workouts, Icons.Filled.FitnessCenter),
     AlkeTrendHistory("alke_trend_history", R.string.nav_trends, Icons.AutoMirrored.Filled.TrendingUp),
@@ -776,7 +777,15 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onProgress = { nav.navigateTopLevel(Destination.Trends.route) },
                         onCoach = { nav.navigate(Destination.Coach.route) },
                         onMetric = { key -> nav.navigate("vital_detail/$key") },
-                        onHeartRateTimeline = { nav.navigate(Destination.AlkeDetailedToday.route) },
+                        onHeartRateTimeline = { nav.navigate(Destination.AlkeHeartRateTimeline.route) },
+                    )
+                }
+                composable(Destination.AlkeHeartRateTimeline.route) {
+                    AlkeHeartRateTimelineExperience(
+                        vm = viewModel,
+                        onBack = { nav.popBackStack() },
+                        onLive = { nav.navigate(Destination.Live.route) },
+                        onWorkouts = { nav.navigate(Destination.AlkeWorkoutHistory.route) },
                     )
                 }
                 composable(Destination.AlkeDetailedToday.route) {

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -46,6 +47,9 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -427,6 +431,7 @@ fun AlkeTodayExperience(
     onProgress: () -> Unit,
     onCoach: () -> Unit,
     onMetric: (String) -> Unit,
+    onHeartRateTimeline: () -> Unit,
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
@@ -533,6 +538,13 @@ fun AlkeTodayExperience(
         }
         Text("Active Time reflects recorded workouts; unavailable activity is never estimated.",
             color = A.muted, fontSize = 10.sp)
+        // Retain THOOP's complete time-aligned HR chart with its workout icons,
+        // sleep bands and zoom controls. This is a drill-down, not a Strain replacement.
+        AlkeLinkRow(
+            "Heart Rate Timeline",
+            "24-hour HR chart with workout markers and sleep periods",
+            Icons.Filled.MonitorHeart, onHeartRateTimeline, A.cyan,
+        )
         AlkeSectionTitle("My Day")
         AlkePanel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
@@ -812,7 +824,9 @@ fun AlkeMeExperience(
     onSettings: () -> Unit,
     onModules: () -> Unit,
     onSources: () -> Unit,
+    onBackupRestore: () -> Unit,
 ) {
+    var showDockEditor by remember { mutableStateOf(false) }
     AlkePage {
         AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         AlkeHeading("My ALKE", "Make it yours. Keep control of your data.")
@@ -831,6 +845,89 @@ fun AlkeMeExperience(
         AlkeLinkRow("Devices", "Connect and manage wearable sensors", Icons.Filled.Sensors, onDevices)
         AlkeLinkRow("Data sources", "Imports, Health Connect and provenance", Icons.Filled.Storage, onSources)
         AlkeLinkRow("Settings", "Privacy, preferences and appearance", Icons.Filled.Settings, onSettings)
+        AlkeLinkRow("Customize Dock", "Choose and reorder your quick navigation", Icons.Filled.Tune,
+            { showDockEditor = true }, A.cyan)
+        AlkeLinkRow("Backup & Restore", "Import your ALKE or legacy backup", Icons.Filled.Storage,
+            onBackupRestore, A.blue)
         AlkeLinkRow("All modules", "Explore the complete ALKE toolkit", Icons.Filled.Tune, onModules, A.gold)
+    }
+    if (showDockEditor) AlkeDockEditorDialog(onDismiss = { showDockEditor = false })
+}
+
+/** The real ALKE dock editor: same persisted state as GlassBottomBar, in ALKE's own palette. */
+@Composable
+private fun AlkeDockEditorDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val selected = BottomBarModuleStore.selected
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(A.bg)
+                .border(1.dp, A.stroke, RoundedCornerShape(24.dp))
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Customize Dock", color = A.white, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Today and Me stay fixed. Pin up to three modules in any order.",
+                color = A.muted, fontSize = 12.sp,
+            )
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 390.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                selected.forEach { destination ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(destination.icon, contentDescription = null, tint = A.cyan,
+                            modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(9.dp))
+                        Text(stringResource(destination.titleRes), modifier = Modifier.weight(1f),
+                            color = A.white, fontSize = 12.sp, maxLines = 1)
+                        TextButton(onClick = { BottomBarModuleStore.move(context, destination, -1) }) {
+                            Text("↑", color = A.cyan)
+                        }
+                        TextButton(onClick = { BottomBarModuleStore.move(context, destination, 1) }) {
+                            Text("↓", color = A.cyan)
+                        }
+                        TextButton(onClick = { BottomBarModuleStore.setPinned(context, destination, false) }) {
+                            Text("×", color = A.gold)
+                        }
+                    }
+                }
+                Text("AVAILABLE MODULES", color = A.gold, fontSize = 10.sp,
+                    letterSpacing = 1.2.sp, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                configurableBottomBarDestinations.filterNot { it in selected }.forEach { destination ->
+                    val canAdd = selected.size < BottomBarModuleStore.MAX_PINNED
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable(enabled = canAdd) {
+                                BottomBarModuleStore.setPinned(context, destination, true)
+                            }.padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(destination.icon, contentDescription = null, tint = A.muted,
+                            modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(stringResource(destination.titleRes), modifier = Modifier.weight(1f),
+                            color = A.white, fontSize = 13.sp)
+                        Text(if (canAdd) "Add" else "Full",
+                            color = if (canAdd) A.cyan else A.muted, fontSize = 12.sp)
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = { BottomBarModuleStore.reset(context) }) {
+                    Text("Reset", color = A.muted)
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Done", color = A.cyan, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }

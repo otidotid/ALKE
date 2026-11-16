@@ -108,7 +108,7 @@ fun BackupSyncScreen() {
                         // would still ack and trim the strap PAST records we can't store, discarding real history.
                         // Relaunching the process re-opens Room against the restored file. Do it automatically
                         // rather than trust the user to read a toast (which is exactly how #57 happened).
-                        Toast.makeText(context, "Backup restored â€” restarting NOOPâ€¦", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Backup restored — restarting ALKE…", Toast.LENGTH_LONG).show()
                         // NonCancellable: this coroutine runs in the screen's scope, which is cancelled the
                         // instant the user navigates away. The restart is a data-safety guarantee (the DB is
                         // already swapped), so it must complete even if the composition leaves â€” otherwise the
@@ -163,7 +163,7 @@ fun BackupSyncScreen() {
 
     LazyScreenScaffold(
         title = "Backup & History",
-        subtitle = "Choose Google Drive or a local folder. Both create a complete backup of THOOP data and settings.",
+        subtitle = "Choose Google Drive or a local folder. Both create a complete backup of ALKE data and settings.",
     ) {
         item { GoogleAccountCard() }
 

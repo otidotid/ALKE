@@ -34,7 +34,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.otidotid.thoop"
+        applicationId = "com.otidotid.alke"
         minSdk = 26
         targetSdk = 34
         // Preview 8: increment Android build number for a safe in-place update.

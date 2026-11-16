@@ -105,13 +105,9 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Only pre-warm permissions at launch for already-onboarded users. First-run onboarding
-        // requests each permission at the step that explains it, Bluetooth when the Connect step
-        // appears, notifications when it enables the background keep-alive, so the OS prompt never
-        // lands before the screen that justifies it.
-        if (NoopPrefs.of(this).getBoolean(NoopPrefs.KEY_ONBOARDED, false)) {
-            requestBlePermissions()
-        }
+        // ALKE starts in Today without forcing permissions during startup.
+        // Bluetooth is requested only after an explicit device connection action.
+        // Retain the permission helper and the existing BLE/Devices functionality.
 
         // Re-arm the daily debug export (#510) so its schedule self-heals after a reboot or app update
         // (WorkManager is KEEP, so this is a no-op when already scheduled, and cancels itself when the
@@ -1631,44 +1627,29 @@ fun NoopRoot() {
         }
     }
 
-    // Terms acknowledgment gate, over EVERYTHING (before onboarding/pairing/Bluetooth) until the
-    // current terms version is accepted; re-appears if the terms materially change. (clickwrap)
-    var acceptedTerms by remember {
-        mutableStateOf(prefs.getString(NoopPrefs.KEY_ACCEPTED_TERMS_VERSION, "") ?: "")
-    }
-    if (acceptedTerms != Terms.CURRENT_VERSION) {
-        TermsGateScreen(onAccept = {
+    // ALKE first-launch policy: no WHOOP affiliation questionnaire or offline-only
+    // introduction. Show Today immediately. Setup and permission controls remain in
+    // their existing dedicated screens; the legacy screens/classes are left intact
+    // so no underlying device, data or algorithm behavior is deleted.
+    //
+    // We deliberately DO NOT write a Terms acceptance timestamp/version here:
+    // silently recording consent the user did not give would be incorrect.
+    LaunchedEffect(Unit) {
+        if (!onboarded) {
             prefs.edit()
-                .putString(NoopPrefs.KEY_ACCEPTED_TERMS_VERSION, Terms.CURRENT_VERSION)
-                .putString(NoopPrefs.KEY_ACCEPTED_TERMS_AT, java.time.Instant.now().toString())
+                .putBoolean(NoopPrefs.KEY_ONBOARDED, true)
+                .putString(NoopPrefs.KEY_LAST_SEEN_CHANGELOG, AppChangelog.CURRENT_VERSION)
                 .apply()
-            acceptedTerms = Terms.CURRENT_VERSION
-        })
-        return
-    }
-
-    if (!onboarded) {
-        OnboardingScreen(
-            viewModel = appViewModel,
-            onFinished = {
-                // A brand-new user just saw the expectations in onboarding, don't also pop the
-                // changelog at them; mark them current (mirrors macOS ContentView onFinished).
-                prefs.edit()
-                    .putBoolean(NoopPrefs.KEY_ONBOARDED, true)
-                    .putString(NoopPrefs.KEY_LAST_SEEN_CHANGELOG, AppChangelog.CURRENT_VERSION)
-                    .apply()
-                lastSeenChangelog = AppChangelog.CURRENT_VERSION
-                onboarded = true
-            },
-        )
-        return
+            lastSeenChangelog = AppChangelog.CURRENT_VERSION
+            onboarded = true
+        }
     }
 
     // Existing, onboarded user: render the app, and if they've updated since last launch
     // (stored version behind current), show "What's New" once over the top.
     AppRoot(viewModel = appViewModel)
 
-    if (lastSeenChangelog != AppChangelog.CURRENT_VERSION) {
+    if (onboarded && lastSeenChangelog != AppChangelog.CURRENT_VERSION) {
         Dialog(
             onDismissRequest = {
                 prefs.edit()

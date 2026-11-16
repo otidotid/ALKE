@@ -1,7 +1,7 @@
 package com.noop.update
 
 /**
- * When may NOOP look for a newer release on its own, and when is that worth telling the user about?
+ * When may ALKE look for an ALKE release, and when is that worth telling the user about?
  *
  * The manual "Check for updates" button has always been deliberately user-initiated (see [UpdateCheck]).
  * This adds the automatic half, for the reason #1659 asks for it: on iOS there is NO auto-update to fall
@@ -19,7 +19,7 @@ package com.noop.update
 object UpdateAvailability {
 
     /**
-     * ON by default (maintainer's call, #1659).
+     * ALKE defaults this OFF until independent public release discovery is configured.
      *
      * It shipped off first, on the reading that "fully offline, on-device, no telemetry" made an
      * unasked-for launch request wrong on principle. The counter-argument won: a sideloaded app has no
@@ -32,7 +32,7 @@ object UpdateAvailability {
      * device — the offline promise is about the user's HEALTH DATA, and that is untouched. Anyone who
      * disagrees turns it off in Settings, and it then makes no request at all.
      */
-    const val DEFAULT_ENABLED = true
+    const val DEFAULT_ENABLED = false
 
     /** Once a day. The thing being watched moves on the order of days-to-weeks, so anything tighter
      *  spends requests (and a little battery) to learn nothing. */

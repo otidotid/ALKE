@@ -17,6 +17,11 @@ class UpdateAvailabilityTest {
 
     private val day = UpdateAvailability.CHECK_INTERVAL_MS
 
+    @Test
+    fun `new ALKE installation does not poll for updates by default`() {
+        assertFalse(UpdateAvailability.DEFAULT_ENABLED)
+    }
+
     // --- when it may look ---
 
     /** Off by default, and off means SILENT: no request, no line, no trace. */

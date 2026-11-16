@@ -296,7 +296,7 @@ object AppearancePrefs {
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
     /** Live appearance mode read by NoopTheme; defaults to System until [load] runs. */
-    var mode by mutableStateOf(AppearanceMode.SYSTEM)
+    var mode by mutableStateOf(AppearanceMode.DARK)
         private set
 
     /**
@@ -309,7 +309,7 @@ object AppearancePrefs {
         private set
 
     fun load(ctx: Context) {
-        mode = AppearanceMode.fromStorage(prefs(ctx).getString(KEY, AppearanceMode.SYSTEM.storageValue))
+        mode = AppearanceMode.fromStorage(prefs(ctx).getString(KEY, AppearanceMode.DARK.storageValue))
         gaugeNumerals = GaugeNumeralStyle.fromStorage(
             prefs(ctx).getString(GAUGE_KEY, GaugeNumeralStyle.BOLD.storageValue))
     }

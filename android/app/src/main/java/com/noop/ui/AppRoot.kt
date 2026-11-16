@@ -310,7 +310,7 @@ internal val configurableBottomBarDestinations: List<Destination> = listOf(
 internal object BottomBarModuleStore {
     const val KEY = "noop.bottomBarModules"
     const val MAX_PINNED = 3
-    val defaults = listOf(Destination.Workouts, Destination.Trends, Destination.Sleep)
+    val defaults = listOf(Destination.Workouts, Destination.Trends, Destination.Intelligence)
 
     var selected by mutableStateOf(defaults)
         private set
@@ -1396,15 +1396,20 @@ private fun GlassBottomBar(
     onTabSelected: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Approved ALKE information architecture: Today · Train · Progress · Insight · Me.
-    // The Me area links to every retained advanced module and user configuration.
-    val tabs = listOf(
-        Triple(Destination.Today, Icons.Filled.Home, "Today"),
-        Triple(Destination.Workouts, Icons.Filled.FitnessCenter, "Train"),
-        Triple(Destination.Trends, Icons.AutoMirrored.Filled.TrendingUp, "Progress"),
-        Triple(Destination.Intelligence, Icons.Filled.AutoAwesome, "Insight"),
-        Triple(Destination.More, Icons.Filled.AccountCircle, "Me"),
-    )
+    // ALKE: keep proposal's Today · Train · Progress · Insight · Me as the default,
+    // but honour the three user-pinned slots. More always preserves access to every module.
+    // Reading the Compose snapshot here makes a saved edit update the real dock immediately.
+    val tabs = listOf(Triple(Destination.Today, Icons.Filled.Home, "Today")) +
+        BottomBarModuleStore.selected.map { destination ->
+            val label = when (destination) {
+                Destination.Workouts -> "Train"
+                Destination.Trends -> "Progress"
+                Destination.Intelligence -> "Insight"
+                Destination.Live -> "Live HR"
+                else -> stringResource(destination.titleRes)
+            }
+            Triple(destination, destination.icon, label)
+        } + listOf(Triple(Destination.More, Icons.Filled.AccountCircle, "Me"))
     Surface(
         color = Color(0xFF061523),
         tonalElevation = 0.dp,

@@ -36,15 +36,27 @@ class MoreNavigationContractTest {
 
         assertTrue(
             "More destinations must be pushed so Back returns to More",
-            source.contains("MoreScreen(onNavigate = { nav.navigate(it) })"),
+            source.contains("AlkeAllModulesExperience(onNavigate = { nav.navigate(it) })"),
         )
         assertFalse(
             "More destinations must not clear the stack through navigateTopLevel",
-            source.contains("MoreScreen(onNavigate = { nav.navigateTopLevel(it) })"),
+            source.contains("AlkeAllModulesExperience(onNavigate = { nav.navigateTopLevel(it) })"),
         )
         assertTrue(
-            "Every generated More row must keep using the shared navigation callback",
-            source.contains("MoreRow(dest = dest, onClick = { onNavigate(dest.route) })"),
+            "ALKE All Modules must use the push callback from the route",
+            source.contains("AlkeAllModulesExperience(onNavigate = { nav.navigate(it) })"),
+        )
+        val userDir = File(System.getProperty("user.dir") ?: ".")
+        val alkeFile = listOf(
+            File(userDir, "src/main/java/com/noop/ui/AlkeExperience.kt"),
+            File(userDir, "app/src/main/java/com/noop/ui/AlkeExperience.kt"),
+            File(userDir, "android/app/src/main/java/com/noop/ui/AlkeExperience.kt"),
+        ).firstOrNull { it.isFile }
+        assumeTrue("ALKE source not reachable", alkeFile != null)
+        val alkeSource = alkeFile!!.readText().replace(Regex("\\s+"), " ")
+        assertTrue(
+            "Each visible ALKE module must push its original destination route",
+            alkeSource.contains("onClick = { onNavigate(dest.route) }"),
         )
         assertTrue(
             "Bottom-tab selections must retain top-level state save/restore",

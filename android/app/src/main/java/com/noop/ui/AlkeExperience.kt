@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -151,6 +152,26 @@ internal fun AlkePanel(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+/**
+ * One fixed ALKE identity/sync surface for the whole navigation graph.
+ * Parent Scaffold owns its space, so it never scrolls with individual modules.
+ */
+@Composable
+internal fun AlkeGlobalHeader(
+    vm: AppViewModel,
+    onNotifications: () -> Unit,
+    onDevices: () -> Unit,
+    onProfile: () -> Unit,
+    unreadCount: Int,
+) {
+    Box(
+        modifier = Modifier.fillMaxWidth().background(A.top)
+            .statusBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+    ) {
+    }
+}
+
 @Composable
 private fun AlkeHeader(
     vm: AppViewModel,
@@ -476,7 +497,6 @@ fun AlkeTodayExperience(
         }
     }
     AlkePage {
-        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Today", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
             Text(dateText, color = A.muted, fontSize = 13.sp)
@@ -611,8 +631,7 @@ fun AlkeTrainingExperience(
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val strain = day?.strain?.takeIf { it.isFinite() && it >= 0 }
     AlkePage {
-        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
-        AlkeHeading("Training", "Know the effort behind every session.")
+        AlkeHeading("Train", "Know the effort behind every session.")
         AlkePanel(Modifier.fillMaxWidth()) {
             Text("TODAY'S EFFORT", color = A.gold, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -625,8 +644,7 @@ fun AlkeTrainingExperience(
         }
         AlkeSectionTitle("Recent effort", "All workouts", onWorkouts)
         AlkeMiniBars(days.takeLast(7).map { it.day.takeLast(5) to it.strain }, A.gold)
-        AlkeLinkRow("Workouts", "Sessions, activity contributions and training history", Icons.Filled.DirectionsRun, onWorkouts, A.gold)
-        AlkeLinkRow("Live training", "Heart rate, zones and recording tools", Icons.Filled.Favorite, onLive, A.cyan)
+        AlkeLinkRow("Live HR", "Heart rate, zones and recording tools", Icons.Filled.Favorite, onLive, A.cyan)
         AlkeLinkRow("Recovery", "Rest and recovery before your next workout", Icons.Filled.Bedtime, onRecovery, A.blue)
     }
 }
@@ -677,7 +695,6 @@ fun AlkeRecoveryExperience(
         Triple("Light", day?.lightMin, Color(0xFF48B0E4)),
     )
     AlkePage {
-        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         AlkeHeading("Recovery", "Sleep and physiology, viewed together.")
         AlkePanel(Modifier.fillMaxWidth()) {
             Text("LAST RECORDED NIGHT", color = A.cyan, letterSpacing = 2.sp, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
@@ -732,7 +749,6 @@ fun AlkeProgressExperience(
         value = runCatching { vm.repo.latestMetricComputedUnion(vm.activeStrapId, "vo2max_est")?.value }.getOrNull()
     }
     AlkePage {
-        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         AlkeHeading("Progress", "The long view of your performance.")
         AlkePanel(Modifier.fillMaxWidth(), onClick = onVo2) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -758,7 +774,6 @@ fun AlkeProgressExperience(
         AlkeSectionTitle("Recovery trend", "Full trends", onTrends)
         AlkeMiniBars(days.takeLast(7).map { it.day.takeLast(5) to it.recovery }, A.cyan)
         AlkeLinkRow("Vital signs", "HRV, RHR and measured physiology", Icons.Filled.MonitorHeart, onHealth)
-        AlkeLinkRow("All trends", "Full history, charts and comparisons", Icons.Filled.Insights, onTrends)
         if (day == null) Text("Your progress screen will populate as measurements arrive.", color = A.muted, fontSize = 12.sp)
     }
 }
@@ -777,12 +792,9 @@ fun AlkeInsightExperience(
     val day by vm.today.collectAsStateWithLifecycle()
     val recovery = day?.recovery
     AlkePage {
-        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
-        AlkeHeading("ALKE Intelligence", "Your data, made meaningful.")
+        AlkeHeading("Insight", "Your data, made meaningful.")
         AlkePanel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                BrandMark(57.dp)
-                Spacer(Modifier.width(12.dp))
                 Column {
                     Text("THE INTELLIGENCE WITHIN", color = A.gold, letterSpacing = 1.5.sp, fontSize = 9.sp)
                     Text("Your daily perspective", color = A.white, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
@@ -852,9 +864,6 @@ fun AlkeHeartRateTimelineExperience(
                 Text("Back", color = A.cyan, fontSize = 13.sp)
             }
             Spacer(Modifier.weight(1f))
-            BrandMark(28.dp)
-            Text("ALKE", color = A.white, letterSpacing = 2.sp,
-                fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         }
         AlkeHeading(
             "Heart Rate Timeline",
@@ -914,7 +923,7 @@ fun AlkeHeartRateTimelineExperience(
             alkeStyle = true,
         )
         AlkeLinkRow(
-            "Live Heart Rate",
+            "Live HR",
             "Real-time BPM, HR zones and training controls",
             Icons.Filled.Favorite, onLive, A.cyan,
         )
@@ -940,18 +949,7 @@ fun AlkeMeExperience(
 ) {
     var showDockEditor by remember { mutableStateOf(false) }
     AlkePage {
-        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
-        AlkeHeading("My ALKE", "Make it yours. Keep control of your data.")
-        AlkePanel(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-                BrandMark(54.dp)
-                Column {
-                    Text("ALKE", color = A.white, fontWeight = FontWeight.Bold, fontSize = 24.sp, letterSpacing = 4.sp)
-                    Text("Strength × Rest", color = A.gold, fontSize = 12.sp)
-                }
-            }
-            Text("The Intelligence Within", color = A.muted, fontSize = 12.sp)
-        }
+        AlkeHeading("Me", "Your preferences, devices and data, in one place.")
         AlkeSectionTitle("Your experience")
         AlkeLinkRow("My profile", "Personal settings and metrics", Icons.Filled.FavoriteBorder, onProfile)
         AlkeLinkRow("Devices", "Connect and manage wearable sensors", Icons.Filled.Sensors, onDevices)

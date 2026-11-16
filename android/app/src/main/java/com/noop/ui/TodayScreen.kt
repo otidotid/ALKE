@@ -260,7 +260,7 @@ private var todayDidSnapToTodayThisLaunch = false
 // The hero card the score rings float on, ported from the iOS LiquidTodayView. `heroFill` is a
 // translucent near-black (mock rgba(13,14,20,.80)) so it floats over the day-of-sky; the rings + white
 // count-up numbers read crisp on it. Radius 26 + a white@0.11 hairline give the frosted-glass edge.
-private val LIQUID_HERO_RADIUS: Dp = 26.dp
+private val LIQUID_HERO_RADIUS: Dp = 18.dp
 
 // The Vitality ring purple (#9b7bff) — no exact Palette token in this theme, so a fixed brand literal
 // matching the iOS liquid Today's `liquidPurple` (Color(.sRGB, red:0x9b, green:0x7b, blue:0xff)). Used by
@@ -1727,10 +1727,10 @@ fun TodayScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
-                                        Palette.heroFill.copy(alpha = Palette.heroFill.alpha * CardAppearance.opacity),
+                                        Palette.surfaceRaised.copy(alpha = CardAppearance.opacity),
                                         RoundedCornerShape(LIQUID_HERO_RADIUS),
                                     )
-                                    .border(1.dp, Palette.heroBorder.copy(alpha = Palette.heroBorder.alpha * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
+                                    .border(1.dp, Palette.hairlineStrong.copy(alpha = CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
                                     .staggeredAppear(stagger),
                             ) {
                                 ScoreHeroRow(

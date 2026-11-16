@@ -49,6 +49,7 @@ jobs:
           source="$RUNNER_TEMP/thoop-v13.2.0"
           test -f "$source/android/app/build.gradle.kts"
           test -f "$source/LICENSE"
+          test ! -d "$GITHUB_WORKSPACE/android/app/src/main" || { echo "Baseline present; source import skipped"; exit 0; }
           rsync -a --exclude '.gradle/' --exclude 'build/' \
             "$source/android/" "$GITHUB_WORKSPACE/android/"
           rsync -a "$source/cloud-coach/" "$GITHUB_WORKSPACE/cloud-coach/"
@@ -85,8 +86,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Configure Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Check Android SDK installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
+          test -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          ls "${ANDROID_HOME:-/usr/local/lib/android/sdk}/platforms" || true
 
       - name: Build and run baseline tests (synthetic/local data only)
         working-directory: android

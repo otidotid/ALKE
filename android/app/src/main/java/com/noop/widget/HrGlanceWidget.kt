@@ -83,11 +83,11 @@ class HrGlanceWidget : GlanceAppWidget() {
 // Local widget colours, mirroring the siblings rather than reading Palette: Glance composes outside the
 // app theme, so every widget in this package carries its own copy on purpose.
 /** The card colour as a raw Color, so the renderer can paint it as the bitmap's ground. */
-private fun hrSurfaceColor(dark: Boolean) = if (dark) Color(0xFF0A1322) else Color(0xFFF4F1EA)
+private fun hrSurfaceColor(dark: Boolean) = if (dark) Color(0xFF0B1324) else Color(0xFFF3F6FA)
 
 private fun hrSurface(dark: Boolean) = ColorProvider(hrSurfaceColor(dark))
 private fun hrTextPrimary(dark: Boolean) = ColorProvider(if (dark) Color(0xFFF4F6F8) else Color(0xFF1A2230))
-private fun hrTextSecondary(dark: Boolean) = ColorProvider(if (dark) Color(0xFF8A94A4) else Color(0xFF7C8696))
+private fun hrTextSecondary(dark: Boolean) = ColorProvider(if (dark) Color(0xFFA8B3C3) else Color(0xFF657186))
 
 /** Card padding, both sides. The chart and the axis under it must subtract the SAME figure or the
  *  labels drift out of line with the trace they annotate. */

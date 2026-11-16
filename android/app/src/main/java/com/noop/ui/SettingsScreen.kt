@@ -1007,7 +1007,7 @@ fun SettingsScreen(
             collapsible = true,
             icon = Icons.Outlined.AccountCircle,
             title = uiString(R.string.l10n_settings_screen_profile_photo_33f385bb),
-            blurb = "Optional. Add a photo for the avatar in the top-left. Stored only on this phone. NOOP is offline, so it's never uploaded.",
+            blurb = "Optional. Add a photo for the avatar in the top-left. Stored only on this phone. ALKE is offline, so it's never uploaded.",
         ) {
             Row(
                 modifier = Modifier
@@ -1862,7 +1862,7 @@ fun SettingsScreen(
         // --- Background image (#custom-background) ---
         // An optional custom photo drawn full-bleed behind EVERY tab (including More), in place of the
         // day-cycle sky (precedence: image > sky > flat canvas). Pick from Photos or Browse the files; the
-        // image is downscaled + kept on this phone only (NOOP is offline, so it's never uploaded), and left
+        // image is downscaled + kept on this phone only (ALKE is offline, so it's never uploaded), and left
         // out of the .noopbak backup like the avatar. Reads BackgroundImageStore snapshot state, so the
         // controls + the live backdrop update the instant an image is set, removed, or re-scaled.
         SettingsCard(
@@ -2977,7 +2977,7 @@ fun SettingsScreen(
                                     onClick = { vm.ble.enableWhoop5DeepData() },
                                 )
                                 Text(
-                                    if (!live.encryptedBond) "Needs the full encrypted bond: close the official WHOOP app and pair the strap to NOOP first (a live-HR-only link can't carry the unlock)."
+                                    if (!live.encryptedBond) "Needs the full encrypted bond: close the official WHOOP app and pair the strap to ALKE first (a live-HR-only link can't carry the unlock)."
                                     else if (!live.worn) "Put the strap on first. The deep stream is on-wrist only."
                                     else "Wear the strap, tap once, then let it sync and share your strap log.",
                                     style = NoopType.caption,
@@ -3384,7 +3384,7 @@ fun SettingsScreen(
                 SettingsRowDivider()
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_auto_detect_workouts_bed4cf2a),
-                    detail = "After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Turning this off stops future suggestions; workouts already in your history remain. Deliberately conservative, so the odd workout may be missed. On this phone only.",
+                    detail = "After a sync, ALKE looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Turning this off stops future suggestions; workouts already in your history remain. Deliberately conservative, so the odd workout may be missed. On this phone only.",
                     checked = autoDetectWorkouts,
                     onCheckedChange = {
                         autoDetectWorkouts = it
@@ -3426,7 +3426,7 @@ fun SettingsScreen(
                 SettingsRowDivider()
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_stress_check_ins_haptic_bf2746ba),
-                    detail = "Lets NOOP notice a fresh HRV dip while you're still and offer a minute to breathe. \"Stress\" here is an autonomic proxy from your own baseline, never a diagnosis. The strap gives one light confirming buzz; no push notification.",
+                    detail = "Lets ALKE notice a fresh HRV dip while you're still and offer a minute to breathe. \"Stress\" here is an autonomic proxy from your own baseline, never a diagnosis. The strap gives one light confirming buzz; no push notification.",
                     checked = stressCheckIn,
                     onCheckedChange = {
                         stressCheckIn = it
@@ -3510,7 +3510,7 @@ fun SettingsScreen(
             collapsible = true,
             icon = Icons.Filled.Favorite,
             title = uiString(R.string.l10n_settings_screen_charge_d4e1aee4),
-            blurb = "Charge is NOOP's daily readiness score, learned from your own HRV, resting heart rate and more over time. Your history stays.",
+            blurb = "Charge is ALKE's daily readiness score, learned from your own HRV, resting heart rate and more over time. Your history stays.",
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -3672,7 +3672,7 @@ fun SettingsScreen(
                             vm.syncNow()
                             Toast.makeText(
                                 context,
-                                "Charge baseline reset. NOOP will re-learn it from tonight. Your history stays, and it takes a few nights to settle.",
+                                "Charge baseline reset. ALKE will re-learn it from tonight. Your history stays, and it takes a few nights to settle.",
                                 Toast.LENGTH_LONG,
                             ).show()
                         },
@@ -3933,7 +3933,7 @@ fun SettingsScreen(
                         ) {
                             val intent = Intent(Intent.ACTION_SENDTO).apply {
                                 data = Uri.parse("mailto:$SUPPORT_EMAIL")
-                                putExtra(Intent.EXTRA_SUBJECT, "NOOP support")
+                                putExtra(Intent.EXTRA_SUBJECT, "ALKE support")
                             }
                             try {
                                 context.startActivity(intent)

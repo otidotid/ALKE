@@ -7,7 +7,7 @@ import org.junit.Test
 
 class BottomBarModuleStoreTest {
     @Test fun unsetUsesSafeThreeModuleDefault() {
-        assertEquals(listOf(Destination.Workouts, Destination.Trends, Destination.Sleep), BottomBarModuleStore.decode(null))
+        assertEquals(listOf(Destination.Workouts, Destination.Trends, Destination.Intelligence), BottomBarModuleStore.decode(null))
     }
 
     @Test fun routesRoundTripInOrder() {

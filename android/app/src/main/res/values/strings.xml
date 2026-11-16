@@ -2,14 +2,14 @@
 <resources>
     <string name="app_name">ALKE</string>
     <string name="widget_description">Today\'s Rest, Charge and Effort, with live heart rate and strap battery at a glance.</string>
-    <string name="widget_hr_name">NOOP Heart Rate</string>
+    <string name="widget_hr_name">ALKE Heart Rate</string>
     <string name="widget_hr_description">Live heart rate with the last three hours as a trace.</string>
-    <string name="widget_stress_name">NOOP Stress</string>
+    <string name="widget_stress_name">ALKE Stress</string>
     <string name="hosted_card_stress_title">Stress through the day</string>
     <string name="widget_stress_description">Today\'s stress as an hour-by-hour curve.</string>
-    <string name="widget_compact_name">NOOP Compact</string>
+    <string name="widget_compact_name">ALKE Compact</string>
     <string name="widget_compact_description">Compact Rest, Charge and Effort widget, with live heart rate and strap battery.</string>
-    <string name="widget_error">NOOP widget couldn\'t draw — it will recover on the next update.</string>
+    <string name="widget_error">ALKE widget couldn\'t draw — it will recover on the next update.</string>
 
     <!-- Navigation: bottom-bar tabs, the More page rows, and the top-bar screen titles. These are the
          localized display labels for the Destination enum; the underlying route ids stay English and
@@ -21,11 +21,11 @@
     <string name="nav_intervals">Intervals</string>
     <string name="nav_sleep">Sleep</string>
     <string name="sleep_status_calculating_title">Calculating last night’s sleep…</string>
-    <string name="sleep_status_calculating_body">Your strap history is in. NOOP is detecting and staging the night now.</string>
+    <string name="sleep_status_calculating_body">Your strap history is in. ALKE is detecting and staging the night now.</string>
     <string name="sleep_status_sync_failed_title">Last night’s sleep hasn’t synced</string>
     <string name="sleep_status_sync_failed_body">The history sync stopped before it finished. Keep the strap nearby and try Sync again.</string>
     <string name="sleep_status_waiting_title">Waiting for last night’s sleep</string>
-    <string name="sleep_status_waiting_body">Connect the strap and sync its history. NOOP will calculate the night when the overnight data arrives.</string>
+    <string name="sleep_status_waiting_body">Connect the strap and sync its history. ALKE will calculate the night when the overnight data arrives.</string>
     <string name="sleep_status_not_detected_title">Last night’s sleep wasn’t detected</string>
     <string name="sleep_status_not_detected_body">Sync finished, but NOOP couldn’t confidently identify a sleep window. Keep the strap connected and try Sync again; the older night below is still your latest detected sleep.</string>
     <string name="nav_breathe">Breathe</string>

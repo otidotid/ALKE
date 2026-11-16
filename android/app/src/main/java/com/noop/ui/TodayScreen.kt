@@ -6537,8 +6537,8 @@ private suspend fun WhoopRepository.workoutsAllSources(
 @Composable
 private fun HrWindowPills(
     selection: HrWindow,
-    onSelect: (HrWindow) -> Unit,
     alkeStyle: Boolean = false,
+    onSelect: (HrWindow) -> Unit,
 ) {
     if (!alkeStyle) {
         SegmentedPillControl(

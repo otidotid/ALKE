@@ -274,6 +274,24 @@ internal val drawerGroups: List<DrawerGroup> = listOf(
     ), defaultExpanded = false),
 )
 
+/**
+ * Single ALKE label contract shared by the dock, dock editor and All Modules.
+ * Stable route ids and original translated resources never change.
+ */
+internal fun alkeModuleAlias(destination: Destination): String? = when (destination) {
+    Destination.Today -> "Today"
+    Destination.Workouts -> "Train"
+    Destination.Trends -> "Progress"
+    Destination.Intelligence -> "Insight"
+    Destination.Live -> "Live HR"
+    Destination.More -> "Me"
+    else -> null
+}
+
+@Composable
+internal fun alkeModuleLabel(destination: Destination): String =
+    alkeModuleAlias(destination) ?: stringResource(destination.titleRes)
+
 /** Modules that may be pinned between the locked Today and More slots. */
 internal val configurableBottomBarDestinations: List<Destination> = listOf(
     Destination.Coach,
@@ -382,6 +400,21 @@ internal fun visibleMoreGroups(pinned: List<Destination>): List<DrawerGroup> {
     val pinnedSet = pinned.toSet()
     return drawerGroups.map { group -> group.copy(items = group.items.filterNot { it in pinnedSet }) }
         .filter { it.items.isNotEmpty() }
+}
+
+/**
+ * ALKE's All Modules is for discovery, not a second copy of the dock or Me.
+ * Me already has one-tap Settings, Devices, Data sources and Backup & Restore;
+ * preserve their routes and dock-pinning eligibility but avoid duplicate rows.
+ */
+internal fun alkeAllModulesGroups(pinned: List<Destination>): List<DrawerGroup> {
+    val meShortcuts = setOf(
+        Destination.Settings, Destination.Devices,
+        Destination.DataSources, Destination.BackupSync,
+    )
+    return visibleMoreGroups(pinned).map { group ->
+        group.copy(items = group.items.filterNot { it in meShortcuts })
+    }.filter { it.items.isNotEmpty() }
 }
 
 /** The headers open by default at first run, derived from [drawerGroups.defaultExpanded] (Insights +
@@ -706,6 +739,17 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
     Box(Modifier.fillMaxSize().nestedScroll(autoHideScroll)) {
         Scaffold(
             containerColor = Palette.surfaceBase,
+            topBar = {
+                // One fixed identity/sync logo across every ALKE route, including detail modules.
+                // Scaffold reserves header height so scrollable pages cannot paint underneath it.
+                AlkeGlobalHeader(
+                    vm = viewModel,
+                    onNotifications = { showUpdatesInbox = true },
+                    onDevices = { nav.navigate(Destination.Devices.route) },
+                    onProfile = { nav.navigate(Destination.Profile.route) },
+                    unreadCount = updateStore.unreadCount,
+                )
+            },
             bottomBar = {
                 // One unified "glass" bar: four evenly-spaced tabs — Today · Workouts · Trends · Sleep · More
                 // (matches the iOS FloatingTabBar). The quick-action "+" lives in the Today header's
@@ -1026,7 +1070,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                     )
                 }
                 composable(Destination.AlkeAllModules.route) {
-                    MoreScreen(onNavigate = { nav.navigate(it) })
+                    AlkeAllModulesExperience(onNavigate = { nav.navigate(it) })
                 }
             }
         }
@@ -1410,17 +1454,10 @@ private fun GlassBottomBar(
     // ALKE: keep proposal's Today · Train · Progress · Insight · Me as the default,
     // but honour the three user-pinned slots. More always preserves access to every module.
     // Reading the Compose snapshot here makes a saved edit update the real dock immediately.
-    val tabs = listOf(Triple(Destination.Today, Icons.Filled.Home, "Today")) +
+    val tabs = listOf(Triple(Destination.Today, Icons.Filled.Home, alkeModuleLabel(Destination.Today))) +
         BottomBarModuleStore.selected.map { destination ->
-            val label = when (destination) {
-                Destination.Workouts -> "Train"
-                Destination.Trends -> "Progress"
-                Destination.Intelligence -> "Insight"
-                Destination.Live -> "Live HR"
-                else -> stringResource(destination.titleRes)
-            }
-            Triple(destination, destination.icon, label)
-        } + listOf(Triple(Destination.More, Icons.Filled.AccountCircle, "Me"))
+            Triple(destination, destination.icon, alkeModuleLabel(destination))
+        } + listOf(Triple(Destination.More, Icons.Filled.AccountCircle, alkeModuleLabel(Destination.More)))
     Surface(
         color = Color(0xFF061523),
         tonalElevation = 0.dp,

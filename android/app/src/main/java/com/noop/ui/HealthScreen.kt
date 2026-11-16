@@ -875,7 +875,7 @@ private fun VitalityHero(
                     Text(uiString(R.string.l10n_health_screen_out_of_100_da0953a8), style = NoopType.footnote, color = Palette.textTertiary)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Overline("Body Age")
+                    Overline("ALKE Body Age")
                     CountUpText(
                         value = bodyAge,
                         format = { it.roundToInt().toString() },
@@ -910,7 +910,7 @@ private fun VitalityHero(
 // The frosted translucent-black hero-card wrapper (mock rgba(13,14,20,.80), radius 26, white@0.11
 // hairline) that floats the hero over the day-of-sky so the vessel + white count-up stay crisp — the
 // card does the contrast work, not a muted sky. Byte-matched to the Today pilot's LIQUID_HERO_* values.
-private val HEALTH_HERO_RADIUS: Dp = 26.dp
+private val HEALTH_HERO_RADIUS: Dp = 18.dp
 
 /** Wrap a hero's content in the frosted liquid glass surface so it floats over the sky backdrop. Applied
  *  to the HERO cards only (Fitness Age, Vitality), matching the pilot's heroCard: the content sits DIRECTLY
@@ -921,8 +921,8 @@ private fun LiquidHeroCard(content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(HEALTH_HERO_RADIUS))
-            .background(Palette.heroFill.copy(alpha = Palette.heroFill.alpha * CardAppearance.opacity))
-            .border(1.dp, Palette.heroBorder.copy(alpha = Palette.heroBorder.alpha * CardAppearance.opacity), RoundedCornerShape(HEALTH_HERO_RADIUS))
+            .background(Palette.surfaceRaised.copy(alpha = CardAppearance.opacity))
+            .border(1.dp, Palette.hairlineStrong.copy(alpha = CardAppearance.opacity), RoundedCornerShape(HEALTH_HERO_RADIUS))
             .padding(Metrics.cardPadding),
     ) {
         content()
@@ -947,21 +947,33 @@ private fun HealthHeroVessel(
     animated: Boolean = true,
     format: (Double) -> String = { it.roundToInt().toString() },
 ) {
+    // ALKE: calm, static instrument instead of a glossy liquid vessel.
+    // Only display changes: values and calculation inputs are left untouched.
     Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
-        LiquidVessel(
-            value = fraction.coerceIn(0.0, 1.0),
-            tint = tint,
-            animated = animated,
-            modifier = Modifier.size(diameter),
-        )
-        val numberSp = (diameter.value * 0.27f).coerceIn(20f, 30f)
-        CountUpText(
-            value = value,
-            format = format,
-            style = NoopType.number(numberSp, weight = FontWeight.Bold)
-                .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
-            color = Color.White,
-            modifier = Modifier.clearAndSetSemantics {},
+        val clamped = fraction.coerceIn(0.0, 1.0).toFloat()
+        Canvas(modifier = Modifier.matchParentSize().padding(6.dp)) {
+            val strokeWidth = 4.dp.toPx()
+            val radius = (size.minDimension - strokeWidth) / 2f
+            drawCircle(
+                color = Palette.hairlineStrong,
+                radius = radius,
+                style = Stroke(width = strokeWidth),
+            )
+            drawArc(
+                color = tint,
+                startAngle = -90f,
+                sweepAngle = 360f * clamped,
+                useCenter = false,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            )
+        }
+        Text(
+            text = format(value),
+            style = NoopType.number(
+                (diameter.value * 0.27f).coerceIn(20f, 30f),
+                weight = FontWeight.Bold,
+            ),
+            color = Palette.textPrimary,
         )
     }
 }
@@ -1024,36 +1036,8 @@ private fun FitnessAgeHero(
     val vo2Position = vo2max?.let { ((it - 15.0) / 55.0).toFloat().coerceIn(0f, 1f) }
     val rhrPosition = restingHr?.let { (1f - ((it - 40.0) / 40.0).toFloat()).coerceIn(0f, 1f) }
     val effortPosition = weeklyEffort?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) }
-    // Animate the large THOOP Age hero that is actually visible on the Fitness Age surface.
-    // Presentation only: no metric value, engine input, persistence, or weekly calculation changes.
-    val visibleAgeHeroMotion = rememberInfiniteTransition(label = "visible-thoop-age-hero")
-    val visibleAgeHeroScale by visibleAgeHeroMotion.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.025f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4_800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "visible-thoop-age-scale",
-    )
-    val visibleAgeHeroGlow by visibleAgeHeroMotion.animateFloat(
-        initialValue = 0.10f,
-        targetValue = 0.24f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4_800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "visible-thoop-age-glow",
-    )
-    val visibleAgeHeroShift by visibleAgeHeroMotion.animateFloat(
-        initialValue = -0.035f,
-        targetValue = 0.035f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 6_000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "visible-thoop-age-shift",
-    )
+    // ALKE displays weekly Fitness Age without decorative infinite animations.
+    // It remains distinct from the separate Vitality-based Body Age metric.
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         LiquidHeroCard {
@@ -1070,47 +1054,18 @@ private fun FitnessAgeHero(
                     Box(
                         modifier = Modifier
                             .size(142.dp)
-                            .graphicsLayer {
-                                scaleX = visibleAgeHeroScale
-                                scaleY = visibleAgeHeroScale
-                                shadowElevation = 18.dp.toPx() * visibleAgeHeroGlow
-                                shape = RoundedCornerShape(52.dp)
-                                clip = false
-                            }
-                            .clip(RoundedCornerShape(52.dp))
-                            .background(
-                                Brush.radialGradient(
-                                    listOf(
-                                        accent.copy(alpha = 0.08f + visibleAgeHeroGlow * 0.20f),
-                                        accent.copy(alpha = 0.32f + visibleAgeHeroGlow * 0.20f),
-                                        accent.copy(alpha = 0.76f),
-                                    ),
-                                ),
-                            )
-                            .border(2.dp, accent.copy(alpha = 0.82f + visibleAgeHeroGlow * 0.50f), RoundedCornerShape(52.dp)),
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Palette.surfaceInset)
+                            .border(1.dp, Palette.hairlineStrong, RoundedCornerShape(24.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Canvas(Modifier.matchParentSize()) {
-                            val shiftX = size.width * visibleAgeHeroShift
-                            val shiftY = size.height * visibleAgeHeroShift * 0.65f
-                            drawCircle(
-                                accent.copy(alpha = 0.14f + visibleAgeHeroGlow),
-                                radius = size.minDimension * (0.42f + visibleAgeHeroGlow * 0.08f),
-                                center = Offset(size.width * .46f + shiftX, size.height * .47f - shiftY),
-                            )
-                            drawCircle(
-                                Color.White.copy(alpha = 0.05f + visibleAgeHeroGlow * 0.18f),
-                                radius = size.minDimension * (0.25f + visibleAgeHeroGlow * 0.06f),
-                                center = Offset(size.width * .62f - shiftX, size.height * .34f + shiftY),
-                            )
-                        }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 "$boundSymbol$shown",
                                 style = NoopType.number(42f, weight = FontWeight.Bold),
-                                color = Color.White,
+                                color = accent,
                             )
-                            Text("THOOP AGE", style = NoopType.caption, color = Palette.textSecondary)
+                            Text("FITNESS AGE", style = NoopType.caption, color = Palette.textSecondary)
                         }
                     }
                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1119,7 +1074,7 @@ private fun FitnessAgeHero(
                     }
                 }
                 Text(
-                    "Fitness Age is THOOP's on-device weekly estimate. The factors below use the same stored inputs; no scoring formula is changed by this view.",
+                    "Fitness Age is a weekly on-device estimate. Review the recorded factors and their provenance below.",
                     style = NoopType.footnote,
                     color = Palette.textSecondary,
                     textAlign = TextAlign.Center,

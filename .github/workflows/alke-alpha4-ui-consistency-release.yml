@@ -3,7 +3,7 @@ name: ALKE alpha.4 - Global Header & Navigation Release
 on:
   push:
     branches:
-      - alke/alpha4-hr-timeline
+      - alke/alpha4-navigation-global-header
   workflow_dispatch:
 
 permissions:
@@ -134,6 +134,6 @@ jobs:
           EOF
           gh release create "$TAG" release-apk/ALKE-v1.0.0-alpha.4-debug.apk \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "ALKE v1.0.0-alpha.4 — Heart Rate Timeline" \
+            --title "ALKE v1.0.0-alpha.4 — Navigation & Global Header" \
             --notes-file release-notes.md --prerelease
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,isPrerelease,assets

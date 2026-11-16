@@ -163,12 +163,18 @@ private fun AlkeHeader(
         else live.batteryPct?.takeIf { it.isFinite() && it in 0.0..100.0 }?.roundToInt()
     } else null
     var showSyncHub by remember { mutableStateOf(false) }
-    val spin by rememberInfiniteTransition(label = "alke-sync-halo").animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(2100, easing = LinearEasing)),
-        label = "sync-rotation",
-    )
+    // Battery saver, system reduced motion and the in-app quiet-motion option all
+    // keep the logo posed still. Only create a continuous frame loop during a real sync.
+    val poseStill = rememberPoseStill()
+    val spin = if (syncing && !poseStill) {
+        val rotation by rememberInfiniteTransition(label = "alke-sync-halo").animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(2100, easing = LinearEasing)),
+            label = "sync-rotation",
+        )
+        rotation
+    } else 0f
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,

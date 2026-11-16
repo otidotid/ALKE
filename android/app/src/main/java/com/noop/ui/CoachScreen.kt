@@ -121,14 +121,29 @@ fun CoachScreen(vm: CoachViewModel = viewModel(), onOpenSettings: () -> Unit = {
                     modifier = Modifier.weight(1f),
                 )
             } else {
-                NoopCard(padding = 18.dp, tint = Palette.chargeColor) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("THOOP Cloud Coach", style = NoopType.headline, color = Palette.textPrimary)
+                NoopCard(padding = 18.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
-                            "Cloud Coach is not configured in this build.",
-                            style = NoopType.subhead,
-                            color = Palette.statusCritical,
+                            "ALKE Intelligence",
+                            style = NoopType.headline,
+                            color = Palette.textPrimary,
                         )
+                        Text(
+                            "Connect an AI provider to ask questions about your recovery, sleep, activity and trends. " +
+                                "Until then, your on-device metrics remain available throughout ALKE.",
+                            style = NoopType.subhead,
+                            color = Palette.textSecondary,
+                        )
+                        TextButton(onClick = onOpenSettings) {
+                            Icon(
+                                Icons.Filled.Tune,
+                                contentDescription = null,
+                                tint = Palette.accent,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Configure in Settings", color = Palette.accent)
+                        }
                     }
                 }
             }

@@ -552,6 +552,10 @@ fun AlkeTodayExperience(
 @Composable
 fun AlkeTrainingExperience(
     vm: AppViewModel,
+    onNotifications: () -> Unit,
+    onDevices: () -> Unit,
+    onProfile: () -> Unit,
+    unreadCount: Int,
     onWorkouts: () -> Unit,
     onLive: () -> Unit,
     onRecovery: () -> Unit,
@@ -560,7 +564,7 @@ fun AlkeTrainingExperience(
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val strain = day?.strain?.takeIf { it.isFinite() && it >= 0 }
     AlkePage {
-        AlkeHeader("Train")
+        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         AlkeHeading("Training", "Know the effort behind every session.")
         AlkePanel(Modifier.fillMaxWidth()) {
             Text("TODAY'S EFFORT", color = A.gold, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
@@ -611,6 +615,10 @@ private fun AlkeMiniBars(points: List<Pair<String, Double?>>, accent: Color) {
 @Composable
 fun AlkeRecoveryExperience(
     vm: AppViewModel,
+    onNotifications: () -> Unit,
+    onDevices: () -> Unit,
+    onProfile: () -> Unit,
+    unreadCount: Int,
     onFullSleep: () -> Unit,
     onHealth: () -> Unit,
 ) {
@@ -622,7 +630,7 @@ fun AlkeRecoveryExperience(
         Triple("Light", day?.lightMin, Color(0xFF48B0E4)),
     )
     AlkePage {
-        AlkeHeader("Recovery")
+        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         AlkeHeading("Recovery", "Sleep and physiology, viewed together.")
         AlkePanel(Modifier.fillMaxWidth()) {
             Text("LAST RECORDED NIGHT", color = A.cyan, letterSpacing = 2.sp, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
@@ -662,6 +670,10 @@ fun AlkeRecoveryExperience(
 @Composable
 fun AlkeProgressExperience(
     vm: AppViewModel,
+    onNotifications: () -> Unit,
+    onDevices: () -> Unit,
+    onProfile: () -> Unit,
+    unreadCount: Int,
     onHealth: () -> Unit,
     onVo2: () -> Unit,
     onBodyAge: () -> Unit,
@@ -673,7 +685,7 @@ fun AlkeProgressExperience(
         value = runCatching { vm.repo.latestMetricComputedUnion(vm.activeStrapId, "vo2max_est")?.value }.getOrNull()
     }
     AlkePage {
-        AlkeHeader("Progress")
+        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         AlkeHeading("Progress", "The long view of your performance.")
         AlkePanel(Modifier.fillMaxWidth(), onClick = onVo2) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -707,6 +719,10 @@ fun AlkeProgressExperience(
 @Composable
 fun AlkeInsightExperience(
     vm: AppViewModel,
+    onNotifications: () -> Unit,
+    onDevices: () -> Unit,
+    onProfile: () -> Unit,
+    unreadCount: Int,
     onCoach: () -> Unit,
     onIntelligence: () -> Unit,
     onHealth: () -> Unit,
@@ -714,7 +730,7 @@ fun AlkeInsightExperience(
     val day by vm.today.collectAsStateWithLifecycle()
     val recovery = day?.recovery
     AlkePage {
-        AlkeHeader("Insight")
+        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         AlkeHeading("ALKE Intelligence", "Your data, made meaningful.")
         AlkePanel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -756,6 +772,9 @@ fun AlkeInsightExperience(
 
 @Composable
 fun AlkeMeExperience(
+    vm: AppViewModel,
+    onNotifications: () -> Unit,
+    unreadCount: Int,
     onProfile: () -> Unit,
     onDevices: () -> Unit,
     onSettings: () -> Unit,
@@ -763,7 +782,7 @@ fun AlkeMeExperience(
     onSources: () -> Unit,
 ) {
     AlkePage {
-        AlkeHeader("Me")
+        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         AlkeHeading("My ALKE", "Make it yours. Keep control of your data.")
         AlkePanel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {

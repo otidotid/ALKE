@@ -61,6 +61,13 @@ jobs:
           for dir in Strand StrandTests StrandiOS; do
             rsync -a "$RUNNER_TEMP/thoop-v13.2.0/$dir/" "$GITHUB_WORKSPACE/$dir/"
           done
+          # DeviceRawSourceParityTest reads this shared data fixture at runtime.
+          # Keep it ephemeral, byte-identical to frozen THOOP; never add it to ALKE's repo.
+          mkdir -p "$GITHUB_WORKSPACE/Tools/parity_cases"
+          cp "$RUNNER_TEMP/thoop-v13.2.0/Tools/parity_cases/device_raw_sources.json" \
+             "$GITHUB_WORKSPACE/Tools/parity_cases/device_raw_sources.json"
+          cmp "$RUNNER_TEMP/thoop-v13.2.0/Tools/parity_cases/device_raw_sources.json" \
+              "$GITHUB_WORKSPACE/Tools/parity_cases/device_raw_sources.json"
 
       - name: Compile clean-install APK (no personal data)
         working-directory: android

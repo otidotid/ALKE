@@ -944,6 +944,8 @@ fun AlkeHeartRateTimelineExperience(
 fun AlkeAllModulesExperience(onNavigate: (String) -> Unit) {
     var expanded by remember { mutableStateOf(setOf("Insights", "Activity")) }
     val groups = alkeAllModulesGroups(BottomBarModuleStore.selected)
+    val pinnedLabels = mutableListOf<String>()
+    for (destination in BottomBarModuleStore.selected) pinnedLabels += alkeModuleLabel(destination)
     AlkePage {
         AlkeHeading("All modules", "Explore features not already in your dock or Me.")
         AlkePanel(Modifier.fillMaxWidth()) {
@@ -952,7 +954,7 @@ fun AlkeAllModulesExperience(onNavigate: (String) -> Unit) {
             val pinned = BottomBarModuleStore.selected
             Text(
                 if (pinned.isEmpty()) "Your dock has only Today and Me."
-                else pinned.joinToString("  ·  ") { alkeModuleAlias(it) ?: it.route.replace('_', ' ') },
+                else pinnedLabels.joinToString("  ·  "),
                 color = A.white, fontSize = 13.sp,
             )
             Text("Customize your dock in Me. Pinned modules and Me shortcuts are not repeated below.",

@@ -1,0 +1,57 @@
+name: ALKE Android - Clean Install CI
+
+on:
+  push:
+    branches:
+      - alke/stage-02-brand-foundation
+      - alke/stage-03-ui
+      - alke/stage-04-modules
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Checkout ALKE only
+        uses: actions/checkout@v4
+
+      - name: Verify independent package and baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f docs/ALKE_BASELINE.md
+          grep -q 'applicationId = "com.otidotid.alke"' android/app/build.gradle.kts
+          grep -q '<string name="app_name">ALKE</string>' android/app/src/main/res/values/strings.xml
+          echo "ALKE identity and baseline documentation verified."
+
+      - name: Configure JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Check preinstalled Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          test -d "$sdk"
+          echo "Android SDK: $sdk"
+
+      - name: JVM tests and clean-install APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace :app:testFullDebugUnitTest :app:assembleFullDebug
+
+      - name: Upload test-only APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ALKE-clean-install-debug
+          path: android/app/build/outputs/apk/full/debug/*.apk
+          if-no-files-found: error

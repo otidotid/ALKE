@@ -500,7 +500,7 @@ fun AlkeTodayExperience(
                     )
                     Text(
                         if (aiSynthesis != null || brief != null) "ALKE AI Coach · Open conversation"
-                        else "THOOP Synthesis · Explore with ALKE AI Coach",
+                        else "ALKE Synthesis · Explore with AI Coach",
                         color = A.cyan, fontSize = 11.sp,
                     )
                 }

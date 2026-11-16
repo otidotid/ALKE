@@ -38,8 +38,8 @@ android {
         minSdk = 26
         targetSdk = 34
         // ALKE Alpha 1: user-test build; no production signing or data migration changes.
-        versionCode = 563
-        versionName = "1.0.0-alpha.1"
+        versionCode = 564
+        versionName = "1.0.0-alpha.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_COACH_BASE_URL", "\"${cloudCoachBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
@@ -127,7 +127,8 @@ android {
             applicationIdSuffix = ".demo"
             versionNameSuffix = "-demo"
             buildConfigField("String", "TIER", "\"demo\"")
-            buildConfigField("boolean", "ENABLE_DEMO", "false")
+            // Separate app id, synthetic records only. The full flavor never seeds any data.
+            buildConfigField("boolean", "ENABLE_DEMO", "true")
         }
     }
 

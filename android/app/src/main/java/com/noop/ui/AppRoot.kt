@@ -768,12 +768,14 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         vm = viewModel,
                         onNotifications = { showUpdatesInbox = true },
                         onDevices = { nav.navigate(Destination.Devices.route) },
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        unreadCount = updateStore.unreadCount,
                         onSleep = { nav.navigate(Destination.AlkeRecovery.route) },
                         onHealth = { nav.navigate(Destination.Health.route) },
                         onTrain = { nav.navigateTopLevel(Destination.Workouts.route) },
                         onProgress = { nav.navigateTopLevel(Destination.Trends.route) },
-                        onInsight = { nav.navigateTopLevel(Destination.Intelligence.route) },
-                        onDetailedToday = { nav.navigate(Destination.AlkeDetailedToday.route) },
+                        onCoach = { nav.navigate(Destination.Coach.route) },
+                        onMetric = { key -> nav.navigate("vital_detail/$key") },
                     )
                 }
                 composable(Destination.AlkeDetailedToday.route) {
@@ -831,6 +833,10 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.AlkeRecovery.route) {
                     AlkeRecoveryExperience(
                         vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        unreadCount = updateStore.unreadCount,
                         onFullSleep = { nav.navigate(Destination.Sleep.route) },
                         onHealth = { nav.navigate(Destination.Health.route) },
                     )
@@ -874,6 +880,10 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.Workouts.route) {
                     AlkeTrainingExperience(
                         vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        unreadCount = updateStore.unreadCount,
                         onWorkouts = { nav.navigate(Destination.AlkeWorkoutHistory.route) },
                         onLive = { nav.navigate(Destination.Live.route) },
                         onRecovery = { nav.navigate(Destination.AlkeRecovery.route) },
@@ -883,6 +893,10 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.Intelligence.route) {
                     AlkeInsightExperience(
                         vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        unreadCount = updateStore.unreadCount,
                         onCoach = { nav.navigate(Destination.Coach.route) },
                         onIntelligence = { nav.navigate(Destination.AlkeIntelligenceDetails.route) },
                         onHealth = { nav.navigate(Destination.Health.route) },
@@ -900,6 +914,10 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.Trends.route) {
                     AlkeProgressExperience(
                         vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        unreadCount = updateStore.unreadCount,
                         onHealth = { nav.navigate(Destination.Health.route) },
                         onVo2 = { nav.navigate("vital_detail/vo2max_est") },
                         onBodyAge = { nav.navigate("vital_detail/vitality") },
@@ -986,6 +1004,9 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 // Android Back returns to More instead of skipping straight to Today.
                 composable(Destination.More.route) {
                     AlkeMeExperience(
+                        vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        unreadCount = updateStore.unreadCount,
                         onProfile = { nav.navigate(Destination.Profile.route) },
                         onDevices = { nav.navigate(Destination.Devices.route) },
                         onSettings = { nav.navigate(Destination.Settings.route) },

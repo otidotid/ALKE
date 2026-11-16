@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -101,13 +102,22 @@ fun IntelligenceScreen(vm: AppViewModel) {
         ordered.filter { it.day >= cutoff }
     }
 
+    // Keep model methodology accessible without crowding the overview.
+    var showScoringDetails by remember { mutableStateOf(false) }
+
     LazyScreenScaffold(
         title = uiString(R.string.l10n_intelligence_screen_intelligence_c698f940),
-        subtitle = "Charge, effort and rest - scored with the model, explained in plain terms.",
+        subtitle = "Your recovery, activity and sleep — contextualized.",
     ) {
         item { forecast?.let { ForecastCard(it) } }
-        item { ExplainerCard(effortScale) }
-        item { ModelBreakdownCard(effortScale) }
+        item {
+            ExplainerCard(
+                effortScale = effortScale,
+                detailsExpanded = showScoringDetails,
+                onToggleDetails = { showScoringDetails = !showScoringDetails },
+            )
+        }
+        if (showScoringDetails) item { ModelBreakdownCard(effortScale) }
 
         if (ordered.isEmpty()) {
             item {
@@ -238,7 +248,11 @@ private fun sleepHoursLabel(hours: Double): String {
 // MARK: - Explainer (ported from IntelligenceView.explainerCard)
 
 @Composable
-private fun ExplainerCard(effortScale: EffortScale) {
+private fun ExplainerCard(
+    effortScale: EffortScale,
+    detailsExpanded: Boolean,
+    onToggleDetails: () -> Unit,
+) {
     NoopCard(padding = 20.dp, tint = Palette.chargeColor) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
@@ -258,6 +272,15 @@ private fun ExplainerCard(effortScale: EffortScale) {
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
             )
+            TextButton(
+                onClick = onToggleDetails,
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Text(
+                    if (detailsExpanded) "Hide scoring details" else "View scoring details",
+                    color = Palette.accent,
+                )
+            }
         }
     }
 }

@@ -38,8 +38,12 @@ object BackupSync {
     /** The two backup destinations Phase 1 is built to support (Drive lands in a later phase). */
     enum class Destination { FOLDER /* , GOOGLE_DRIVE */ }
 
-    private const val PREFIX = "noop-backup-"
-    private const val SUFFIX = ".noopbak"
+    private const val PREFIX = "alke-backup-"
+    private const val SUFFIX = ".alkebak"
+    // Historical THOOP/NOOP snapshots stay importable, but must never be auto-pruned
+    // as if they were ALKE-created backups.
+    private const val LEGACY_PREFIX = "noop-backup-"
+    private const val LEGACY_SUFFIX = ".noopbak"
 
     /** Generic binary MIME for the SAF createDocument call (the bytes are a ZIP container). */
     const val MIME = "application/octet-stream"
@@ -78,17 +82,24 @@ object BackupSync {
         isLenient = false
     }
 
-    /** Canonical snapshot filename for an instant: `noop-backup-YYYYMMDD-HHMMSS.noopbak` (UTC). */
+    /** Canonical snapshot filename for an instant: `alke-backup-YYYYMMDD-HHmmss.alkebak` (UTC). */
     fun snapshotName(epochMs: Long): String = PREFIX + fmt().format(Date(epochMs)) + SUFFIX
 
     /** The UTC instant (ms) encoded in a snapshot filename, or null if [name] is not one of ours. */
     fun snapshotTimeMs(name: String): Long? {
-        if (!name.startsWith(PREFIX) || !name.endsWith(SUFFIX)) return null
-        val stamp = name.substring(PREFIX.length, name.length - SUFFIX.length)
+        val (prefix, suffix) = when {
+            name.startsWith(PREFIX) && name.endsWith(SUFFIX) -> PREFIX to SUFFIX
+            name.startsWith(LEGACY_PREFIX) && name.endsWith(LEGACY_SUFFIX) ->
+                LEGACY_PREFIX to LEGACY_SUFFIX
+            else -> return null
+        }
+        val stamp = name.substring(prefix.length, name.length - suffix.length)
         return runCatching { fmt().parse(stamp)?.time }.getOrNull()
     }
 
-    fun isSnapshot(name: String): Boolean = snapshotTimeMs(name) != null
+    // Only backups produced by ALKE are eligible for automatic retention pruning.
+    fun isSnapshot(name: String): Boolean =
+        name.startsWith(PREFIX) && name.endsWith(SUFFIX) && snapshotTimeMs(name) != null
 
     /**
      * Any `.noopbak` file, whatever it's named. The RESTORE list uses this (not [isSnapshot]) so a
@@ -96,7 +107,8 @@ object BackupSync {
      * the extension. Prune/latest stay strict on [isSnapshot], so a non-canonical name is listed for
      * restore but never auto-deleted.
      */
-    fun isBackupFile(name: String): Boolean = name.lowercase().endsWith(SUFFIX)
+    fun isBackupFile(name: String): Boolean =
+        name.lowercase().let { it.endsWith(SUFFIX) || it.endsWith(LEGACY_SUFFIX) }
 
     /** Newest snapshot by encoded time among [names] (non-snapshots ignored), or null if none. */
     fun latestSnapshot(names: List<String>): String? =

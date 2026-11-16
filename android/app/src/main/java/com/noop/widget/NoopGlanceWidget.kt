@@ -78,9 +78,9 @@ class NoopGlanceWidget : GlanceAppWidget() {
 
 // Per-scheme widget colours (mirror the app palette; deepened gold/amber/orange on light for contrast
 // on the warm-paper card). The widget is a separate surface, so these are local — not Palette reads.
-private fun widgetSurface(dark: Boolean) = ColorProvider(if (dark) Color(0xFF0A1322) else Color(0xFFF4F1EA))
+private fun widgetSurface(dark: Boolean) = ColorProvider(if (dark) Color(0xFF0B1324) else Color(0xFFF3F6FA))
 private fun widgetTextPrimary(dark: Boolean) = ColorProvider(if (dark) Color(0xFFF4F6F8) else Color(0xFF1A2230))
-private fun widgetTextSecondary(dark: Boolean) = ColorProvider(if (dark) Color(0xFF8A94A4) else Color(0xFF7C8696))
+private fun widgetTextSecondary(dark: Boolean) = ColorProvider(if (dark) Color(0xFFA8B3C3) else Color(0xFF657186))
 
 /** Recovery-band colour, the app-wide 67 / 34 cuts (RecoveryScorer.band); deepened on light. Charge and
  *  Rest both read on the recovery band in the app, so they share this. */
@@ -194,7 +194,7 @@ private fun WidgetContent(snap: WidgetSnapshot, dark: Boolean) {
                         ClockFormat.hourMinutePattern(ClockPrefs.uses24Hour(androidx.glance.LocalContext.current)),
                         java.util.Locale.getDefault(),
                     ).format(Date(snap.updatedAtMs))
-                else -> "Open NOOP to connect"
+                else -> "Open ALKE to connect"
             },
             style = TextStyle(color = textSecondary, fontSize = 11.sp),
         )

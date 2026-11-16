@@ -90,14 +90,21 @@ jobs:
             sha256sum "$apk"
           done
 
-      - name: Upload both review builds to Actions
+      - name: Keep synthetic demo APK as a CI smoke-test artifact only
         uses: actions/upload-artifact@v4
         with:
-          name: ALKE-alpha2-review-apks
-          path: release-apks/*.apk
+          name: ALKE-alpha2-synthetic-smoketest-only
+          path: release-apks/ALKE-v1.0.0-alpha.2-demo-debug.apk
           if-no-files-found: error
 
-      - name: Publish alpha.2 GitHub prerelease with two APK assets
+      - name: Store the normal APK as CI build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha2-full-debug
+          path: release-apks/ALKE-v1.0.0-alpha.2-debug.apk
+          if-no-files-found: error
+
+      - name: Publish alpha.2 GitHub prerelease with normal APK only
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: v1.0.0-alpha.2
@@ -111,7 +118,7 @@ jobs:
           cat > release-notes.md <<'EOF'
           ## ALKE v1.0.0-alpha.2 — Branding, Custom Dock, Heart Rate Timeline
 
-          **Installable debug-signed review builds, not a stable production release.**
+          **Installable debug-signed review build, not a stable production release.**
 
           ### User-facing changes
           - ALKE Option 2 deep navy, cyan and gold experience retained.
@@ -122,9 +129,9 @@ jobs:
           - **Me > Backup & Restore** makes personal backup import easy to locate.
           - New folder snapshots are named **.alkebak**. Historical **.noopbak** backups remain restorable and excluded from ALKE automatic pruning.
 
-          ### Download the version for your review
-          - **ALKE-v1.0.0-alpha.2-debug.apk**: personal-data build; no built-in synthetic health records. Android package `com.otidotid.alke.debug`.
-          - **ALKE-v1.0.0-alpha.2-demo-debug.apk**: separately installed **ALKE Demo**, populated with synthetic sample data (not actual measurements). Android package `com.otidotid.alke.demo.debug`.
+          ### Download the normal ALKE build
+          - **ALKE-v1.0.0-alpha.2-debug.apk**: personal-data review build; no synthetic health records. Android package `com.otidotid.alke.debug`.
+          - ALKE Demo is **not published in GitHub Releases**; it is retained only as a separately named GitHub Actions smoke-test artifact.
 
           ### Important precautions
           - No personal health backups are uploaded to or bundled in GitHub.
@@ -135,7 +142,7 @@ jobs:
 
           Built and unit-tested via GitHub Actions for the exact release commit.
           EOF
-          gh release create "$TAG" release-apks/*.apk \
+          gh release create "$TAG" release-apks/ALKE-v1.0.0-alpha.2-debug.apk \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "ALKE v1.0.0-alpha.2 — UI Review" \
             --notes-file release-notes.md --prerelease

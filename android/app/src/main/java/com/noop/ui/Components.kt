@@ -139,7 +139,7 @@ fun Modifier.frostedCardSurface(
         // off the warm-paper canvas with a soft drop shadow — the hairline alone is too faint on paper.
         .then(
             if (Palette.isLight)
-                Modifier.shadow(elevation = (6f * op).dp, shape = RoundedCornerShape(cornerRadius), clip = false)
+                Modifier.shadow(elevation = (2f * op).dp, shape = RoundedCornerShape(cornerRadius), clip = false)
             else Modifier
         )
         .drawBehind {
@@ -163,8 +163,8 @@ fun Modifier.frostedCardSurface(
                 drawRoundRect(
                     brush = Brush.linearGradient(
                         colorStops = arrayOf(
-                            0.0f to tint.copy(alpha = 0.05f * washStrength * op),
-                            0.5f to tint.copy(alpha = 0.015f * washStrength * op),
+                            0.0f to tint.copy(alpha = 0.025f * washStrength * op),
+                            0.5f to tint.copy(alpha = 0.006f * washStrength * op),
                             1.0f to Color.Transparent,
                         ),
                         start = Offset(0f, 0f),

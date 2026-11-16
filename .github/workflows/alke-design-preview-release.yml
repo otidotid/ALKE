@@ -1,0 +1,95 @@
+name: ALKE 0.4.0 - Publish Design Preview
+
+on:
+  push:
+    branches:
+      - alke/stage-04-modules
+    paths:
+      - .github/workflows/alke-design-preview-release.yml
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Verify successful tested ALKE build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: "43858404761"
+          SOURCE_SHA: "b14ee33d20b67a26de4b3018b1408ce57bc8ec3a"
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" --jq '.head_sha')"
+          actual_state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" --jq '.conclusion')"
+          test "$actual_sha" = "$SOURCE_SHA"
+          test "$actual_state" = success
+          echo "Verified ALKE 0.4.0 preview APK built and tested from $SOURCE_SHA"
+
+      - name: Download exact APK built by successful CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-apk
+          gh run download 43858404761 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name ALKE-clean-install-debug \
+            --dir release-apk
+          find release-apk -maxdepth 2 -type f -print
+          mapfile -t apks < <(find release-apk -type f -name '*.apk')
+          test "${#apks[@]}" -eq 1
+          mv "${apks[0]}" ALKE-v0.4.0-design-preview.apk
+          test "$(stat -c '%s' ALKE-v0.4.0-design-preview.apk)" -gt 1000000
+          unzip -t ALKE-v0.4.0-design-preview.apk | tail -1
+          sha256sum ALKE-v0.4.0-design-preview.apk
+
+      - name: Publish versioned GitHub pre-release with APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: "v0.4.0-design-preview"
+          SOURCE_SHA: "b14ee33d20b67a26de4b3018b1408ce57bc8ec3a"
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'EOF'
+          ## ALKE 0.4.0 — 50% Design Preview
+
+          **Android installable review build — not the final production release.**
+
+          ### What's new
+          - App launcher name corrected to **ALKE**, replacing the THOOP debug override.
+          - Premium deep navy, cyan and gold design language.
+          - Redesigned **Today** with prominent Readiness gauge, HRV, resting HR, Sleep and Recovery tiles, and a daily insight card.
+          - New five-tab navigation: **Today · Train · Progress · Insight · Me**.
+          - Dedicated Training, Recovery, Progress and Intelligence preview screens.
+          - Existing detailed analytics and device functions remain available through the new UI.
+
+          ### Build verification
+          - Source commit: `b14ee33d20b67a26de4b3018b1408ce57bc8ec3a`.
+          - GitHub Actions build: https://github.com/otidotid/ALKE/actions/runs/43858404761
+          - Android debug package: `com.otidotid.alke.debug` (version `0.4.0-debug`)
+          - APK compilation and JVM unit/parity tests: **passed**.
+
+          ### Install / upgrade notice
+          This APK is signed with an ephemeral CI debug certificate. If a previous ALKE debug APK uses a different signature, uninstall `com.otidotid.alke.debug` before installing this version. **Uninstalling deletes that test app's local data.** Do not remove any other app.
+
+          This preview is for on-device design review. It is not a production release.
+          EOF
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; updating its APK asset without moving the version tag."
+            gh release upload "$TAG" ALKE-v0.4.0-design-preview.apk --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" ALKE-v0.4.0-design-preview.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$SOURCE_SHA" \
+              --title "ALKE v0.4.0 — Design Preview (50%)" \
+              --notes-file release-notes.md \
+              --prerelease
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,isPrerelease,assets

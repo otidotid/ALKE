@@ -144,6 +144,14 @@ internal enum class Destination(
 ) {
     // Group: Today
     Today("today", R.string.nav_today, Icons.Filled.Home),
+    // ALKE's full-detail routes retain advanced analytics and every original capability
+    // without overloading the new five-tab experience.
+    AlkeDetailedToday("alke_detailed_today", R.string.nav_today, Icons.Filled.Home),
+    AlkeRecovery("alke_recovery", R.string.nav_sleep, Icons.Filled.Bedtime),
+    AlkeWorkoutHistory("alke_workout_history", R.string.nav_workouts, Icons.Filled.FitnessCenter),
+    AlkeTrendHistory("alke_trend_history", R.string.nav_trends, Icons.AutoMirrored.Filled.TrendingUp),
+    AlkeIntelligenceDetails("alke_intelligence_details", R.string.nav_intelligence, Icons.Filled.Psychology),
+    AlkeAllModules("alke_all_modules", R.string.nav_more, Icons.Filled.MoreHoriz),
     Intelligence("intelligence", R.string.nav_intelligence, Icons.Filled.Psychology),
     // Optional, default-OFF (task #43): the Coupled view (WHOOP-style day read). Reached ONLY via the
     // Today dashboard "Coupled view" card tap-through, so it is deliberately NOT in any [DrawerGroup].
@@ -754,7 +762,21 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 popExitTransition = { fadeOut(navFadeSpec) },
             ) {
                 // --- Live, working screens (existing waves) ---
+                // ALKE's native home is the approved readiness-led design, not the inherited dashboard.
                 composable(Destination.Today.route) {
+                    AlkeTodayExperience(
+                        vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onSleep = { nav.navigate(Destination.AlkeRecovery.route) },
+                        onHealth = { nav.navigate(Destination.Health.route) },
+                        onTrain = { nav.navigateTopLevel(Destination.Workouts.route) },
+                        onProgress = { nav.navigateTopLevel(Destination.Trends.route) },
+                        onInsight = { nav.navigateTopLevel(Destination.Intelligence.route) },
+                        onDetailedToday = { nav.navigate(Destination.AlkeDetailedToday.route) },
+                    )
+                }
+                composable(Destination.AlkeDetailedToday.route) {
                     TodayScreen(
                         viewModel = viewModel,
                         // The quick-action "+" lives in the Today header's top-right now (off the
@@ -806,6 +828,13 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onManageDevices = { nav.navigateTopLevel(Destination.Devices.route) },
                     )
                 }
+                composable(Destination.AlkeRecovery.route) {
+                    AlkeRecoveryExperience(
+                        vm = viewModel,
+                        onFullSleep = { nav.navigate(Destination.Sleep.route) },
+                        onHealth = { nav.navigate(Destination.Health.route) },
+                    )
+                }
                 composable(Destination.Sleep.route) {
                     SleepScreen(
                         vm = viewModel,
@@ -842,8 +871,24 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.Explore.route) { TrendsExploreScreen(viewModel) }
                 composable(Destination.Automations.route) { AutomationsScreen(viewModel) }
                 composable(Destination.SmartAlarm.route) { SmartAlarmScreen(viewModel) }
-                composable(Destination.Workouts.route) { WorkoutsScreen(viewModel) }
-                composable(Destination.Intelligence.route) { IntelligenceScreen(viewModel) }
+                composable(Destination.Workouts.route) {
+                    AlkeTrainingExperience(
+                        vm = viewModel,
+                        onWorkouts = { nav.navigate(Destination.AlkeWorkoutHistory.route) },
+                        onLive = { nav.navigate(Destination.Live.route) },
+                        onRecovery = { nav.navigate(Destination.AlkeRecovery.route) },
+                    )
+                }
+                composable(Destination.AlkeWorkoutHistory.route) { WorkoutsScreen(viewModel) }
+                composable(Destination.Intelligence.route) {
+                    AlkeInsightExperience(
+                        vm = viewModel,
+                        onCoach = { nav.navigate(Destination.Coach.route) },
+                        onIntelligence = { nav.navigate(Destination.AlkeIntelligenceDetails.route) },
+                        onHealth = { nav.navigate(Destination.Health.route) },
+                    )
+                }
+                composable(Destination.AlkeIntelligenceDetails.route) { IntelligenceScreen(viewModel) }
 
                 // --- Placeholder routes (later waves fill these in) ---
                 composable(Destination.Stress.route) {
@@ -852,7 +897,16 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onBreathe = { nav.navigateTopLevel(Destination.Breathe.route) },
                     )
                 }
-                composable(Destination.Trends.route) { TrendsScreen(viewModel) }
+                composable(Destination.Trends.route) {
+                    AlkeProgressExperience(
+                        vm = viewModel,
+                        onHealth = { nav.navigate(Destination.Health.route) },
+                        onVo2 = { nav.navigate("vital_detail/vo2max_est") },
+                        onBodyAge = { nav.navigate("vital_detail/vitality") },
+                        onTrends = { nav.navigate(Destination.AlkeTrendHistory.route) },
+                    )
+                }
+                composable(Destination.AlkeTrendHistory.route) { TrendsScreen(viewModel) }
                 composable(Destination.Insights.route) { InsightsScreen(viewModel, onOpenInsightsHub = { nav.navigateTopLevel(Destination.InsightsHub.route) }) }
                 composable(Destination.Compare.route) { CompareScreen(viewModel) }
                 composable(Destination.Health.route) {
@@ -931,6 +985,15 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 // full grouped destination list (was a pull-up sheet). A row pushes its destination so
                 // Android Back returns to More instead of skipping straight to Today.
                 composable(Destination.More.route) {
+                    AlkeMeExperience(
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onSettings = { nav.navigate(Destination.Settings.route) },
+                        onModules = { nav.navigate(Destination.AlkeAllModules.route) },
+                        onSources = { nav.navigate(Destination.DataSources.route) },
+                    )
+                }
+                composable(Destination.AlkeAllModules.route) {
                     MoreScreen(onNavigate = { nav.navigate(it) })
                 }
             }
@@ -1312,39 +1375,37 @@ private fun GlassBottomBar(
     onTabSelected: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val visibleTabs = barTabsFor()
+    // Approved ALKE information architecture: Today · Train · Progress · Insight · Me.
+    // The Me area links to every retained advanced module and user configuration.
+    val tabs = listOf(
+        Triple(Destination.Today, Icons.Filled.Home, "Today"),
+        Triple(Destination.Workouts, Icons.Filled.FitnessCenter, "Train"),
+        Triple(Destination.Trends, Icons.AutoMirrored.Filled.TrendingUp, "Progress"),
+        Triple(Destination.Intelligence, Icons.Filled.AutoAwesome, "Insight"),
+        Triple(Destination.More, Icons.Filled.AccountCircle, "Me"),
+    )
     Surface(
-        color = Palette.surfaceBase,
+        color = Color(0xFF061523),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            HorizontalDivider(color = Palette.hairline.copy(alpha = 0.45f))
+            HorizontalDivider(color = Color(0xFF214052).copy(alpha = 0.8f))
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .height(64.dp)
-                    .padding(horizontal = 4.dp, vertical = 5.dp),
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding()
+                    .height(65.dp).padding(horizontal = 2.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                visibleTabs.forEach { tab ->
+                tabs.forEach { (dest, icon, label) ->
                     BarSlot(
-                        icon = tab.icon,
-                        label = stringResource(tab.labelRes),
-                        active = current == tab.dest,
+                        icon = icon,
+                        label = label,
+                        active = current == dest,
                         modifier = Modifier.weight(1f),
-                        onClick = { onTabSelected(tab.dest) },
+                        onClick = { onTabSelected(dest) },
                     )
                 }
-                BarSlot(
-                    icon = Icons.Filled.MoreHoriz,
-                    label = stringResource(R.string.nav_more),
-                    active = visibleTabs.none { it.dest == current },
-                    modifier = Modifier.weight(1f),
-                    onClick = { onTabSelected(Destination.More) },
-                )
             }
         }
     }
@@ -1359,7 +1420,7 @@ private fun BarSlot(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val tint = if (active) Palette.accent else Palette.textSecondary
+    val tint = if (active) Color(0xFF26DEEB) else Color(0xFF8BA9B8)
     Column(
         modifier = modifier
             .clickable(

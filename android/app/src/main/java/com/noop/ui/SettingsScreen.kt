@@ -895,7 +895,7 @@ fun SettingsScreen(
             when (result) {
                 is DataBackup.ImportResult.NeedsRestart -> Toast.makeText(
                     context,
-                    "Backup imported. Fully close and reopen NOOP for it to take effect.",
+                    "Backup imported. Fully close and reopen ALKE for it to take effect.",
                     Toast.LENGTH_LONG,
                 ).show()
 
@@ -950,7 +950,7 @@ fun SettingsScreen(
 
     ScreenScaffold(
         title = uiString(R.string.l10n_settings_screen_settings_c7f73bb5),
-        subtitle = "Your numbers, your strap, and how NOOP works. All on this phone.",
+        subtitle = "Your metrics, your device, and the insights behind them.",
         // LIQUID SKY BACKDROP (the pilot pattern â€” LiquidScreenSky.kt): the static time-of-day sky settles
         // into the theme canvas behind the top of the list, exactly like the liquid Today. This is a long,
         // scroll-heavy list with NO hero gauge, so the liquid finish here is just the sky + liquidPress on
@@ -1847,7 +1847,7 @@ fun SettingsScreen(
             collapsible = true,
             icon = Icons.Filled.ViewAgenda,
             title = uiString(R.string.l10n_settings_screen_ai_coach_130c3eab),
-            blurb = "Enable THOOP AI Coach and its scheduled brief.",
+            blurb = "Enable ALKE AI Intelligence and its scheduled brief.",
         ) {
             SettingsFormRow(label = uiString(R.string.l10n_settings_screen_ai_coach_130c3eab)) {
                 Switch(
@@ -1974,7 +1974,7 @@ fun SettingsScreen(
             collapsible = true,
             icon = Icons.Filled.Palette,
             title = uiString(R.string.l10n_settings_screen_app_icon_abde7a74),
-            blurb = "Choose how NOOP looks on your home screen. The launcher may take a moment to refresh the icon after you change it.",
+            blurb = "Choose how ALKE looks on your home screen. The launcher may take a moment to refresh the icon.",
         ) {
             SettingsFormRow(label = uiString(R.string.l10n_settings_screen_icon_716f63b9)) {
                 SegmentedPillControl(
@@ -1994,7 +1994,7 @@ fun SettingsScreen(
             collapsible = true,
             icon = Icons.Filled.Sensors,
             title = uiString(R.string.l10n_settings_screen_strap_02b88eeb),
-            blurb = "NOOP pairs directly with your WHOOP over Bluetooth: no WHOOP app, no cloud.",
+            blurb = "ALKE connects directly to your compatible wearable over Bluetooth.",
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(
@@ -3083,7 +3083,7 @@ fun SettingsScreen(
                     collapsible = true,
                     icon = Icons.Filled.Science,
                     title = uiString(R.string.l10n_settings_screen_diagnostics_3af2279f),
-                    blurb = "A read-only export of the decoded sensor streams NOOP already stores. Works on any strap. Nothing is written to your device, and nothing is uploaded.",
+                    blurb = "A read-only export of locally stored decoded sensor streams. No wearable configuration changes or uploads.",
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         // --- Sleep staging (V2) â€” the DEFAULT engine after the 44-subject benchmark; toggle off to
@@ -3561,7 +3561,7 @@ fun SettingsScreen(
                             when (again) {
                                 is DataBackup.ImportResult.NeedsRestart -> Toast.makeText(
                                     context,
-                                    "Backup imported. Fully close and reopen NOOP for it to take effect.",
+                                    "Backup imported. Fully close and reopen ALKE for it to take effect.",
                                     Toast.LENGTH_LONG,
                                 ).show()
                                 // Same reason as the first attempt: these carry a next step, and a Toast
@@ -3714,7 +3714,7 @@ fun SettingsScreen(
             collapsible = true,
             icon = Icons.Filled.Info,
             title = uiString(R.string.l10n_settings_screen_about_6b21fb79),
-            blurb = "THOOP: your personalized health data",
+            blurb = "ALKE · The Intelligence Within.",
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 NoopCard {
@@ -3726,7 +3726,7 @@ fun SettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Data sources & provenance", style = NoopType.headline, color = Palette.textPrimary)
                         Text("Current day: ${latest?.day ?: "No daily row"}", style = NoopType.footnote, color = Palette.textSecondary)
-                        Text("Oxygen: ${if (latest?.spo2Pct != null) "THOOP computed / calibrated" else "No data"}", style = NoopType.footnote, color = Palette.textSecondary)
+                        Text("Oxygen: ${if (latest?.spo2Pct != null) "ALKE computed / calibrated" else "No data"}", style = NoopType.footnote, color = Palette.textSecondary)
                         Text("Skin temperature: ${if (latest?.skinTempC != null) "${if (skinEstimated) "â‰™ " else ""}${latest.skinTempC} Â°C Â· ${skinSource ?: "resolved winner"}" else "No data"}", style = NoopType.footnote, color = Palette.textSecondary)
                         Text(
                             "Imported measurements remain authoritative.",
@@ -3734,12 +3734,12 @@ fun SettingsScreen(
                             color = Palette.textTertiary,
                         )
                         Text(
-                            "THOOP only fills compatible missing values.",
+                            "ALKE only fills compatible missing values.",
                             style = NoopType.caption,
                             color = Palette.textTertiary,
                         )
                         Text(
-                            "Copyright source code by NOOP.",
+                            "Based on NOOP. Original copyright and licensing preserved.",
                             style = NoopType.caption,
                             color = Palette.textTertiary,
                         )
@@ -3810,7 +3810,7 @@ fun SettingsScreen(
                         .padding(horizontal = 14.dp, vertical = 12.dp)
                         .semantics {
                             contentDescription =
-                                "How THOOP works"
+                                "How ALKE works"
                         },
                 ) {
                     Row(
@@ -3826,7 +3826,7 @@ fun SettingsScreen(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "How THOOP works",
+                                "How ALKE works",
                                 style = NoopType.headline,
                                 color = Palette.textPrimary
                             )

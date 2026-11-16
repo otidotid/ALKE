@@ -73,6 +73,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.data.DailyMetric
+import com.noop.analytics.RestScorer
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.Instant
 import java.time.ZoneId
@@ -433,6 +435,19 @@ fun AlkeTodayExperience(
     val brief = CoachBriefSettings.from(context).let { settings ->
         settings.storedBrief?.takeIf { settings.lastRunDayKey == LocalDate.now().toString() && it.isNotBlank() }
     }
+    // Reuse the original Synthesis interpretation, not a second recovery-threshold algorithm.
+    val offlineSynthesis = synthesisDetail(day)
+    val rest = day?.let { RestScorer.restFromDaily(it) }
+    val aiSynthesis by produceState<String?>(initialValue = null,
+        key1 = listOf(day?.day, recovery, day?.strain, rest)) {
+        value = null
+        if (day != null) {
+            delay(1_500)
+            value = runCatching {
+                AlkeSynthesisAi.generate(context, vm, day.day, recovery, day.strain, rest)
+            }.getOrNull()
+        }
+    }
     AlkePage {
         AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -477,13 +492,14 @@ fun AlkeTodayExperience(
                     Text("TODAY'S FOCUS", color = A.gold, fontSize = 10.sp, letterSpacing = 1.4.sp,
                         fontWeight = FontWeight.SemiBold)
                     Text(
-                        brief?.lineSequence()?.firstOrNull { it.isNotBlank() }?.take(260)
-                            ?: readinessText(recovery),
+                        aiSynthesis?.take(280)
+                            ?: brief?.lineSequence()?.firstOrNull { it.isNotBlank() }?.take(260)
+                            ?: offlineSynthesis,
                         color = A.white, fontSize = 13.sp, lineHeight = 19.sp,
                     )
                     Text(
-                        if (brief == null) "Synthesis guidance · Explore with ALKE AI Coach"
-                        else "Your AI Coach daily brief · Open conversation",
+                        if (aiSynthesis != null || brief != null) "ALKE AI Coach · Open conversation"
+                        else "THOOP Synthesis · Explore with ALKE AI Coach",
                         color = A.cyan, fontSize = 11.sp,
                     )
                 }

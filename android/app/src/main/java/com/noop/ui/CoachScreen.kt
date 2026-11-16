@@ -385,7 +385,7 @@ private fun CoachChat(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
-                Text("THOOP Coach", style = NoopType.subhead, color = Palette.textPrimary)
+                Text("ALKE Coach", style = NoopType.subhead, color = Palette.textPrimary)
                 Text("Online", style = NoopType.caption, color = Palette.textTertiary)
             }
                 if (messages.isNotEmpty()) {
@@ -454,7 +454,7 @@ private fun CoachChat(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("THOOP Coach", style = NoopType.subhead, color = Palette.textPrimary)
+                        Text("ALKE Coach", style = NoopType.subhead, color = Palette.textPrimary)
                         Text(
                             uiString(R.string.l10n_coach_screen_ask_anything_about_your_recent_recovery_e6c287ca),
                             style = NoopType.body,
@@ -976,7 +976,7 @@ private fun MicComposerRow(
             modifier = Modifier.weight(1f),
             placeholder = {
                 Text(
-                    if (isRecording) stringResource(R.string.coach_listening) else "Message THOOP Coach",
+                    if (isRecording) stringResource(R.string.coach_listening) else "Message ALKE Coach",
                     style = NoopType.body,
                     color = Palette.textTertiary,
                 )
@@ -1162,7 +1162,7 @@ private fun CloudPrivacyNote() {
     ) {
         Icon(Icons.Filled.Lock, contentDescription = null, tint = Palette.textTertiary, modifier = Modifier.size(13.dp))
         Text(
-            "Questions and a compact THOOP metrics summary are sent to THOOP Cloud Coach. " +
+            "Questions and a compact ALKE metrics summary are sent to the configured Cloud Coach. " +
                 "Conversation summaries and durable preferences are stored in Cloud Memory.",
             style = NoopType.footnote,
             color = Palette.textTertiary,

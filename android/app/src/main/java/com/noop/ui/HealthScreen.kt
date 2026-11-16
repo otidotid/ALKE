@@ -1126,7 +1126,7 @@ private fun FitnessAgeHero(
         NoopCard {
             Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Metrics.space16)) {
-                    FitnessAgeLegendDot(accent, "THOOP Fitness Age")
+                    FitnessAgeLegendDot(accent, "ALKE Fitness Age")
                     FitnessAgeLegendDot(Palette.textPrimary, "Chronological Age")
                 }
                 FitnessAgeTrendChart(
@@ -3019,7 +3019,7 @@ private fun FitnessAgeDetailExperience(
                                 color = Color.White,
                             )
                             androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
-                            Text("THOOP AGE", style = NoopType.caption, color = Color.White.copy(alpha = .78f))
+                            Text("FITNESS AGE", style = NoopType.caption, color = Color.White.copy(alpha = .78f))
                         }
                     }
                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -3116,8 +3116,8 @@ private fun FitnessAgeDetailExperience(
                         marker = if (aiMetabolic) null else (impact / 4.0).toFloat().coerceIn(0f, 1f),
                         left = if (aiMetabolic) "Younger" else "Neutral",
                         right = if (aiMetabolic) "Older" else "Higher impact",
-                        source = if (aiMetabolic) "AI · Experimental" else "THOOP Age",
-                        method = if (aiMetabolic) "Metabolic age delta · 20% blend in THOOP Age"
+                        source = if (aiMetabolic) "AI · Experimental" else "ALKE Fitness Age",
+                        method = if (aiMetabolic) "Metabolic age delta · 20% blend in Fitness Age"
                             else "Local metabolic age delta · 20% blend",
                     )
                 }
@@ -3128,7 +3128,7 @@ private fun FitnessAgeDetailExperience(
         NoopCard {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    FitnessAgeDetailLegend(accent, "THOOP Fitness Age")
+                    FitnessAgeDetailLegend(accent, "ALKE Fitness Age")
                     FitnessAgeDetailLegend(Palette.textPrimary, "Chronological Age")
                 }
                 FitnessAgeDetailTrend(

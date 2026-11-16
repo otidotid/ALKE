@@ -3519,15 +3519,15 @@ private fun SynthesisHeroCard(
 
     val fallbackInsight = when {
         recoveryCalibration != null ->
-            "THOOP is still learning your baseline. Keep wearing the strap consistently so the next insight can use a stable Charge, Effort, and Rest profile."
+            "ALKE is still learning your baseline. Keep wearing the strap consistently so the next insight can use a stable Charge, Effort, and Rest profile."
 
         triggerCharge == null &&
             triggerEffort == null &&
             triggerRest == null ->
-            "There is not enough current data for a reliable insight yet. THOOP will update this card when Charge, Effort, or Rest changes."
+            "There is not enough current data for a reliable insight yet. ALKE will update this card when Charge, Effort, or Rest changes."
 
         else ->
-            "Your latest Charge, Effort, and Rest are ready. THOOP will refresh this insight whenever any one of those values changes."
+            "Your latest Charge, Effort, and Rest are ready. ALKE will refresh this insight whenever any one of those values changes."
     }
 
     val insight = remember(aiInsight, fallbackInsight) {

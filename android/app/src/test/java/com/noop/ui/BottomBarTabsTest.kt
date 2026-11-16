@@ -13,7 +13,7 @@ class BottomBarTabsTest {
                 Destination.Today,
                 Destination.Workouts,
                 Destination.Trends,
-                Destination.Sleep,
+                Destination.Intelligence,
             ),
             tabs.map { it.dest },
         )

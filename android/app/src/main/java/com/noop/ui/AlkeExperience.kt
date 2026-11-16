@@ -441,10 +441,11 @@ fun AlkeTodayExperience(
     val aiSynthesis by produceState<String?>(initialValue = null,
         key1 = listOf(day?.day, recovery, day?.strain, rest)) {
         value = null
-        if (day != null) {
+        val metric = day
+        if (metric != null) {
             delay(1_500)
             value = runCatching {
-                AlkeSynthesisAi.generate(context, vm, day.day, recovery, day.strain, rest)
+                AlkeSynthesisAi.generate(context, vm, metric.day, recovery, metric.strain, rest)
             }.getOrNull()
         }
     }

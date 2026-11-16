@@ -63,11 +63,11 @@ class NoopCompactGlanceWidget : GlanceAppWidget() {
 }
 
 private fun compactWidgetSurface(dark: Boolean) =
-    ColorProvider(if (dark) Color(0xFF0A1322) else Color(0xFFF4F1EA))
+    ColorProvider(if (dark) Color(0xFF0B1324) else Color(0xFFF3F6FA))
 private fun compactWidgetTextPrimary(dark: Boolean) =
     ColorProvider(if (dark) Color(0xFFF4F6F8) else Color(0xFF1A2230))
 private fun compactWidgetTextSecondary(dark: Boolean) =
-    ColorProvider(if (dark) Color(0xFF8A94A4) else Color(0xFF7C8696))
+    ColorProvider(if (dark) Color(0xFFA8B3C3) else Color(0xFF657186))
 
 private fun compactBandColor(recovery: Int, dark: Boolean): ColorProvider = ColorProvider(
     when {
@@ -163,7 +163,7 @@ private fun CompactWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
                         ClockFormat.hourMinutePattern(ClockPrefs.uses24Hour(androidx.glance.LocalContext.current)),
                         java.util.Locale.getDefault(),
                     ).format(Date(snap.updatedAtMs))
-                else -> "Open NOOP to connect"
+                else -> "Open ALKE to connect"
             },
             style = TextStyle(color = textSecondary, fontSize = 11.sp),
         )

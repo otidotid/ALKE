@@ -8,6 +8,10 @@ on:
       - alke/stage-04-modules
   workflow_dispatch:
 
+concurrency:
+  group: alke-android-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -42,16 +46,36 @@ jobs:
           test -d "$sdk"
           echo "Android SDK: $sdk"
 
-      - name: JVM tests and clean-install APK
+      - name: Restore read-only cross-platform test references
+        shell: bash
+        env:
+          SOURCE_SHA: de24b55946de9d904f002441e0d24923ef91f2c6
+        run: |
+          set -euo pipefail
+          # Existing Android parity tests read Swift source and shared oracle fixtures.
+          # Restore them ONLY in the ephemeral CI workspace, never commit or modify THOOP.
+          git clone --depth=1 --branch v13.2.0 --single-branch \
+            https://github.com/otidotid/thoop.git "$RUNNER_TEMP/thoop-v13.2.0"
+          actual="$(git -C "$RUNNER_TEMP/thoop-v13.2.0" rev-parse HEAD)"
+          test "$actual" = "$SOURCE_SHA"
+          for dir in Strand StrandTests StrandiOS; do
+            rsync -a "$RUNNER_TEMP/thoop-v13.2.0/$dir/" "$GITHUB_WORKSPACE/$dir/"
+          done
+
+      - name: Compile clean-install APK (no personal data)
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace :app:testFullDebugUnitTest :app:assembleFullDebug
+          ./gradlew --no-daemon --stacktrace :app:assembleFullDebug
 
-      - name: Upload test-only APK
+      - name: Upload test-only APK (build success)
         uses: actions/upload-artifact@v4
-        if: success()
         with:
           name: ALKE-clean-install-debug
           path: android/app/build/outputs/apk/full/debug/*.apk
           if-no-files-found: error
+
+      - name: JVM parity and unit tests
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon --stacktrace :app:testFullDebugUnitTest

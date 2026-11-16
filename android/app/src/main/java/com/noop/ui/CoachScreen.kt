@@ -386,7 +386,7 @@ private fun CoachChat(
                 verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 Text("ALKE Coach", style = NoopType.subhead, color = Palette.textPrimary)
-                Text("Online", style = NoopType.caption, color = Palette.textTertiary)
+                Text("AI provider configured", style = NoopType.caption, color = Palette.textTertiary)
             }
                 if (messages.isNotEmpty()) {
                     val clearInteraction = remember { MutableInteractionSource() }

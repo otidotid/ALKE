@@ -10,6 +10,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -237,21 +238,30 @@ fun DataPendingNote(title: String, body: String, modifier: Modifier = Modifier) 
 // signal — chunks pulled so far — never a percent (total pending is unknowable from the protocol,
 // so a determinate bar would lie).
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun SyncingHistoryNote(chunks: Int, modifier: Modifier = Modifier) {
+    // ALKE keeps technical transfer counters in diagnostics, not in the main UI.
+    // Never show a percentage: remaining strap pages cannot be known reliably.
+    val reducedMotion = rememberReduceMotion()
+    val transition = rememberInfiniteTransition(label = "alke-sync")
+    val rotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = if (reducedMotion) 0f else 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1100, easing = LinearEasing),
+        ),
+        label = "alke-sync-rotation",
+    )
     Row(
-        modifier = modifier,
+        modifier = modifier.semantics { contentDescription = "Syncing history" },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        StatePill("Syncing strap history…", tone = StrandTone.Accent, pulsing = true)
-        if (chunks > 0) {
-            Text(
-                uiString(R.string.l10n_components_chunks_chunks_pulled_cec186cf, chunks),
-                style = NoopType.footnote,
-                color = Palette.textSecondary,
-            )
+        Box(modifier = Modifier.graphicsLayer { rotationZ = rotation }) {
+            BrandMark(size = 20.dp)
         }
+        Text("Syncing…", style = NoopType.subhead, color = Palette.textSecondary)
     }
 }
 

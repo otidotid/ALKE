@@ -776,6 +776,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onProgress = { nav.navigateTopLevel(Destination.Trends.route) },
                         onCoach = { nav.navigate(Destination.Coach.route) },
                         onMetric = { key -> nav.navigate("vital_detail/$key") },
+                        onHeartRateTimeline = { nav.navigate(Destination.AlkeDetailedToday.route) },
                     )
                 }
                 composable(Destination.AlkeDetailedToday.route) {
@@ -1012,6 +1013,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onSettings = { nav.navigate(Destination.Settings.route) },
                         onModules = { nav.navigate(Destination.AlkeAllModules.route) },
                         onSources = { nav.navigate(Destination.DataSources.route) },
+                        onBackupRestore = { nav.navigate(Destination.BackupSync.route) },
                     )
                 }
                 composable(Destination.AlkeAllModules.route) {

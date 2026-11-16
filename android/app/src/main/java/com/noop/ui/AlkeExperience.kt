@@ -19,8 +19,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.ChevronRight
@@ -35,14 +43,22 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -58,6 +74,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.data.DailyMetric
 import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -122,32 +140,133 @@ private fun AlkePanel(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AlkeHeader(label: String, onNotification: (() -> Unit)? = null) {
+private fun AlkeHeader(
+    vm: AppViewModel,
+    onNotifications: () -> Unit,
+    onDevices: () -> Unit,
+    onProfile: () -> Unit,
+    unreadCount: Int = 0,
+) {
+    val live by vm.live.collectAsStateWithLifecycle()
+    val activeIsWhoop by vm.activeIsWhoop.collectAsStateWithLifecycle()
+    val ringBattery by vm.ouraBatteryPct.collectAsStateWithLifecycle()
+    val activeName by vm.activeDeviceName.collectAsStateWithLifecycle()
+    val syncing = live.backfilling || live.analyzingHistory
+    val hasSyncError = !syncing && !live.lastSyncError.isNullOrBlank()
+    val battery = if (live.connected) {
+        LiveConsoleReadout.batteryPercent(activeIsWhoop, live.batteryPct, ringBattery)
+            ?.takeIf { it in 0..100 }
+    } else null
+    var showSyncHub by remember { mutableStateOf(false) }
+    val spin by rememberInfiniteTransition(label = "alke-sync-halo").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(2100, easing = LinearEasing)),
+        label = "sync-rotation",
+    )
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            BrandMark(43.dp)
+        Row(
+            modifier = Modifier.clip(RoundedCornerShape(15.dp)).clickable { showSyncHub = true }
+                .padding(end = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(49.dp), contentAlignment = Alignment.Center) {
+                if (syncing) {
+                    Box(
+                        Modifier.size(48.dp).graphicsLayer { rotationZ = spin }
+                            .border(2.dp, Brush.sweepGradient(listOf(A.cyan, A.gold, A.cyan)), CircleShape),
+                    )
+                }
+                BrandMark(40.dp)
+                if (hasSyncError || unreadCount > 0) {
+                    Box(
+                        Modifier.align(Alignment.TopEnd).size(9.dp).clip(CircleShape)
+                            .background(if (hasSyncError) A.gold else A.cyan),
+                    )
+                }
+            }
             Spacer(Modifier.width(5.dp))
             Column {
                 Text("ALKE", color = A.white, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
                 Text("THE INTELLIGENCE WITHIN", color = A.muted, fontSize = 7.sp, letterSpacing = 1.5.sp)
             }
         }
-        if (onNotification != null) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(
+                modifier = Modifier.clip(RoundedCornerShape(15.dp))
+                    .clickable(onClick = onDevices).padding(horizontal = 3.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    if (live.charging == true) Icons.Filled.BatteryChargingFull else Icons.Filled.BatteryFull,
+                    contentDescription = "Wearable battery and connection",
+                    tint = if (battery != null && battery <= 20) A.gold else A.cyan,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    battery?.let { "$it%" } ?: "—",
+                    color = if (battery == null) A.muted else A.white,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                )
+            }
             Box(
-                modifier = Modifier.size(42.dp).clip(CircleShape)
-                    .background(A.card).border(1.dp, A.stroke, CircleShape)
-                    .clickable(onClick = onNotification),
+                Modifier.size(40.dp).clip(CircleShape).background(A.card)
+                    .border(1.dp, A.stroke, CircleShape).clickable(onClick = onProfile),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.NotificationsNone, contentDescription = "Notifications", tint = A.white)
+                Icon(Icons.Filled.AccountCircle, contentDescription = "My profile", tint = A.white)
             }
-        } else {
-            Text(label.uppercase(), color = A.gold, fontSize = 10.sp, letterSpacing = 2.sp)
+        }
+    }
+    if (showSyncHub) {
+        ModalBottomSheet(
+            onDismissRequest = { showSyncHub = false },
+            containerColor = A.card,
+            contentColor = A.white,
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text("Sync & notifications", color = A.white, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    when {
+                        live.analyzingHistory -> "Updating your health metrics"
+                        live.backfilling -> "Syncing wearable history"
+                        hasSyncError -> "Sync needs attention"
+                        live.connected -> "Wearable connected"
+                        else -> "Wearable disconnected"
+                    },
+                    color = if (hasSyncError) A.gold else A.cyan,
+                    fontSize = 14.sp,
+                )
+                if (hasSyncError) Text(live.lastSyncError.orEmpty(), color = A.muted, fontSize = 12.sp)
+                live.lastSyncAt?.let { timestamp ->
+                    val time = Instant.ofEpochSecond(timestamp).atZone(ZoneId.systemDefault())
+                        .format(DateTimeFormatter.ofPattern("d MMM, HH:mm", Locale.getDefault()))
+                    Text("Last completed history sync: $time", color = A.muted, fontSize = 12.sp)
+                }
+                if (!activeName.isNullOrBlank()) {
+                    Text(activeName.orEmpty(), color = A.muted, fontSize = 12.sp)
+                }
+                if (live.connected && !syncing) {
+                    TextButton(onClick = { vm.syncNow(); showSyncHub = false }) {
+                        Text("Sync now", color = A.cyan)
+                    }
+                }
+                AlkeLinkRow("Notifications", "Recent updates and alerts", Icons.Filled.NotificationsNone,
+                    onClick = { showSyncHub = false; onNotifications() })
+                AlkeLinkRow("Device & connection", "Pair, reconnect and manage your wearable", Icons.Filled.Sensors,
+                    onClick = { showSyncHub = false; onDevices() })
+            }
         }
     }
 }
@@ -291,24 +410,37 @@ fun AlkeTodayExperience(
     vm: AppViewModel,
     onNotifications: () -> Unit,
     onDevices: () -> Unit,
+    onProfile: () -> Unit,
+    unreadCount: Int = 0,
     onSleep: () -> Unit,
     onHealth: () -> Unit,
     onTrain: () -> Unit,
     onProgress: () -> Unit,
-    onInsight: () -> Unit,
-    onDetailedToday: () -> Unit,
+    onCoach: () -> Unit,
+    onMetric: (String) -> Unit,
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val recovery = day?.recovery?.takeIf { it.isFinite() && it in 0.0..100.0 }
     val dateText = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault()))
+    val workouts by vm.workouts.collectAsStateWithLifecycle()
+    LaunchedEffect(vm) { vm.loadWorkouts() }
+    val todayWorkouts = workouts.filter {
+        Instant.ofEpochSecond(it.startTs).atZone(ZoneId.systemDefault()).toLocalDate() == LocalDate.now()
+    }
+    val workoutMinutes = todayWorkouts.takeIf { it.isNotEmpty() }
+        ?.sumOf { ((it.durationS ?: (it.endTs - it.startTs).toDouble()).coerceAtLeast(0.0)) / 60.0 }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val brief = CoachBriefSettings.from(context).let { settings ->
+        settings.storedBrief?.takeIf { settings.lastRunDayKey == LocalDate.now().toString() && it.isNotBlank() }
+    }
     AlkePage {
-        AlkeHeader("Today", onNotification = onNotifications)
+        AlkeHeader(vm, onNotifications, onDevices, onProfile, unreadCount)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Today", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
             Text(dateText, color = A.muted, fontSize = 13.sp)
             Text("Your performance and recovery, in balance.", color = A.muted, fontSize = 12.sp)
         }
-        AlkePanel(Modifier.fillMaxWidth()) {
+        AlkePanel(Modifier.fillMaxWidth(), onClick = { onMetric("recovery") }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("DAILY READINESS", color = A.cyan, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 2.sp)
                 Spacer(Modifier.weight(1f))
@@ -330,46 +462,90 @@ fun AlkeTodayExperience(
             )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AlkeMetricTile("HRV", niceOne(day?.avgHrv, " ms"), Icons.Filled.FavoriteBorder, Modifier.weight(1f), A.cyan, onHealth)
-            AlkeMetricTile("RHR", day?.restingHr?.let { "$it bpm" } ?: "—", Icons.Filled.Favorite, Modifier.weight(1f), A.gold, onHealth)
+            AlkeMetricTile("HRV", niceOne(day?.avgHrv, " ms"), Icons.Filled.FavoriteBorder, Modifier.weight(1f), A.cyan, { onMetric("hrv") })
+            AlkeMetricTile("RHR", day?.restingHr?.let { "$it bpm" } ?: "—", Icons.Filled.Favorite, Modifier.weight(1f), A.gold, { onMetric("rhr") })
             AlkeMetricTile("Sleep", niceMinutes(day?.totalSleepMin), Icons.Filled.Bedtime, Modifier.weight(1f), A.blue, onSleep)
-            AlkeMetricTile("Recovery", recovery?.let { "${it.roundToInt()}%" } ?: "—", Icons.Filled.MonitorHeart, Modifier.weight(1f), A.green, onHealth)
+            AlkeMetricTile("Recovery", recovery?.let { "${it.roundToInt()}%" } ?: "—", Icons.Filled.MonitorHeart, Modifier.weight(1f), A.green, { onMetric("recovery") })
         }
-        AlkePanel(Modifier.fillMaxWidth(), onClick = onInsight) {
+        AlkePanel(Modifier.fillMaxWidth(), onClick = onCoach) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.size(44.dp).clip(CircleShape).background(A.gold.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(44.dp).clip(CircleShape).background(A.gold.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center) {
                     Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = A.gold)
                 }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("TODAY'S FOCUS", color = A.gold, fontSize = 10.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.SemiBold)
-                    Text(readinessText(recovery), color = A.white, fontSize = 13.sp, lineHeight = 19.sp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("TODAY'S FOCUS", color = A.gold, fontSize = 10.sp, letterSpacing = 1.4.sp,
+                        fontWeight = FontWeight.SemiBold)
+                    Text(
+                        brief?.lineSequence()?.firstOrNull { it.isNotBlank() }?.take(260)
+                            ?: readinessText(recovery),
+                        color = A.white, fontSize = 13.sp, lineHeight = 19.sp,
+                    )
+                    Text(
+                        if (brief == null) "Synthesis guidance · Explore with ALKE AI Coach"
+                        else "Your AI Coach daily brief · Open conversation",
+                        color = A.cyan, fontSize = 11.sp,
+                    )
                 }
                 Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
             }
         }
-        AlkeSectionTitle("Explore your day")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            AlkePanel(Modifier.weight(1f), onClick = onTrain) {
+        AlkeSectionTitle("Today's Activity", "Train", onTrain)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AlkeMetricTile("Day Strain", niceOne(day?.strain), Icons.Filled.DirectionsRun,
+                Modifier.weight(1f), A.gold, { onMetric("strain") })
+            AlkeMetricTile("Steps", day?.steps?.let { "%,d".format(Locale.US, it) } ?: "—",
+                Icons.Filled.ShowChart, Modifier.weight(1f), A.cyan, { onMetric("steps_est") })
+            AlkeMetricTile("Active Time", workoutMinutes?.let { niceMinutes(it) } ?: "—",
+                Icons.Filled.MonitorHeart, Modifier.weight(1f), A.blue, onTrain)
+        }
+        Text("Active Time reflects recorded workouts; unavailable activity is never estimated.",
+            color = A.muted, fontSize = 10.sp)
+        AlkeSectionTitle("My Day")
+        AlkePanel(Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Bedtime, contentDescription = null, tint = A.blue)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Sleep & overnight recovery", color = A.white, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (day?.totalSleepMin != null) "${niceMinutes(day?.totalSleepMin)} of recorded sleep"
+                        else "Awaiting a recorded night",
+                        color = A.muted, fontSize = 11.sp,
+                    )
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan,
+                    modifier = Modifier.clickable(onClick = onSleep))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp)).clickable(onClick = onTrain).padding(vertical = 8.dp)) {
                 Icon(Icons.Filled.DirectionsRun, contentDescription = null, tint = A.gold)
-                Text("Train", color = A.white, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text("Effort & activities", color = A.muted, fontSize = 11.sp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Training & activities", color = A.white, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (todayWorkouts.isEmpty()) "No recorded workouts to display"
+                        else "${todayWorkouts.size} recorded session(s) · ${niceMinutes(workoutMinutes)}",
+                        color = A.muted, fontSize = 11.sp,
+                    )
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
             }
-            AlkePanel(Modifier.weight(1f), onClick = onProgress) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp)).clickable(onClick = onProgress).padding(vertical = 8.dp)) {
                 Icon(Icons.Filled.ShowChart, contentDescription = null, tint = A.cyan)
-                Text("Progress", color = A.white, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text("Long-term trends", color = A.muted, fontSize = 11.sp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Today's progress", color = A.white, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        recovery?.let { "Recovery ${it.roundToInt()}% · Review your trends" }
+                            ?: "Your health trends will appear as data arrives",
+                        color = A.muted, fontSize = 11.sp,
+                    )
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
             }
         }
-        if (day == null) {
-            AlkeLinkRow(
-                "Connect your wearable", "Get started with recorded data, never sample scores",
-                Icons.Filled.Sensors, onDevices,
-            )
-        }
-        AlkeLinkRow(
-            "Detailed metrics", "All original analyses, charts and data sources",
-            Icons.Filled.Tune, onDetailedToday, A.muted,
-        )
     }
 }
 

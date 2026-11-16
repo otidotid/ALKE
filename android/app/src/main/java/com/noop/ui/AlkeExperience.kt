@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.data.DailyMetric
 import com.noop.analytics.RestScorer
+import com.noop.analytics.ReadinessEngine
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.Instant
@@ -422,6 +423,17 @@ fun AlkeTodayExperience(
     onMetric: (String) -> Unit,
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
+    val recentDays by vm.recentDays.collectAsStateWithLifecycle()
+    val readinessLevel = remember(recentDays, day?.day) {
+        ReadinessEngine.evaluate(recentDays, today = day?.day).level
+    }
+    val readinessLabel = when (readinessLevel) {
+        ReadinessEngine.Level.PRIMED -> "Primed"
+        ReadinessEngine.Level.BALANCED -> "Balanced"
+        ReadinessEngine.Level.STRAINED -> "Strained"
+        ReadinessEngine.Level.RUNDOWN -> "Run down"
+        ReadinessEngine.Level.INSUFFICIENT -> "Building baseline"
+    }
     val recovery = day?.recovery?.takeIf { it.isFinite() && it in 0.0..100.0 }
     val dateText = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault()))
     val workouts by vm.workouts.collectAsStateWithLifecycle()
@@ -458,19 +470,16 @@ fun AlkeTodayExperience(
         }
         AlkePanel(Modifier.fillMaxWidth(), onClick = { onMetric("recovery") }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("DAILY READINESS", color = A.cyan, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 2.sp)
+                Text("BODY READINESS", color = A.cyan, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 2.sp)
                 Spacer(Modifier.weight(1f))
-                AlkePill(if (recovery == null) "Building baseline" else "Recovery-based", A.gold)
+                AlkePill(readinessLabel, A.gold)
             }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                AlkeGauge(label = "Readiness", value = recovery, fraction = ((recovery ?: 0.0) / 100.0).toFloat(), suffix = "%")
+                AlkeGauge(label = "Recovery", value = recovery, fraction = ((recovery ?: 0.0) / 100.0).toFloat(), suffix = "%")
             }
             Text(
-                if (recovery == null) "No readiness score yet" else when {
-                    recovery >= 75 -> "High recovery"
-                    recovery >= 40 -> "Moderate recovery"
-                    else -> "Low recovery"
-                },
+                if (recovery == null) "No recovery score yet" else
+                    "Readiness: $readinessLabel · Recovery ${recovery.roundToInt()}%",
                 color = if (recovery == null) A.muted else A.green,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),

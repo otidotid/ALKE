@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -58,6 +59,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -129,7 +132,7 @@ private fun AlkePage(
 }
 
 @Composable
-private fun AlkePanel(
+internal fun AlkePanel(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
@@ -811,6 +814,115 @@ fun AlkeInsightExperience(
         AlkeLinkRow("Intelligence details", "How Charge, Effort and Rest are calculated", Icons.Filled.Insights, onIntelligence)
         AlkeLinkRow("Ask ALKE Coach", "Optional AI assistant with your configured provider", Icons.Filled.AutoAwesome, onCoach, A.gold)
         AlkeLinkRow("Explore evidence", "Read the underlying health metrics", Icons.Filled.MonitorHeart, onHealth)
+    }
+}
+
+
+/**
+ * ALKE-exclusive Heart Rate Timeline route.
+ *
+ * Only the chart data/query and timeline gestures are reused from the frozen
+ * implementation. The host is a native ALKE screen, not a redirect to legacy Today.
+ * No copy of HR records, workout data, scoring algorithm, or database table is created.
+ */
+@Composable
+fun AlkeHeartRateTimelineExperience(
+    vm: AppViewModel,
+    onBack: () -> Unit,
+    onLive: () -> Unit,
+    onWorkouts: () -> Unit,
+) {
+    val todayMetric by vm.today.collectAsStateWithLifecycle()
+    val recentDays by vm.recentDays.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var daysBack by rememberSaveable { mutableIntStateOf(0) }
+    val currentDay = logicalDayNow()
+    val selectedDay = currentDay.minusDays(daysBack.toLong())
+    val metric = if (daysBack == 0) todayMetric
+        else recentDays.lastOrNull { it.day == selectedDay.toString() }
+
+    AlkePage {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            TextButton(onClick = onBack) {
+                Icon(Icons.Filled.ChevronLeft, contentDescription = null, tint = A.cyan)
+                Text("Back", color = A.cyan, fontSize = 13.sp)
+            }
+            Spacer(Modifier.weight(1f))
+            BrandMark(28.dp)
+            Text("ALKE", color = A.white, letterSpacing = 2.sp,
+                fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        }
+        AlkeHeading(
+            "Heart Rate Timeline",
+            "Your daily heart-rate story, with sleep and workouts in context.",
+        )
+        AlkePanel(Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(Icons.Filled.MonitorHeart, contentDescription = null, tint = A.cyan)
+                Text("HEART RATE & ACTIVITY", color = A.cyan, fontSize = 11.sp,
+                    letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(
+                "Follow your heart-rate curve throughout the day. Workout markers stay aligned to the time of each recorded session.",
+                color = A.muted, fontSize = 13.sp, lineHeight = 19.sp,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(A.cyan))
+                Text("Heart rate", color = A.white, fontSize = 11.sp)
+                Box(Modifier.size(8.dp).clip(CircleShape).background(A.gold))
+                Text("Workout", color = A.white, fontSize = 11.sp)
+                Box(Modifier.size(8.dp).clip(CircleShape).background(A.blue))
+                Text("Sleep", color = A.white, fontSize = 11.sp)
+            }
+        }
+        AlkePanel(Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { daysBack = (daysBack + 1).coerceAtMost(30) },
+                    enabled = daysBack < 30) {
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous day",
+                        tint = if (daysBack < 30) A.cyan else A.muted)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        if (daysBack == 0) "TODAY" else if (daysBack == 1) "YESTERDAY" else "HISTORY",
+                        color = A.gold, fontSize = 10.sp, letterSpacing = 1.3.sp,
+                    )
+                    Text(selectedDay.format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy", Locale.getDefault())),
+                        color = A.white, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                }
+                TextButton(onClick = { daysBack = (daysBack - 1).coerceAtLeast(0) },
+                    enabled = daysBack > 0) {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "Next day",
+                        tint = if (daysBack > 0) A.cyan else A.muted)
+                }
+            }
+        }
+        // The chart retains the inherited 5-minute HR buckets, zoom/scrub, sleep
+        // bands and aligned workout sport glyphs, now styled with ALKE colors.
+        HeartRateTrendCard(
+            viewModel = vm,
+            days = recentDays,
+            selectedDay = selectedDay,
+            today = currentDay,
+            displayMetric = metric,
+            dayCycleMode = NoopPrefs.dayCycleMode(context),
+            alkeStyle = true,
+        )
+        AlkeLinkRow(
+            "Live Heart Rate",
+            "Real-time BPM, HR zones and training controls",
+            Icons.Filled.Favorite, onLive, A.cyan,
+        )
+        AlkeLinkRow(
+            "Workout History",
+            "Review recorded sessions and activity contributions",
+            Icons.Filled.DirectionsRun, onWorkouts, A.gold,
+        )
     }
 }
 

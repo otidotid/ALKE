@@ -15,6 +15,7 @@
          localized display labels for the Destination enum; the underlying route ids stay English and
          are never translated. -->
     <string name="nav_today">Today</string>
+    <string name="nav_hr_timeline">Heart Rate Timeline</string>
     <string name="nav_intelligence">Intelligence</string>
     <string name="nav_coupled_view">Coupled view</string>
     <string name="nav_live">Live</string>

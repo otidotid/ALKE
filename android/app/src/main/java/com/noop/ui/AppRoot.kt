@@ -1418,42 +1418,17 @@ private val NavEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 private val navFadeSpec = tween<Float>(durationMillis = 240, easing = NavEasing)
 
 /**
- * BrandMark — the NOOP logo glyph at a small in-app size: an OPEN recovery ring (≈80%
- * arc, round caps, starting at −90° / 12 o'clock, clockwise) in the gold gradient with a
- * solid gold core dot at the centre. This is the same brand glyph the RecoveryRing hero
- * carries (the "O" of NOOP), shrunk for the top bar / drawer header so the logo reads in
- * app. CLEAN/flat per the v3 restraint brief — no bloom, no halo, just the gradient ring.
- * Token-only (gold gradient + hairline track); decorative, so it carries no content label.
+ * ALKE's approved main brand mark (Option 2), shown in app chrome.
+ * The Android launcher icon is the separate, approved flat Option D.
  */
 @Composable
 internal fun BrandMark(size: Dp = 22.dp) {
-    Canvas(modifier = Modifier.size(size)) {
-        val stroke = this.size.minDimension * 0.13f          // ~2px-equivalent at 22dp
-        val radius = (this.size.minDimension - stroke) / 2f
-        val topLeft = Offset(center.x - radius, center.y - radius)
-        val arcSize = Size(radius * 2f, radius * 2f)
-        val capStroke = Stroke(width = stroke, cap = StrokeCap.Round)
-
-        // Faint full-ring track (navy hairline) behind the open arc.
-        drawCircle(
-            color = Palette.hairline.copy(alpha = 0.5f),
-            radius = radius,
-            center = center,
-            style = capStroke,
-        )
-        // Open recovery-ring arc: ~80% (288°), −90° start (12 o'clock), clockwise.
-        drawArc(
-            color = Palette.chargeColor,
-            startAngle = -90f,
-            sweepAngle = 288f,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = capStroke,
-        )
-        // Solid WHITE "on-device core" dot at the centre (green ring + white core — iOS parity, no gold).
-        drawCircle(color = Color.White, radius = stroke * 0.62f, center = center)
-    }
+    Icon(
+        painter = androidx.compose.ui.res.painterResource(R.drawable.alke_brand_mark),
+        contentDescription = null,
+        tint = Color.Unspecified,
+        modifier = Modifier.size(size),
+    )
 }
 
 /** Navigate to a top-level destination with single-top + state save/restore. */

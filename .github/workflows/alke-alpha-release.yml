@@ -1,0 +1,91 @@
+name: ALKE v1.0.0-alpha.1 - Publish Tested APK
+
+on:
+  push:
+    branches:
+      - alke/stage-04-modules
+    paths:
+      - .github/workflows/alke-alpha-release.yml
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-alpha:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN: "43880888999"
+      SOURCE_SHA: "ebf8fc5113ab93edd046074fce37a1d37387d59e"
+      TAG: "v1.0.0-alpha.1"
+      APK_NAME: "ALKE-v1.0.0-alpha.1-debug.apk"
+    steps:
+      - name: Verify exact-source CI compiled APK and all tests succeeded
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_info="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN")"
+          actual_sha="$(echo "$run_info" | jq -r .head_sha)"
+          actual_result="$(echo "$run_info" | jq -r .conclusion)"
+          actual_branch="$(echo "$run_info" | jq -r .head_branch)"
+          test "$actual_sha" = "$SOURCE_SHA"
+          test "$actual_result" = success
+          test "$actual_branch" = alke/stage-04-modules
+          echo "Verified successful ALKE build + JVM/parity tests from $SOURCE_SHA"
+
+      - name: Download and inspect APK from verified CI run
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-apk
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" \
+            --name ALKE-clean-install-debug --dir release-apk
+          mapfile -t apks < <(find release-apk -type f -name '*.apk')
+          test "${#apks[@]}" -eq 1
+          mv "${apks[0]}" "$APK_NAME"
+          test "$(stat -c '%s' "$APK_NAME")" -gt 1000000
+          unzip -t "$APK_NAME" | tail -1
+          sha256sum "$APK_NAME"
+
+      - name: Publish ALKE alpha GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'EOF'
+          ## ALKE v1.0.0-alpha.1 — UI/UX consolidation
+
+          **Android installable alpha for user evaluation — not a production or device-validated stable release.**
+
+          ### ALKE user experience
+          - ALKE header with a syncing brand logo, combined sync/notifications panel, real wearable battery indicator and profile shortcut
+          - Cleaner Today screen with distinct multi-signal Readiness state, existing Recovery score, HRV/RHR/Sleep metrics
+          - Today's Focus: existing Synthesis interpretation, opt-in AI Coach context, privacy-gated AI guidance and offline fallback
+          - Today's Activity: strain, recorded steps and workout-based active time; My Day: sleep, activity and progress timeline
+          - Today · Train · Progress · Insight · Me navigation with deeper analytics and original features still reachable
+          - Updated ALKE navy/cyan/gold design tokens across inherited modules while preserving source data and algorithms
+          - Sync halo respects system reduced-motion, battery saver and app quiet-motion settings
+
+          ### Source and verification
+          - Source commit: `ebf8fc5113ab93edd046074fce37a1d37387d59e`
+          - CI build and parity/unit tests: https://github.com/otidotid/ALKE/actions/runs/43880888999 (success)
+          - Debug package: `com.otidotid.alke.debug`
+          - Version: `1.0.0-alpha.1-debug`
+
+          ### Installing
+          This is a **debug-signed alpha APK**. Android may reject an upgrade if an earlier ALKE debug APK used a different signing certificate. Uninstalling the old `com.otidotid.alke.debug` package may be necessary, but **deletes that test app's local data**. Do not uninstall your original THOOP app or remove personal backups.
+
+          Human device and wearable testing remains necessary before calling this stable.
+          EOF
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; replacing only its APK asset."
+            gh release upload "$TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md --prerelease --title "ALKE v1.0.0-alpha.1 — UI/UX Consolidation"
+          else
+            gh release create "$TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" \
+              --target "$SOURCE_SHA" \
+              --title "ALKE v1.0.0-alpha.1 — UI/UX Consolidation" \
+              --notes-file release-notes.md --prerelease
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,isDraft,isPrerelease,assets

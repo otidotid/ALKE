@@ -249,7 +249,7 @@ private fun OnboardingTopBar(page: Int, total: Int, progress: Float) {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Overline("NOOP", color = Palette.accent)
+            Overline("ALKE", color = Palette.accent)
             Spacer(Modifier.weight(1f))
             Text(uiString(R.string.l10n_onboarding_screen_page_total_50b38f9a, page, total), style = NoopType.captionNumber, color = Palette.textTertiary)
         }
@@ -920,7 +920,7 @@ private fun ImportStep(viewModel: AppViewModel) {
         AlertDialog(
             onDismissRequest = { confirmHealthConnectImport = false },
             title = { Text("Import Health Connect data?") },
-            text = { Text("This manual import may replace existing Health Connect activity or workout records for the same dates. THOOP device history, sleep, recovery and manually entered data will not be deleted. Continue?") },
+            text = { Text("This manual import may replace existing Health Connect activity or workout records for the same dates. ALKE device history, sleep, recovery and manually entered data will not be deleted. Continue?") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmHealthConnectImport = false

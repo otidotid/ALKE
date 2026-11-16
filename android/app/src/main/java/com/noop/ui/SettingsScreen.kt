@@ -641,6 +641,9 @@ fun SettingsScreen(
     // from About â€” the plain-English tour of sleep sorting, scores, recording and provenance.
     var showHowNoopWorks by remember { mutableStateOf(false) }
 
+    // Concise legal/privacy information stays discoverable without a first-run questionnaire.
+    var showLegalNotice by remember { mutableStateOf(false) }
+
     // "WHOOP 4.0 vs 5.0/MG: what each can read and why" explainer (FI-2 / #490), reachable from the
     // Strap section by BOTH model owners. Clears up which features each strap supports â€” e.g. why the
     // strap-firmware broadcast-out is 5/MG-only while NOOP's own re-broadcast works on any strap.
@@ -3840,6 +3843,37 @@ fun SettingsScreen(
                     }
                 }
 
+
+                // Accessible legal and privacy information. No employment questionnaire or
+                // forced informational onboarding step; user can revisit this at any time.
+                NoopCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showLegalNotice = true },
+                    padding = 14.dp,
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.Info,
+                            contentDescription = null,
+                            tint = Palette.accent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Legal & privacy", style = NoopType.headline, color = Palette.textPrimary)
+                            Text(
+                                "Independent wearable integration, wellness limitations and optional cloud services.",
+                                style = NoopType.footnote,
+                                color = Palette.textSecondary,
+                            )
+                        }
+                    }
+                }
+
                 // Medical disclaimer â€” inset well with a warning-tinted hairline.
                 Row(
                     modifier = Modifier
@@ -3942,6 +3976,62 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+
+        if (showLegalNotice) {
+            AlertDialog(
+                onDismissRequest = { showLegalNotice = false },
+                title = { Text("Legal & privacy", color = Palette.textPrimary) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = 420.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            "ALKE is an independent, unofficial project. It is not affiliated with, " +
+                                "endorsed by or sponsored by WHOOP, Inc. Third-party trademarks " +
+                                "identify compatible hardware only.",
+                            style = NoopType.subhead,
+                            color = Palette.textSecondary,
+                        )
+                        Text(
+                            "Wearable connections use experimental, unofficial protocols and may " +
+                                "carry device, connectivity, account or warranty risks. Use only " +
+                                "devices and data you are authorized to access.",
+                            style = NoopType.subhead,
+                            color = Palette.textSecondary,
+                        )
+                        Text(
+                            "ALKE provides wellness estimates, not medical diagnoses or advice. " +
+                                "Do not use its scores to make medical decisions.",
+                            style = NoopType.subhead,
+                            color = Palette.textSecondary,
+                        )
+                        Text(
+                            "Optional integrations may exchange data with their configured " +
+                                "providers: for example, AI questions and selected health context " +
+                                "when you enable a cloud Coach, or an uploaded backup when you " +
+                                "explicitly use a cloud backup service. Review each feature before enabling it.",
+                            style = NoopType.subhead,
+                            color = Palette.textSecondary,
+                        )
+                        Text(
+                            "The original NOOP copyright, license and attribution notices " +
+                                "are retained. See the accompanying project LICENSE for details.",
+                            style = NoopType.footnote,
+                            color = Palette.textTertiary,
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showLegalNotice = false }) {
+                        Text("Close", color = Palette.accent)
+                    }
+                },
+            )
         }
 
         // What's new sheet, opened from the About row above. Full-screen Dialog so it

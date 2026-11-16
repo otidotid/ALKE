@@ -3462,7 +3462,8 @@ private fun TotalCaloriesTargetCard(activeKcal: Double?, profile: ProfileStore, 
 private fun HealthEmptyState() {
     DataPendingNote(
         title = uiString(R.string.l10n_health_screen_no_biometrics_yet_7c594a6c),
-        body = "No biometrics yet. Import your WHOOP export (and Apple Health if you " +
-            "have it) in Data Sources to fill this in.",
+        body = "No readings yet. Connect a compatible wearable from Devices, or " +
+            "import supported records using Data Sources. ALKE shows scores only " +
+            "when enough reliable data is available.",
     )
 }

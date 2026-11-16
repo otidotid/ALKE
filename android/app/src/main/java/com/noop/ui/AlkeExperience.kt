@@ -152,14 +152,14 @@ private fun AlkeHeader(
     unreadCount: Int = 0,
 ) {
     val live by vm.live.collectAsStateWithLifecycle()
-    val activeIsWhoop by vm.activeIsWhoop.collectAsStateWithLifecycle()
+    val activeIsOura by vm.activeIsOura.collectAsStateWithLifecycle()
     val ringBattery by vm.ouraBatteryPct.collectAsStateWithLifecycle()
     val activeName by vm.activeDeviceName.collectAsStateWithLifecycle()
     val syncing = live.backfilling || live.analyzingHistory
     val hasSyncError = !syncing && !live.lastSyncError.isNullOrBlank()
     val battery = if (live.connected) {
-        LiveConsoleReadout.batteryPercent(activeIsWhoop, live.batteryPct, ringBattery)
-            ?.takeIf { it in 0..100 }
+        if (activeIsOura) ringBattery?.takeIf { it in 0..100 }
+        else live.batteryPct?.takeIf { it.isFinite() && it in 0.0..100.0 }?.roundToInt()
     } else null
     var showSyncHub by remember { mutableStateOf(false) }
     val spin by rememberInfiniteTransition(label = "alke-sync-halo").animateFloat(
@@ -259,7 +259,7 @@ private fun AlkeHeader(
                 if (!activeName.isNullOrBlank()) {
                     Text(activeName.orEmpty(), color = A.muted, fontSize = 12.sp)
                 }
-                if (live.connected && !syncing) {
+                if (live.connected && live.historyReady && !syncing) {
                     TextButton(onClick = { vm.syncNow(); showSyncHub = false }) {
                         Text("Sync now", color = A.cyan)
                     }
@@ -520,7 +520,8 @@ fun AlkeTodayExperience(
             color = A.muted, fontSize = 10.sp)
         AlkeSectionTitle("My Day")
         AlkePanel(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp)).clickable(onClick = onSleep).padding(vertical = 8.dp)) {
                 Icon(Icons.Filled.Bedtime, contentDescription = null, tint = A.blue)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -531,8 +532,7 @@ fun AlkeTodayExperience(
                         color = A.muted, fontSize = 11.sp,
                     )
                 }
-                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan,
-                    modifier = Modifier.clickable(onClick = onSleep))
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp)).clickable(onClick = onTrain).padding(vertical = 8.dp)) {

@@ -37,9 +37,9 @@ android {
         applicationId = "com.otidotid.alke"
         minSdk = 26
         targetSdk = 34
-        // Preview 8: increment Android build number for a safe in-place update.
-        versionCode = 561
-        versionName = "13.2.0"
+        // ALKE design preview: distinct 0.4.0 version, upgradeable debug install.
+        versionCode = 562
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_COACH_BASE_URL", "\"${cloudCoachBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")

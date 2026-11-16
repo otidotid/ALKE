@@ -935,6 +935,65 @@ fun AlkeHeartRateTimelineExperience(
     }
 }
 
+/**
+ * ALKE discovery catalog: the app's actual module routes, shown once each.
+ * Dock-pinned modules are already reachable from the dock; Me shortcuts remain in Me.
+ * No route, feature, saved preference or data is removed.
+ */
+@Composable
+fun AlkeAllModulesExperience(onNavigate: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(setOf("Insights", "Activity")) }
+    val groups = alkeAllModulesGroups(BottomBarModuleStore.selected)
+    AlkePage {
+        AlkeHeading("All modules", "Explore features not already in your dock or Me.")
+        AlkePanel(Modifier.fillMaxWidth()) {
+            Text("PINNED MODULES", color = A.gold, fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold, letterSpacing = 1.3.sp)
+            val pinned = BottomBarModuleStore.selected
+            Text(
+                if (pinned.isEmpty()) "Your dock has only Today and Me."
+                else pinned.joinToString("  ·  ") { alkeModuleAlias(it) ?: it.route.replace('_', ' ') },
+                color = A.white, fontSize = 13.sp,
+            )
+            Text("Customize your dock in Me. Pinned modules and Me shortcuts are not repeated below.",
+                color = A.muted, fontSize = 11.sp, lineHeight = 16.sp)
+        }
+        groups.forEach { group ->
+            val isOpen = group.header in expanded
+            AlkePanel(Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            expanded = if (isOpen) expanded - group.header else expanded + group.header
+                        }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(group.header, color = A.white, fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text("${group.items.size}", color = A.muted, fontSize = 12.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Filled.ChevronRight, contentDescription = if (isOpen) "Collapse" else "Expand",
+                        tint = A.cyan, modifier = Modifier
+                            .size(20.dp).graphicsLayer { rotationZ = if (isOpen) 90f else 0f })
+                }
+                if (isOpen) {
+                    group.items.forEach { dest ->
+                        AlkeLinkRow(
+                            title = alkeModuleLabel(dest),
+                            subtitle = "Open module",
+                            icon = dest.icon,
+                            onClick = { onNavigate(dest.route) },
+                            accent = A.cyan,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun AlkeMeExperience(
     vm: AppViewModel,
@@ -996,7 +1055,7 @@ private fun AlkeDockEditorDialog(onDismiss: () -> Unit) {
                         Icon(destination.icon, contentDescription = null, tint = A.cyan,
                             modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(9.dp))
-                        Text(stringResource(destination.titleRes), modifier = Modifier.weight(1f),
+                        Text(alkeModuleLabel(destination), modifier = Modifier.weight(1f),
                             color = A.white, fontSize = 12.sp, maxLines = 1)
                         TextButton(onClick = { BottomBarModuleStore.move(context, destination, -1) }) {
                             Text("↑", color = A.cyan)
@@ -1023,7 +1082,7 @@ private fun AlkeDockEditorDialog(onDismiss: () -> Unit) {
                         Icon(destination.icon, contentDescription = null, tint = A.muted,
                             modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text(stringResource(destination.titleRes), modifier = Modifier.weight(1f),
+                        Text(alkeModuleLabel(destination), modifier = Modifier.weight(1f),
                             color = A.white, fontSize = 13.sp)
                         Text(if (canAdd) "Add" else "Full",
                             color = if (canAdd) A.cyan else A.muted, fontSize = 12.sp)

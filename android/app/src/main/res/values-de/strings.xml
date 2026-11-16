@@ -8,6 +8,7 @@
     <string name="widget_error">Das ALKE-Widget konnte nicht gezeichnet werden. Es erholt sich beim nächsten Update.</string>
 
     <string name="nav_today">Heute</string>
+    <string name="nav_hr_timeline">Herzfrequenz-Verlauf</string>
     <string name="nav_intelligence">Intelligenz</string>
     <string name="nav_coupled_view">Gekoppelte Ansicht</string>
     <string name="nav_live">Live</string>

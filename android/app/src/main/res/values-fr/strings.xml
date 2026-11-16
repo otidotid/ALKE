@@ -1586,6 +1586,7 @@
     <string name="widget_compact_description">Widget Compact Repos, Charge et Effort, avec fréquence cardiaque et batterie du bracelet.</string>
     <string name="widget_error">Le widget ALKE ne pouvait pas dessiner — il va récupérer sur la prochaine mise à jour.</string>
     <string name="nav_today">Aujourd\'hui</string>
+    <string name="nav_hr_timeline">Chronologie de fréquence cardiaque</string>
     <string name="nav_intelligence">Intelligence</string>
     <string name="nav_coupled_view">Vue combinée</string>
     <string name="nav_live">En direct</string>

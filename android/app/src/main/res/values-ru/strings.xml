@@ -10,6 +10,7 @@
     <string name="widget_compact_description">Компактный виджет Отдыха, Заряда и Усилия с живым пульсом и зарядом браслета.</string>
     <string name="widget_error">Виджет ALKE не смог отрисоваться — он восстановится при следующем обновлении.</string>
     <string name="nav_today">Сегодня</string>
+    <string name="nav_hr_timeline">График пульса</string>
     <string name="nav_intelligence">Аналитика</string>
     <string name="nav_coupled_view">Совмещённый вид</string>
     <string name="nav_live">В реальном времени</string>

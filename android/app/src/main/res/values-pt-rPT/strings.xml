@@ -8,6 +8,7 @@
     <string name="widget_compact_description">Widget compacto de Descanso, Carga e Esforço, com frequência cardíaca em direto e bateria da bracelete.</string>
     <string name="widget_error">O widget ALKE não pôde ser desenhado – será recuperado na próxima atualização.</string>
     <string name="nav_today">Hoje</string>
+    <string name="nav_hr_timeline">Linha temporal da frequência cardíaca</string>
     <string name="nav_intelligence">Inteligência</string>
     <string name="nav_coupled_view">Vista acoplada</string>
     <string name="nav_live">Em direto</string>

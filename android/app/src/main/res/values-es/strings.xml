@@ -1568,6 +1568,7 @@
     <string name="widget_compact_description">Resto compacto, carga y effort widget, con frecuencia cardíaca viva y batería de correa.</string>
     <string name="widget_error">El widget ALKE no pudo dibujar — se recuperará en la siguiente actualización.</string>
     <string name="nav_today">Hoy</string>
+    <string name="nav_hr_timeline">Cronología de frecuencia cardíaca</string>
     <string name="nav_intelligence">Inteligencia</string>
     <string name="nav_coupled_view">Vista combinada</string>
     <string name="nav_live">En vivo</string>

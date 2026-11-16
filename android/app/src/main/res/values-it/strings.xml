@@ -11,6 +11,7 @@
     <string name="widget_compact_description">Widget compatto di Riposo, Carica e Sforzo, con frequenza cardiaca in diretta e batteria della fascia.</string>
     <string name="widget_error">Il widget ALKE non è riuscito a disegnarsi, si ripristinerà al prossimo aggiornamento.</string>
     <string name="nav_today">Oggi</string>
+    <string name="nav_hr_timeline">Cronologia della frequenza cardiaca</string>
     <string name="nav_intelligence">Intelligenza</string>
     <string name="nav_coupled_view">Vista combinata</string>
     <string name="nav_live">In diretta</string>

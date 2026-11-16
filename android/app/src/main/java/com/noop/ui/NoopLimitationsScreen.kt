@@ -79,7 +79,7 @@ fun NoopLimitationsScreen() {
 private fun LimitTableCard() {
     NoopCard(padding = 20.dp) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Overline("What NOOP reads")
+            Overline("What ALKE reads")
             // Column header.
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Feature", style = NoopType.caption, color = Palette.textTertiary, modifier = Modifier.weight(1f))
@@ -109,7 +109,7 @@ private fun LegendCard() {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Overline("Legend")
             LegendRow(LimitState.FULL, "✓ Direct")
-            LegendRow(LimitState.PARTIAL, "≙ THOOP estimate")
+            LegendRow(LimitState.PARTIAL, "≙ ALKE estimate")
             LegendRow(LimitState.NONE, "× Unavailable")
         }
     }
@@ -128,7 +128,7 @@ private fun SupportCell(state: LimitState) {
     Box(modifier = Modifier.width(48.dp), contentAlignment = Alignment.Center) {
         val (mark, tint, label) = when (state) {
             LimitState.FULL -> Triple("✓", Palette.statusPositive, "Direct")
-            LimitState.PARTIAL -> Triple("≙", Palette.statusWarning, "THOOP estimate")
+            LimitState.PARTIAL -> Triple("≙", Palette.statusWarning, "ALKE estimate")
             LimitState.NONE -> Triple("×", Palette.textTertiary, "Unavailable")
         }
         Text(mark, style = NoopType.title2, color = tint, modifier = Modifier.semantics { contentDescription = label })

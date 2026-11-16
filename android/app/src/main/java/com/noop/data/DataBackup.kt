@@ -449,7 +449,7 @@ object DataBackup {
                     )
                 }
                 StageResult.NOT_A_BACKUP -> return ImportResult.Failed(
-                    "That file is not an ALKE backup - it doesn't look like a .noopbak archive or a SQLite database."
+                    "That file is not an ALKE backup - it doesn't look like an .alkebak/.noopbak archive or a SQLite database."
                 )
             }
         } catch (e: IOException) {

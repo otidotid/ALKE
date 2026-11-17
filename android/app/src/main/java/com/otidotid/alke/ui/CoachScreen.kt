@@ -86,10 +86,18 @@ import com.otidotid.alke.ai.CustomAiAuthHeader
 @Composable
 fun CoachScreen(vm: CoachViewModel = viewModel(), onOpenSettings: () -> Unit = {}) {
     val context = LocalContext.current
-    val configured = remember { vm.isConfigured() }
+    val keyRevision by vm.keyVersion.collectAsStateWithLifecycle()
+    val provider by vm.provider.collectAsStateWithLifecycle()
+    val customConnected by vm.customConnected.collectAsStateWithLifecycle()
+    val customBaseUrl by vm.customBaseUrl.collectAsStateWithLifecycle()
+    // Re-evaluate the gate when a key is saved, provider changes or a Custom
+    // server connects. The old remember {} froze the first-run state forever.
+    val configured = remember(keyRevision, provider, customConnected, customBaseUrl) {
+        vm.isConfigured()
+    }
     LaunchedEffect(configured) {
-        val handed = CoachHandoff.consume()
-        if (handed != null && configured) vm.send(context, handed)
+        // Keep pending suggested questions until a provider is actually ready.
+        if (configured) CoachHandoff.consume()?.let { vm.send(context, it) }
     }
 
     // Coach uses a fixed chat viewport instead of ScreenScaffold's vertically scrolling column.
@@ -121,30 +129,14 @@ fun CoachScreen(vm: CoachViewModel = viewModel(), onOpenSettings: () -> Unit = {
                     modifier = Modifier.weight(1f),
                 )
             } else {
-                AlkeCard(padding = 18.dp) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            "ALKE Intelligence",
-                            style = AlkeType.headline,
-                            color = Palette.textPrimary,
-                        )
-                        Text(
-                            "Connect an AI provider to ask questions about your recovery, sleep, activity and trends. " +
-                                "Until then, your on-device metrics remain available throughout ALKE.",
-                            style = AlkeType.subhead,
-                            color = Palette.textSecondary,
-                        )
-                        TextButton(onClick = onOpenSettings) {
-                            Icon(
-                                Icons.Filled.Tune,
-                                contentDescription = null,
-                                tint = Palette.accent,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("Configure in Settings", color = Palette.accent)
-                        }
-                    }
+                // Let the first-run wearer choose a provider and save a key HERE,
+                // not a dead-end Settings link with no editable credentials.
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    CoachSetup(vm)
                 }
             }
         }

@@ -46,7 +46,7 @@ internal fun ProfileScreen(onOpenSettings: () -> Unit) {
         SettingsCard(
             icon = Icons.Filled.AccountCircle,
             title = uiString(R.string.l10n_settings_screen_profile_ff4fc027),
-            blurb = "Used only for THOOP's on-device calculations.",
+            blurb = "Used only for ALKE's on-device calculations.",
         collapsible = true,
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -105,7 +105,7 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(health.contains("mergeStepsReadings(real, imported, est)"))
     }
 
-    @Test fun progressStartsWithOriginalFitnessAgeAndQuietHeroAnimation() {
+    @Test fun progressStartsWithFitnessAgeAndContinuousPremiumMotion() {
         val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
         val progress = ui.substring(ui.indexOf("fun AlkeProgressExperience("),
             ui.indexOf("fun AlkeInsightExperience("))
@@ -123,7 +123,10 @@ class AlkeAlpha5ExperienceContractTest {
         val hero = ui.substring(ui.indexOf("private fun AlkeFitnessAgeHero("),
             ui.indexOf("fun AlkeProgressExperience("))
         assertFalse("Fitness Age hero must not contain a menu chevron", hero.contains("ChevronRight"))
-        assertFalse("Fitness Age hero must not animate forever", hero.contains("rememberInfiniteTransition"))
+        assertTrue("Fitness Age hero must breathe continuously", hero.contains("rememberInfiniteTransition"))
+        assertTrue("Age number must have subtle continuous scale", hero.contains("alke_fitness_age_breathe"))
+        assertTrue("Age scale position must stay grounded in recorded data", hero.contains("270f * animatedPosition"))
+        assertTrue("All factor cards must glow continuously", hero.contains("alke_factor_${index}_glow"))
         val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
         assertTrue(nav.contains("onFitnessAge = { nav.navigate(\"vital_detail/fitness_age\") }"))
         val detailed = source("src/main/java/com/otidotid/alke/ui/HealthScreen.kt")
@@ -158,6 +161,10 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(module.contains("value = \"Not available\""))
         assertTrue(module.contains("withMetabolicCalculationTransaction {"))
         assertTrue(module.contains("fitness_age_detail_factor_"))
+        assertTrue(module.contains("fitness_age_detail_factor_${index}_ambient"))
+        assertTrue(module.contains("fitness_age_factor_${index}_ambient"))
+        assertTrue(module.contains("alke_health_fitness_age_breathe"))
+        assertTrue(module.contains("reduceAgeMotion"))
         assertTrue(module.contains("fitness_age_factor_"))
     }
 
@@ -191,7 +198,7 @@ class AlkeAlpha5ExperienceContractTest {
 
     @Test fun fullAndDemoStaySeparateWithExistingSyntheticData() {
         val build = source("build.gradle.kts")
-        assertTrue(build.contains("versionName = \"1.0.0-alpha.12\""))
+        assertTrue(build.contains("versionName = \"1.0.0-alpha.13\""))
         assertTrue(build.contains("applicationIdSuffix = \".demo\""))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"false\")"))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"true\")"))

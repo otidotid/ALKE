@@ -13,7 +13,7 @@ private const val DRIVE_APPDATA_SCOPE =
 /**
  * Handles Google Drive authorization separately from Google authentication.
  *
- * This controller requests access only to THOOP's private Drive appDataFolder.
+ * This controller requests access only to ALKE's private Drive appDataFolder.
  * It does not upload health data and does not persist OAuth access tokens.
  */
 internal class GoogleDriveAuthorizationController(

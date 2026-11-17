@@ -168,6 +168,36 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(module.contains("fitness_age_factor_"))
     }
 
+    @Test fun continuousAgeMotionUsesRealPaceAndHasNoExtraWaistNags() {
+        val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
+        val module = source("src/main/java/com/otidotid/alke/ui/HealthScreen.kt")
+        val ageEngine = source("src/main/java/com/otidotid/alke/analytics/FitnessAgePaceEngine.kt")
+        // Visible looping light uses real measurement positions, never invented values.
+        assertTrue(ui.contains("alke_age_orbit_sweep"))
+        assertTrue(ui.contains("alke_factor_\${index}_traveling_light"))
+        assertTrue(module.contains("alke_health_age_orbit_sweep"))
+        assertTrue(module.contains("FitnessAgeBarShimmer(index = index)"))
+        assertTrue(module.contains("FitnessAgeBarShimmer(index = index + 10)"))
+        assertTrue(module.contains("fitness_age_bar_sweep_\${index}"))
+        assertTrue(ui.contains("rememberReduceMotion()"))
+        assertTrue(module.contains("rememberReduceMotion()"))
+        // Both screens use actual weekly readings and unchanged fitness pace engine.
+        assertTrue(ui.contains("FitnessAgePaceEngine.calculate("))
+        assertTrue(ui.contains("metricSeriesComputedUnion("))
+        assertTrue(module.contains("FitnessAgePaceEngine.calculate(history.map"))
+        assertTrue(module.contains("Text(paceValue"))
+        assertTrue(module.contains("\"AGE DOWN\""))
+        assertTrue(module.contains("\"CALIBRATING\""))
+        assertTrue(ageEngine.contains("MIN_POINTS = 4"))
+        assertFalse(module.contains("Text(\"WEEKLY\", style = AlkeType.number(19f"))
+        // Only UI nags removed: underlying metric, metabolic and drill-down preserved.
+        assertFalse(module.contains("How this estimate is built"))
+        assertFalse(module.contains("l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e"))
+        assertFalse(module.contains("l10n_health_screen_weight_height_and_waist_add_a_fd2699f5"))
+        assertTrue(module.contains("currentFitnessAgeMetabolicFactor("))
+        assertTrue(module.contains("FitnessAgeDetailExperience("))
+    }
+
     @Test fun skinTemperatureLivesInInsightBelowRestingHrAndKeepsOriginalHistory() {
         val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
         val today = ui.substring(ui.indexOf("fun AlkeTodayExperience("),
@@ -198,7 +228,7 @@ class AlkeAlpha5ExperienceContractTest {
 
     @Test fun fullAndDemoStaySeparateWithExistingSyntheticData() {
         val build = source("build.gradle.kts")
-        assertTrue(build.contains("versionName = \"1.0.0-alpha.13\""))
+        assertTrue(build.contains("versionName = \"1.0.0-alpha.14\""))
         assertTrue(build.contains("applicationIdSuffix = \".demo\""))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"false\")"))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"true\")"))

@@ -51,7 +51,7 @@ object Palette {
 
     // Chart style — when CLASSIC, the DATA accessors below return the throwback red→green ramps
     // (light/dark tuned). Reads ChartStylePrefs.style (snapshot state) so a flip re-colours live.
-    val isClassic: Boolean get() = ChartStylePrefs.style == ChartStyle.CLASSIC
+    val isClassic: Boolean get() = false // ALKE design lock: preserve saved style, render canonical charts
     private val classic: ClassicRamp get() = if (isLight) ClassicLight else ClassicDark
 
     // Surfaces.
@@ -82,22 +82,12 @@ object Palette {
     // Accent — user-selectable chrome anchor (mint default / WHOOP blue / custom). Chrome ONLY; the
     // recovery/strain/sleep DATA worlds are never themed by this. Reads AccentPrefs snapshot state so a
     // change is live. Twin of macOS StrandPalette.accent* branching on AccentColor.
-    val accent get() = when (AccentPrefs.color) {
-        AccentColor.MINT -> active.accent
-        AccentColor.WHOOP_BLUE -> if (isLight) Color(0xFF234F9E) else Color(0xFF60A0E0)
-        AccentColor.CUSTOM -> AccentColor.parseHex(AccentPrefs.customHex, active.accent)
-    }
-    val accentHover get() = when (AccentPrefs.color) {
-        AccentColor.MINT -> active.accentHover
-        AccentColor.WHOOP_BLUE -> if (isLight) Color(0xFF3A6FC0) else Color(0xFF8FBEEC)
-        AccentColor.CUSTOM -> AccentColor.lighten(AccentPrefs.customHex)
-    }
-    val accentMuted get() = when (AccentPrefs.color) {
-        AccentColor.MINT -> active.accentMuted
-        AccentColor.WHOOP_BLUE -> (if (isLight) Color(0xFF234F9E) else Color(0xFF60A0E0)).copy(alpha = 0.18f)
-        AccentColor.CUSTOM -> AccentColor.parseHex(AccentPrefs.customHex, active.accent).copy(alpha = 0.18f)
-    }
-    val focusRing get() = if (AccentPrefs.color == AccentColor.MINT) active.focusRing else accent
+    // ALKE design lock: canonical cyan UI chrome, regardless of legacy restored
+    // accent choices. Old prefs stay untouched and can be re-enabled selectively.
+    val accent get() = Color(0xFF26DEEB)
+    val accentHover get() = Color(0xFF6CF0F3)
+    val accentMuted get() = Color(0xFF26DEEB).copy(alpha = 0.18f)
+    val focusRing get() = accent
     const val disabledOpacity = 0.45f
 
     // Recovery / Charge gradient.
@@ -577,12 +567,11 @@ private val NoopShapes = Shapes(
  */
 @Composable
 fun NoopTheme(content: @Composable () -> Unit) {
-    val dark = when (AppearancePrefs.mode) {
-        AppearanceMode.LIGHT -> false
-        AppearanceMode.DARK -> true
-        AppearanceMode.SYSTEM -> isSystemInDarkTheme()
-    }
-    val tokens = if (dark) DarkTokens else LightTokens
+    // ALKE is a single approved premium navy/dark design. Do not mutate the
+    // user's historical AppearancePrefs; a selective UI rollback can restore
+    // the old system/light/dark switch without losing their preference.
+    val dark = true
+    val tokens = DarkTokens
     if (Palette.active !== tokens) Palette.active = tokens
 
     // Status-/nav-bar icon appearance: light icons on the dark theme, dark icons on the warm-paper

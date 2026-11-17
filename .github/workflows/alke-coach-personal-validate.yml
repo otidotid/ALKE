@@ -1,0 +1,133 @@
+name: ALKE - Managed Coach Personal APK Validation
+on:
+  push:
+    branches:
+      - alke/alpha15-coach-launch-recovery
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  coach-personal-test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ALKE_CLOUD_COACH_URL: https://alke-cloud-coach.anandhito-prakoso.workers.dev
+    steps:
+      - name: Checkout exact Alpha 15-derived Android source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Confirm no Cloudflare backend modifications in this branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 17c5af41d0e33ef879d0c3c2bc5249f7d4d57400 HEAD
+          if git diff --name-only 17c5af41d0e33ef879d0c3c2bc5249f7d4d57400 HEAD | grep -E '^(cloud-coach/|wrangler|.*worker\\.js)' ; then
+            echo "::error::Worker changes forbidden in Android-only patch"
+            exit 1
+          fi
+          grep -q 'CoachChat(' android/app/src/main/java/com/otidotid/alke/ui/CoachScreen.kt
+          ! grep -q 'private fun CoachSetup(' android/app/src/main/java/com/otidotid/alke/ui/CoachScreen.kt
+          grep -q 'versionCode = 579' android/app/build.gradle.kts
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Restore immutable parity fixtures from the approved reference
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REFERENCE_REPOSITORY_ID: 1401373206
+          SOURCE_SHA: de24b55946de9d904f002441e0d24923ef91f2c6
+        run: |
+          set -euo pipefail
+          REFERENCE_URL="$(gh api "/repositories/$REFERENCE_REPOSITORY_ID" --jq '.clone_url')"
+          test -n "$REFERENCE_URL" && test "$REFERENCE_URL" != "null"
+          git clone --depth=1 --branch v13.2.0 --single-branch "$REFERENCE_URL" "$RUNNER_TEMP/alke-reference-v13.2.0"
+          test "$(git -C "$RUNNER_TEMP/alke-reference-v13.2.0" rev-parse HEAD)" = "$SOURCE_SHA"
+          for dir in Strand StrandTests StrandiOS; do
+            rsync -a "$RUNNER_TEMP/alke-reference-v13.2.0/$dir/" "$GITHUB_WORKSPACE/$dir/"
+          done
+          mkdir -p "$GITHUB_WORKSPACE/Tools/parity_cases"
+          cp "$RUNNER_TEMP/alke-reference-v13.2.0/Tools/parity_cases/device_raw_sources.json" "$GITHUB_WORKSPACE/Tools/parity_cases/device_raw_sources.json"
+
+      - name: Build personal APK and run Android unit / parity tests
+        shell: bash
+        working-directory: android
+        run: |
+          set -euo pipefail
+          test "$ALKE_CLOUD_COACH_URL" = "https://alke-cloud-coach.anandhito-prakoso.workers.dev"
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace :app:assemblePersonalDebug :app:testFullDebugUnitTest
+
+      - name: Validate package, build-time Cloudflare URL and APK archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find android/app/build/outputs/apk/personal/debug -maxdepth 1 -type f -name '*.apk')
+          test "${#apks[@]}" -eq 1
+          apk="${apks[0]}"
+          test "$(stat -c '%s' "$apk")" -gt 1000000
+          unzip -t "$apk" | tail -1
+          aapt=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)
+          test -n "$aapt"
+          "$aapt" dump badging "$apk" | grep -q "package: name='com.otidotid.alke.personal.debug'"
+          "$aapt" dump badging "$apk" | grep -q 'versionCode=\x27579\x27'
+          found=0
+          while IFS= read -r dex; do
+            if unzip -p "$apk" "$dex" | strings | grep -Fq "$ALKE_CLOUD_COACH_URL"; then found=1; fi
+          done < <(unzip -Z1 "$apk" | grep -E '^classes[0-9]*\\.dex$')
+          test "$found" -eq 1
+          if unzip -Z1 "$apk" | grep -Eiq 'private-backup|noopbak|alkebak'; then
+            echo "::error::Sensitive backup content present"; exit 1
+          fi
+          mkdir -p ci-output
+          cp "$apk" ci-output/ALKE-alpha16.1-personal-COACH-OWNER-RESIGN-REQUIRED.apk
+          sha256sum ci-output/*.apk
+          echo "Android package, version and embedded Worker endpoint verified"
+
+      - name: Verify the existing Cloudflare production Worker with synthetic chat
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 20 "$ALKE_CLOUD_COACH_URL/" -o /tmp/cloud-coach-health.json
+          python3 - <<'PY'
+          import json
+          obj=json.load(open('/tmp/cloud-coach-health.json'))
+          assert obj.get('status')=='ok' and obj.get('service')=='ALKE Cloud Coach',obj
+          print('PASS: Production ALKE Cloud Coach health endpoint')
+          PY
+          python3 - <<'PY'
+          import json,os
+          payload={'userId':'alke-alpha15-routing-smoke-'+os.environ['GITHUB_RUN_ID'],
+            'conversationId':'coach-routing-smoke-1',
+            'question':'Halo Coach, balas singkat untuk verifikasi koneksi.',
+            'healthContext':'Synthetic verification only, no personal health data.',
+            'recentMessages':[]}
+          json.dump(payload,open('/tmp/cloud-coach-request.json','w'))
+          PY
+          status="$(curl -sS --max-time 85 -o /tmp/cloud-coach-response.json -w '%{http_code}' \
+            -X POST "$ALKE_CLOUD_COACH_URL/v1/coach/chat" \
+            -H 'content-type: application/json' -H 'accept: application/json' \
+            --data-binary @/tmp/cloud-coach-request.json)"
+          test "$status" = "200" || { echo "::error::Production Cloud Coach HTTP $status"; exit 1; }
+          python3 - <<'PY'
+          import json
+          r=json.load(open('/tmp/cloud-coach-response.json'))
+          assert isinstance(r.get('answer'),str) and r['answer'].strip()
+          assert r.get('conversationId')=='coach-routing-smoke-1'
+          print('PASS: Production POST /v1/coach/chat returned HTTP 200 with an AI answer')
+          PY
+
+      - name: Upload private-signing-required personal APK artifact only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha16.1-coach-PERSONAL-BASE-OWNER-RESIGN-REQUIRED
+          path: ci-output/ALKE-alpha16.1-personal-COACH-OWNER-RESIGN-REQUIRED.apk
+          if-no-files-found: error
+          retention-days: 7

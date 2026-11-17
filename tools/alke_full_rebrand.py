@@ -45,7 +45,7 @@ def tracked() -> list[str]:
     return [
         part.decode("utf-8") for part in subprocess.check_output(
             ["git", "ls-files", "-z"], cwd=ROOT,
-        ).split(b"\\0") if part
+        ).split(bytes([0])) if part
     ]
 
 def main() -> None:
@@ -68,7 +68,7 @@ def main() -> None:
             raise RuntimeError(f"Missing tracked file {relative}")
         if relative not in LEGAL_EXCEPTIONS and source.suffix.lower() not in ALLOWED_BINARY_SUFFIXES:
             binary = source.read_bytes()
-            if b"\\0" not in binary:
+            if bytes([0]) not in binary:
                 try:
                     original = binary.decode("utf-8")
                 except UnicodeDecodeError:
@@ -95,7 +95,7 @@ def main() -> None:
         if relative in LEGAL_EXCEPTIONS or source.suffix.lower() in ALLOWED_BINARY_SUFFIXES:
             continue
         data = source.read_bytes()
-        if b"\\0" in data:
+        if bytes([0]) in data:
             continue
         try:
             decoded = data.decode("utf-8")

@@ -78,7 +78,8 @@ jobs:
           grep -q 'fitness_age_bar_sweep_' android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
           ! grep -q 'How this estimate is built' android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
           grep -q 'fitness_age_detail_factor_' android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
-          grep -q 'healthModuleIsFitnessAgeWithHeroAndAnimatedFourFactors' android/app/src/test/java/com/otidotid/alke/ui/AlkeAlpha5ExperienceContractTest.kt
+          grep -q 'fitnessAgeModuleBeginsAtTrendWithoutDuplicatingProgressCards' android/app/src/test/java/com/otidotid/alke/ui/AlkeAlpha5ExperienceContractTest.kt
+          grep -q 'SectionHeader("Trend View"' android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
           grep -q 'Destination.Health -> "Fitness Age"' android/app/src/main/java/com/otidotid/alke/ui/AppRoot.kt
           grep -q 'title = "Fitness Age"' android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
           grep -q 'AlkeSectionTitle("Fitness Factors")' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
@@ -215,6 +216,7 @@ jobs:
           - Fixed the SAF file picker to include historical .txt-named archives; incoming files still pass SQLite magic, Room origin and integrity checks before any live database replacement.
           - Registered additive Room migrations from schema 41 through 43 remain unchanged, with automated migration-chain coverage.
           - Verifies byte-identical source parity (after naming-only migration) against eight critical computations from immutable reference SHA de24b55946de9d904f002441e0d24923ef91f2c6.
+          - Fitness Age tab and Fitness Age detail now start directly at Trend View and preserve the downstream chart, History and original vital signs. Redundant Fitness Age number and factors are available only in Progress; its animations and Today screen are unchanged.
           - Existing BLE reconnection and sync protocols remain unchanged; no unverified protocol rewrite.
           - Cloud Coach backend, Worker, Groq, D1/KV and nutrition logging remain unchanged, per user request.
           - Do not treat this prerelease as stable until a real device and private restore smoke test have passed.

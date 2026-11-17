@@ -1067,8 +1067,20 @@ private fun FitnessAgeHero(
     val vo2Position = vo2max?.let { ((it - 15.0) / 55.0).toFloat().coerceIn(0f, 1f) }
     val rhrPosition = restingHr?.let { (1f - ((it - 40.0) / 40.0).toFloat()).coerceIn(0f, 1f) }
     val effortPosition = weeklyEffort?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) }
-    // ALKE displays weekly Fitness Age without decorative infinite animations.
-    // It remains distinct from the separate Vitality-based Body Age metric.
+    // A low-amplitude continuous glow keeps the recorded weekly age alive, without changing it.
+    val reduceAgeMotion = rememberReduceMotion()
+    val agePulse = if (reduceAgeMotion) 0f else {
+        val motion = rememberInfiniteTransition(label = "alke_health_fitness_age_ambient")
+        motion.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(4_100, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "alke_health_fitness_age_breathe",
+        ).value
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         LiquidHeroCard {
@@ -1085,16 +1097,21 @@ private fun FitnessAgeHero(
                     Box(
                         modifier = Modifier
                             .size(142.dp)
+                            .graphicsLayer {
+                                val scale = 1f + agePulse * 0.012f
+                                scaleX = scale
+                                scaleY = scale
+                            }
                             .clip(RoundedCornerShape(24.dp))
                             .background(Palette.surfaceInset)
-                            .border(1.dp, Palette.hairlineStrong, RoundedCornerShape(24.dp)),
+                            .border(1.dp, accent.copy(alpha = 0.25f + agePulse * 0.25f), RoundedCornerShape(24.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 "$boundSymbol$shown",
                                 style = AlkeType.number(42f, weight = FontWeight.Bold),
-                                color = accent,
+                                color = accent.copy(alpha = 0.87f + 0.13f * agePulse),
                             )
                             Text("FITNESS AGE", style = AlkeType.caption, color = Palette.textSecondary)
                         }
@@ -1237,11 +1254,23 @@ private fun FitnessAgeFactorRow(
             else tween(820, delayMillis = index * 90, easing = FastOutSlowInEasing),
         label = "fitness_age_factor_${index}_fill",
     )
+    val glow = if (reduced) 0f else {
+        val motion = rememberInfiniteTransition(label = "fitness_age_factor_${index}_ambient")
+        motion.animateFloat(
+            0f, 1f,
+            animationSpec = infiniteRepeatable(
+                tween(3_100 + index * 200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "fitness_age_factor_${index}_glow",
+        ).value
+    }
     Column(modifier = Modifier.staggeredAppear(index),
         verticalArrangement = Arrangement.spacedBy(Metrics.space8)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = AlkeType.title2, color = Palette.textPrimary, modifier = Modifier.weight(1f))
-            Text(value, style = AlkeType.body, color = Palette.textPrimary)
+            Text(value, style = AlkeType.body,
+                color = Palette.textPrimary.copy(alpha = 0.88f + glow * 0.12f))
         }
         Box(
             modifier = Modifier
@@ -1264,8 +1293,13 @@ private fun FitnessAgeFactorRow(
                     Box(
                         modifier = Modifier
                             .size(9.dp)
+                            .graphicsLayer {
+                                val scale = 1f + glow * 0.18f
+                                scaleX = scale
+                                scaleY = scale
+                            }
                             .clip(RoundedCornerShape(99.dp))
-                            .background(Palette.textPrimary),
+                            .background(Palette.textPrimary.copy(alpha = 0.76f + glow * 0.24f)),
                     )
                 }
             }
@@ -2935,7 +2969,8 @@ private fun FitnessAgeDetailExperience(
     // Presentation-only motion for the large ALKE Age hero. The stored value and scoring path stay
     // untouched: only the hero's scale, glow, and translucent inner layers breathe slowly.
     val poseStill = rememberPoseStill()
-    val (ageHeroScale, ageHeroGlow, ageHeroShift) = if (poseStill) {
+    val reduceAgeMotion = rememberReduceMotion()
+    val (ageHeroScale, ageHeroGlow, ageHeroShift) = if (poseStill || reduceAgeMotion) {
         Triple(1f, 0.10f, 0f)
     } else {
         val ageHeroMotion = rememberInfiniteTransition(label = "alke-age-hero")
@@ -3079,7 +3114,14 @@ private fun FitnessAgeDetailExperience(
                             Text(
                                 fitnessAgeBoundSymbol(latest.value) + format(latest.value),
                                 style = AlkeType.number(39f, FontWeight.Bold),
-                                color = Color.White,
+                                color = Color.White.copy(
+                                    alpha = 0.91f + 0.09f * ((ageHeroGlow - 0.10f) / 0.14f).coerceIn(0f, 1f),
+                                ),
+                                modifier = Modifier.graphicsLayer {
+                                    val scale = 1f + (ageHeroScale - 1f) * 0.7f
+                                    scaleX = scale
+                                    scaleY = scale
+                                },
                             )
                             androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
                             Text("FITNESS AGE", style = AlkeType.caption, color = Color.White.copy(alpha = .78f))
@@ -3267,11 +3309,23 @@ private fun FitnessAgeDetailFactor(
             else tween(800, delayMillis = index * 90, easing = FastOutSlowInEasing),
         label = "fitness_age_detail_factor_${index}_fill",
     )
+    val glow = if (reduced) 0f else {
+        val motion = rememberInfiniteTransition(label = "fitness_age_detail_factor_${index}_ambient")
+        motion.animateFloat(
+            0f, 1f,
+            animationSpec = infiniteRepeatable(
+                tween(3_300 + index * 170, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "fitness_age_detail_factor_${index}_glow",
+        ).value
+    }
     Column(modifier = Modifier.staggeredAppear(index),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = AlkeType.title2, color = Palette.textPrimary, modifier = Modifier.weight(1f))
-            Text(value, style = AlkeType.body, color = Palette.textPrimary)
+            Text(value, style = AlkeType.body,
+                color = Palette.textPrimary.copy(alpha = 0.88f + glow * 0.12f))
         }
         Box(
             modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(99.dp)).background(
@@ -3280,7 +3334,15 @@ private fun FitnessAgeDetailFactor(
         ) {
             marker?.let {
                 Box(Modifier.fillMaxWidth(display.coerceIn(.025f, 1f)).fillMaxHeight(), contentAlignment = Alignment.CenterEnd) {
-                    Box(Modifier.size(12.dp).clip(RoundedCornerShape(99.dp)).background(Color.White).border(2.dp, Color.Black.copy(alpha=.35f), RoundedCornerShape(99.dp)))
+                    Box(Modifier.size(12.dp)
+                        .graphicsLayer {
+                            val scale = 1f + glow * 0.16f
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .clip(RoundedCornerShape(99.dp))
+                        .background(Color.White.copy(alpha = 0.75f + 0.25f * glow))
+                        .border(2.dp, Color.Black.copy(alpha=.35f), RoundedCornerShape(99.dp)))
                 }
             }
         }

@@ -46,7 +46,7 @@
     <string name="nav_automations">Automations</string>
     <string name="nav_alarms">Alarms</string>
     <string name="nav_devices">Devices</string>
-    <string name="nav_noop_limitations">Device Limitations</string>
+    <string name="nav_alke_limitations">Device Limitations</string>
     <string name="nav_data_sources">Data Sources</string>
     <string name="nav_backup_sync">Backup &amp; Sync</string>
     <string name="nav_fused_record">Your Data, Fused</string>
@@ -296,18 +296,18 @@
     <string name="l10n_add_device_wizard_add_61cc55aa">Add</string>
     <string name="l10n_add_device_wizard_advanced_i_already_have_my_ring_e87b9b49">Advanced: I already have my ring\'s key</string>
     <string name="l10n_add_device_wizard_beta_is_an_on_device_estimate_128563e0">Beta. * is an on-device estimate. Skin temp is a trend versus your own baseline, steps are a raw motion count, and HRV needs you to be still. No Oura Readiness or SpO2 percentage comes off the ring (import an Oura file for those).</string>
-    <string name="l10n_add_device_wizard_both_noop_and_the_oura_app_4f219db3">Both ALKE and the Oura app can use a ring you own by key, but only one can hold the Bluetooth link at a time.</string>
+    <string name="l10n_add_device_wizard_both_alke_and_the_oura_app_4f219db3">Both ALKE and the Oura app can use a ring you own by key, but only one can hold the Bluetooth link at a time.</string>
     <string name="l10n_add_device_wizard_connect_to_this_ring_02b9442b">Connect to this ring</string>
     <string name="l10n_add_device_wizard_continue_2e026239">Continue</string>
     <string name="l10n_add_device_wizard_device_name_79d7a157">Device name</string>
     <string name="l10n_add_device_wizard_experimental_best_effort_support_we_re_db288aa8">Experimental, best-effort support. We\'re still testing these, so they might not connect on every device. They never make up data, and they\'ll tell you honestly when live isn\'t possible.</string>
     <string name="l10n_add_device_wizard_i_understand_this_disconnects_the_ring_66bbb125">I understand this disconnects the ring from Oura and that ALKE cannot undo it for me. To go back to Oura I would factory-reset the ring again and set it up in the Oura app.</string>
     <string name="l10n_add_device_wizard_i_understand_this_disconnects_the_ring_ccbb3225">I understand this disconnects the ring from Oura and that ALKE cannot undo it for me.</string>
-    <string name="l10n_add_device_wizard_installing_noop_s_key_and_confirming_aab5cf61">Installing ALKE\'s key and confirming the ring answers only to ALKE. Keep the ring close and do not open the Oura app.</string>
+    <string name="l10n_add_device_wizard_installing_alke_s_key_and_confirming_aab5cf61">Installing ALKE\'s key and confirming the ring answers only to ALKE. Keep the ring close and do not open the Oura app.</string>
     <string name="l10n_add_device_wizard_keep_the_oura_app_instead_import_60d70411">Keep the Oura app instead (import a file)</string>
     <string name="l10n_add_device_wizard_make_sure_it_s_awake_and_8c40e59f">Make sure it\'s awake and not connected elsewhere.</string>
     <string name="l10n_add_device_wizard_name_signal_signalbars_level_rssi_of_6aa514f6">%1$s, signal %2$s of 4</string>
-    <string name="l10n_add_device_wizard_noop_stores_this_key_only_on_eae4e63f">ALKE stores this key only on this device, in the same place it stores your paired bands.</string>
+    <string name="l10n_add_device_wizard_alke_stores_this_key_only_on_eae4e63f">ALKE stores this key only on this device, in the same place it stores your paired bands.</string>
     <string name="l10n_add_device_wizard_not_showing_up_make_sure_you_60a8a61b">Not showing up? Make sure you reset the ring in the Oura app and force-quit it, then tap Rescan. A ring still owned by Oura will not list here.</string>
     <string name="l10n_add_device_wizard_one_phone_at_a_time_cff4ff44">One phone at a time</string>
     <string name="l10n_add_device_wizard_oura_ring_e3431536">Oura ring</string>
@@ -326,7 +326,7 @@
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">Use file import</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">We could not take over this ring.</string>
     <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0 / MG support is newer and still experimental in ALKE.</string>
-    <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP is ALKE\'s primary, fully-supported band. Other heart-rate straps stream live heart rate and HRV, but not WHOOP\'s deeper sleep and recovery data.</string>
+    <string name="l10n_add_device_wizard_whoop_is_alke_s_primary_fully_ac6fa33b">WHOOP is ALKE\'s primary, fully-supported band. Other heart-rate straps stream live heart rate and HRV, but not WHOOP\'s deeper sleep and recovery data.</string>
     <string name="l10n_app_root_more_4bab2d8f">More</string>
     <string name="l10n_app_root_moregroupchevron_b2b36ec6">moreGroupChevron</string>
     <string name="l10n_auto_workout_nudge_dismiss_this_workout_suggestion_52ace8f3">Dismiss this workout suggestion</string>
@@ -527,7 +527,7 @@
     <string name="l10n_data_sources_screen_whoop_history_db101974">WHOOP History</string>
     <string name="l10n_data_sources_screen_whoop_strap_live_ble_217f7df6">WHOOP Strap (Live BLE)</string>
     <string name="l10n_data_sources_screen_workout_file_gpx_tcx_fit_5469c068">Workout file (GPX / TCX / FIT)</string>
-    <string name="l10n_data_sources_screen_write_the_metrics_noop_computes_from_439940c2">Write the metrics ALKE computes from your strap (resting HR, HRV, SpO₂, respiratory rate, heart rate, steps, active energy and sleep) into Health Connect so other apps can use them. Only ALKE\'s own values are shared. Imported data is never echoed back.</string>
+    <string name="l10n_data_sources_screen_write_the_metrics_alke_computes_from_439940c2">Write the metrics ALKE computes from your strap (resting HR, HRV, SpO₂, respiratory rate, heart rate, steps, active energy and sleep) into Health Connect so other apps can use them. Only ALKE\'s own values are shared. Imported data is never echoed back.</string>
     <string name="l10n_data_sources_screen_xiaomi_mi_band_edeab3bc">Xiaomi Mi Band</string>
     <string name="l10n_devices_screen_add_a_device_f90866b8">Add a device</string>
     <string name="l10n_devices_screen_battery_4a9be042">Battery</string>
@@ -558,7 +558,7 @@
     <string name="l10n_devices_screen_name_709a2322">Name</string>
     <string name="l10n_devices_screen_pack_voltage_9af3c3ff">%1$.2f V</string>
     <string name="l10n_devices_screen_pack_charge_0e9589da">Pack %1$.1f%%</string>
-    <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">Paired locally. ALKE owns this ring while it holds the key. If you reset it again or set it up in the Oura app, ALKE no longer owns it and you would re-add it to take it over.</string>
+    <string name="l10n_devices_screen_paired_locally_alke_owns_this_ring_30c16190">Paired locally. ALKE owns this ring while it holds the key. If you reset it again or set it up in the Oura app, ALKE no longer owns it and you would re-add it to take it over.</string>
     <string name="l10n_devices_screen_pick_a_new_active_strap_edd73542">Pick a new active strap</string>
     <string name="l10n_devices_screen_rename_device_ee233604">Rename device</string>
     <string name="l10n_devices_screen_send_probe_read_only_36b318bc">Send probe (read-only)</string>
@@ -566,13 +566,13 @@
     <string name="l10n_devices_screen_the_whoop_4_0_reboot_frame_690a8ff2">The WHOOP 4.0 reboot frame isn\'t confirmed — a normal Restart is ignored (#235). Send each candidate and watch BOTH the strap log and the strap itself. “no disconnect within 12s” means the strap ignored the frame. A “link dropped” line means the frame reached the strap — but a dropped link alone isn\'t a reboot: a real reboot also switches the strap\'s sensor light off for a few seconds, so if the light stayed on it was just a dropped connection, not a reboot. Non-destructive — your data is kept. Please share the log so we can pin the real frame.</string>
     <string name="l10n_devices_screen_waiting_for_the_straps_reply_5a06e7ac">Waiting for the strap\'s reply…</string>
     <string name="l10n_devices_screen_whoop_4_0_reboot_probe_b51fb50f">WHOOP 4.0 reboot probe</string>
-    <string name="l10n_devices_screen_whoop_is_noop_s_primary_fully_1c9e67fd">WHOOP is ALKE\'s primary, fully-supported band. Other heart-rate straps are an early, in-development addition: they stream live heart rate and HRV, but not WHOOP\'s deeper sleep and recovery data.</string>
+    <string name="l10n_devices_screen_whoop_is_alke_s_primary_fully_1c9e67fd">WHOOP is ALKE\'s primary, fully-supported band. Other heart-rate straps are an early, in-development addition: they stream live heart rate and HRV, but not WHOOP\'s deeper sleep and recovery data.</string>
     <string name="l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48">You removed your active strap. Choose which paired band provides your live data, or leave none active and pair one later.</string>
     <string name="l10n_fused_record_screen_contrib_source_displayname_fusionformat_value_contrib_d182dd7f">%1$s, %2$s</string>
     <string name="l10n_fused_record_screen_done_e9b450d1">Done</string>
     <string name="l10n_fused_record_screen_fused_on_devicenoun_nothing_leaves_it_8a1e6a3d">Fused on %1$s. Nothing leaves it: no account, no cloud.</string>
-    <string name="l10n_fused_record_screen_noop_picks_the_best_sourced_number_5e48b86a">ALKE picks the best-sourced number and shows you where each came from. It\'s for wellness and curiosity. It doesn\'t diagnose or replace medical advice.</string>
-    <string name="l10n_fused_record_screen_noop_shows_the_winner_source_displayname_4a3892cc">ALKE shows the %1$s reading because it %2$s for this metric: a higher-trust source here, not a verdict that the others are wrong.</string>
+    <string name="l10n_fused_record_screen_alke_picks_the_best_sourced_number_5e48b86a">ALKE picks the best-sourced number and shows you where each came from. It\'s for wellness and curiosity. It doesn\'t diagnose or replace medical advice.</string>
+    <string name="l10n_fused_record_screen_alke_shows_the_winner_source_displayname_4a3892cc">ALKE shows the %1$s reading because it %2$s for this metric: a higher-trust source here, not a verdict that the others are wrong.</string>
     <string name="l10n_fused_record_screen_other_source_displayname_agrees_fusionformat_value_78e29c2a">%1$s agrees: %2$s</string>
     <string name="l10n_fused_record_screen_other_source_displayname_fusionformat_value_other_207f7548">%1$s: %2$s</string>
     <string name="l10n_fused_record_screen_your_bands_report_different_numbers_here_03d20d81">Your bands report different numbers. Here\'s every source, and the one ALKE is using.</string>
@@ -609,13 +609,13 @@
     <string name="l10n_health_screen_value_8dce170d">Value</string>
     <string name="l10n_health_screen_vo_max_vo2max_roundtoint_c32a04b3">VO₂max %1$s</string>
     <string name="l10n_health_screen_your_data_fused_a740fd4a">Your Data, Fused</string>
-    <string name="l10n_how_noop_works_screen_close_bbfa773e">Close</string>
-    <string name="l10n_how_noop_works_screen_got_it_5b8027fa">Got it</string>
-    <string name="l10n_how_noop_works_screen_how_noop_works_3396b27a">How ALKE works</string>
-    <string name="l10n_how_noop_works_screen_noop_never_makes_up_a_number_da29aca5">ALKE never makes up a number. When it can\'t compute one honestly it tells you what\'s missing and what to do, rather than showing a fake value.</string>
-    <string name="l10n_how_noop_works_screen_noop_never_shows_you_a_number_d1db9958">ALKE never shows you a number it had to make up. If a score isn\'t ready, it tells you why and what to do next. Everything here runs on your device, from your strap.</string>
-    <string name="l10n_how_noop_works_screen_section_title_section_body_efb1a999">%1$s. %2$s</string>
-    <string name="l10n_how_noop_works_screen_sleep_scores_recording_where_your_numbers_1b3e981f">Sleep · scores · recording · where your numbers come from</string>
+    <string name="l10n_how_alke_works_screen_close_bbfa773e">Close</string>
+    <string name="l10n_how_alke_works_screen_got_it_5b8027fa">Got it</string>
+    <string name="l10n_how_alke_works_screen_how_alke_works_3396b27a">How ALKE works</string>
+    <string name="l10n_how_alke_works_screen_alke_never_makes_up_a_number_da29aca5">ALKE never makes up a number. When it can\'t compute one honestly it tells you what\'s missing and what to do, rather than showing a fake value.</string>
+    <string name="l10n_how_alke_works_screen_alke_never_shows_you_a_number_d1db9958">ALKE never shows you a number it had to make up. If a score isn\'t ready, it tells you why and what to do next. Everything here runs on your device, from your strap.</string>
+    <string name="l10n_how_alke_works_screen_section_title_section_body_efb1a999">%1$s. %2$s</string>
+    <string name="l10n_how_alke_works_screen_sleep_scores_recording_where_your_numbers_1b3e981f">Sleep · scores · recording · where your numbers come from</string>
     <string name="l10n_hrv_snapshot_screen_an_hrv_reading_needs_the_live_11b70bff">An HRV reading needs the live R-R stream. Open the Live screen and connect your strap, then come back.</string>
     <string name="l10n_hrv_snapshot_screen_beats_12aafda0">Beats</string>
     <string name="l10n_hrv_snapshot_screen_hrvdial_4c244c45">hrvDial</string>
@@ -779,7 +779,7 @@
     <string name="l10n_marker_editor_screen_entered_together_stored_as_two_markers_af8f3ba0">Entered together; stored as two markers so each lines up cleanly against your signals.</string>
     <string name="l10n_marker_editor_screen_lab_book_keeps_your_own_numbers_9085ce2c">Lab Book keeps your own numbers - it doesn\'t test, read, or judge them, and it\'s not medical advice. Everything stays on this phone.</string>
     <string name="l10n_marker_editor_screen_no_match_add_it_as_a_ad5c59ec">No match. Add it as a custom marker below.</string>
-    <string name="l10n_marker_editor_screen_noop_never_fills_this_in_it_7be9653b">ALKE never fills this in - it only shows back exactly what you type from your own report.</string>
+    <string name="l10n_marker_editor_screen_alke_never_fills_this_in_it_7be9653b">ALKE never fills this in - it only shows back exactly what you type from your own report.</string>
     <string name="l10n_marker_editor_screen_search_markers_103981e0">Search markers</string>
     <string name="l10n_marker_editor_screen_search_markers_e_g_ldl_ferritin_66c17802">Search markers (e.g. LDL, ferritin)</string>
     <string name="l10n_marker_editor_screen_stored_as_canonicalunit_0bf7f702">Stored as %1$s.</string>
@@ -791,16 +791,16 @@
     <string name="l10n_mind_section_not_enough_overlapping_history_to_correlate_d36b91f9">Not enough overlapping history to correlate mood with your body metrics yet.</string>
     <string name="l10n_mind_section_one_check_in_per_day_picking_b103f22e">One check-in per day; picking another face overwrites today\'s.</string>
     <string name="l10n_mind_section_reading_your_check_ins_71a100a9">Reading your check-ins…</string>
-    <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">CHARGE</string>
-    <string name="l10n_noop_compact_glance_widget_effort_660752e7">EFFORT</string>
-    <string name="l10n_noop_compact_glance_widget_heart_rate_410aa15c">Heart rate</string>
-    <string name="l10n_noop_compact_glance_widget_rest_cbaaa181">REST</string>
-    <string name="l10n_noop_compact_glance_widget_strap_battery_a6c7f09c">Strap battery</string>
-    <string name="l10n_noop_glance_widget_charge_49a8cb83">CHARGE</string>
-    <string name="l10n_noop_glance_widget_effort_660752e7">EFFORT</string>
-    <string name="l10n_noop_glance_widget_heart_rate_410aa15c">Heart rate</string>
-    <string name="l10n_noop_glance_widget_rest_cbaaa181">REST</string>
-    <string name="l10n_noop_glance_widget_strap_battery_a6c7f09c">Strap battery</string>
+    <string name="l10n_alke_compact_glance_widget_charge_49a8cb83">CHARGE</string>
+    <string name="l10n_alke_compact_glance_widget_effort_660752e7">EFFORT</string>
+    <string name="l10n_alke_compact_glance_widget_heart_rate_410aa15c">Heart rate</string>
+    <string name="l10n_alke_compact_glance_widget_rest_cbaaa181">REST</string>
+    <string name="l10n_alke_compact_glance_widget_strap_battery_a6c7f09c">Strap battery</string>
+    <string name="l10n_alke_glance_widget_charge_49a8cb83">CHARGE</string>
+    <string name="l10n_alke_glance_widget_effort_660752e7">EFFORT</string>
+    <string name="l10n_alke_glance_widget_heart_rate_410aa15c">Heart rate</string>
+    <string name="l10n_alke_glance_widget_rest_cbaaa181">REST</string>
+    <string name="l10n_alke_glance_widget_strap_battery_a6c7f09c">Strap battery</string>
     <string name="l10n_notifications_settings_screen_02d_02d_ce23a78c">%1$02d:%2$02d</string>
     <string name="l10n_notifications_settings_screen_all_other_apps_51a8af2c">All other apps</string>
     <string name="l10n_notifications_settings_screen_app_name_wrist_alerts_dd3540fa">%1$s wrist alerts</string>
@@ -863,7 +863,7 @@
     <string name="l10n_onboarding_screen_this_can_run_while_you_finish_cd7ef783">This can run while you finish setup</string>
     <string name="l10n_onboarding_screen_watch_your_heart_live_8c9c1267">Watch your heart, live</string>
     <string name="l10n_onboarding_screen_weight_69c0b815">Weight</string>
-    <string name="l10n_onboarding_screen_what_noop_does_b25b362d">What ALKE does</string>
+    <string name="l10n_onboarding_screen_what_alke_does_b25b362d">What ALKE does</string>
     <string name="l10n_onboarding_screen_what_to_expect_ed98f851">What to expect</string>
     <string name="l10n_onboarding_screen_you_re_connected_7e06aee0">You\'re connected.</string>
     <string name="l10n_onboarding_screen_your_thread_starts_here_acdccf92">Your thread starts here.</string>
@@ -871,7 +871,7 @@
     <string name="l10n_rhythm_screen_beats_read_15da45e3">Beats read</string>
     <string name="l10n_rhythm_screen_close_rhythm_e0239fa8">Close Rhythm</string>
     <string name="l10n_rhythm_screen_cloud_shape_2a745ff0">Cloud shape</string>
-    <string name="l10n_rhythm_screen_during_quiet_still_resting_windows_noop_45488969">During quiet, still, resting windows, ALKE looks at the timing between your heartbeats (R-R intervals) and draws their Poincaré scatter. From the cloud it computes its short and long axes (SD1, SD2) and a few plain regularity numbers. Movement and noisy windows are skipped, not shown. These are transparent, published descriptive statistics: a picture of your timing, never a clinical measurement.</string>
+    <string name="l10n_rhythm_screen_during_quiet_still_resting_windows_alke_45488969">During quiet, still, resting windows, ALKE looks at the timing between your heartbeats (R-R intervals) and draws their Poincaré scatter. From the cloud it computes its short and long axes (SD1, SD2) and a few plain regularity numbers. Movement and noisy windows are skipped, not shown. These are transparent, published descriptive statistics: a picture of your timing, never a clinical measurement.</string>
     <string name="l10n_rhythm_screen_each_dot_pairs_one_heartbeat_interval_07a1502c">Each dot pairs one heartbeat interval with the next. A tight line along the diagonal means a steady beat; a rounder, more spread-out cloud means the timing varied more.</string>
     <string name="l10n_rhythm_screen_experimental_wellness_visualization_not_a_diagnosis_0745e8b7">Experimental wellness visualization: not a diagnosis, not an ECG, and not a medical device. It cannot detect any heart condition. Beat-to-beat variation has many ordinary, benign causes. If you feel unwell or are worried, contact a qualified professional; in an emergency, your local emergency service. Everything is computed on your device.</string>
     <string name="l10n_rhythm_screen_extra_skipped_4a153489">Extra / skipped</string>
@@ -885,9 +885,9 @@
     <string name="l10n_scoring_guide_screen_close_bbfa773e">Close</string>
     <string name="l10n_scoring_guide_screen_every_score_carries_a_small_honesty_e5b722eb">Every score carries a small honesty label. Calibrating means ALKE is still</string>
     <string name="l10n_scoring_guide_screen_got_it_5b8027fa">Got it</string>
-    <string name="l10n_scoring_guide_screen_how_sure_is_noop_solid_building_c21d86d7">How sure is ALKE?  ·  Solid · Building · Calibrating</string>
+    <string name="l10n_scoring_guide_screen_how_sure_is_alke_solid_building_c21d86d7">How sure is ALKE?  ·  Solid · Building · Calibrating</string>
     <string name="l10n_scoring_guide_screen_how_your_scores_work_21a0e2be">How your scores work</string>
-    <string name="l10n_scoring_guide_screen_noop_gives_you_three_daily_scores_36244209">ALKE gives you three daily scores (Charge, Effort and Rest), each on a 0-100</string>
+    <string name="l10n_scoring_guide_screen_alke_gives_you_three_daily_scores_36244209">ALKE gives you three daily scores (Charge, Effort and Rest), each on a 0-100</string>
     <string name="l10n_scoring_guide_screen_scorecardhighlight_4af6985c">scoreCardHighlight</string>
     <string name="l10n_scoring_guide_screen_these_are_independent_approximations_from_a_301457ed">These are independent approximations from a consumer strap, built on open science: not medical advice, and not WHOOP\'s official scores.</string>
     <string name="l10n_scoring_guide_screen_vs_whoop_9a8126a7">VS WHOOP</string>
@@ -900,7 +900,7 @@
     <string name="l10n_settings_screen_note_a2481d6c">· %1$s</string>
     <string name="l10n_settings_screen_repo_note_0a694b50">%1$s, %2$s</string>
     <string name="l10n_skin_temp_cards_screen_cycle_awareness_ffb94783">Cycle awareness</string>
-    <string name="l10n_skin_temp_cards_screen_noop_can_read_a_coarse_menstrual_c79e4b85">ALKE can read a coarse menstrual-cycle phase from your nightly skin temperature, entirely on your device. It is awareness only: not contraception, not a fertility predictor, not a medical service.</string>
+    <string name="l10n_skin_temp_cards_screen_alke_can_read_a_coarse_menstrual_c79e4b85">ALKE can read a coarse menstrual-cycle phase from your nightly skin temperature, entirely on your device. It is awareness only: not contraception, not a fertility predictor, not a medical service.</string>
     <string name="l10n_skin_temp_cards_screen_turn_on_cycle_awareness_7c2d328f">Turn on cycle awareness</string>
     <string name="l10n_sleep_screen_about_this_nap_e2719b9b">About this nap</string>
     <string name="l10n_sleep_screen_about_your_main_sleep_1da8a640">About your main sleep</string>
@@ -963,14 +963,14 @@
     <string name="l10n_smart_alarm_screen_buzz_strapname_813772f4">Buzz %1$s</string>
     <string name="l10n_smart_alarm_screen_how_the_smart_wake_works_8cf34930">How the smart wake works</string>
     <string name="l10n_smart_alarm_screen_lengthen_window_c947ea1d">Lengthen window</string>
-    <string name="l10n_smart_alarm_screen_noop_doesn_t_have_permission_to_5b67cef0">ALKE doesn\'t have permission to set exact alarms, so your wake isn\'t guaranteed. Tap to allow it in system settings.</string>
+    <string name="l10n_smart_alarm_screen_alke_doesn_t_have_permission_to_5b67cef0">ALKE doesn\'t have permission to set exact alarms, so your wake isn\'t guaranteed. Tap to allow it in system settings.</string>
     <string name="l10n_smart_alarm_screen_off_e3de5ab0">Off</string>
     <string name="l10n_smart_alarm_screen_remind_me_to_wind_down_4839f0d0">Remind me to wind down</string>
     <string name="l10n_smart_alarm_screen_shorten_window_5bf5b37d">Shorten window</string>
     <string name="l10n_smart_alarm_screen_strap_wake_alarm_1828fff3">Strap wake-alarm</string>
     <string name="smart_alarm_check_strap_alarm">Check what the strap has stored</string>
     <string name="smart_alarm_check_strap_alarm_help">The answer from the strap appears in your strap log and debug export, with the raw bytes it replied with.</string>
-    <string name="l10n_smart_alarm_screen_the_earliest_noop_will_wake_you_b641a2d4">The earliest ALKE will wake you.</string>
+    <string name="l10n_smart_alarm_screen_the_earliest_alke_will_wake_you_b641a2d4">The earliest ALKE will wake you.</string>
     <string name="l10n_smart_alarm_screen_the_guaranteed_alarm_fires_this_long_b0c51052">The guaranteed alarm fires this long after your earliest time.</string>
     <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">This is a coarse cue from heart rate, not a clinical sleep-stage reading. If the strap isn\'t streaming (Bluetooth off, not worn, app killed), no early wake happens and the guaranteed alarm at the window\'s end still wakes you.</string>
     <string name="l10n_smart_alarm_screen_turn_on_the_smart_alarm_to_65700430">Turn on the smart alarm to wake inside a window you choose.</string>
@@ -990,12 +990,12 @@
     <string name="l10n_steps_calibration_screen_done_e9b450d1">Done</string>
     <string name="l10n_steps_calibration_screen_est_18b405fb">Est.</string>
     <string name="l10n_steps_calibration_screen_how_this_works_b895a8c3">How this works</string>
-    <string name="l10n_steps_calibration_screen_no_days_yet_where_both_noop_71d6005b">No days yet where both ALKE and your phone counted steps. Once your phone logs a few days alongside the strap, they\'ll appear here so you can see how close the estimate is.</string>
+    <string name="l10n_steps_calibration_screen_no_days_yet_where_both_alke_71d6005b">No days yet where both ALKE and your phone counted steps. Once your phone logs a few days alongside the strap, they\'ll appear here so you can see how close the estimate is.</string>
     <string name="l10n_steps_calibration_screen_no_motion_synced_yet_65106670">No motion synced yet</string>
-    <string name="l10n_steps_calibration_screen_noop_estimates_your_steps_from_your_d569bc31">ALKE estimates your steps from your WHOOP\'s motion, calibrated to your phone\'s step count. It\'s an estimate, not a step counter. A WHOOP 4.0 doesn\'t transmit steps.</string>
+    <string name="l10n_steps_calibration_screen_alke_estimates_your_steps_from_your_d569bc31">ALKE estimates your steps from your WHOOP\'s motion, calibrated to your phone\'s step count. It\'s an estimate, not a step counter. A WHOOP 4.0 doesn\'t transmit steps.</string>
     <string name="l10n_steps_calibration_screen_not_calibrated_yet_30abe0d0">Not calibrated yet</string>
     <string name="l10n_steps_calibration_screen_on_the_days_your_phone_also_2f65a14c">On the days your phone also counted steps, ALKE learns how much your motion maps to steps, then applies that to the strap-only days. The more matching days it has, the more it trusts the estimate.</string>
-    <string name="l10n_steps_calibration_screen_open_noop_near_your_strap_and_e08ddd6d">Open ALKE near your strap and let it catch up (a full history sync can take a while on first run). Once a day or two of motion lands, your step estimate and the calibration below will start to fill in.</string>
+    <string name="l10n_steps_calibration_screen_open_alke_near_your_strap_and_e08ddd6d">Open ALKE near your strap and let it catch up (a full history sync can take a while on first run). Once a day or two of motion lands, your step estimate and the calibration below will start to fill in.</string>
     <string name="l10n_steps_calibration_screen_override_the_automatic_fit_with_your_36a7b6fa">Override the automatic fit with your own steps-per-motion value. Useful if your phone has no step history to learn from, or the estimate runs consistently high or low. Step all the way down to return to auto.</string>
     <string name="l10n_steps_calibration_screen_phone_77064d52">Phone</string>
     <string name="l10n_steps_calibration_screen_shortday_row_day_estimated_row_estimated_f2d71597">%1$s: estimated %2$s steps, phone %3$s steps, %4$s percent difference</string>
@@ -1108,7 +1108,7 @@
     <string name="l10n_weekly_digest_card_week_in_review_66d95a07">Week in review</string>
     <string name="l10n_whats_new_sheet_close_bbfa773e">Close</string>
     <string name="l10n_whats_new_sheet_got_it_5b8027fa">Got it</string>
-    <string name="l10n_whats_new_sheet_noop_appchangelog_current_version_05dae27c">ALKE %1$s</string>
+    <string name="l10n_whats_new_sheet_alke_appchangelog_current_version_05dae27c">ALKE %1$s</string>
     <string name="l10n_whats_new_sheet_release_notes_cd5af734">Release notes</string>
     <string name="l10n_wheel_picker_cancel_77dfd213">Cancel</string>
     <string name="l10n_wheel_picker_done_e9b450d1">Done</string>
@@ -1119,7 +1119,7 @@
     <string name="l10n_whoop_model_comparison_screen_close_bbfa773e">Close</string>
     <string name="l10n_whoop_model_comparison_screen_done_e9b450d1">Done</string>
     <string name="l10n_whoop_model_comparison_screen_feature_ad565d9d">Feature</string>
-    <string name="l10n_whoop_model_comparison_screen_noop_pairs_with_the_whoop_4_599b088c">ALKE pairs with the WHOOP 4.0 and the WHOOP 5.0/MG. They share most of what matters (live heart rate, your scores, buzzing the strap), but a few firmware features differ. Here\'s what each can do, and why.</string>
+    <string name="l10n_whoop_model_comparison_screen_alke_pairs_with_the_whoop_4_599b088c">ALKE pairs with the WHOOP 4.0 and the WHOOP 5.0/MG. They share most of what matters (live heart rate, your scores, buzzing the strap), but a few firmware features differ. Here\'s what each can do, and why.</string>
     <string name="l10n_whoop_model_comparison_screen_on_a_whoop_4_0_32a5968d">On a WHOOP 4.0?</string>
     <string name="l10n_whoop_model_comparison_screen_what_each_can_read_and_why_4348bd67">What each can read, and why</string>
     <string name="l10n_whoop_model_comparison_screen_you_re_not_missing_the_broadcast_1d2fa907">You\'re not missing the broadcast feature. To share your heart rate with a gym machine,</string>
@@ -1186,7 +1186,7 @@
     <string name="l10n_add_device_wizard_make_active_75690bb8">Make active</string>
     <string name="l10n_add_device_wizard_make_confirmname_your_active_device_now_90ceb73e">Make %1$s your active device now? It will provide your live data. You can change this any time.</string>
     <string name="l10n_add_device_wizard_make_this_your_active_device_b425485c">Make this your active device?</string>
-    <string name="l10n_add_device_wizard_noop_will_install_its_own_key_d3f6321e">ALKE will install its own key on the ring and become its owner. The Oura app will no longer control this ring. This is intended and it cannot be undone from ALKE.</string>
+    <string name="l10n_add_device_wizard_alke_will_install_its_own_key_d3f6321e">ALKE will install its own key on the ring and become its owner. The Oura app will no longer control this ring. This is intended and it cannot be undone from ALKE.</string>
     <string name="l10n_add_device_wizard_not_now_e4571490">Not now</string>
     <string name="l10n_add_device_wizard_take_over_2c7f5505">Take over</string>
     <string name="l10n_add_device_wizard_take_over_this_ring_cc79ef5e">Take over this ring?</string>
@@ -1239,7 +1239,7 @@
     <string name="l10n_app_changelog_bug_fix_sweep_steps_sleep_export_50c60c51">Bug-fix sweep: steps, sleep export, and a battery-saving reconnect fix</string>
     <string name="l10n_app_changelog_bug_fixes_effort_the_widget_s_6b807b50">Bug fixes: Effort, the widget\'s day, and Oura reconnect</string>
     <string name="l10n_app_changelog_buzz_whoop_4_in_the_smart_4d17676a">Buzz WHOOP 4 in the Smart Alarm</string>
-    <string name="l10n_app_changelog_charge_effort_rest_noop_s_own_8c323656">Charge, Effort &amp; Rest - ALKE\'s own scores, out of 100</string>
+    <string name="l10n_app_changelog_charge_effort_rest_alke_s_own_8c323656">Charge, Effort &amp; Rest - ALKE\'s own scores, out of 100</string>
     <string name="l10n_app_changelog_charge_shows_calibrating_instead_of_no_51a000e9">Charge shows "Calibrating" instead of "No data" for new straps</string>
     <string name="l10n_app_changelog_check_for_updates_736b9062">Check for updates</string>
     <string name="l10n_app_changelog_classic_chart_colours_a_throwback_toggle_e8150db5">Classic chart colours - a throwback toggle</string>
@@ -1316,7 +1316,7 @@
     <string name="l10n_app_changelog_journal_logging_an_imperial_metric_units_a507a5d2">Journal logging + an Imperial/Metric units toggle</string>
     <string name="l10n_app_changelog_large_apple_health_imports_no_longer_830fa786">Large Apple Health imports no longer crash (iPhone/Mac)</string>
     <string name="l10n_app_changelog_last_workouts_tile_fix_301180af">Last Workouts tile fix</string>
-    <string name="l10n_app_changelog_light_theme_noop_in_warm_paper_d5b9f463">Light theme - ALKE in warm paper &amp; gold</string>
+    <string name="l10n_app_changelog_light_theme_alke_in_warm_paper_d5b9f463">Light theme - ALKE in warm paper &amp; gold</string>
     <string name="l10n_app_changelog_light_theme_polish_5add98b2">Light theme polish</string>
     <string name="l10n_app_changelog_light_theme_tuning_2bbad1f7">Light theme tuning</string>
     <string name="l10n_app_changelog_live_heart_rate_lands_on_today_5cac8768">Live heart rate lands on today\'s chart even when the strap\'s clock is off (Android)</string>
@@ -1338,9 +1338,9 @@
     <string name="l10n_app_changelog_new_use_an_apple_watch_with_4c2c29a6">New: use an Apple Watch with ALKE</string>
     <string name="l10n_app_changelog_new_week_in_review_a_live_c1457e40">New: Week in review, a live body console, fresher charts and more</string>
     <string name="l10n_app_changelog_no_more_hr_spike_when_you_7dc052ba">No more HR spike when you reopen the app</string>
-    <string name="l10n_app_changelog_noop_grows_up_it_s_not_823bf2e7">ALKE grows up: it\'s not just for WHOOP anymore</string>
-    <string name="l10n_app_changelog_noop_has_a_new_home_01b87522">ALKE has a new home</string>
-    <string name="l10n_app_changelog_noop_now_tells_you_when_your_af259fbb">ALKE now tells you when your strap isn\'t saving history - and how to fix it</string>
+    <string name="l10n_app_changelog_alke_grows_up_it_s_not_823bf2e7">ALKE grows up: it\'s not just for WHOOP anymore</string>
+    <string name="l10n_app_changelog_alke_has_a_new_home_01b87522">ALKE has a new home</string>
+    <string name="l10n_app_changelog_alke_now_tells_you_when_your_af259fbb">ALKE now tells you when your strap isn\'t saving history - and how to fix it</string>
     <string name="l10n_app_changelog_on_demand_hrv_a_haptic_clock_50376585">On-demand HRV, a haptic clock, sleep marks &amp; more</string>
     <string name="l10n_app_changelog_oneplus_pairing_fix_f731fcb2">OnePlus pairing fix</string>
     <string name="l10n_app_changelog_open_a_workout_see_what_it_a40fd8a4">Open a workout, see what it costs you, and share your trends</string>
@@ -1429,7 +1429,7 @@
     <string name="l10n_app_changelog_universal_mac_build_iphone_import_fix_363425a0">Universal Mac build + iPhone import fix</string>
     <string name="l10n_app_changelog_update_check_shows_what_s_new_6779c2e3">Update check shows what\'s new</string>
     <string name="l10n_app_changelog_updates_check_github_again_1e00ced1">Updates check GitHub again</string>
-    <string name="l10n_app_changelog_v5_the_raw_signal_release_noop_c109e3f2">v5 - the raw-signal release: ALKE reads the signal, on your device, free</string>
+    <string name="l10n_app_changelog_v5_the_raw_signal_release_alke_c109e3f2">v5 - the raw-signal release: ALKE reads the signal, on your device, free</string>
     <string name="l10n_app_changelog_week_in_review_is_honest_about_4c225bd3">Week in Review is honest about a half-finished week</string>
     <string name="l10n_app_changelog_whoop_4_0_is_the_supported_16893d9d">WHOOP 4.0 is the supported path</string>
     <string name="l10n_app_changelog_whoop_5_0_history_decoding_comes_a8848386">WHOOP 5.0 history decoding comes to Android</string>
@@ -1522,11 +1522,11 @@
     <string name="l10n_health_screen_vitality_be320b06">Vitality</string>
     <string name="l10n_health_screen_vo2max_21214fb6">VO₂ Max</string>
     <string name="l10n_health_screen_weight_height_and_waist_add_a_fd2699f5">Weight, height and waist add a VO₂max estimate. They don\'t change the Fitness Age itself.</string>
-    <string name="l10n_how_noop_works_screen_how_your_scores_are_computed_1b2d6c30">How your scores are computed</string>
-    <string name="l10n_how_noop_works_screen_how_your_scores_work_21a0e2be">How your scores work</string>
-    <string name="l10n_how_noop_works_screen_how_your_sleep_is_sorted_6a8e82e0">How your sleep is sorted</string>
-    <string name="l10n_how_noop_works_screen_what_recording_means_b896c422">What "recording" means</string>
-    <string name="l10n_how_noop_works_screen_where_your_numbers_come_from_e169963a">Where your numbers come from</string>
+    <string name="l10n_how_alke_works_screen_how_your_scores_are_computed_1b2d6c30">How your scores are computed</string>
+    <string name="l10n_how_alke_works_screen_how_your_scores_work_21a0e2be">How your scores work</string>
+    <string name="l10n_how_alke_works_screen_how_your_sleep_is_sorted_6a8e82e0">How your sleep is sorted</string>
+    <string name="l10n_how_alke_works_screen_what_recording_means_b896c422">What "recording" means</string>
+    <string name="l10n_how_alke_works_screen_where_your_numbers_come_from_e169963a">Where your numbers come from</string>
     <string name="l10n_hrv_snapshot_screen_a_60_second_snapshot_of_your_35f03f7c">A 60-second snapshot of your beat-to-beat (R-R) intervals from the strap, cleaned (range and ectopic-beat filtering) before computing RMSSD the same way your overnight HRV is computed.</string>
     <string name="l10n_hrv_snapshot_screen_close_hrv_reading_a29a99a1">Close HRV reading</string>
     <string name="l10n_hrv_snapshot_screen_hrv_reading_a2cf71f3">HRV Reading</string>
@@ -1567,10 +1567,10 @@
     <string name="l10n_live_screen_take_an_hrv_reading_20ecb2d2">Take an HRV reading</string>
     <string name="l10n_live_screen_w_sport_name_uppercase_e59bc678">● %1$s</string>
     <string name="l10n_live_screen_whoop_5_0_mg_pairs_with_b93143f2">WHOOP 5.0/MG pairs with one app at a time. If a scan finds nothing, unpair it in the official WHOOP app and fully close that app, then Connect again.</string>
-    <string name="l10n_noop_button_noopbutton_scale_1bee88be">NoopButton.scale</string>
-    <string name="l10n_noop_button_save_changes_179359b3">Save changes</string>
-    <string name="l10n_noop_motion_countuptext_749c73fb">CountUpText</string>
-    <string name="l10n_noop_motion_staggeredappear_7e1a3335">staggeredAppear</string>
+    <string name="l10n_alke_button_alkebutton_scale_1bee88be">AlkeButton.scale</string>
+    <string name="l10n_alke_button_save_changes_179359b3">Save changes</string>
+    <string name="l10n_alke_motion_countuptext_749c73fb">CountUpText</string>
+    <string name="l10n_alke_motion_staggeredappear_7e1a3335">staggeredAppear</string>
     <string name="l10n_pip_bar_pipbar_197c22c4">PipBar</string>
     <string name="l10n_rhythm_screen_an_experimental_picture_of_your_beat_966289c6">An experimental picture of your beat-to-beat timing. Please read these first.</string>
     <string name="l10n_rhythm_screen_before_you_turn_on_rhythm_e85a832c">Before you turn on Rhythm</string>
@@ -1586,7 +1586,7 @@
     <string name="l10n_settings_screen_age_ff9f1ff3">Age</string>
     <string name="l10n_settings_screen_app_icon_abde7a74">App icon</string>
     <string name="l10n_settings_screen_appearance_41def7a0">Appearance</string>
-    <string name="l10n_settings_screen_reduce_motion_in_noop_59a6180d">Reduce motion in ALKE</string>
+    <string name="l10n_settings_screen_reduce_motion_in_alke_59a6180d">Reduce motion in ALKE</string>
     <string name="l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57">Holds the liquid gauges, the sky and the tilt response still, and turns off the motion sensor that drives them. Saves battery. Low Power Mode and the system Reduce Motion setting already do this.</string>
     <string name="l10n_settings_screen_auto_detect_workouts_bed4cf2a">Auto-detect workouts</string>
     <string name="l10n_settings_screen_automatic_backups_8a772f3c">Automatic backups</string>
@@ -1594,7 +1594,7 @@
     <string name="l10n_settings_screen_battery_pct_roundtoint_e02e2891">Battery %1$s%%%2$s</string>
     <string name="l10n_settings_screen_broadcast_heart_rate_d1af1c79">Broadcast heart rate</string>
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Ask Android to pair (experimental)</string>
-    <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">ALKE has always hoped that writing to your 5.0/MG would make Android pair with it. It never does. This asks Android directly, so it may show a system pairing dialog. Live heart rate keeps working either way; turn it off if the dialog is a nuisance.</string>
+    <string name="l10n_settings_screen_alke_has_always_hoped_that_writing_19967036">ALKE has always hoped that writing to your 5.0/MG would make Android pair with it. It never does. This asks Android directly, so it may show a system pairing dialog. Live heart rate keeps working either way; turn it off if the dialog is a nuisance.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Ask Android to pair</string>
     <string name="l10n_settings_screen_broadcast_strap_hr_garmin_ant_a39d0654">Broadcast strap HR (Garmin/ANT)</string>
     <string name="l10n_settings_screen_buzz_the_time_on_your_strap_06fc879d">Buzz the time on your strap</string>
@@ -1630,7 +1630,7 @@
     <string name="l10n_settings_screen_github_code_releases_issues_and_the_50b41e25">GitHub: code, releases, issues and the wiki.</string>
     <string name="l10n_settings_screen_health_wellness_93475778">Health &amp; wellness</string>
     <string name="l10n_settings_screen_height_3f608b49">Height</string>
-    <string name="l10n_settings_screen_how_noop_works_3396b27a">How ALKE works</string>
+    <string name="l10n_settings_screen_how_alke_works_3396b27a">How ALKE works</string>
     <string name="l10n_settings_screen_how_see_through_the_cards_heart_436105b9">How see-through the cards (Heart Rate, Key Metrics, Recovery Vitals, …) are. Left = solid, right = clear.</string>
     <string name="l10n_settings_screen_how_your_scores_work_21a0e2be">How your scores work</string>
     <string name="l10n_settings_screen_hrv_window_e74320b8">HRV window</string>
@@ -1640,7 +1640,7 @@
     <string name="l10n_settings_screen_import_4834caf8">Import…</string>
     <string name="l10n_settings_screen_importing_overwrites_everything_currently_on_this_297b76ae">Importing overwrites everything currently on this phone. Your old data is kept in a side file just in case. ALKE needs a relaunch for an import to take effect. Export CSV writes a WHOOP-format zip of your days, sleeps, workouts and journal that re-imports into ALKE on Android or Mac. On-device computed rows are marked APPROXIMATE in its Source column; the .alkebak backup stays the lossless restore path.</string>
     <string name="l10n_settings_screen_keep_connected_in_the_background_44499d45">Keep connected in the background</string>
-    <string name="l10n_settings_screen_keep_noop_alive_overnight_e43b2fba">Keep ALKE alive overnight</string>
+    <string name="l10n_settings_screen_keep_alke_alive_overnight_e43b2fba">Keep ALKE alive overnight</string>
     <string name="l10n_settings_screen_allow_3ad0e369">Allow</string>
     <string name="l10n_settings_screen_keep_screen_on_during_a_workout_42d27284">Keep screen on during a workout</string>
     <string name="l10n_settings_screen_keeps_streaming_from_your_strap_with_d31b4af9">Keeps streaming from your strap with an ongoing notification, even after you close ALKE. Turn off to disconnect when the app is closed.</string>
@@ -1651,9 +1651,9 @@
     <string name="l10n_settings_screen_max_heart_rate_3d4ed858">Max heart rate</string>
     <string name="l10n_settings_screen_measurement_system_701d765d">Measurement system</string>
     <string name="l10n_settings_screen_motion_aware_wake_refinement_67a91e47">Motion-aware wake refinement</string>
-    <string name="l10n_settings_screen_noop_is_not_a_medical_device_ab32ef7e">ALKE is not a medical device. It is for informational and personal-insight purposes only and is not intended to diagnose, treat, cure or prevent any condition. Talk to a clinician for medical advice.</string>
+    <string name="l10n_settings_screen_alke_is_not_a_medical_device_ab32ef7e">ALKE is not a medical device. It is for informational and personal-insight purposes only and is not intended to diagnose, treat, cure or prevent any condition. Talk to a clinician for medical advice.</string>
     <string name="l10n_settings_screen_offer_a_breath_automatically_6c709dee">Offer a breath automatically</string>
-    <string name="l10n_settings_screen_on_a_5_mg_connection_noop_4557c8f8">On a 5/MG connection ALKE will send a puffin realtime-stream request after the handshake, and log what comes back. If you have a 5/MG strap, turning this on and sharing your strap log helps map the protocol. No effect on WHOOP 4.0.</string>
+    <string name="l10n_settings_screen_on_a_5_mg_connection_alke_4557c8f8">On a 5/MG connection ALKE will send a puffin realtime-stream request after the handshake, and log what comes back. If you have a 5/MG strap, turning this on and sharing your strap log helps map the protocol. No effect on WHOOP 4.0.</string>
     <string name="l10n_settings_screen_open_source_ble_reverse_engineering_work_40062271">Open-source BLE reverse-engineering work. Thank you.</string>
     <string name="l10n_settings_screen_open_test_centre_a7fbe4e9">Open Test Centre</string>
     <string name="l10n_settings_screen_overnight_only_05747985">Overnight only</string>
@@ -1714,8 +1714,8 @@
     <string name="l10n_settings_screen_weight_69c0b815">Weight</string>
     <string name="l10n_settings_screen_what_each_strap_can_read_and_51e7d3fc">What each strap can read, and why some features differ.</string>
     <string name="l10n_settings_screen_what_s_new_4d8dc5fe">What\'s new</string>
-    <string name="l10n_settings_screen_what_s_new_in_noop_appchangelog_d26fb453">What\'s new in ALKE %1$s</string>
-    <string name="l10n_settings_screen_whole_night_is_noop_s_default_fbfff434">Whole night is ALKE\'s default measure; Deep sleep pools HRV over slow-wave sleep only, reading lower and matching WHOOP. Switching re-scores your recent nights over the new window and takes effect right away once you have a few nights of data.</string>
+    <string name="l10n_settings_screen_what_s_new_in_alke_appchangelog_d26fb453">What\'s new in ALKE %1$s</string>
+    <string name="l10n_settings_screen_whole_night_is_alke_s_default_fbfff434">Whole night is ALKE\'s default measure; Deep sleep pools HRV over slow-wave sleep only, reading lower and matching WHOOP. Switching re-scores your recent nights over the new window and takes effect right away once you have a few nights of data.</string>
     <string name="l10n_settings_screen_whoop_4_0_versus_5_0_a54c5504">WHOOP 4.0 versus 5.0: what each can read and why</string>
     <string name="l10n_settings_screen_whoop_4_0_vs_5_0_2babb05a">WHOOP 4.0 vs 5.0/MG</string>
     <string name="l10n_settings_screen_whoop_5_mg_straps_hand_a_b8b239e6">Legacy R22 feature-flag experiment. The strap accepts these writes, but ALKE has not observed them enabling a separate live stream. This is not required for normal WHOOP 5/MG support or for the Raw Data Collector. It writes persistent strap settings and may do nothing on your firmware.</string>
@@ -1934,7 +1934,7 @@
     <string name="settings_disclosure_collapsed">Collapsed</string>
     <string name="l10n_data_sources_screen_last_shared_6bf8389c">"Last shared "%1$s</string>
     <string name="l10n_data_sources_screen_sharing_paused_health_connect_permission_was_e8950315">Sharing paused — Health Connect permission was revoked. Tap to re-grant.</string>
-    <string name="l10n_data_sources_screen_last_share_didn_t_finish_noop_0d6c27f0">Last share didn’t finish — ALKE will retry automatically.</string>
+    <string name="l10n_data_sources_screen_last_share_didn_t_finish_alke_0d6c27f0">Last share didn’t finish — ALKE will retry automatically.</string>
     <string name="settings_streak_title">Streak</string>
     <plurals name="settings_streak_run">
         <item quantity="one">%1$d day in a row</item>
@@ -1966,7 +1966,7 @@
     <string name="battery_full_body">Your WHOOP is at 100%.</string>
 
     <!-- Foreground-service notification (WhoopConnectionService). Always on screen while the strap is
-         connected, and hardcoded English until now: com/noop/ble is outside i18n_audit.py's scan roots,
+         connected, and hardcoded English until now: com/otidotid/alke/ble is outside i18n_audit.py's scan roots,
          and a NotificationCompat builder chain matches none of its Compose patterns, so the gate could
          not see it. postNotification's dedupe key now includes the locale — without that, these would
          keep the previous language until the connection or battery state happened to change. -->
@@ -2132,7 +2132,7 @@
     <string name="l10n_devices_screen_forget_device_d6eb6209">Forget device…</string>
     <string name="l10n_devices_screen_forget_device_926e503d">Forget device</string>
     <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">Forget this device?</string>
-    <string name="l10n_devices_screen_noop_removes_this_device_503aff9e">ALKE removes this device from your list and deletes its recorded data here. You can re-pair the strap to pull its recent history back.</string>
+    <string name="l10n_devices_screen_alke_removes_this_device_503aff9e">ALKE removes this device from your list and deletes its recorded data here. You can re-pair the strap to pull its recent history back.</string>
     <string name="l10n_backup_sync_screen_auto_backup_hasn_t_run_in_e3cd484e">Auto-backup hasn\'t run in a few days. Check the backup folder is still available — a moved or disconnected cloud folder stops backups silently.</string>
     <string name="cycle_tracker_title">Cycle tracker</string>
     <string name="cycle_tracker_current_estimate">Current estimate</string>
@@ -2171,7 +2171,7 @@
     <string name="skin_temp_missing_caption">No nightly skin-temp yet — needs ~4 worn nights (or import a WHOOP CSV)</string>
     <string name="skin_temp_delta_title">Skin Temp Δ</string>
     <string name="skin_temp_vs_baseline">vs baseline</string>
-    <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Make ALKE yours — theme colours and custom backgrounds, forty more sports with GPS routes, and a calorie heatmap</string>
+    <string name="l10n_app_changelog_make_alke_yours_theme_colours_and_6bdef2a7">Make ALKE yours — theme colours and custom backgrounds, forty more sports with GPS routes, and a calorie heatmap</string>
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Custom HR zones</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Set the BPM where each zone begins. Turn off to restore the default percentage-of-max zones.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Zone %1$d starts</string>
@@ -2714,8 +2714,8 @@
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Send hello despite bond refusal (experimental)</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Send hello despite bond refusal</string>
     <string name="l10n_settings_screen_check_automatically_7cd229d2">Check automatically</string>
-    <string name="l10n_settings_screen_once_a_day_noop_asks_github_5683aad3">Once a day, ALKE asks GitHub for the latest version number and puts a note in Updates if there’s a newer one. Nothing about you is sent, and it never installs anything.</string>
-    <string name="l10n_updates_noop_1s_is_available_05d8ef55">ALKE %1$s is available</string>
+    <string name="l10n_settings_screen_once_a_day_alke_asks_github_5683aad3">Once a day, ALKE asks GitHub for the latest version number and puts a note in Updates if there’s a newer one. Nothing about you is sent, and it never installs anything.</string>
+    <string name="l10n_updates_alke_1s_is_available_05d8ef55">ALKE %1$s is available</string>
     <string name="l10n_updates_youre_on_1s_open_settings_and_35b9e135">You\'re on %1$s. Open Settings and use Check for updates to see what\'s new and download %2$s.</string>
     <string name="crash_recovery_title">ALKE stopped unexpectedly</string>
     <string name="crash_recovery_body">The last crash is shown below. You can copy it for a bug report, then try opening the app again.</string>

@@ -1,0 +1,1631 @@
+package com.otidotid.alke.ui
+
+import android.content.Context
+import androidx.annotation.StringRes
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Air
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.Hexagon
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.automirrored.filled.Rule
+import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.BatteryStd
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.otidotid.alke.R
+import com.otidotid.alke.analytics.FusionSource
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.otidotid.alke.push.SelfHostedPushScreen
+
+// MARK: - Navigation model
+//
+// The macOS app's sidebar holds many sections; on Android (mirroring the iOS RootTabView) we surface
+// them through a unified floating "glass" bottom bar (Today · Workouts · Trends · Sleep · More) for the everyday
+// screens, with a "More" sheet that lists the full grouped set — so every destination is one tap away
+// without a global hamburger/drawer. Destinations are grouped exactly as the sidebar groups them.
+// Routes whose screens belong to later waves point at a ComingSoon placeholder so the app compiles today.
+
+/** A single drawer destination: stable route, display title (localized via [titleRes]), sidebar icon. */
+internal enum class Destination(
+    val route: String,
+    @StringRes val titleRes: Int,
+    val icon: ImageVector,
+) {
+    // Group: Today
+    Today("today", R.string.nav_today, Icons.Filled.Home),
+    // ALKE's full-detail routes retain advanced analytics and every original capability
+    // without overloading the new five-tab experience.
+    AlkeDetailedToday("alke_detailed_today", R.string.nav_today, Icons.Filled.Home),
+    AlkeHeartRateTimeline("alke_hr_timeline", R.string.nav_hr_timeline, Icons.Filled.MonitorHeart),
+    AlkeRecovery("alke_recovery", R.string.nav_sleep, Icons.Filled.Bedtime),
+    AlkeWorkoutHistory("alke_workout_history", R.string.nav_workouts, Icons.Filled.FitnessCenter),
+    AlkeTrendHistory("alke_trend_history", R.string.nav_trends, Icons.AutoMirrored.Filled.TrendingUp),
+    AlkeIntelligenceDetails("alke_intelligence_details", R.string.nav_intelligence, Icons.Filled.Psychology),
+    AlkeAllModules("alke_all_modules", R.string.nav_more, Icons.Filled.MoreHoriz),
+    Intelligence("intelligence", R.string.nav_intelligence, Icons.Filled.Psychology),
+    // Optional, default-OFF (task #43): the Coupled view (WHOOP-style day read). Reached ONLY via the
+    // Today dashboard "Coupled view" card tap-through, so it is deliberately NOT in any [DrawerGroup].
+    CoupledView("coupled_view", R.string.nav_coupled_view, Icons.Filled.Hexagon),
+
+    // Group: Live
+    Live("live", R.string.nav_live, Icons.Filled.FavoriteBorder),
+    Intervals("intervals", R.string.nav_intervals, Icons.Filled.Timeline),
+
+    // Group: Recovery
+    Sleep("sleep", R.string.nav_sleep, Icons.Filled.Bedtime),
+    Breathe("breathe", R.string.nav_breathe, Icons.Filled.Air),
+    Stress("stress", R.string.nav_stress, Icons.Filled.Spa),
+
+    // Group: Activity
+    Workouts("workouts", R.string.nav_workouts, Icons.Filled.FitnessCenter),
+    Trends("trends", R.string.nav_trends, Icons.AutoMirrored.Filled.TrendingUp),
+
+    // Group: Insight
+    Coach("coach", R.string.nav_coach, Icons.Filled.AutoAwesome),
+    // Coach settings (#2243), reached ONLY from the strip on the Coach page, so like [CoupledView]
+    // it is deliberately absent from every [DrawerGroup]: the drawer groups mirror the iOS More list
+    // one-for-one, and the iOS twin hangs off Coach in the same way.
+    CoachSettings("coach_settings", R.string.coach_settings, Icons.Filled.Tune),
+    InsightsHub("insights_hub", R.string.nav_insights_hub, Icons.Filled.Insights),
+    Insights("insights", R.string.nav_insights, Icons.Filled.Insights),
+    Explore("explore", R.string.nav_explore, Icons.Filled.Explore),
+    Compare("compare", R.string.nav_compare, Icons.AutoMirrored.Filled.CompareArrows),
+
+    // Group: Health
+    Health("health", R.string.nav_health, Icons.Filled.MonitorHeart),
+    Hydration("hydration", R.string.nav_hydration, Icons.Filled.WaterDrop),
+    VitalSigns("vital_signs", R.string.nav_vital_signs, Icons.Filled.HealthAndSafety),
+    VitalSignsDetail("vital_detail/{key}", R.string.nav_vital_signs, Icons.Filled.HealthAndSafety),
+    LabBook("lab_book", R.string.nav_lab_book, Icons.Filled.HealthAndSafety),
+    Rhythm("rhythm", R.string.nav_rhythm, Icons.Filled.MonitorHeart),
+
+    // Group: System
+    Automations("automations", R.string.nav_automations, Icons.Filled.Bolt),
+    // "Alarms" is the ONE alarm surface (#766): the phone-based Wake Window (light-sleep detection with a
+    // guaranteed OS backup), the strap's own firmware wake-alarm, and the wind-down reminder, all in one
+    // place. Previously "Wake Window" (#730), but the strap alarm moved in from Automations so the broader
+    // name fits. Route id stays "smart_alarm" (display string only).
+    SmartAlarm("smart_alarm", R.string.nav_alarms, Icons.Filled.Alarm),
+    Devices("devices", R.string.nav_devices, Icons.Filled.Sensors),
+    // The plain 4.0 vs 5.0/MG capability grid — what ALKE reads live off each strap vs import-only.
+    AlkeLimitations("alke_limitations", R.string.nav_alke_limitations, Icons.AutoMirrored.Filled.Rule),
+    DataSources("data_sources", R.string.nav_data_sources, Icons.Filled.Storage),
+    BackupSync("backup_sync", R.string.nav_backup_sync, Icons.Filled.CloudSync),
+    FusedRecord("fused_record", R.string.nav_fused_record, Icons.AutoMirrored.Filled.CompareArrows),
+    Notifications("notifications", R.string.nav_notifications, Icons.Filled.Notifications),
+    PowerSaving("power_saving", R.string.nav_power_saving, Icons.Filled.BatteryStd),
+    Profile("profile", R.string.l10n_settings_screen_profile_ff4fc027, Icons.Filled.AccountCircle),
+    Settings("settings", R.string.nav_settings, Icons.Filled.Settings),
+    // Experimental and intentionally absent from More: reachable only through Settings > Advanced.
+    SelfHostedPush("self_hosted_push", R.string.nav_self_hosted_push, Icons.Filled.CloudSync),
+    // Nested Settings destination shared by the Settings row and a blank WHOOP 4.0 Steps tile (#1515).
+    // Deliberately absent from [drawerGroups]: it is contextual, not another top-level More item.
+    StepsCalibration(
+        "steps_calibration",
+        R.string.l10n_settings_screen_steps_estimate_ce7a604d,
+        Icons.Filled.Tune,
+    ),
+    TestCentre("test_centre", R.string.nav_test_centre, Icons.Filled.BugReport),
+    GroundTruthCollector("ground_truth_collector", R.string.ground_truth_title, Icons.Filled.Sensors),
+
+    // The "More" tab: its own navigated page (mirroring the iOS More tab) that hosts the full
+    // grouped destination list. It is NOT itself in any [DrawerGroup] — it's the door to them.
+    More("more", R.string.nav_more, Icons.Filled.MoreHoriz);
+
+    companion object {
+        /** Resolve the destination owning the current back-stack route (defaults to Today). */
+        fun forRoute(route: String?): Destination =
+            entries.firstOrNull {
+                // Match parameterised routes (e.g. "vital_detail/rhr" vs "vital_detail/{key}") by
+                // base path so the top-bar title resolves correctly on a detail screen, not "Today".
+                it.route == route || it.route.substringBefore('/') == route?.substringBefore('/')
+            } ?: Today
+    }
+}
+
+/** More-page groups, mirroring the iOS More tab exactly: Insights · Body · Data · App. `defaultExpanded`
+ *  mirrors the iOS S2 default: Insights + Body open at rest, Data + App collapsed to just their header. */
+// [header] is the STABLE persistence key (stored in SharedPreferences and kept byte-identical to iOS's
+// `more.expandedSections` CSV — see [MoreSectionPrefs]); it must NEVER be localized. [headerRes] is the
+// localized DISPLAY label the More page shows. Decoupling the two lets the label translate without
+// touching the persisted open/closed state or the iOS parity of the stored string.
+internal data class DrawerGroup(
+    val header: String,
+    @StringRes val headerRes: Int,
+    val items: List<Destination>,
+    val defaultExpanded: Boolean,
+)
+
+// Mirrors the iOS RootTabView `moreTab` grouping + order one-for-one. Today / Trends / Sleep / Coach
+// are NOT listed (they're bottom-bar tabs, exactly as on iOS). Android-only screens (Vital Signs, Wake
+// Window, Notifications, Devices) are slotted into the matching iOS group.
+internal val drawerGroups: List<DrawerGroup> = listOf(
+    DrawerGroup("Insights", R.string.more_group_insights, listOf(
+        Destination.Sleep, Destination.Trends, Destination.InsightsHub,
+        Destination.Intelligence, Destination.Insights, Destination.Explore,
+        Destination.Compare, Destination.Health, Destination.VitalSigns,
+        Destination.LabBook, Destination.Rhythm,
+    ), defaultExpanded = false),
+    DrawerGroup("Activity", R.string.more_group_body, listOf(
+        Destination.Workouts, Destination.Live, Destination.Intervals,
+        Destination.Breathe, Destination.Hydration,
+    ), defaultExpanded = false),
+    DrawerGroup("Nutrition & Coach", R.string.more_group_insights, listOf(
+        Destination.Coach,
+    ), defaultExpanded = false),
+    DrawerGroup("Data", R.string.more_group_data, listOf(
+        Destination.FusedRecord, Destination.DataSources,
+        Destination.BackupSync, Destination.Devices, Destination.AlkeLimitations,
+    ), defaultExpanded = false),
+    DrawerGroup("Settings", R.string.more_group_app, listOf(
+        Destination.Automations, Destination.SmartAlarm, Destination.Notifications,
+        Destination.TestCentre, Destination.PowerSaving, Destination.Settings,
+    ), defaultExpanded = false),
+)
+
+/**
+ * Single ALKE label contract shared by the dock, dock editor and All Modules.
+ * Stable route ids and original translated resources never change.
+ */
+internal fun alkeModuleAlias(destination: Destination): String? = when (destination) {
+    Destination.Today -> "Today"
+    Destination.Workouts -> "Train"
+    Destination.Trends -> "Progress"
+    Destination.Intelligence -> "Insight"
+    Destination.Live -> "Live HR"
+    Destination.More -> "Me"
+    else -> null
+}
+
+@Composable
+internal fun alkeModuleLabel(destination: Destination): String =
+    alkeModuleAlias(destination) ?: stringResource(destination.titleRes)
+
+/** Modules that may be pinned between the locked Today and More slots. */
+internal val configurableBottomBarDestinations: List<Destination> = listOf(
+    Destination.Coach,
+    Destination.Trends,
+    Destination.Sleep,
+    Destination.Workouts,
+    Destination.Health,
+    Destination.Live,
+    Destination.InsightsHub,
+    Destination.Intelligence,
+    Destination.Insights,
+    Destination.Explore,
+    Destination.Compare,
+    Destination.LabBook,
+    Destination.Breathe,
+    Destination.Intervals,
+    Destination.Rhythm,
+    Destination.FusedRecord,
+    Destination.DataSources,
+    Destination.BackupSync,
+    Destination.Devices,
+    Destination.AlkeLimitations,
+    Destination.Automations,
+    Destination.SmartAlarm,
+    Destination.Notifications,
+    Destination.TestCentre,
+    Destination.PowerSaving,
+    Destination.Settings,
+)
+
+/**
+ * User-owned bottom-bar layout. Today and More are structural and never stored; this list is only the
+ * three optional middle slots. Stable route ids are persisted, never translated labels.
+ */
+internal object BottomBarModuleStore {
+    const val KEY = "alke.bottomBarModules"
+    const val MAX_PINNED = 3
+    val defaults = listOf(Destination.Workouts, Destination.Trends, Destination.Intelligence)
+
+    var selected by mutableStateOf(defaults)
+        private set
+
+    fun decode(raw: String?): List<Destination> {
+        if (raw == null) return defaults
+        // Empty is an explicit choice of zero optional pins; null alone means never configured.
+        if (raw.isBlank()) return emptyList()
+        return normalize(raw.split(',')
+            .mapNotNull { token -> Destination.entries.firstOrNull { it.route == token.trim() } })
+            .ifEmpty { defaults }
+    }
+
+    fun normalize(items: List<Destination>): List<Destination> = items
+        .filter { it in configurableBottomBarDestinations }.distinct().take(MAX_PINNED)
+
+    fun encode(items: List<Destination>): String = normalize(items).joinToString(",") { it.route }
+
+    fun load(ctx: Context) {
+        selected = decode(AlkePrefs.of(ctx.applicationContext).getString(KEY, null))
+    }
+
+    private fun persist(ctx: Context, value: List<Destination>) {
+        selected = normalize(value)
+        AlkePrefs.of(ctx.applicationContext).edit().putString(KEY, encode(selected)).apply()
+    }
+
+    /** A rejected addition leaves the existing selection untouched. */
+    fun withPinned(current: List<Destination>, destination: Destination, pinned: Boolean): List<Destination>? {
+        if (destination !in configurableBottomBarDestinations) return null
+        val next = normalize(current).toMutableList()
+        if (pinned) {
+            if (destination in next) return next
+            if (next.size >= MAX_PINNED) return null
+            next += destination
+        } else {
+            next -= destination
+        }
+        return next
+    }
+
+    fun setPinned(ctx: Context, destination: Destination, pinned: Boolean): Boolean {
+        val next = withPinned(selected, destination, pinned) ?: return false
+        if (next != selected) persist(ctx, next)
+        return true
+    }
+
+    fun moved(current: List<Destination>, destination: Destination, delta: Int): List<Destination> {
+        val next = normalize(current).toMutableList()
+        val from = next.indexOf(destination)
+        if (from < 0) return next
+        val to = (from + delta.toLong()).coerceIn(0L, next.lastIndex.toLong()).toInt()
+        if (from == to) return next
+        next.add(to, next.removeAt(from))
+        return next
+    }
+
+    fun move(ctx: Context, destination: Destination, delta: Int) {
+        val next = moved(selected, destination, delta)
+        if (next != selected) persist(ctx, next)
+    }
+
+    fun reset(ctx: Context) = persist(ctx, defaults)
+}
+
+/** More categories always contain every unpinned module, while Today stays locked outside More. */
+internal fun visibleMoreGroups(pinned: List<Destination>): List<DrawerGroup> {
+    val pinnedSet = pinned.toSet()
+    return drawerGroups.map { group -> group.copy(items = group.items.filterNot { it in pinnedSet }) }
+        .filter { it.items.isNotEmpty() }
+}
+
+/**
+ * ALKE's All Modules is for discovery, not a second copy of the dock or Me.
+ * Me already has one-tap Settings, Devices, Data sources and Backup & Restore;
+ * preserve their routes and dock-pinning eligibility but avoid duplicate rows.
+ */
+internal fun alkeAllModulesGroups(pinned: List<Destination>): List<DrawerGroup> {
+    val meShortcuts = setOf(
+        Destination.Settings, Destination.Devices,
+        Destination.DataSources, Destination.BackupSync,
+    )
+    return visibleMoreGroups(pinned).map { group ->
+        group.copy(items = group.items.filterNot { it in meShortcuts })
+    }.filter { it.items.isNotEmpty() }
+}
+
+/** The headers open by default at first run, derived from [drawerGroups.defaultExpanded] (Insights +
+ *  Body), so the seed lives in one place and the persistence default can't drift from the UI default. */
+private fun defaultExpandedHeaders(): Set<String> =
+    drawerGroups.filter { it.defaultExpanded }.map { it.header }.toSet()
+
+/**
+ * Persisted open/closed state of the More page's collapsible groups (#860 item 2) - the Android twin of
+ * the iOS `MoreSectionPrefs`. The set of EXPANDED group headers is stored as one sorted comma-joined
+ * string under a single SharedPreferences key, encoded identically to iOS (same `more.expandedSections`
+ * suffix, same CSV-of-headers, same Insights+Body default) so the two platforms behave the same. An empty
+ * stored string is a valid state (everything collapsed), distinct from "never set" (which yields the seed).
+ */
+internal object MoreSectionPrefs {
+    const val KEY = "alke.more.expandedSections"
+
+    /** Read the expanded-header set; returns [default] when the key was never written (first run). */
+    fun read(prefs: android.content.SharedPreferences, default: Set<String>): Set<String> {
+        val raw = prefs.getString(KEY, null) ?: return default
+        return decode(raw)
+    }
+
+    /** Persist the expanded-header set as a sorted, comma-joined string. */
+    fun write(prefs: android.content.SharedPreferences, headers: Set<String>) {
+        prefs.edit().putString(KEY, encode(headers)).apply()
+    }
+
+    /** Encode the set of expanded headers to a sorted, comma-joined string. */
+    fun encode(headers: Set<String>): String = headers.sorted().joinToString(",")
+
+    /** Decode the stored string to a set of expanded headers; blank tokens dropped, empty string -> empty set. */
+    fun decode(raw: String): Set<String> =
+        raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+}
+
+/**
+ * #1839: should the overlay bar be hidden right now?
+ *
+ * Pure so the decision is testable without Compose — the separation the #90 prototype got right.
+ *
+ * Gated on [overlay] deliberately. In the slot layout the Scaffold has RESERVED the bar's space, so
+ * translating the bar away would leave an empty band rather than handing the space back to content —
+ * visibly worse than not hiding at all. Auto-hide only makes sense over content.
+ */
+internal fun shouldHideBar(
+    autoHide: Boolean,
+    overlay: Boolean,
+    scrollingDown: Boolean,
+    pinned: Boolean = false,
+): Boolean = !pinned && autoHide && overlay && scrollingDown
+
+/**
+ * #1839: does this scroll delta change the direction, or is it noise?
+ *
+ * Returns true for "scrolling down into the page", false for up, and null when the movement is under
+ * [threshold] and should be ignored — without that, a fingertip tremor flickers the bar continuously.
+ * A NEGATIVE delta means content moved up, which is the user scrolling down.
+ */
+internal fun scrollDirectionChange(delta: Float, threshold: Float): Boolean? = when {
+    delta <= -threshold -> true
+    delta >= threshold -> false
+    else -> null
+}
+
+/**
+ * #1839: the 0..1 collapse fraction the bar's transform rides.
+ *
+ * Reduce Motion pins it to 0 — VISIBLE — rather than snapping between hidden and shown. A bar that
+ * teleports away without animation reads as a glitch, and someone who has asked for less motion is the
+ * last person who should get that. #90 snapped to 0/1 instead; keeping the bar put is the kinder reading.
+ */
+internal fun barCollapseFraction(hidden: Boolean, reduceMotion: Boolean): Float =
+    if (reduceMotion) 0f else if (hidden) 1f else 0f
+
+/**
+ * #1836: which bottom-bar layout to use, snapshot-backed so the Settings toggle applies without a
+ * relaunch (the same shape as `BackgroundImageStore.enabled`).
+ *
+ * Default ON as of #1841. It shipped switchable and default-off first so it could be tried without being
+ * imposed; the overlay was then confirmed on a device. The switch stays, so anyone who dislikes it — or
+ * hits a screen that misbehaves — can put the reserved-slot layout back.
+ *
+ * An explicit choice is preserved either way: `getBoolean(key, true)` returns a stored `false` for someone
+ * who turned it off, and only an install that never touched the setting picks up the new default.
+ */
+object BottomBarStyleStore {
+    /** True = the overlay bar (glass over the screen's own backdrop). False = the reserved slot. */
+    var overlay by mutableStateOf(false)
+        private set
+
+    /**
+     * The bar's MEASURED height, published so [ScreenScaffold] can clear it.
+     *
+     * This is the half that makes the overlay actually do something. Moving the bar out of the slot is not
+     * enough on its own: a screen's backdrop is painted INSIDE the screen, so while the screen is inset
+     * above the bar the backdrop stops there too and the glass has nothing behind it but the shell's
+     * container colour. The screen has to reach the bottom edge, with its scrolling CONTENT clearing the
+     * bar instead — which is what this height is for.
+     */
+    var barHeight by mutableStateOf(0.dp)
+        internal set
+
+    /**
+     * The inset a screen's CONTENT should add, which is the bar height only while the overlay is on.
+     * A single accessor so callers cannot forget the `overlay` half and inset content in the slot
+     * layout, where the Scaffold has already reserved that space.
+     */
+    fun barHeightForContent(): Dp = if (overlay) barHeight else 0.dp
+
+    /**
+     * How see-through the bar's glass is, in EIGHT steps: 1 the most transparent, 8 solid.
+     *
+     * A step rather than a raw float so the two ends are reachable and every stop is repeatable - a
+     * continuous slider on a bar this small mostly produces values a user cannot tell apart or return to.
+     * The mapping is linear from 0.30 to 1.00, which puts the SHIPPED 0.80 exactly on step 6, so an
+     * install that never touches this is byte-identical to before.
+     */
+    var opacityStep by mutableStateOf(DEFAULT_OPACITY_STEP)
+        private set
+
+    /** The alpha for [opacityStep]. Step 1 = 0.30 ... step 6 = 0.80 (the shipped value) ... step 8 = 1.00. */
+    val barAlpha: Float get() = alphaForOpacityStep(opacityStep)
+
+    /**
+     * How much bigger the bar is drawn, from 1x to 2x.
+     *
+     * Scales the bar's CONTENT - icon, label and the padding around them - rather than applying a
+     * graphics scale to the finished bar, which would blur it and leave the touch targets where they
+     * were. The bar's height is measured and republished either way ([barHeight]), so screens keep
+     * clearing it correctly at any size without a second number to maintain.
+     */
+    var scale by mutableStateOf(DEFAULT_SCALE)
+        private set
+
+    /**
+     * Hold the bar visible regardless of auto-hide, while something is adjusting how it LOOKS.
+     *
+     * The transparency slider sits below the fold in Settings, so reaching it means scrolling down -
+     * which is exactly what auto-hide reads as "hide the bar". The control's live preview was therefore
+     * invisible at the moment it mattered, and touching the slider does not scroll, so nothing brought
+     * the bar back. Pinning while the drag is in flight is the narrowest fix: auto-hide is untouched as
+     * a setting, and the pin lasts only as long as a finger is down.
+     */
+    var previewPinned by mutableStateOf(false)
+        private set
+
+    /** Named `pinPreview` rather than `setPreviewPinned`: the latter is the property's own generated
+     *  setter, and declaring both is a JVM signature clash. */
+    fun pinPreview(value: Boolean) {
+        previewPinned = value
+    }
+
+    /**
+     * Move the bar NOW without persisting, for a slider drag.
+     *
+     * Separate from [setOpacityStep] because a drag emits a value per frame: persisting each one would
+     * write SharedPreferences dozens of times to record a decision the user makes once, on release. The
+     * card-opacity slider already splits it this way; this is the same split, not a new idea.
+     */
+    fun previewOpacityStep(step: Int) {
+        opacityStep = step.coerceIn(MIN_OPACITY_STEP, MAX_OPACITY_STEP)
+    }
+
+    /** Set and persist - for a committed choice, i.e. the end of a drag. */
+    fun setOpacityStep(ctx: Context, step: Int) {
+        val clamped = step.coerceIn(MIN_OPACITY_STEP, MAX_OPACITY_STEP)
+        opacityStep = clamped
+        AlkePrefs.of(ctx.applicationContext).edit()
+            .putInt(AlkePrefs.KEY_BOTTOM_BAR_OPACITY_STEP, clamped).apply()
+    }
+
+    fun setScale(ctx: Context, value: Float) {
+        val clamped = nearestScale(value)
+        scale = clamped
+        AlkePrefs.of(ctx.applicationContext).edit()
+            .putFloat(AlkePrefs.KEY_BOTTOM_BAR_SCALE, clamped).apply()
+    }
+
+    /** #1839: hide the overlay bar while scrolling down, bring it back on scrolling up. Default ON. */
+    var autoHide by mutableStateOf(false)
+        private set
+
+    fun setAutoHide(ctx: Context, value: Boolean) {
+        autoHide = value
+        AlkePrefs.of(ctx.applicationContext).edit()
+            .putBoolean(AlkePrefs.KEY_BOTTOM_BAR_AUTO_HIDE, value).apply()
+    }
+
+    /**
+     * Whether the AI Coach is offered at all. Default ON, so every existing install is unchanged.
+     *
+     * Lives here rather than being read straight from prefs at the call site because the bar has to
+     * RECOMPOSE when it flips: a plain `AlkePrefs.coachEnabled(ctx)` read inside the bar would be a
+     * snapshot taken once, and the tab would not appear or vanish until the next process start.
+     */
+    var coachEnabled by mutableStateOf(true)
+        private set
+
+    /**
+     * Flip the Coach master switch.
+     *
+     * Cancels the daily brief here rather than leaving each surface to notice, because the brief is the
+     * one Coach surface that runs with no UI attached: it is a separate default-off feature with its own
+     * `enabled` flag that calls a provider from the background and posts a notification. Hiding the tab
+     * alone would leave a wearer who had switched briefs on still getting AI output from a feature they
+     * had just turned off.
+     *
+     * Called in BOTH directions. `reschedule` already reads the master switch first and the brief's own
+     * flag second, so off cancels the work and clears the widget, and on re-arms it only if the wearer
+     * had briefs switched on. Doing this on the flip rather than leaving it to the next app start (where
+     * MainActivity reschedules anyway) keeps the brief's own settings row honest: it would otherwise read
+     * ON while nothing was scheduled, until something happened to relaunch the app.
+     */
+    fun setCoachEnabled(ctx: Context, value: Boolean) {
+        coachEnabled = value
+        val app = ctx.applicationContext
+        AlkePrefs.setCoachEnabled(app, value)
+        // Routed through `reschedule` rather than `cancel`, because cancelling the work is only half of
+        // switching the brief off: the widget keeps displaying the LAST generated brief, which is AI output
+        // still on the wearer's home screen after they turned the AI off. `reschedule` sees the master
+        // switch and does the right thing in both directions, so this is unconditional.
+        CoachBriefScheduler.reschedule(app)
+    }
+
+    fun load(ctx: Context) {
+        val prefs = AlkePrefs.of(ctx.applicationContext)
+        overlay = false
+        autoHide = false
+        coachEnabled = AlkePrefs.coachEnabled(ctx.applicationContext)
+        // Both are read through the same clamps the setters use, so a hand-edited or downgraded pref
+        // cannot put the bar in a state the UI has no way to leave.
+        opacityStep = prefs.getInt(AlkePrefs.KEY_BOTTOM_BAR_OPACITY_STEP, DEFAULT_OPACITY_STEP)
+            .coerceIn(MIN_OPACITY_STEP, MAX_OPACITY_STEP)
+        scale = 1f
+        // Permanent dock: legacy module preference intentionally ignored.
+    }
+
+    fun set(ctx: Context, value: Boolean) {
+        overlay = value
+        AlkePrefs.of(ctx.applicationContext).edit()
+            .putBoolean(AlkePrefs.KEY_OVERLAY_BOTTOM_BAR, value).apply()
+    }
+}
+
+/**
+ * App shell: a single [Scaffold] with a floating [GlassBottomBar] (Today · Workouts · Trends · Sleep · Coach · More)
+ * driving one [NavHost], mirroring the iOS RootTabView. There is NO global toolbar and no nav drawer
+ * — every screen self-titles via [ScreenScaffold], and the "More" sheet (opened from the bar) reaches
+ * every destination in [drawerGroups], so nothing is lost. A single [AppViewModel] is created here and
+ * shared with every screen, so the BLE connection and cached metrics stay app-wide singletons.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun AppRoot(viewModel: AppViewModel = viewModel()) {
+    val nav = rememberNavController()
+
+    val backStack by nav.currentBackStackEntryAsState()
+    val currentRoute = backStack?.destination?.route
+    val current = Destination.forRoute(currentRoute)
+    // Coach is a messenger: its composer should touch the IME, not sit above the bottom dock.
+    // Only the Coach route gets this adjustment; every other screen keeps its existing layout.
+    val coachKeyboardVisible = currentRoute == Destination.Coach.route && WindowInsets.isImeVisible
+    var showQuickActions by remember { mutableStateOf(false) }
+    // The Updates inbox sheet (opened by the Today header bell). The store is a process singleton so
+    // the Today cards and the import path post to the same inbox this sheet renders.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { BottomBarModuleStore.load(context) }
+    val updateStore = remember { UpdateStore.from(context) }
+    var showUpdatesInbox by remember { mutableStateOf(false) }
+    // #984: the changelog sheet a What's New inbox row opens. Held here (not inside the inbox) so it
+    // survives the inbox sheet closing — the tap dismisses the inbox and presents this over the app.
+    var showWhatsNewFromInbox by remember { mutableStateOf(false) }
+
+    // #1836: an overlay container, not a bottomBar slot. The slot sat OUTSIDE the screen content, so a
+    // screen's own backdrop (LiquidScreenSky / BackgroundImageBackdrop) stopped where the bar began and
+    // the bar's 0.80 "glass" had nothing behind it but surfaceBase — a bar built to float rendered as a
+    // dark strip cut out of the background. As a sibling drawn OVER the Scaffold it sits on the screen's
+    // own sky, which is what the translucency was written for.
+    // #1836: the inset MEASURED, never assumed. The bar's height includes navigationBarsPadding(), which
+    // differs by roughly 24dp between gesture navigation and 3-button navigation, and changes on rotation
+    // and on a foldable unfolding. The Scaffold slot used to measure it for us; a constant here would put
+    // content behind the bar on exactly the devices the report came from. One extra layout pass at
+    // startup, then stable.
+    var barHeightPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val barHeight = with(density) { barHeightPx.toDp() }
+    // #1839: auto-hide. ONE NestedScrollConnection on the shell means every screen gets the behaviour with
+    // no per-screen wiring — scrollable children dispatch their deltas up to it. onPreScroll only flips a
+    // Boolean, and only on a movement past the threshold, so a fingertip tremor cannot flicker the bar.
+    var scrollingDown by remember { mutableStateOf(false) }
+    val reduceMotion = rememberReduceMotion()
+    val hidden = shouldHideBar(BottomBarStyleStore.autoHide, BottomBarStyleStore.overlay, scrollingDown,
+                               pinned = BottomBarStyleStore.previewPinned)
+    val collapseTarget = barCollapseFraction(hidden, reduceMotion)
+    // The transform is a graphicsLayer only — GPU, per frame, NO relayout — so content never reflows as
+    // the bar comes and goes and scrolling stays smooth. (The approach #90 got right.)
+    // Held as the State, not unwrapped with `by`, ON PURPOSE. Reading a `Float` in composition would
+    // recompose this whole shell — Scaffold and NavHost included — on EVERY animation frame, which is the
+    // exact jank the graphicsLayer-only approach exists to avoid. Instead:
+    //   - the transform reads `.value` INSIDE graphicsLayer, a deferred read that updates the layer with
+    //     no recomposition at all;
+    //   - presence is a derivedStateOf, so composition is invalidated once when the bar appears or
+    //     disappears, not sixty times a second while it moves.
+    val collapseState = animateFloatAsState(
+        targetValue = collapseTarget,
+        animationSpec = tween(durationMillis = 220),
+    )
+    val barPresent by remember { derivedStateOf { collapseState.value < 1f } }
+    // Landing on a new screen with no visible way to navigate is disorienting, and the bar cannot be
+    // tapped to fix it because it is the thing that is hidden. Reset on every route change so a screen
+    // always opens with its navigation present; scrolling down again hides it as before.
+    LaunchedEffect(currentRoute) { scrollingDown = false }
+    val autoHideScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                scrollDirectionChange(available.y, threshold = 3f)?.let { scrollingDown = it }
+                return Offset.Zero
+            }
+        }
+    }
+    Box(Modifier.fillMaxSize().nestedScroll(autoHideScroll)) {
+        Scaffold(
+            containerColor = Palette.surfaceBase,
+            topBar = {
+                // One fixed identity/sync logo across every ALKE route, including detail modules.
+                // Scaffold reserves header height so scrollable pages cannot paint underneath it.
+                AlkeGlobalHeader(
+                    vm = viewModel,
+                    onNotifications = { showUpdatesInbox = true },
+                    onDevices = { nav.navigate(Destination.Devices.route) },
+                    onProfile = { nav.navigate(Destination.Profile.route) },
+                    unreadCount = updateStore.unreadCount,
+                )
+            },
+            bottomBar = {
+                // One unified "glass" bar: four evenly-spaced tabs — Today · Workouts · Trends · Sleep · More
+                // (matches the iOS FloatingTabBar). The quick-action "+" lives in the Today header's
+                // top-right (balancing the avatar), so the bar is clean tabs only. "More" navigates to
+                // its own page (mirroring the iOS More tab) that reaches every grouped destination, so no
+                // destination is lost without the drawer.
+                // DEFAULT path: the shipped reserved slot, unchanged. Empty only when the overlay is
+                // on, where the bar is drawn below as a sibling and the slot must reserve nothing.
+                if (!BottomBarStyleStore.overlay && !coachKeyboardVisible) {
+                    GlassBottomBar(
+                        current = current,
+                        onTabSelected = { dest ->
+                            if (dest.route != currentRoute) nav.navigateTopLevel(dest.route)
+                        },
+                    )
+                }
+            },
+        ) { inner ->
+            NavHost(
+                navController = nav,
+                startDestination = Destination.Today.route,
+                // The empty slot reserves nothing, so the bar's height is added here — the one place the
+                // inset used to come from. A scrollable that later wants content to pass UNDER the glass
+                // adds this measured height to its own contentPadding instead; no shared modifier can.
+                // Slot layout: the Scaffold measured the bar into `inner`, so use it as-is.
+                // Overlay layout: the slot reserves nothing, so the bottom comes from the measured bar.
+                modifier = (if (!BottomBarStyleStore.overlay) Modifier.padding(inner) else Modifier.padding(
+                    // Take the top and sides from the Scaffold, but REPLACE its bottom rather than adding
+                    // to it. Scaffold's default contentWindowInsets is WindowInsets.systemBars, so
+                    // `inner.bottom` already carries the navigation-bar inset — and the bar's measured
+                    // height carries it too, via its own navigationBarsPadding(). Adding both counted that
+                    // inset twice and left roughly a nav-bar's worth of dead space above the bar, widest
+                    // on 3-button navigation. The bar owns that inset; content just clears the bar.
+                    top = inner.calculateTopPadding(),
+                    start = inner.calculateStartPadding(LocalLayoutDirection.current),
+                    end = inner.calculateEndPadding(LocalLayoutDirection.current),
+                    // Bottom is ZERO on purpose: the screen must reach the bottom edge so its own backdrop
+                    // paints behind the glass. ScreenScaffold clears the bar from the scrolling CONTENT
+                    // instead, using BottomBarStyleStore.barHeight. Insetting here is what made the first
+                    // version of this change invisible — the bar moved, the backdrop did not follow.
+                    bottom = 0.dp,
+                ))
+                    // The reserved dock is gone while typing. Consume Scaffold's system-bar
+                    // inset before applying IME padding so it is not counted twice.
+                    .then(if (coachKeyboardVisible && !BottomBarStyleStore.overlay) Modifier.consumeWindowInsets(inner) else Modifier)
+                    .then(if (coachKeyboardVisible) Modifier.imePadding() else Modifier),
+                // README motion: top-level destinations crossfade (~240ms) on the calm,
+                // decelerating global easing — nothing slides or bounces between tabs. The
+                // same fade is used for back (pop) so the bar never feels jerky. Drill-ins
+                // (e.g. vital_detail) are pushed by the same NavHost, so they inherit the
+                // same restrained crossfade rather than a hard cut.
+                enterTransition = { fadeIn(navFadeSpec) },
+                exitTransition = { fadeOut(navFadeSpec) },
+                popEnterTransition = { fadeIn(navFadeSpec) },
+                popExitTransition = { fadeOut(navFadeSpec) },
+            ) {
+                // --- Live, working screens (existing waves) ---
+                // ALKE's native home is the approved readiness-led design, not the inherited dashboard.
+                composable(Destination.Today.route) {
+                    AlkeTodayExperience(
+                        vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        unreadCount = updateStore.unreadCount,
+                        onSleep = { nav.navigate(Destination.AlkeRecovery.route) },
+                        onHealth = { nav.navigate(Destination.Health.route) },
+                        onTrain = { nav.navigateTopLevel(Destination.Workouts.route) },
+                        onProgress = { nav.navigateTopLevel(Destination.Trends.route) },
+                        onCoach = { nav.navigate(Destination.Coach.route) },
+                        onMetric = { key -> nav.navigate("vital_detail/$key") },
+                        onSteps = { nav.navigate("vital_detail/steps_est") },
+                        onHeartRateTimeline = { nav.navigate(Destination.AlkeHeartRateTimeline.route) },
+                    )
+                }
+                composable(Destination.AlkeHeartRateTimeline.route) {
+                    AlkeHeartRateTimelineExperience(
+                        vm = viewModel,
+                        onBack = { nav.popBackStack() },
+                        onLive = { nav.navigate(Destination.Live.route) },
+                        onWorkouts = { nav.navigate(Destination.AlkeWorkoutHistory.route) },
+                    )
+                }
+                composable(Destination.AlkeDetailedToday.route) {
+                    TodayScreen(
+                        viewModel = viewModel,
+                        // The quick-action "+" lives in the Today header's top-right now (off the
+                        // bottom bar) — it opens the same quick-action sheet the bar used to.
+                        onQuickActions = { showQuickActions = true },
+                        // The Updates "ringer" — the bell sits before the +, and opens the inbox
+                        // sheet AppRoot presents (it owns the nav for deep-links).
+                        updateStore = updateStore,
+                        onOpenUpdates = { showUpdatesInbox = true },
+                        // The leading avatar opens the account-facing Profile surface. General Settings
+                        // remains a separate destination reachable from Profile and More.
+                        onOpenSettings = { nav.navigateTopLevel(Destination.Profile.route) },
+                        // The opt-in Hydration card (only shown when Hydration tracking is on) pushes its
+                        // detail. A normal push so the back-stack returns to Today.
+                        onOpenHydration = { nav.navigate(Destination.Hydration.route) },
+                        // #706/#684: the dashboard cards draw a tappable chevron; wire each to its detail,
+                        // matching iOS. Stress + the vitals are pushes; Sleep is a top-level tab switch.
+                        onOpenStress = { nav.navigate(Destination.Stress.route) },
+                        onOpenHealth = { nav.navigate(Destination.Health.route) },
+                        // Every metric/vital card opens its OWN focused detail trend (vital_detail/<key>),
+                        // not the shared Health hub (2026-07-03). Mirrors the iOS liquidCard metricDetail.
+                        onOpenMetric = { key -> nav.navigate("vital_detail/$key") },
+                        // A blank, uncalibrated WHOOP 4.0 Steps tile opens the same calibration screen as
+                        // Settings. A normal push returns Back to Today (#1515).
+                        onOpenStepsCalibration = { nav.navigate(Destination.StepsCalibration.route) },
+                        onOpenSleep = { nav.navigateTopLevel(Destination.Sleep.route) },
+                        // Optional Coupled view card (task #43): a normal push so back returns to Today.
+                        onOpenCoupled = { nav.navigate(Destination.CoupledView.route) },
+                        // #1862: the Coach launcher hands off here. Without this the sheet's buttons
+                        // would fall back to the parameter's no-op default and silently do nothing.
+                        onOpenCoach = { nav.navigateTopLevel(Destination.Coach.route) },
+                        // The "workout in progress" indicator: raise the one-shot the Live screen consumes to
+                        // re-open the in-exercise overlay, then route to Live. One tap from Today (iOS parity).
+                        onOpenActiveWorkout = {
+                            viewModel.openActiveWorkout()
+                            nav.navigate(Destination.Live.route)
+                        },
+                        // The liquid header's strap battery ring taps through to Devices (iOS parity: the
+                        // battery ring → router.openDevices()).
+                        onOpenDevices = { nav.navigateTopLevel(Destination.Devices.route) },
+                        // #627: the journal-reminder card opens the journal (hosted in Insights), same
+                        // destination the Sleep screen's morning sheet uses.
+                        onOpenJournal = { nav.navigateTopLevel(Destination.Insights.route) },
+                    )
+                }
+                composable(Destination.Live.route) {
+                    LiveScreen(
+                        viewModel = viewModel,
+                        onManageDevices = { nav.navigateTopLevel(Destination.Devices.route) },
+                    )
+                }
+                composable(Destination.AlkeRecovery.route) {
+                    AlkeRecoveryExperience(
+                        vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        unreadCount = updateStore.unreadCount,
+                        onFullSleep = { nav.navigate(Destination.Sleep.route) },
+                        onHealth = { nav.navigate(Destination.Health.route) },
+                    )
+                }
+                composable(Destination.Sleep.route) {
+                    SleepScreen(
+                        vm = viewModel,
+                        onOpenJournal = { nav.navigateTopLevel(Destination.Insights.route) },
+                        onOpenAlarms = { nav.navigate(Destination.SmartAlarm.route) },
+                    )
+                }
+                composable(Destination.CoupledView.route) {
+                    CoupledScreen(
+                        vm = viewModel,
+                        // Tapping Sleep in the coupled read opens the full Sleep screen (iOS parity).
+                        onOpenSleep = { nav.navigateTopLevel(Destination.Sleep.route) },
+                    )
+                }
+                composable(Destination.Intervals.route) { IntervalsScreen(viewModel) }
+                composable(Destination.Breathe.route) { BreatheScreen(viewModel) }
+                composable(Destination.Coach.route) {
+                    // A normal push, so Back returns to the conversation (#2243).
+                    CoachScreen(onOpenSettings = { nav.navigate(Destination.CoachSettings.route) })
+                }
+                composable(Destination.CoachSettings.route) {
+                    // The SAME CoachViewModel the conversation is using, not a fresh one.
+                    // `viewModel()` resolves against LocalViewModelStoreOwner, which under
+                    // Navigation Compose is the NavBackStackEntry, so the default would hand this
+                    // destination its own instance. CoachViewModel keeps consent in memory
+                    // (`_consent`, seeded once at construction) and `send` passes that value to
+                    // `chatStream`, so a revoke made against a second instance would persist to
+                    // storage and still leave the conversation sending on the old one until its
+                    // entry was destroyed. Coach is always below this on the back stack: this
+                    // destination is reachable only from the strip on that screen.
+                    val coachEntry = remember(it) { nav.getBackStackEntry(Destination.Coach.route) }
+                    CoachSettingsScreen(vm = viewModel(coachEntry))
+                }
+                composable(Destination.Explore.route) { TrendsExploreScreen(viewModel) }
+                composable(Destination.Automations.route) { AutomationsScreen(viewModel) }
+                composable(Destination.SmartAlarm.route) { SmartAlarmScreen(viewModel) }
+                composable(Destination.Workouts.route) {
+                    AlkeTrainingExperience(
+                        vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        unreadCount = updateStore.unreadCount,
+                        onWorkouts = { nav.navigate(Destination.AlkeWorkoutHistory.route) },
+                    )
+                }
+                composable(Destination.AlkeWorkoutHistory.route) { WorkoutsScreen(viewModel) }
+                composable(Destination.Intelligence.route) {
+                    AlkeInsightExperience(
+                        vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        unreadCount = updateStore.unreadCount,
+                        onCoach = { nav.navigate(Destination.Coach.route) },
+                        onIntelligence = { nav.navigate(Destination.AlkeIntelligenceDetails.route) },
+                        onHealth = { nav.navigate(Destination.Health.route) },
+                        onSkinTemp = { nav.navigate("vital_detail/skin") },
+                    )
+                }
+                composable(Destination.AlkeIntelligenceDetails.route) { IntelligenceScreen(viewModel) }
+
+                // --- Placeholder routes (later waves fill these in) ---
+                composable(Destination.Stress.route) {
+                    StressScreen(
+                        vm = viewModel,
+                        onBreathe = { nav.navigateTopLevel(Destination.Breathe.route) },
+                    )
+                }
+                composable(Destination.Trends.route) {
+                    AlkeProgressExperience(
+                        vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        unreadCount = updateStore.unreadCount,
+                        onHealth = { nav.navigate(Destination.Health.route) },
+                        onVo2 = { nav.navigate("vital_detail/vo2max_est") },
+                        onBodyAge = { nav.navigate("vital_detail/vitality") },
+                        onTrends = { nav.navigate(Destination.AlkeTrendHistory.route) },
+                        onSteps = { nav.navigate("vital_detail/steps_est") },
+                    )
+                }
+                composable(Destination.AlkeTrendHistory.route) { TrendsScreen(viewModel) }
+                composable(Destination.Insights.route) { InsightsScreen(viewModel, onOpenInsightsHub = { nav.navigateTopLevel(Destination.InsightsHub.route) }) }
+                composable(Destination.Compare.route) { CompareScreen(viewModel) }
+                composable(Destination.Health.route) {
+                    HealthScreen(
+                        vm = viewModel,
+                        onVitalClick = { nav.navigate("vital_detail/$it") },
+                        onOpenLabBook = { nav.navigateTopLevel(Destination.LabBook.route) },
+                        onOpenFusedRecord = { nav.navigateTopLevel(Destination.FusedRecord.route) },
+                        onOpenSettings = { nav.navigateTopLevel(Destination.Profile.route) },
+                    )
+                }
+                composable(Destination.Hydration.route) { HydrationScreen(viewModel) }
+                composable(Destination.VitalSigns.route) {
+                    VitalSignsScreen(
+                        vm = viewModel,
+                        onVitalClick = { nav.navigate("vital_detail/$it") },
+                    )
+                }
+                composable(Destination.VitalSignsDetail.route) { backStackEntry ->
+                    VitalDetailScreen(
+                        vm = viewModel,
+                        key = backStackEntry.arguments?.getString("key").orEmpty(),
+                    )
+                }
+                // --- v5 pillar screens (Wave 3 wiring) ---
+                composable(Destination.InsightsHub.route) { InsightsHubScreen(viewModel) }
+                composable(Destination.LabBook.route) { LabBookScreen(viewModel) }
+                composable(Destination.Rhythm.route) {
+                    RhythmRoute(viewModel)
+                }
+                composable(Destination.FusedRecord.route) { FusedRecordRoute(viewModel) }
+                composable(Destination.Devices.route) {
+                    DevicesScreen(
+                        viewModel,
+                        onUseFileImport = { nav.navigateTopLevel(Destination.DataSources.route) },
+                    )
+                }
+                composable(Destination.DataSources.route) { DataSourcesScreen(viewModel) }
+                composable(Destination.AlkeLimitations.route) { AlkeLimitationsScreen() }
+                composable(Destination.BackupSync.route) { BackupSyncScreen() }
+                composable(Destination.Notifications.route) { NotificationsSettingsScreen(viewModel) }
+                composable(Destination.PowerSaving.route) { PowerSavingScreen(viewModel) }
+                composable(Destination.Profile.route) {
+                    ProfileScreen(onOpenSettings = { nav.navigate(Destination.Settings.route) })
+                }
+                composable(Destination.Settings.route) {
+                    SettingsScreen(
+                        viewModel,
+                        onOpenTestCentre = { nav.navigate(Destination.TestCentre.route) },
+                        onOpenBackupSync = { nav.navigate(Destination.BackupSync.route) },
+                        onOpenSelfHostedPush = { nav.navigate(Destination.SelfHostedPush.route) },
+                        onOpenStepsCalibration = { nav.navigate(Destination.StepsCalibration.route) },
+                    )
+                }
+                composable(Destination.StepsCalibration.route) {
+                    val profile = remember(context) { ProfileStore.from(context) }
+                    var revision by remember { mutableStateOf(0) }
+                    // ProfileStore wraps SharedPreferences rather than snapshot state. Reading this counter
+                    // makes manual coefficient changes repaint the canonical screen immediately.
+                    @Suppress("UNUSED_VARIABLE") val tick = revision
+                    StepsCalibrationScreen(
+                        vm = viewModel,
+                        profile = profile,
+                        onProfileChanged = { revision++ },
+                        onClose = { nav.popBackStack() },
+                    )
+                }
+                composable(Destination.SelfHostedPush.route) { SelfHostedPushScreen() }
+                composable(Destination.TestCentre.route) {
+                    TestCentreScreen(viewModel, onOpenGroundTruthCollector = {
+                        nav.navigate(Destination.GroundTruthCollector.route)
+                    })
+                }
+                composable(Destination.GroundTruthCollector.route) { GroundTruthCollectorScreen(viewModel) }
+                // The "More" page — the iOS More tab's twin: a navigated ScreenScaffold page hosting the
+                // full grouped destination list (was a pull-up sheet). A row pushes its destination so
+                // Android Back returns to More instead of skipping straight to Today.
+                composable(Destination.More.route) {
+                    AlkeMeExperience(
+                        vm = viewModel,
+                        onNotifications = { showUpdatesInbox = true },
+                        unreadCount = updateStore.unreadCount,
+                        onProfile = { nav.navigate(Destination.Profile.route) },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onSettings = { nav.navigate(Destination.Settings.route) },
+                        onModules = { nav.navigate(Destination.AlkeAllModules.route) },
+                        onSources = { nav.navigate(Destination.DataSources.route) },
+                        onBackupRestore = { nav.navigate(Destination.BackupSync.route) },
+                    )
+                }
+                composable(Destination.AlkeAllModules.route) {
+                    AlkeAllModulesExperience(onNavigate = { nav.navigate(it) })
+                }
+            }
+        }
+
+        // Quick-actions sheet, opened by the raised gold centre FAB. Each row routes to an
+        // existing destination — nothing new is built here, the FAB is just a faster door in.
+        if (showQuickActions) {
+            ModalBottomSheet(
+                onDismissRequest = { showQuickActions = false },
+                containerColor = Palette.surfaceRaised,
+                contentColor = Palette.textPrimary,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 24.dp),
+                ) {
+                    Overline(
+                        "Quick actions",
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 6.dp),
+                        color = Palette.textTertiary,
+                    )
+                    // Updates inbox — relocated here off the Today header (the liquid Today header mirrors iOS,
+                    // which has no notifications bell). The feature is fully intact and one tap away: this row
+                    // opens the same inbox sheet, showing the unread count as a trailing badge.
+                    NavigationDrawerItem(
+                        selected = false,
+                        onClick = {
+                            showQuickActions = false
+                            showUpdatesInbox = true
+                        },
+                        icon = { Icon(Icons.Filled.Notifications, contentDescription = null) },
+                        label = { Text(uiString(R.string.l10n_app_root_updates_c76d1807), style = AlkeType.body) },
+                        badge = {
+                            val unread = updateStore.unreadCount
+                            if (unread > 0) {
+                                Text(
+                                    if (unread > 99) "99+" else unread.toString(),
+                                    style = AlkeType.captionNumber,
+                                    color = Palette.statusCritical,
+                                )
+                            }
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = Palette.surfaceRaised,
+                            unselectedIconColor = Palette.accent,
+                            unselectedTextColor = Palette.textPrimary,
+                        ),
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                    )
+                    quickActions.forEach { action ->
+                        NavigationDrawerItem(
+                            selected = false,
+                            onClick = {
+                                showQuickActions = false
+                                if (action.route != currentRoute) {
+                                    nav.navigateTopLevel(action.route)
+                                }
+                            },
+                            icon = { Icon(action.icon, contentDescription = null) },
+                            label = { Text(stringResource(action.titleRes), style = AlkeType.body) },
+                            colors = NavigationDrawerItemDefaults.colors(
+                                unselectedContainerColor = Palette.surfaceRaised,
+                                unselectedIconColor = Palette.accent,
+                                unselectedTextColor = Palette.textPrimary,
+                            ),
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                        )
+                    }
+                }
+            }
+        }
+
+        // The Updates inbox (opened by the Today header bell). Presented here so it has the nav for
+        // deep-links — a row's "trends" key switches the bottom tab, mirroring the iOS NavRouter route.
+        if (showUpdatesInbox) {
+            ModalBottomSheet(
+                onDismissRequest = { showUpdatesInbox = false },
+                // Open full-height (no half-pull) so it reads like the iOS Updates sheet, and use the
+                // BEIGE surfaceBase so the white AlkeCards POP — surfaceRaised made white cards sit on a
+                // white sheet (no contrast), which is why the Android inbox looked flat vs iOS.
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = Palette.surfaceBase,
+                contentColor = Palette.textPrimary,
+            ) {
+                UpdatesInboxScreen(
+                    store = updateStore,
+                    onClose = { showUpdatesInbox = false },
+                    onDeepLink = { key ->
+                        // Map the inbox deep-link key to a route (only known keys route); unknown keys
+                        // just close the sheet.
+                        //
+                        // #984: What's New is NOT a nav destination — it is a full-screen sheet, the same
+                        // one Settings › About opens — so it gets handled here rather than through the
+                        // route table. Before this it fell to `else` and the tap did nothing at all.
+                        if (key == UpdateStore.WHATS_NEW_DEEP_LINK) {
+                            showWhatsNewFromInbox = true
+                        } else {
+                            val route = when (key) {
+                                "trends" -> Destination.Trends.route
+                                else -> null
+                            }
+                            if (route != null && route != currentRoute) nav.navigateTopLevel(route)
+                        }
+                    },
+                    onRestore = { cardId ->
+                        // Flip the shared dismissed flag back off so the card reappears, and signal a
+                        // mounted Today to re-read it immediately (SharedPreferences isn't reactive).
+                        TodayCardDismissal.setDismissed(context, cardId, false)
+                        updateStore.restoreRequest = cardId
+                    },
+                )
+            }
+        }
+
+        // #984: the changelog a What's New inbox row opens. Full-screen Dialog, the same idiom
+        // Settings > About uses for this sheet — What's New is not a nav destination, so it cannot be
+        // reached through the route table the other deep-link keys use.
+        if (showWhatsNewFromInbox) {
+            Dialog(
+                onDismissRequest = { showWhatsNewFromInbox = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false),
+            ) {
+                Surface(modifier = Modifier.fillMaxSize(), color = Palette.surfaceBase) {
+                    WhatsNewSheet(onClose = { showWhatsNewFromInbox = false })
+                }
+            }
+        }
+
+        // Drawn OVER the Scaffold, so it floats on whatever backdrop the current screen painted rather
+        // than on the shell's own container colour. Same composable, same insets — only its parent moved.
+        // `collapse < 1f` and not just `overlay`: at alpha 0 the bar is invisible but still COMPOSED, so
+        // TalkBack could focus a bar nobody can see and a tap could land on a control that is not there.
+        // Dropping it at the end of the animation removes both. Safe precisely because it is an overlay —
+        // it reserves no space, so composing or not composing it never reflows content.
+        if (BottomBarStyleStore.overlay && barPresent && !coachKeyboardVisible) GlassBottomBar(
+            current = current,
+            onTabSelected = { dest ->
+                if (dest.route != currentRoute) nav.navigateTopLevel(dest.route)
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .graphicsLayer {
+                    // Slide it out past its own height so the whole capsule clears the edge, and fade so
+                    // it does not read as a bar stuck half off-screen mid-animation.
+                    val c = collapseState.value      // deferred read: layer only, no recomposition
+                    translationY = c * (barHeightPx.toFloat())
+                    alpha = 1f - c
+                }
+                .onSizeChanged {
+                    barHeightPx = it.height
+                    BottomBarStyleStore.barHeight = with(density) { it.height.toDp() }
+                },
+        )
+    }
+}
+
+// MARK: - More page
+//
+// The "More" tab's destination — a full navigated page (mirroring the iOS More tab's NavigationStack
+// List), replacing the old pull-up ModalBottomSheet. It hosts the SAME grouped destinations
+// ([drawerGroups]) inside a [ScreenScaffold], with the exact section-header + row styling the sheet
+// used (uppercase [Overline] group labels, icon + label [NavigationDrawerItem] rows) — now with a
+// trailing chevron so each row reads as a navigation push, matching the iOS disclosure rows. Tapping a
+// row pushes its destination; there is no sheet to dismiss. The floating bottom bar stays visible because
+// this is just another NavHost destination under the same Scaffold.
+
+/** The full grouped destination list as a navigated page (the iOS More tab's twin). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoreScreen(onNavigate: (String) -> Unit) {
+    // S2 parity: each group's open/closed state, seeded from `defaultExpanded` (Insights + Body open,
+    // Data + App collapsed). PERSISTED (#860 item 2): the user's open/closed choice must survive leaving
+    // and re-entering the More page (and relaunch), not reset to the seed every visit. Backed by
+    // [MoreSectionPrefs] (a CSV of expanded headers in SharedPreferences), mirroring the iOS
+    // @AppStorage("more.expandedSections"). Seeded ONCE from the stored value so first run still shows the
+    // Insights+Body default; every toggle writes through so the next visit reflects the saved state.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val expanded = remember {
+        val stored = MoreSectionPrefs.read(AlkePrefs.of(context), defaultExpandedHeaders())
+        androidx.compose.runtime.mutableStateMapOf<String, Boolean>().apply {
+            drawerGroups.forEach { put(it.header, stored.contains(it.header)) }
+        }
+    }
+    // Day-cycle sky backdrop + sky-behind-cards, the SAME two gates every other tab honours (Today /
+    // Trends / Sleep / metric detail) — More was the one tab still on the flat canvas, so switching to
+    // it visibly "lost" the theme. SharedPreferences isn't reactive; read once like the other tabs.
+    val showDayCycleBackground = remember { AlkePrefs.showDayCycleBackground(context) }
+    val skyBehindCards = remember { AlkePrefs.skyBehindCards(context) }
+    var showDockEditor by remember { mutableStateOf(false) }
+    ScreenScaffold(
+        title = uiString(R.string.l10n_app_root_more_4bab2d8f),
+        subtitle = "Insights, activity, data, and settings in one place",
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
+        // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way down.
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
+    ) {
+        AlkeCard(padding = 0.dp) {
+            MoreRow(Destination.Settings, { showDockEditor = true }, "Customize Dock", Icons.Filled.Tune)
+        }
+        // Mirror the iOS More page: each group is a tappable UPPERCASE overline header (with a disclosure
+        // chevron) over a single grouped white AlkeCard whose rows are tight (accent icon + title +
+        // chevron) and separated by inset hairlines (NOT loose NavigationDrawerItems on the bare surface).
+        visibleMoreGroups(BottomBarModuleStore.selected).forEach { group ->
+            val isOpen = expanded[group.header] ?: group.defaultExpanded
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                MoreGroupHeader(
+                    title = group.header,
+                    expanded = isOpen,
+                    onToggle = {
+                        expanded[group.header] = !isOpen
+                        // Each category is independently collapsible. Persist every open category so
+                        // users may keep multiple More sections expanded at the same time.
+                        val open = drawerGroups
+                            .map { it.header }
+                            .filter { expanded[it] == true }
+                            .toSet()
+                        MoreSectionPrefs.write(AlkePrefs.of(context), open)
+                    },
+                )
+                if (isOpen) {
+                    AlkeCard(padding = 0.dp) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            group.items.forEachIndexed { i, dest ->
+                                MoreRow(dest = dest, onClick = { onNavigate(dest.route) })
+                                if (i < group.items.lastIndex) {
+                                    HorizontalDivider(
+                                        color = Palette.hairline,
+                                        modifier = Modifier.padding(start = 50.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (showDockEditor) {
+            Dialog(onDismissRequest = { showDockEditor = false }) {
+                AlkeCard(modifier = Modifier.fillMaxHeight(0.85f), padding = 18.dp) {
+                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Customize Dock", style = AlkeType.title2, color = Palette.textPrimary)
+                        Text("Today and More stay fixed. Choose and order up to three middle modules.", style = AlkeType.footnote, color = Palette.textSecondary)
+                        LazyColumn(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            items(BottomBarModuleStore.selected, key = { "pinned:" + it.route }) { destination ->
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(destination.icon, null, tint = Palette.accent)
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(stringResource(destination.titleRes), modifier = Modifier.weight(1f))
+                                    Text("↑", modifier = Modifier.clickable { BottomBarModuleStore.move(context, destination, -1) }.padding(10.dp))
+                                    Text("↓", modifier = Modifier.clickable { BottomBarModuleStore.move(context, destination, 1) }.padding(10.dp))
+                                    Text("Remove", color = Palette.statusCritical, modifier = Modifier.clickable { BottomBarModuleStore.setPinned(context, destination, false) }.padding(10.dp))
+                                }
+                            }
+                            item(key = "available-heading") { Overline("Available modules") }
+                            items(configurableBottomBarDestinations.filterNot { it in BottomBarModuleStore.selected },
+                                key = { "available:" + it.route }) { destination ->
+                                val canAdd = BottomBarModuleStore.selected.size < BottomBarModuleStore.MAX_PINNED
+                                Row(Modifier.fillMaxWidth().clickable(enabled = canAdd) {
+                                    BottomBarModuleStore.setPinned(context, destination, true)
+                                }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(destination.icon, null, tint = Palette.textSecondary)
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(stringResource(destination.titleRes), modifier = Modifier.weight(1f))
+                                    Text("Add", color = if (canAdd) Palette.accent else Palette.textTertiary)
+                                }
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            Text("Reset", modifier = Modifier.clickable { BottomBarModuleStore.reset(context) }.padding(12.dp))
+                            Text("Done", color = Palette.accent, modifier = Modifier.clickable { showDockEditor = false }.padding(12.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A tappable group header for the More page (S2): the same UPPERCASE [Overline] label as before, now
+ *  with a trailing chevron that rotates between open (0deg) and closed (-90deg), mirroring the iOS
+ *  collapsible More sections. Tapping toggles the group; the whole row is the tap target. */
+@Composable
+private fun MoreGroupHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 0f else -90f,
+        animationSpec = tween(durationMillis = 240, easing = NavEasing),
+        label = uiString(R.string.l10n_app_root_moregroupchevron_b2b36ec6),
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onToggle)
+            .semantics {
+                contentDescription = title
+                stateDescription = if (expanded) "Expanded" else "Collapsed"
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Overline(title, modifier = Modifier.weight(1f), color = Palette.textTertiary)
+        Icon(
+            Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = Palette.textTertiary,
+            modifier = Modifier
+                .size(Metrics.iconSmall)
+                .rotate(rotation),
+        )
+    }
+}
+
+/** One tappable destination row in the More page — accent icon + title + trailing chevron in a
+ *  comfortable tap target, mirroring the iOS MoreRow. */
+@Composable
+private fun MoreRow(
+    dest: Destination,
+    onClick: () -> Unit,
+    titleOverride: String? = null,
+    iconOverride: ImageVector? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(iconOverride ?: dest.icon, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(14.dp))
+        Text(titleOverride ?: stringResource(dest.titleRes), style = AlkeType.body, color = Palette.textPrimary, modifier = Modifier.weight(1f))
+        Icon(
+            Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = Palette.textTertiary,
+            modifier = Modifier.size(Metrics.iconSmall),
+        )
+    }
+}
+
+// MARK: - Glass bottom bar
+//
+// The signature bar, ported from iOS's FloatingTabBar: ONE rounded "glass" island holding four
+// evenly-spaced inline slots — Today · Workouts · Trends · Sleep · More. The quick-action "+" now lives in the
+// Today header's top-right (it left the bar to balance the avatar), so the bar is clean tabs only.
+// The "glass" feel is a translucent raised surface with a low elevation and a subtle hairline border
+// — frosted, not a hard opaque slab and not a glow. Each nav slot is an icon over a small label;
+// active = gold accent, inactive = textSecondary. All routing is unchanged: the four tabs switch the
+// same destinations.
+
+/** A single bottom-bar nav slot: the destination it switches to, plus the bar-specific icon/label. */
+internal data class BarTab(val dest: Destination, val icon: ImageVector, @StringRes val labelRes: Int)
+
+internal val permanentBottomBarDestinations: List<Destination> = listOf(
+    Destination.Today,
+    Destination.Trends,
+    Destination.Workouts,
+    Destination.Coach,
+)
+internal fun barTabsFor(selected: List<Destination> = BottomBarModuleStore.selected): List<BarTab> =
+    visibleBarDestinationsFor(selected, coachEnabled = true).map { destination ->
+        val icon = if (destination == Destination.Today) Icons.Outlined.GridView else destination.icon
+        BarTab(destination, icon, destination.titleRes)
+    }
+/** The Coach activity switch does not replace the user's saved navigation choices. More is drawn separately. */
+internal fun visibleBarDestinationsFor(
+    selected: List<Destination>,
+    @Suppress("UNUSED_PARAMETER")
+    coachEnabled: Boolean,
+): List<Destination> = listOf(Destination.Today) + BottomBarModuleStore.normalize(selected)
+@Composable
+private fun GlassBottomBar(
+    current: Destination,
+    onTabSelected: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // ALKE: keep proposal's Today · Train · Progress · Insight · Me as the default,
+    // but honour the three user-pinned slots. More always preserves access to every module.
+    // Reading the Compose snapshot here makes a saved edit update the real dock immediately.
+    val tabs = listOf(Triple(Destination.Today, Icons.Filled.Home, alkeModuleLabel(Destination.Today))) +
+        BottomBarModuleStore.selected.map { destination ->
+            Triple(destination, destination.icon, alkeModuleLabel(destination))
+        } + listOf(Triple(Destination.More, Icons.Filled.AccountCircle, alkeModuleLabel(Destination.More)))
+    Surface(
+        color = Color(0xFF061523),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            HorizontalDivider(color = Color(0xFF214052).copy(alpha = 0.8f))
+            Row(
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding()
+                    .height(65.dp).padding(horizontal = 2.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                tabs.forEach { (dest, icon, label) ->
+                    BarSlot(
+                        icon = icon,
+                        label = label,
+                        active = current == dest,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onTabSelected(dest) },
+                    )
+                }
+            }
+        }
+    }
+}
+/** One nav slot: an icon over a small label. Active = gold accent (semibold), inactive = textSecondary.
+ *  No selection pill, no glow — just the colour swap, matching the iOS bar. */
+@Composable
+private fun BarSlot(
+    icon: ImageVector,
+    label: String,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val tint = if (active) Color(0xFF26DEEB) else Color(0xFF8BA9B8)
+    Column(
+        modifier = modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = 3.dp)
+            .semantics { contentDescription = label },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        // Icon and label scale together with the padding above, so the slot grows as one piece rather
+        // than a bigger box around the same small glyph.
+        Icon(icon, contentDescription = null, tint = tint,
+             modifier = Modifier.size(21.dp))
+        Text(
+            label,
+            style = AlkeType.footnote.copy(
+                fontSize = 10.sp,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+            ),
+            color = tint,
+            // #2218: one line, always. A fifth slot takes about a fifth off every label's width, and the
+            // bar scale goes to 2x, so the longest of them can no longer be assumed to fit on a narrow
+            // phone. Wrapping would not break anything, since `barHeight` is measured afterwards and
+            // screens clear whatever it comes to, but a two-line nav bar at one size and a one-line bar
+            // at the next is the kind of thing nobody reports and everybody notices.
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** A centre-FAB quick action: a display title, an icon and the destination route it opens. */
+private data class QuickAction(@StringRes val titleRes: Int, val icon: ImageVector, val route: String)
+
+/** The quick actions on the gold centre FAB, each routing to an existing destination. Live HR leads
+ *  — it moved off the bottom bar (so the FAB no longer overlaps a tab) but stays one tap away here. */
+private val quickActions: List<QuickAction> = listOf(
+    QuickAction(R.string.action_live_hr, Destination.Live.icon, Destination.Live.route),
+    QuickAction(R.string.action_log_journal, Icons.Filled.Edit, Destination.Insights.route),
+    QuickAction(R.string.action_breathe, Icons.Filled.Air, Destination.Breathe.route),
+)
+
+// MARK: - Navigation motion (README §Motion)
+//
+// The global easing is the calm, decelerating cubic-bezier(0.22, 1, 0.36, 1) — nothing
+// bounces or overshoots. Top-level destination switches crossfade over ~240ms (README
+// "Tab crossfade"); the same spec drives back navigation so the bar never feels jerky.
+
+/** The calm global easing curve from the handoff (cubic-bezier 0.22, 1, 0.36, 1). */
+private val NavEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+
+/** ~240ms crossfade on the calm easing — the README "Tab crossfade" between roots. */
+private val navFadeSpec = tween<Float>(durationMillis = 240, easing = NavEasing)
+
+/**
+ * ALKE's approved main brand mark (Option 2), shown in app chrome.
+ * The Android launcher icon is the separate, approved flat Option D.
+ */
+@Composable
+internal fun BrandMark(size: Dp = 22.dp) {
+    Icon(
+        painter = androidx.compose.ui.res.painterResource(R.drawable.alke_brand_mark),
+        contentDescription = null,
+        tint = Color.Unspecified,
+        modifier = Modifier.size(size),
+    )
+}
+
+/** Navigate to a top-level destination with single-top + state save/restore. */
+private fun NavHostController.navigateTopLevel(route: String) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
+/**
+ * Loader for the v5 "Your Data, Fused" screen: assembles today's [FusedRecord] off the repository via
+ * [AppViewModel.fusedRecordForToday] (the pure FusionResolver per metric) and hands the pure
+ * [FusedRecordScreen] its read-model. Keeps the screen itself I/O-free + previewable. Re-loads on entry.
+ */
+@Composable
+private fun FusedRecordRoute(viewModel: AppViewModel) {
+    var record by remember {
+        mutableStateOf(FusedRecord(rows = emptyList(), dayOwner = null as FusionSource?, contributingSourceCount = 0))
+    }
+    LaunchedEffect(Unit) {
+        record = runCatching { viewModel.fusedRecordForToday() }.getOrDefault(record)
+    }
+    FusedRecordScreen(record = record)
+}
+
+/**
+ * Placeholder screen for routes later waves will build. Uses [ScreenScaffold] so the
+ * dark, instrument-grade chrome is already correct when a real screen replaces it.
+ */
+@Composable
+fun ComingSoon(text: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        AlkeCard(padding = 28.dp) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Sensors,
+                    contentDescription = null,
+                    tint = Palette.textTertiary,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(text, style = AlkeType.title2, color = Palette.textPrimary, textAlign = TextAlign.Center)
+                Overline("Coming soon", color = Palette.textSecondary)
+                Text(
+                    uiString(R.string.l10n_app_root_this_section_is_on_the_way_ca7c4a32),
+                    style = AlkeType.footnote,
+                    color = Palette.textTertiary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}

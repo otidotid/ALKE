@@ -37,7 +37,7 @@
     <string name="nav_automations">自动化</string>
     <string name="nav_alarms">智能闹钟</string>
     <string name="nav_devices">设备管理</string>
-    <string name="nav_noop_limitations">ALKE 限制</string>
+    <string name="nav_alke_limitations">ALKE 限制</string>
     <string name="nav_data_sources">数据源</string>
     <string name="nav_backup_sync">备份与同步</string>
     <string name="nav_fused_record">融合数据</string>
@@ -178,18 +178,18 @@
     <string name="l10n_add_device_wizard_add_61cc55aa">添加</string>
     <string name="l10n_add_device_wizard_advanced_i_already_have_my_ring_e87b9b49">高级：我已经有了戒指的密钥 (Key)</string>
     <string name="l10n_add_device_wizard_beta_is_an_on_device_estimate_128563e0">测试版：这是一项基于本地设备的离线心率估算。开启此项可能会增加耗电，请酌情使用。 are a raw motion count, and HRV needs you to be still. No Oura Readiness or SpO2 percentage comes off the ring (import an Oura file for those).</string>
-    <string name="l10n_add_device_wizard_both_noop_and_the_oura_app_4f219db3">ALKE 和 Oura 官方 App 都需要通过密钥来读取戒指数据。由于同一时间只能有一个 App 掌握控制权，您需要在两者之间做个选择。</string>
+    <string name="l10n_add_device_wizard_both_alke_and_the_oura_app_4f219db3">ALKE 和 Oura 官方 App 都需要通过密钥来读取戒指数据。由于同一时间只能有一个 App 掌握控制权，您需要在两者之间做个选择。</string>
     <string name="l10n_add_device_wizard_connect_to_this_ring_02b9442b">连接到这枚戒指</string>
     <string name="l10n_add_device_wizard_continue_2e026239">继续</string>
     <string name="l10n_add_device_wizard_device_name_79d7a157">设备名称</string>
     <string name="l10n_add_device_wizard_experimental_best_effort_support_we_re_db288aa8">实验性功能 / 尽力支持：我们仍在调试该设备的底层通讯，某些功能可能不稳定。</string>
     <string name="l10n_add_device_wizard_i_understand_this_disconnects_the_ring_66bbb125">我已知晓，这将断开戒指与官方 App 的连接</string>
     <string name="l10n_add_device_wizard_i_understand_this_disconnects_the_ring_ccbb3225">我已知晓，这将断开戒指与 Oura 官方 App 的连接</string>
-    <string name="l10n_add_device_wizard_installing_noop_s_key_and_confirming_aab5cf61">正在写入 ALKE 的专属密钥，并确保戒指只响应 ALKE 的指令。请保持戒指靠近手机并稍候...</string>
+    <string name="l10n_add_device_wizard_installing_alke_s_key_and_confirming_aab5cf61">正在写入 ALKE 的专属密钥，并确保戒指只响应 ALKE 的指令。请保持戒指靠近手机并稍候...</string>
     <string name="l10n_add_device_wizard_keep_the_oura_app_instead_import_60d70411">保留 Oura 官方 App (通过文件导入历史数据)</string>
     <string name="l10n_add_device_wizard_make_sure_it_s_awake_and_8c40e59f">请确保它已唤醒，并且没有连接到其他手机。</string>
     <string name="l10n_add_device_wizard_name_signal_signalbars_level_rssi_of_6aa514f6">%1$s, 信号 %2$s (共 4 格)</string>
-    <string name="l10n_add_device_wizard_noop_stores_this_key_only_on_eae4e63f">ALKE 只会将此密钥保存在当前设备本地，与您的其他已配对设备存放在一起。</string>
+    <string name="l10n_add_device_wizard_alke_stores_this_key_only_on_eae4e63f">ALKE 只会将此密钥保存在当前设备本地，与您的其他已配对设备存放在一起。</string>
     <string name="l10n_add_device_wizard_not_showing_up_make_sure_you_60a8a61b">找不到设备？请确保您已在官方 App 中重置了该戒指，并强行退出了官方 App，然后重试。</string>
     <string name="l10n_add_device_wizard_one_phone_at_a_time_cff4ff44">一次只能连接一台手机</string>
     <string name="l10n_add_device_wizard_oura_ring_e3431536">Oura 戒指</string>
@@ -208,7 +208,7 @@
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">使用文件导入</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">抱歉，我们无法接管这枚戒指。</string>
     <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">对 WHOOP 5.0 (MG) 的支持在 ALKE 中仍处于实验阶段。</string>
-    <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP 是 ALKE 首要且完全支持的核心设备。其他心率带只能提供基础的实时心率流。</string>
+    <string name="l10n_add_device_wizard_whoop_is_alke_s_primary_fully_ac6fa33b">WHOOP 是 ALKE 首要且完全支持的核心设备。其他心率带只能提供基础的实时心率流。</string>
     <string name="l10n_app_root_more_4bab2d8f">更多</string>
     <string name="l10n_app_root_moregroupchevron_b2b36ec6">更多</string>
     <string name="l10n_auto_workout_nudge_dismiss_this_workout_suggestion_52ace8f3">忽略此运动建议</string>
@@ -391,7 +391,7 @@
     <string name="l10n_data_sources_screen_whoop_history_db101974">WHOOP 历史数据</string>
     <string name="l10n_data_sources_screen_whoop_strap_live_ble_217f7df6">WHOOP 手环 (实时蓝牙连线)</string>
     <string name="l10n_data_sources_screen_workout_file_gpx_tcx_fit_5469c068">运动轨迹文件 (GPX / TCX / FIT)</string>
-    <string name="l10n_data_sources_screen_write_the_metrics_noop_computes_from_439940c2">将 ALKE 根据您手环数据计算得出的指标 (如静息心率、HRV、血氧等) 写入系统... respiratory rate, heart rate, steps, active energy and sleep) into Health Connect so other apps can use them. Only ALKE\'s own values are shared. Imported data is never echoed back.</string>
+    <string name="l10n_data_sources_screen_write_the_metrics_alke_computes_from_439940c2">将 ALKE 根据您手环数据计算得出的指标 (如静息心率、HRV、血氧等) 写入系统... respiratory rate, heart rate, steps, active energy and sleep) into Health Connect so other apps can use them. Only ALKE\'s own values are shared. Imported data is never echoed back.</string>
     <string name="l10n_data_sources_screen_xiaomi_mi_band_edeab3bc">小米手环</string>
     <string name="l10n_devices_screen_add_a_device_f90866b8">添加设备</string>
     <string name="l10n_devices_screen_battery_4a9be042">设备电量</string>
@@ -417,19 +417,19 @@
     <string name="l10n_devices_screen_give_device_brand_device_model_a_7a15585c">为您的 %1$s %2$s 起一个好记的名字。</string>
     <string name="l10n_devices_screen_leave_none_active_b5c858cb">不激活任何设备</string>
     <string name="l10n_devices_screen_name_709a2322">名称</string>
-    <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">已在本地配对。只要 ALKE 持有密钥，它就是这枚戒指的持有者。如果你再次重置它，或在 Oura 应用中设置它，ALKE 便不再持有它，你需要重新添加它以再次接管。</string>
+    <string name="l10n_devices_screen_paired_locally_alke_owns_this_ring_30c16190">已在本地配对。只要 ALKE 持有密钥，它就是这枚戒指的持有者。如果你再次重置它，或在 Oura 应用中设置它，ALKE 便不再持有它，你需要重新添加它以再次接管。</string>
     <string name="l10n_devices_screen_pick_a_new_active_strap_edd73542">选择新的主数据手环</string>
     <string name="l10n_devices_screen_rename_device_ee233604">重命名设备</string>
     <string name="l10n_devices_screen_save_efc007a3">保存</string>
     <string name="l10n_devices_screen_the_whoop_4_0_reboot_frame_690a8ff2">WHOOP 4.0 的重启指令包尚未破译验证 — 目前常规的重启指令可能被它忽略 (#235)。 Send each candidate and watch BOTH the strap log and the strap itself. “no disconnect within 12s” means the strap ignored the frame. A “link dropped” line means the frame reached the strap — but a dropped link alone isn\'t a reboot: a real reboot also switches the strap\'s sensor light off for a few seconds, so if the light stayed on it was just a dropped connection, not a reboot. Non-destructive — your data is kept. Please share the log so we can pin the real frame.</string>
     <string name="l10n_devices_screen_whoop_4_0_reboot_probe_b51fb50f">尝试重启 WHOOP 4.0</string>
-    <string name="l10n_devices_screen_whoop_is_noop_s_primary_fully_1c9e67fd">WHOOP 是 ALKE 首要且完全支持的核心手环。其他心率带只能提供早期测试版的... in-development addition: they stream live heart rate and HRV, but not WHOOP\'s deeper sleep and recovery data.</string>
+    <string name="l10n_devices_screen_whoop_is_alke_s_primary_fully_1c9e67fd">WHOOP 是 ALKE 首要且完全支持的核心手环。其他心率带只能提供早期测试版的... in-development addition: they stream live heart rate and HRV, but not WHOOP\'s deeper sleep and recovery data.</string>
     <string name="l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48">你移除了你的活跃手环。请选择哪一个已配对的手环来提供你的实时数据，或者不设置任何活跃项，稍后再配对一个。</string>
     <string name="l10n_fused_record_screen_contrib_source_displayname_fusionformat_value_contrib_d182dd7f">%1$s, %2$s</string>
     <string name="l10n_fused_record_screen_done_e9b450d1">完成</string>
     <string name="l10n_fused_record_screen_fused_on_devicenoun_nothing_leaves_it_8a1e6a3d">所有数据仅在%1$s本地融合。没有数据会离开设备：不绑定账号，不上云。</string>
-    <string name="l10n_fused_record_screen_noop_picks_the_best_sourced_number_5e48b86a">ALKE 会挑选出最可信的数据源，并向您展示各数据的出处。本应用仅为健康参考和自我探索而设计，不作诊断之用，也不替代专业医疗建议。</string>
-    <string name="l10n_fused_record_screen_noop_shows_the_winner_source_displayname_4a3892cc">ALKE 采纳了 %1$s 的读数，因为它在该项指标中被系统认为 %2$s：这说明它在此维度上的可信度更高，而非意味着其他来源是错的。</string>
+    <string name="l10n_fused_record_screen_alke_picks_the_best_sourced_number_5e48b86a">ALKE 会挑选出最可信的数据源，并向您展示各数据的出处。本应用仅为健康参考和自我探索而设计，不作诊断之用，也不替代专业医疗建议。</string>
+    <string name="l10n_fused_record_screen_alke_shows_the_winner_source_displayname_4a3892cc">ALKE 采纳了 %1$s 的读数，因为它在该项指标中被系统认为 %2$s：这说明它在此维度上的可信度更高，而非意味着其他来源是错的。</string>
     <string name="l10n_fused_record_screen_other_source_displayname_agrees_fusionformat_value_78e29c2a">%1$s 的读数也相近：%2$s</string>
     <string name="l10n_fused_record_screen_other_source_displayname_fusionformat_value_other_207f7548">%1$s 读数为：%2$s</string>
     <string name="l10n_fused_record_screen_your_bands_report_different_numbers_here_03d20d81">您的多个穿戴设备上报了不一致的数据。以下列出了每个数据源的值，以及 ALKE 最终采纳的结果。</string>
@@ -466,13 +466,13 @@
     <string name="l10n_health_screen_value_8dce170d">数值</string>
     <string name="l10n_health_screen_vo_max_vo2max_roundtoint_c32a04b3">最大摄氧量 (VO₂max) %1$s</string>
     <string name="l10n_health_screen_your_data_fused_a740fd4a">融合数据</string>
-    <string name="l10n_how_noop_works_screen_close_bbfa773e">关闭</string>
-    <string name="l10n_how_noop_works_screen_got_it_5b8027fa">明白了</string>
-    <string name="l10n_how_noop_works_screen_how_noop_works_3396b27a">ALKE 是如何运作的</string>
-    <string name="l10n_how_noop_works_screen_noop_never_makes_up_a_number_da29aca5">ALKE 绝不编造数字。当它无法诚实地计算出一个数字时，它会告诉你缺少什么以及该怎么做，而不是显示一个虚假的数值。</string>
-    <string name="l10n_how_noop_works_screen_noop_never_shows_you_a_number_d1db9958">ALKE 从不会给您看一个为了图表好看而凑出来的数字。如果某项评分还没准备好，那它就是还没准备好。 it tells you why and what to do next. Everything here runs on your device, from your strap.</string>
-    <string name="l10n_how_noop_works_screen_section_title_section_body_efb1a999">%1$s · %2$s</string>
-    <string name="l10n_how_noop_works_screen_sleep_scores_recording_where_your_numbers_1b3e981f">睡眠 · 评分 · 记录 · 数据来源详解</string>
+    <string name="l10n_how_alke_works_screen_close_bbfa773e">关闭</string>
+    <string name="l10n_how_alke_works_screen_got_it_5b8027fa">明白了</string>
+    <string name="l10n_how_alke_works_screen_how_alke_works_3396b27a">ALKE 是如何运作的</string>
+    <string name="l10n_how_alke_works_screen_alke_never_makes_up_a_number_da29aca5">ALKE 绝不编造数字。当它无法诚实地计算出一个数字时，它会告诉你缺少什么以及该怎么做，而不是显示一个虚假的数值。</string>
+    <string name="l10n_how_alke_works_screen_alke_never_shows_you_a_number_d1db9958">ALKE 从不会给您看一个为了图表好看而凑出来的数字。如果某项评分还没准备好，那它就是还没准备好。 it tells you why and what to do next. Everything here runs on your device, from your strap.</string>
+    <string name="l10n_how_alke_works_screen_section_title_section_body_efb1a999">%1$s · %2$s</string>
+    <string name="l10n_how_alke_works_screen_sleep_scores_recording_where_your_numbers_1b3e981f">睡眠 · 评分 · 记录 · 数据来源详解</string>
     <string name="l10n_hrv_snapshot_screen_an_hrv_reading_needs_the_live_11b70bff">HRV 读数需要实时 R-R 数据流。请打开「实时」界面并连接你的手环，然后再返回。</string>
     <string name="l10n_hrv_snapshot_screen_beats_12aafda0">心跳数</string>
     <string name="l10n_hrv_snapshot_screen_hrvdial_4c244c45">HRV 表盘</string>
@@ -631,7 +631,7 @@
     <string name="l10n_marker_editor_screen_entered_together_stored_as_two_markers_af8f3ba0">一并录入的数据；在系统中会被拆分为两项指标进行存储，以便分别与您的体征信号对齐比对。</string>
     <string name="l10n_marker_editor_screen_lab_book_keeps_your_own_numbers_9085ce2c">实验室仅负责保管您的数据 - 它不会进行测试、解读或做任何评判，更不是医疗设备。 advice. Everything stays on this phone.</string>
     <string name="l10n_marker_editor_screen_no_match_add_it_as_a_ad5c59ec">未找到匹配项。您可以在下方将其添加为自定义指标。</string>
-    <string name="l10n_marker_editor_screen_noop_never_fills_this_in_it_7be9653b">ALKE 绝不会自动填充此项 - 它只会原封不动地展示您从化验单上手动录入的数据。</string>
+    <string name="l10n_marker_editor_screen_alke_never_fills_this_in_it_7be9653b">ALKE 绝不会自动填充此项 - 它只会原封不动地展示您从化验单上手动录入的数据。</string>
     <string name="l10n_marker_editor_screen_search_markers_103981e0">搜索检测指标</string>
     <string name="l10n_marker_editor_screen_search_markers_e_g_ldl_ferritin_66c17802">搜索检测指标 (例如：LDL 低密度脂蛋白、铁蛋白)</string>
     <string name="l10n_marker_editor_screen_stored_as_canonicalunit_0bf7f702">记录单位：%1$s。</string>
@@ -643,16 +643,16 @@
     <string name="l10n_mind_section_not_enough_overlapping_history_to_correlate_d36b91f9">重叠的历史数据不足，无法分析心情与您的 body metrics yet.</string>
     <string name="l10n_mind_section_one_check_in_per_day_picking_b103f22e">每天只需打卡一次；重新选择表情会覆盖今天的记录。</string>
     <string name="l10n_mind_section_reading_your_check_ins_71a100a9">正在读取您的打卡记录…</string>
-    <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">充能</string>
-    <string name="l10n_noop_compact_glance_widget_effort_660752e7">负荷</string>
-    <string name="l10n_noop_compact_glance_widget_heart_rate_410aa15c">心率</string>
-    <string name="l10n_noop_compact_glance_widget_rest_cbaaa181">恢复</string>
-    <string name="l10n_noop_compact_glance_widget_strap_battery_a6c7f09c">手环电量</string>
-    <string name="l10n_noop_glance_widget_charge_49a8cb83">充能</string>
-    <string name="l10n_noop_glance_widget_effort_660752e7">负荷</string>
-    <string name="l10n_noop_glance_widget_heart_rate_410aa15c">心率</string>
-    <string name="l10n_noop_glance_widget_rest_cbaaa181">恢复</string>
-    <string name="l10n_noop_glance_widget_strap_battery_a6c7f09c">手环电量</string>
+    <string name="l10n_alke_compact_glance_widget_charge_49a8cb83">充能</string>
+    <string name="l10n_alke_compact_glance_widget_effort_660752e7">负荷</string>
+    <string name="l10n_alke_compact_glance_widget_heart_rate_410aa15c">心率</string>
+    <string name="l10n_alke_compact_glance_widget_rest_cbaaa181">恢复</string>
+    <string name="l10n_alke_compact_glance_widget_strap_battery_a6c7f09c">手环电量</string>
+    <string name="l10n_alke_glance_widget_charge_49a8cb83">充能</string>
+    <string name="l10n_alke_glance_widget_effort_660752e7">负荷</string>
+    <string name="l10n_alke_glance_widget_heart_rate_410aa15c">心率</string>
+    <string name="l10n_alke_glance_widget_rest_cbaaa181">恢复</string>
+    <string name="l10n_alke_glance_widget_strap_battery_a6c7f09c">手环电量</string>
     <string name="l10n_notifications_settings_screen_02d_02d_ce23a78c">%1$02d:%2$02d</string>
     <string name="l10n_notifications_settings_screen_all_other_apps_51a8af2c">所有其他 App</string>
     <string name="l10n_notifications_settings_screen_app_name_wrist_alerts_dd3540fa">%1$s 手腕震动提醒</string>
@@ -714,7 +714,7 @@
     <string name="l10n_onboarding_screen_this_can_run_while_you_finish_cd7ef783">后台可以继续导入，您先完成剩余设置</string>
     <string name="l10n_onboarding_screen_watch_your_heart_live_8c9c1267">实时关注您的心跳</string>
     <string name="l10n_onboarding_screen_weight_69c0b815">体重</string>
-    <string name="l10n_onboarding_screen_what_noop_does_b25b362d">ALKE 能做什么</string>
+    <string name="l10n_onboarding_screen_what_alke_does_b25b362d">ALKE 能做什么</string>
     <string name="l10n_onboarding_screen_what_to_expect_ed98f851">您将收获什么</string>
     <string name="l10n_onboarding_screen_you_re_connected_7e06aee0">连接成功。</string>
     <string name="l10n_onboarding_screen_your_thread_starts_here_acdccf92">您的健康档案，从这里开始。</string>
@@ -722,7 +722,7 @@
     <string name="l10n_rhythm_screen_beats_read_15da45e3">已读取心跳</string>
     <string name="l10n_rhythm_screen_close_rhythm_e0239fa8">关闭节律面板</string>
     <string name="l10n_rhythm_screen_cloud_shape_2a745ff0">离散云图</string>
-    <string name="l10n_rhythm_screen_during_quiet_still_resting_windows_noop_45488969">在您保持安静、静止和休息时段，ALKE 会观察您心跳之间的间隔（R-R 间期），并绘制它们的庞加莱散点图（Poincaré plot）。通过分析散点云图，系统会计算出其短轴（SD1）、长轴（SD2）以及一些常规的节律数值。包含体动和嘈杂信号的时段将被自动跳过不予展示。所有这些仅仅是公开透明的描述性统计数据：它们只是描绘了您心跳时间的特征画面，绝不能作为临床医疗诊断的依据。</string>
+    <string name="l10n_rhythm_screen_during_quiet_still_resting_windows_alke_45488969">在您保持安静、静止和休息时段，ALKE 会观察您心跳之间的间隔（R-R 间期），并绘制它们的庞加莱散点图（Poincaré plot）。通过分析散点云图，系统会计算出其短轴（SD1）、长轴（SD2）以及一些常规的节律数值。包含体动和嘈杂信号的时段将被自动跳过不予展示。所有这些仅仅是公开透明的描述性统计数据：它们只是描绘了您心跳时间的特征画面，绝不能作为临床医疗诊断的依据。</string>
     <string name="l10n_rhythm_screen_each_dot_pairs_one_heartbeat_interval_07a1502c">图中的每一个圆点，代表了一次心跳间隔与它紧邻的下一次间隔的组合。如果散点紧密地贴合在对角线上，说明您的心跳非常平稳；如果散点云图显得更圆、更分散，则说明心跳节律的变异性较大。</string>
     <string name="l10n_rhythm_screen_experimental_wellness_visualization_not_a_diagnosis_0745e8b7">实验性健康可视化：不是诊断，不是心电图，也不是医疗设备。它无法检测任何心脏疾病。心跳间期的变化通常有许多普通的、良性的原因。如果您感到不适或担忧，请联系合格的专业人员；在紧急情况下，请联系当地的急救服务。所有数据均在您的设备上本地计算。</string>
     <string name="l10n_rhythm_screen_extra_skipped_4a153489">早搏 / 漏搏 (推测)</string>
@@ -736,9 +736,9 @@
     <string name="l10n_scoring_guide_screen_close_bbfa773e">关闭</string>
     <string name="l10n_scoring_guide_screen_every_score_carries_a_small_honesty_e5b722eb">每个评分都带有一个可信度标签。如果显示“校准中”，说明 ALKE 仍在了解您的个人基线。</string>
     <string name="l10n_scoring_guide_screen_got_it_5b8027fa">明白了</string>
-    <string name="l10n_scoring_guide_screen_how_sure_is_noop_solid_building_c21d86d7">ALKE 有多确定？ · 可靠 · 采集中 · 校准中</string>
+    <string name="l10n_scoring_guide_screen_how_sure_is_alke_solid_building_c21d86d7">ALKE 有多确定？ · 可靠 · 采集中 · 校准中</string>
     <string name="l10n_scoring_guide_screen_how_your_scores_work_21a0e2be">评分是如何计算的</string>
-    <string name="l10n_scoring_guide_screen_noop_gives_you_three_daily_scores_36244209">ALKE 每天会为您提供三个维度的评分 (充能、负荷与恢复)，每项满分为 100。</string>
+    <string name="l10n_scoring_guide_screen_alke_gives_you_three_daily_scores_36244209">ALKE 每天会为您提供三个维度的评分 (充能、负荷与恢复)，每项满分为 100。</string>
     <string name="l10n_scoring_guide_screen_scorecardhighlight_4af6985c">评分卡高亮色</string>
     <string name="l10n_scoring_guide_screen_these_are_independent_approximations_from_a_301457ed">这些是来自消费级手环的独立近似值，基于开放科学构建，并非医疗建议，也不是 WHOOP 的官方评分。</string>
     <string name="l10n_scoring_guide_screen_vs_whoop_9a8126a7">对比 WHOOP</string>
@@ -751,7 +751,7 @@
     <string name="l10n_settings_screen_note_a2481d6c">· %1$s</string>
     <string name="l10n_settings_screen_repo_note_0a694b50">%1$s, %2$s</string>
     <string name="l10n_skin_temp_cards_screen_cycle_awareness_ffb94783">生理周期推断</string>
-    <string name="l10n_skin_temp_cards_screen_noop_can_read_a_coarse_menstrual_c79e4b85">ALKE 可以通过您夜间的皮肤体温趋势，粗略地推断您的生理周期所处阶段。 entirely on your device. It is awareness only: not contraception, not a fertility predictor, not a medical service.</string>
+    <string name="l10n_skin_temp_cards_screen_alke_can_read_a_coarse_menstrual_c79e4b85">ALKE 可以通过您夜间的皮肤体温趋势，粗略地推断您的生理周期所处阶段。 entirely on your device. It is awareness only: not contraception, not a fertility predictor, not a medical service.</string>
     <string name="l10n_skin_temp_cards_screen_turn_on_cycle_awareness_7c2d328f">开启生理周期推断</string>
     <string name="l10n_sleep_screen_about_this_nap_e2719b9b">关于本次小睡</string>
     <string name="l10n_sleep_screen_about_your_main_sleep_1da8a640">关于您的主睡眠</string>
@@ -814,14 +814,14 @@
     <string name="l10n_smart_alarm_screen_buzz_strapname_813772f4">震动提醒 %1$s</string>
     <string name="l10n_smart_alarm_screen_how_the_smart_wake_works_8cf34930">智能唤醒是如何工作的</string>
     <string name="l10n_smart_alarm_screen_lengthen_window_c947ea1d">延长唤醒窗口</string>
-    <string name="l10n_smart_alarm_screen_noop_doesn_t_have_permission_to_5b67cef0">ALKE 没有设置精确闹钟的权限，因此无法保证您的唤醒。 Tap to allow it in system settings.</string>
+    <string name="l10n_smart_alarm_screen_alke_doesn_t_have_permission_to_5b67cef0">ALKE 没有设置精确闹钟的权限，因此无法保证您的唤醒。 Tap to allow it in system settings.</string>
     <string name="l10n_smart_alarm_screen_off_e3de5ab0">关闭</string>
     <string name="l10n_smart_alarm_screen_remind_me_to_wind_down_4839f0d0">提醒我准备入睡</string>
     <string name="l10n_smart_alarm_screen_shorten_window_5bf5b37d">缩短唤醒窗口</string>
     <string name="l10n_smart_alarm_screen_strap_wake_alarm_1828fff3">手环无声唤醒</string>
     <string name="smart_alarm_check_strap_alarm">查看手环已存储的闹钟</string>
     <string name="smart_alarm_check_strap_alarm_help">手环的回应会出现在手环日志和诊断导出中，并附带收到的原始字节。</string>
-    <string name="l10n_smart_alarm_screen_the_earliest_noop_will_wake_you_b641a2d4">ALKE 可能会唤醒您的最早时间。</string>
+    <string name="l10n_smart_alarm_screen_the_earliest_alke_will_wake_you_b641a2d4">ALKE 可能会唤醒您的最早时间。</string>
     <string name="l10n_smart_alarm_screen_the_guaranteed_alarm_fires_this_long_b0c51052">如果您在这段时间内未被智能唤醒，保底闹钟将在窗口期结束时必定响起。</string>
     <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">这是根据心率变动做出的粗略提示，而非临床级别的睡眠阶段判断。如果手环... isn\'t streaming (Bluetooth off, not worn, app killed), no early wake happens and the guaranteed alarm at the window\'s end still wakes you.</string>
     <string name="l10n_smart_alarm_screen_turn_on_the_smart_alarm_to_65700430">开启智能闹钟后，它会在您设定的时间窗口内，选择您睡眠最浅的时刻将您唤醒。</string>
@@ -841,12 +841,12 @@
     <string name="l10n_steps_calibration_screen_done_e9b450d1">完成</string>
     <string name="l10n_steps_calibration_screen_est_18b405fb">预估值</string>
     <string name="l10n_steps_calibration_screen_how_this_works_b895a8c3">工作原理</string>
-    <string name="l10n_steps_calibration_screen_no_days_yet_where_both_noop_71d6005b">尚未收集到 ALKE 和手机同时记录步数的日期。一旦您的手机记录了... few days alongside the strap, they\'ll appear here so you can see how close the estimate is.</string>
+    <string name="l10n_steps_calibration_screen_no_days_yet_where_both_alke_71d6005b">尚未收集到 ALKE 和手机同时记录步数的日期。一旦您的手机记录了... few days alongside the strap, they\'ll appear here so you can see how close the estimate is.</string>
     <string name="l10n_steps_calibration_screen_no_motion_synced_yet_65106670">暂未同步到体动数据</string>
-    <string name="l10n_steps_calibration_screen_noop_estimates_your_steps_from_your_d569bc31">ALKE 会根据你 WHOOP 的运动来估算步数，并以你手机的步数进行校准。这是一个估算值，而非计步器，WHOOP 4.0 不传输步数。</string>
+    <string name="l10n_steps_calibration_screen_alke_estimates_your_steps_from_your_d569bc31">ALKE 会根据你 WHOOP 的运动来估算步数，并以你手机的步数进行校准。这是一个估算值，而非计步器，WHOOP 4.0 不传输步数。</string>
     <string name="l10n_steps_calibration_screen_not_calibrated_yet_30abe0d0">尚未完成校准</string>
     <string name="l10n_steps_calibration_screen_on_the_days_your_phone_also_2f65a14c">在手机也计步的日子里，ALKE 会学习体动数据应该如何映射到实际步数，从而越来越精准。 steps, then applies that to the strap-only days. The more matching days it has, the more it trusts the estimate.</string>
-    <string name="l10n_steps_calibration_screen_open_noop_near_your_strap_and_e08ddd6d">请在手环附近打开 ALKE 并等待数据同步完成 (如果是全量历史数据同步，可能会花点时间)。 first run). Once a day or two of motion lands, your step estimate and the calibration below will start to fill in.</string>
+    <string name="l10n_steps_calibration_screen_open_alke_near_your_strap_and_e08ddd6d">请在手环附近打开 ALKE 并等待数据同步完成 (如果是全量历史数据同步，可能会花点时间)。 first run). Once a day or two of motion lands, your step estimate and the calibration below will start to fill in.</string>
     <string name="l10n_steps_calibration_screen_override_the_automatic_fit_with_your_36a7b6fa">覆盖自动计算出的步数映射系数，改用您自己设定的“每单位体动对应的步数”。这在手机计步不准时很有用。 has no step history to learn from, or the estimate runs consistently high or low. Step all the way down to return to auto.</string>
     <string name="l10n_steps_calibration_screen_phone_77064d52">手机</string>
     <string name="l10n_steps_calibration_screen_shortday_row_day_estimated_row_estimated_f2d71597">%1$s: 预估 %2$s 步，手机记录 %3$s 步 steps, %4$s percent difference</string>
@@ -956,7 +956,7 @@
     <string name="l10n_weekly_digest_card_week_in_review_66d95a07">本周回顾</string>
     <string name="l10n_whats_new_sheet_close_bbfa773e">关闭</string>
     <string name="l10n_whats_new_sheet_got_it_5b8027fa">明白了</string>
-    <string name="l10n_whats_new_sheet_noop_appchangelog_current_version_05dae27c">ALKE %1$s</string>
+    <string name="l10n_whats_new_sheet_alke_appchangelog_current_version_05dae27c">ALKE %1$s</string>
     <string name="l10n_whats_new_sheet_release_notes_cd5af734">版本更新说明</string>
     <string name="l10n_wheel_picker_cancel_77dfd213">取消</string>
     <string name="l10n_wheel_picker_done_e9b450d1">完成</string>
@@ -967,7 +967,7 @@
     <string name="l10n_whoop_model_comparison_screen_close_bbfa773e">关闭</string>
     <string name="l10n_whoop_model_comparison_screen_done_e9b450d1">完成</string>
     <string name="l10n_whoop_model_comparison_screen_feature_ad565d9d">功能特性</string>
-    <string name="l10n_whoop_model_comparison_screen_noop_pairs_with_the_whoop_4_599b088c">ALKE 支持连接 WHOOP 4.0 和 WHOOP 5.0 (含)。它们在绝大多数核心功能上表现一致... heart rate, your scores, buzzing the strap), but a few firmware features differ. Here\'s what each can do, and why.</string>
+    <string name="l10n_whoop_model_comparison_screen_alke_pairs_with_the_whoop_4_599b088c">ALKE 支持连接 WHOOP 4.0 和 WHOOP 5.0 (含)。它们在绝大多数核心功能上表现一致... heart rate, your scores, buzzing the strap), but a few firmware features differ. Here\'s what each can do, and why.</string>
     <string name="l10n_whoop_model_comparison_screen_on_a_whoop_4_0_32a5968d">使用的是 WHOOP 4.0？</string>
     <string name="l10n_whoop_model_comparison_screen_what_each_can_read_and_why_4348bd67">各型号能读取哪些数据，以及为什么</string>
     <string name="l10n_whoop_model_comparison_screen_you_re_not_missing_the_broadcast_1d2fa907">您并没有错过心率广播功能。若想将您的心率共享给健身房器材，...</string>
@@ -1032,7 +1032,7 @@
     <string name="l10n_add_device_wizard_make_active_75690bb8">设为主力设备</string>
     <string name="l10n_add_device_wizard_make_confirmname_your_active_device_now_90ceb73e">立即将 %1$s 设为您的主力设备吗？它将负责提供您的实时数据。您也可以随时在设置中更改。 this any time.</string>
     <string name="l10n_add_device_wizard_make_this_your_active_device_b425485c">将此设备设为主力设备？</string>
-    <string name="l10n_add_device_wizard_noop_will_install_its_own_key_d3f6321e">ALKE 将向戒指写入专属的配对密钥并接管该设备。官方的 Oura App 将无法...</string>
+    <string name="l10n_add_device_wizard_alke_will_install_its_own_key_d3f6321e">ALKE 将向戒指写入专属的配对密钥并接管该设备。官方的 Oura App 将无法...</string>
     <string name="l10n_add_device_wizard_not_now_e4571490">暂不</string>
     <string name="l10n_add_device_wizard_take_over_2c7f5505">接管</string>
     <string name="l10n_add_device_wizard_take_over_this_ring_cc79ef5e">接管这枚智能戒指吗？</string>
@@ -1086,7 +1086,7 @@
     <string name="l10n_app_changelog_bug_fix_sweep_steps_sleep_export_50c60c51">Bug 扫除：计步、睡眠导出以及修复了一个省电断连相关的 Bug</string>
     <string name="l10n_app_changelog_bug_fixes_effort_the_widget_s_6b807b50">Bug 修复：负荷计算、小组件日期错误以及 Oura 戒指的重连</string>
     <string name="l10n_app_changelog_buzz_whoop_4_in_the_smart_4d17676a">让 WHOOP 4 可以在智能闹钟时震动</string>
-    <string name="l10n_app_changelog_charge_effort_rest_noop_s_own_8c323656">充能(Charge)、负荷(Effort)与恢复(Rest) - ALKE 独创的百分制评分体系</string>
+    <string name="l10n_app_changelog_charge_effort_rest_alke_s_own_8c323656">充能(Charge)、负荷(Effort)与恢复(Rest) - ALKE 独创的百分制评分体系</string>
     <string name="l10n_app_changelog_charge_shows_calibrating_instead_of_no_51a000e9">对于刚配对的手环，充能(Charge)项将显示为“校准中”而非“暂无数据”</string>
     <string name="l10n_app_changelog_check_for_updates_736b9062">检查更新</string>
     <string name="l10n_app_changelog_classic_chart_colours_a_throwback_toggle_e8150db5">经典图表配色 - 带你重温旧版配色的开关</string>
@@ -1163,7 +1163,7 @@
     <string name="l10n_app_changelog_journal_logging_an_imperial_metric_units_a507a5d2">日记记录功能 + 英制/公制单位切换开关</string>
     <string name="l10n_app_changelog_large_apple_health_imports_no_longer_830fa786">巨量 Apple Health 数据导入不再导致崩溃 (iPhone/Mac 版)</string>
     <string name="l10n_app_changelog_last_workouts_tile_fix_301180af">“最近运动”卡片显示修复</string>
-    <string name="l10n_app_changelog_light_theme_noop_in_warm_paper_d5b9f463">浅色主题 - 采用“暖纸与暗金”配色的 ALKE</string>
+    <string name="l10n_app_changelog_light_theme_alke_in_warm_paper_d5b9f463">浅色主题 - 采用“暖纸与暗金”配色的 ALKE</string>
     <string name="l10n_app_changelog_light_theme_polish_5add98b2">浅色主题体验打磨</string>
     <string name="l10n_app_changelog_light_theme_tuning_2bbad1f7">浅色主题微调优化</string>
     <string name="l10n_app_changelog_live_heart_rate_lands_on_today_5cac8768">即使手环内部时间不准，实时心率也会正确绘制在当天的图表上 (Android 版)</string>
@@ -1185,9 +1185,9 @@
     <string name="l10n_app_changelog_new_use_an_apple_watch_with_4c2c29a6">新增：支持 Apple Watch 与 ALKE 联动使用</string>
     <string name="l10n_app_changelog_new_week_in_review_a_live_c1457e40">新增：本周回顾、实时身体状态控制台、焕新的图表等更多功能</string>
     <string name="l10n_app_changelog_no_more_hr_spike_when_you_7dc052ba">重新打开 App 时不再出现心率突然飙升的假象</string>
-    <string name="l10n_app_changelog_noop_grows_up_it_s_not_823bf2e7">ALKE 长大了：它现在不仅仅能搭配 WHOOP 使用了</string>
-    <string name="l10n_app_changelog_noop_has_a_new_home_01b87522">ALKE 搬新家啦 (全新的项目主页)</string>
-    <string name="l10n_app_changelog_noop_now_tells_you_when_your_af259fbb">当手环未保存历史数据时，ALKE 现在会明确告知您 - 并提供修复建议</string>
+    <string name="l10n_app_changelog_alke_grows_up_it_s_not_823bf2e7">ALKE 长大了：它现在不仅仅能搭配 WHOOP 使用了</string>
+    <string name="l10n_app_changelog_alke_has_a_new_home_01b87522">ALKE 搬新家啦 (全新的项目主页)</string>
+    <string name="l10n_app_changelog_alke_now_tells_you_when_your_af259fbb">当手环未保存历史数据时，ALKE 现在会明确告知您 - 并提供修复建议</string>
     <string name="l10n_app_changelog_on_demand_hrv_a_haptic_clock_50376585">按需测量的 HRV、触觉时钟、睡眠标记等更多功能</string>
     <string name="l10n_app_changelog_oneplus_pairing_fix_f731fcb2">一加手机 (OnePlus) 配对问题修复</string>
     <string name="l10n_app_changelog_open_a_workout_see_what_it_a40fd8a4">点开运动记录，看看它消耗了你多少精力，并支持分享你的运动趋势</string>
@@ -1274,7 +1274,7 @@
     <string name="l10n_app_changelog_universal_mac_build_iphone_import_fix_363425a0">Mac 通用构建包 + iPhone 数据导入修复</string>
     <string name="l10n_app_changelog_update_check_shows_what_s_new_6779c2e3">“检查更新”功能现在会展示版本更新内容了</string>
     <string name="l10n_app_changelog_updates_check_github_again_1e00ced1">更新检查服务已重新对接至 GitHub</string>
-    <string name="l10n_app_changelog_v5_the_raw_signal_release_noop_c109e3f2">v5 里程碑 - 拥抱原始信号：ALKE 现已完全在设备本地解析信号，并且免费</string>
+    <string name="l10n_app_changelog_v5_the_raw_signal_release_alke_c109e3f2">v5 里程碑 - 拥抱原始信号：ALKE 现已完全在设备本地解析信号，并且免费</string>
     <string name="l10n_app_changelog_week_in_review_is_honest_about_4c225bd3">本周回顾：对于不完整的一周数据，现在会有更清晰的说明</string>
     <string name="l10n_app_changelog_whoop_4_0_is_the_supported_16893d9d">WHOOP 4.0 是官方建议的最佳设备</string>
     <string name="l10n_app_changelog_whoop_5_0_history_decoding_comes_a8848386">WHOOP 5.0 历史数据解码功能已登陆 Android</string>
@@ -1359,11 +1359,11 @@
     <string name="l10n_health_screen_vitality_be320b06">生命力指数</string>
     <string name="l10n_health_screen_vo2max_21214fb6">VO₂max</string>
     <string name="l10n_health_screen_weight_height_and_waist_add_a_fd2699f5">体重、身高和腰围有助于提供更精准的 VO₂max 估算值。它们本身不会改变您的体能年龄得分。</string>
-    <string name="l10n_how_noop_works_screen_how_your_scores_are_computed_1b2d6c30">各项分数是如何计算的</string>
-    <string name="l10n_how_noop_works_screen_how_your_scores_work_21a0e2be">各项分数的工作原理</string>
-    <string name="l10n_how_noop_works_screen_how_your_sleep_is_sorted_6a8e82e0">你的睡眠是如何分类的</string>
-    <string name="l10n_how_noop_works_screen_what_recording_means_b896c422">“数据记录”意味着什么</string>
-    <string name="l10n_how_noop_works_screen_where_your_numbers_come_from_e169963a">你的各项数据是怎么来的</string>
+    <string name="l10n_how_alke_works_screen_how_your_scores_are_computed_1b2d6c30">各项分数是如何计算的</string>
+    <string name="l10n_how_alke_works_screen_how_your_scores_work_21a0e2be">各项分数的工作原理</string>
+    <string name="l10n_how_alke_works_screen_how_your_sleep_is_sorted_6a8e82e0">你的睡眠是如何分类的</string>
+    <string name="l10n_how_alke_works_screen_what_recording_means_b896c422">“数据记录”意味着什么</string>
+    <string name="l10n_how_alke_works_screen_where_your_numbers_come_from_e169963a">你的各项数据是怎么来的</string>
     <string name="l10n_hrv_snapshot_screen_a_60_second_snapshot_of_your_35f03f7c">一份基于手环 60 秒连续捕获的心跳间期(R-R)数据的快照，已进行降噪处理... (range and ectopic-beat filtering) before computing RMSSD the same way your overnight HRV is computed.</string>
     <string name="l10n_hrv_snapshot_screen_close_hrv_reading_a29a99a1">关闭 HRV 测量</string>
     <string name="l10n_hrv_snapshot_screen_hrv_reading_a2cf71f3">HRV 测量</string>
@@ -1404,10 +1404,10 @@
     <string name="l10n_live_screen_take_an_hrv_reading_20ecb2d2">进行一次 HRV 测量</string>
     <string name="l10n_live_screen_w_sport_name_uppercase_e59bc678">● %1$s</string>
     <string name="l10n_live_screen_whoop_5_0_mg_pairs_with_b93143f2">WHOOP 5.0/MG 同时只能连接一个 App。如果扫描不到它，请先在官方 App 中取消配对 the official WHOOP app and fully close that app, then Connect again.</string>
-    <string name="l10n_noop_button_noopbutton_scale_1bee88be">NoopButton.scale</string>
-    <string name="l10n_noop_button_save_changes_179359b3">保存更改</string>
-    <string name="l10n_noop_motion_countuptext_749c73fb">CountUpText</string>
-    <string name="l10n_noop_motion_staggeredappear_7e1a3335">staggeredAppear</string>
+    <string name="l10n_alke_button_alkebutton_scale_1bee88be">AlkeButton.scale</string>
+    <string name="l10n_alke_button_save_changes_179359b3">保存更改</string>
+    <string name="l10n_alke_motion_countuptext_749c73fb">CountUpText</string>
+    <string name="l10n_alke_motion_staggeredappear_7e1a3335">staggeredAppear</string>
     <string name="l10n_pip_bar_pipbar_197c22c4">PipBar</string>
     <string name="l10n_rhythm_screen_an_experimental_picture_of_your_beat_966289c6">展示心跳间期(R-R)的实验性图表。使用前请先阅读说明。</string>
     <string name="l10n_rhythm_screen_before_you_turn_on_rhythm_e85a832c">在开启心律(Rhythm)之前</string>
@@ -1423,7 +1423,7 @@
     <string name="l10n_settings_screen_age_ff9f1ff3">年龄</string>
     <string name="l10n_settings_screen_app_icon_abde7a74">App 图标</string>
     <string name="l10n_settings_screen_appearance_41def7a0">外观设置</string>
-    <string name="l10n_settings_screen_reduce_motion_in_noop_59a6180d">减少 ALKE 中的动态效果</string>
+    <string name="l10n_settings_screen_reduce_motion_in_alke_59a6180d">减少 ALKE 中的动态效果</string>
     <string name="l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57">让液态仪表、天空和倾斜响应保持静止，并关闭驱动它们的运动传感器。省电。低电量模式和系统的“减弱动态效果”设置已经会这样做。</string>
     <string name="l10n_settings_screen_auto_detect_workouts_bed4cf2a">自动识别运动</string>
     <string name="l10n_settings_screen_automatic_backups_8a772f3c">自动备份</string>
@@ -1464,7 +1464,7 @@
     <string name="l10n_settings_screen_github_code_releases_issues_and_the_50b41e25">GitHub 仓库：查看源码、发布版本、提交问题(Issues)及参与 Wiki 建设。</string>
     <string name="l10n_settings_screen_health_wellness_93475778">健康与身心状态</string>
     <string name="l10n_settings_screen_height_3f608b49">身高</string>
-    <string name="l10n_settings_screen_how_noop_works_3396b27a">了解 ALKE 的工作原理</string>
+    <string name="l10n_settings_screen_how_alke_works_3396b27a">了解 ALKE 的工作原理</string>
     <string name="l10n_settings_screen_how_see_through_the_cards_heart_436105b9">How see-through the cards (Heart Rate, Key Metrics, Recovery Vitals, …) are. Left = solid, right = clear.</string>
     <string name="l10n_settings_screen_how_your_scores_work_21a0e2be">这些分数是如何计算出来的</string>
     <string name="l10n_settings_screen_hrv_window_e74320b8">HRV 计算窗口</string>
@@ -1474,7 +1474,7 @@
     <string name="l10n_settings_screen_import_4834caf8">导入…</string>
     <string name="l10n_settings_screen_importing_overwrites_everything_currently_on_this_297b76ae">导入操作将覆盖此手机上当前存在的所有数据！以防万一，您的旧数据将被备份保存在一个独立文件中。导入完成后，ALKE 需要重新启动才能生效。 Export CSV writes a WHOOP-format zip of your days, sleeps, workouts and journal that re-imports into ALKE on Android or Mac. On-device computed rows are marked APPROXIMATE in its Source column; the .alkebak backup stays the lossless restore path.</string>
     <string name="l10n_settings_screen_keep_connected_in_the_background_44499d45">允许后台保持连接</string>
-    <string name="l10n_settings_screen_keep_noop_alive_overnight_e43b2fba">允许 ALKE 彻夜运行</string>
+    <string name="l10n_settings_screen_keep_alke_alive_overnight_e43b2fba">允许 ALKE 彻夜运行</string>
     <string name="l10n_settings_screen_allow_3ad0e369">允许</string>
     <string name="l10n_settings_screen_keep_screen_on_during_a_workout_42d27284">运动时保持屏幕常亮</string>
     <string name="l10n_settings_screen_keeps_streaming_from_your_strap_with_d31b4af9">通过在通知栏保留一条常驻通知，在您关闭 ALKE 界面后继续接收手环的数据流。如果关闭此选项，当您退出 App 时手环将会断开连接。</string>
@@ -1485,9 +1485,9 @@
     <string name="l10n_settings_screen_max_heart_rate_3d4ed858">最大心率</string>
     <string name="l10n_settings_screen_measurement_system_701d765d">单位制式</string>
     <string name="l10n_settings_screen_motion_aware_wake_refinement_67a91e47">引入体动感知的清醒时间修正算法</string>
-    <string name="l10n_settings_screen_noop_is_not_a_medical_device_ab32ef7e">ALKE 不是医疗设备。它提供的数据仅供参考和个人洞察之用，不能用于诊断、治疗、治愈或预防任何疾病。如需医疗建议，请咨询专业医生。</string>
+    <string name="l10n_settings_screen_alke_is_not_a_medical_device_ab32ef7e">ALKE 不是医疗设备。它提供的数据仅供参考和个人洞察之用，不能用于诊断、治疗、治愈或预防任何疾病。如需医疗建议，请咨询专业医生。</string>
     <string name="l10n_settings_screen_offer_a_breath_automatically_6c709dee">适时自动推荐呼吸放松训练</string>
-    <string name="l10n_settings_screen_on_a_5_mg_connection_noop_4557c8f8">在连接到 5.0/MG 时，ALKE 会在握手后发送一个“puffin”实时数据流请求，并记录其返回的结果。如果您有一只 5.0/MG 手环，开启此选项并与我们分享您的手环日志，将对我们逆向解析其协议大有帮助。此选项对 WHOOP 4.0 手环无效。</string>
+    <string name="l10n_settings_screen_on_a_5_mg_connection_alke_4557c8f8">在连接到 5.0/MG 时，ALKE 会在握手后发送一个“puffin”实时数据流请求，并记录其返回的结果。如果您有一只 5.0/MG 手环，开启此选项并与我们分享您的手环日志，将对我们逆向解析其协议大有帮助。此选项对 WHOOP 4.0 手环无效。</string>
     <string name="l10n_settings_screen_open_source_ble_reverse_engineering_work_40062271">致敬开源 BLE 逆向工程社区，感谢各位的付出。</string>
     <string name="l10n_settings_screen_open_test_centre_a7fbe4e9">打开测试中心</string>
     <string name="l10n_settings_screen_overnight_only_05747985">仅在夜间</string>
@@ -1548,8 +1548,8 @@
     <string name="l10n_settings_screen_weight_69c0b815">体重</string>
     <string name="l10n_settings_screen_what_each_strap_can_read_and_51e7d3fc">各个型号手环能读取哪些数据，以及为什么有些功能会因设备而异。</string>
     <string name="l10n_settings_screen_what_s_new_4d8dc5fe">新版特性</string>
-    <string name="l10n_settings_screen_what_s_new_in_noop_appchangelog_d26fb453">ALKE %1$s 更新日志</string>
-    <string name="l10n_settings_screen_whole_night_is_noop_s_default_fbfff434">【整夜(Whole night)】是 ALKE 的默认算法；【深度睡眠(Deep sleep)】则仅汇总慢波睡眠期间的 HRV，计算出的数值会偏低，且更接近官方 WHOOP 的计算结果。切换算法会基于新窗口重新评估您最近几个晚上的分数，只要您有连续几晚的数据，就能立即生效。</string>
+    <string name="l10n_settings_screen_what_s_new_in_alke_appchangelog_d26fb453">ALKE %1$s 更新日志</string>
+    <string name="l10n_settings_screen_whole_night_is_alke_s_default_fbfff434">【整夜(Whole night)】是 ALKE 的默认算法；【深度睡眠(Deep sleep)】则仅汇总慢波睡眠期间的 HRV，计算出的数值会偏低，且更接近官方 WHOOP 的计算结果。切换算法会基于新窗口重新评估您最近几个晚上的分数，只要您有连续几晚的数据，就能立即生效。</string>
     <string name="l10n_settings_screen_whoop_4_0_versus_5_0_a54c5504">WHOOP 4.0 与 5.0 对比：它们各自能测什么？</string>
     <string name="l10n_settings_screen_whoop_4_0_vs_5_0_2babb05a">WHOOP 4.0 vs 5.0/MG</string>
     <string name="l10n_settings_screen_whoop_5_mg_straps_hand_a_b8b239e6">WHOOP 5.0/MG 手环默认只会向新连接的 App 发送实时心率。官方 App 会通过写入一组特定的功能标识指令序列（目前已有两个独立项目开源记录了这段序列），来开启手环的深层数据流（如高采样率心率 + 运动幅度 + 历史数据）。开启本功能后，下方的按钮会向您的手环发送这串完全一致的序列。与本界面的其他设置不同，它是真正向手环写入数据的，但该操作是可逆的（仅改变手环要吐出的数据类型），且与官方 App 所做的事情完全一样。实验性功能：您的固件版本可能对此毫无反应。</string>
@@ -1726,7 +1726,7 @@
     <string name="timeline_resp_not_on_whoop5">此设备不发送原始呼吸数据流。你的估算呼吸频率显示在“健康”屏幕上。</string>
     <string name="l10n_data_sources_screen_last_shared_6bf8389c">"上次分享 "%1$s</string>
     <string name="l10n_data_sources_screen_sharing_paused_health_connect_permission_was_e8950315">分享已暂停——Health Connect 权限已被撤销。点按以重新授予。</string>
-    <string name="l10n_data_sources_screen_last_share_didn_t_finish_noop_0d6c27f0">上次分享未完成——ALKE 将自动重试。</string>
+    <string name="l10n_data_sources_screen_last_share_didn_t_finish_alke_0d6c27f0">上次分享未完成——ALKE 将自动重试。</string>
     <string name="settings_disclosure_expanded">已展开</string>
     <string name="settings_disclosure_collapsed">已收起</string>
 
@@ -1749,7 +1749,7 @@
     <string name="battery_full_body">你的 WHOOP 电量为 100%。</string>
 
     <!-- Foreground-service notification (WhoopConnectionService). Always on screen while the strap is
-         connected, and hardcoded English until now: com/noop/ble is outside i18n_audit.py's scan roots,
+         connected, and hardcoded English until now: com/otidotid/alke/ble is outside i18n_audit.py's scan roots,
          and a NotificationCompat builder chain matches none of its Compose patterns, so the gate could
          not see it. postNotification's dedupe key now includes the locale — without that, these would
          keep the previous language until the connection or battery state happened to change. -->
@@ -1913,7 +1913,7 @@
     <string name="l10n_devices_screen_forget_device_d6eb6209">忘记设备…</string>
     <string name="l10n_devices_screen_forget_device_926e503d">忘记设备</string>
     <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">忘记此设备？</string>
-    <string name="l10n_devices_screen_noop_removes_this_device_503aff9e">ALKE 会从你的列表中移除此设备，并删除此处记录的数据。你可以重新配对设备，以再次获取其最近的历史记录。</string>
+    <string name="l10n_devices_screen_alke_removes_this_device_503aff9e">ALKE 会从你的列表中移除此设备，并删除此处记录的数据。你可以重新配对设备，以再次获取其最近的历史记录。</string>
     <string name="l10n_backup_sync_screen_auto_backup_hasn_t_run_in_e3cd484e">自动备份已有几天未运行。请检查备份文件夹是否仍然可用——被移动或断开连接的云文件夹会悄然停止备份。</string>
     <string name="cycle_tracker_title">生理周期追踪</string>
     <string name="cycle_tracker_current_estimate">当前估算</string>
@@ -1952,7 +1952,7 @@
     <string name="skin_temp_missing_caption">暂无夜间皮肤温度 — 需要约 4 个佩戴夜晚（或导入 WHOOP CSV）</string>
     <string name="skin_temp_delta_title">皮肤体温 Δ</string>
     <string name="skin_temp_vs_baseline">相对基线</string>
-    <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">把 ALKE 变成你的——强调色与自定义背景、新增四十多项运动及 GPS 轨迹，还有卡路里热力图</string>
+    <string name="l10n_app_changelog_make_alke_yours_theme_colours_and_6bdef2a7">把 ALKE 变成你的——强调色与自定义背景、新增四十多项运动及 GPS 轨迹，还有卡路里热力图</string>
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">自定义心率区间</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">设置每个区间开始时的心率。关闭可恢复按最大心率百分比划分的默认区间。</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">区间 %1$d 起点</string>
@@ -2505,7 +2505,7 @@
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">WHOOP 4.0 无法提供血氧百分比</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">你的手环会记录原始光学通道，但 ALKE 不会将其换算成血氧百分比，因此无论佩戴多久这里都会是空的。请在“数据来源”中导入 WHOOP 导出文件，以用账户历史填充。</string>
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">请求 Android 配对（实验性）</string>
-    <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">ALKE 一直寄望于向 5.0/MG 写入数据来促使 Android 配对，但这从未发生。此选项会直接请求 Android，因此可能弹出系统配对对话框。无论哪种方式，实时心率都会继续工作；如果对话框造成困扰，请关闭此选项。</string>
+    <string name="l10n_settings_screen_alke_has_always_hoped_that_writing_19967036">ALKE 一直寄望于向 5.0/MG 写入数据来促使 Android 配对，但这从未发生。此选项会直接请求 Android，因此可能弹出系统配对对话框。无论哪种方式，实时心率都会继续工作；如果对话框造成困扰，请关闭此选项。</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">请求 Android 配对</string>
     <string name="ground_truth_title">5/MG 原始数据采集器</string>
     <string name="ground_truth_subtitle">记录有限的 100 Hz 运动会话，从手环历史恢复蓝牙缺口，并导出完整时间线。</string>
@@ -2585,8 +2585,8 @@
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">即使拒绝配对也发送 hello（实验性）</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">即使拒绝配对也发送 hello</string>
     <string name="l10n_settings_screen_check_automatically_7cd229d2">自动检查</string>
-    <string name="l10n_settings_screen_once_a_day_noop_asks_github_5683aad3">ALKE 每天向 GitHub 查询一次最新版本号，如果有更新版本，就在「更新」中留下提示。不会发送任何与你有关的信息，也绝不会安装任何东西。</string>
-    <string name="l10n_updates_noop_1s_is_available_05d8ef55">ALKE %1$s 可用</string>
+    <string name="l10n_settings_screen_once_a_day_alke_asks_github_5683aad3">ALKE 每天向 GitHub 查询一次最新版本号，如果有更新版本，就在「更新」中留下提示。不会发送任何与你有关的信息，也绝不会安装任何东西。</string>
+    <string name="l10n_updates_alke_1s_is_available_05d8ef55">ALKE %1$s 可用</string>
     <string name="l10n_updates_youre_on_1s_open_settings_and_35b9e135">你当前使用 %1$s。打开「设置」并使用「检查更新」查看新增内容并下载 %2$s。</string>
     <string name="crash_recovery_title">ALKE 意外停止</string>
     <string name="crash_recovery_body">上次崩溃信息显示在下方。你可以复制它用于错误报告，然后再次尝试打开应用。</string>

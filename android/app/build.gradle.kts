@@ -22,20 +22,20 @@ val localProps = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
-// ALKE-first public configuration; legacy THOOP keys remain valid for existing setups.
+// ALKE-first public configuration; legacy ALKE keys remain valid for existing setups.
 val cloudCoachBaseUrl = (localProps.getProperty("ALKE_CLOUD_COACH_URL")
     ?: System.getenv("ALKE_CLOUD_COACH_URL")
-    ?: localProps.getProperty("THOOP_CLOUD_COACH_URL")
-    ?: System.getenv("THOOP_CLOUD_COACH_URL")
+    ?: localProps.getProperty("ALKE_CLOUD_COACH_URL")
+    ?: System.getenv("ALKE_CLOUD_COACH_URL")
     ?: "").trim().trimEnd('/')
 val googleWebClientId = (localProps.getProperty("ALKE_GOOGLE_WEB_CLIENT_ID")
     ?: System.getenv("ALKE_GOOGLE_WEB_CLIENT_ID")
-    ?: localProps.getProperty("THOOP_GOOGLE_WEB_CLIENT_ID")
-    ?: System.getenv("THOOP_GOOGLE_WEB_CLIENT_ID")
+    ?: localProps.getProperty("ALKE_GOOGLE_WEB_CLIENT_ID")
+    ?: System.getenv("ALKE_GOOGLE_WEB_CLIENT_ID")
     ?: "").trim()
 
 android {
-    namespace = "com.noop"
+    namespace = "com.otidotid.alke"
     compileSdk = 35
 
     defaultConfig {
@@ -82,7 +82,7 @@ android {
         }
         release {
             // Shipped UNMINIFIED for reliability. R8 minification crashes this app at runtime: full-mode
-            // over-strips reflective paths, and even with full-mode OFF + broad keeps (com.noop.** +
+            // over-strips reflective paths, and even with full-mode OFF + broad keeps (com.otidotid.alke.** +
             // Tink/Worker/ViewModel) a minified build STILL died right after the terms gate on a real
             // device — a library reflective path we couldn't pin without a device to trace. Offline app,
             // a ~18 MB APK is fine. Re-enabling minify needs the exact crash trace + device verification.
@@ -107,7 +107,7 @@ android {
             }
             // Fork staging release: built with -PstagingRelease (the fork testing-build CI only), the
             // release APK gets its own id/name so it installs BESIDE both the official app and the
-            // .debug staging build. A real release (no property) keeps the true com.noop.whoop id.
+            // .debug staging build. A real release (no property) keeps the true com.otidotid.alke.whoop id.
             if (isStagingRelease) {
                 applicationIdSuffix = ".staging"
                 versionNameSuffix = "-staging"
@@ -116,8 +116,8 @@ android {
     }
 
     // Two clearly-distinct apps that install side-by-side:
-    //   • full → "NOOP"      (com.noop.whoop)     — the real app, starts empty, pair a strap / import.
-    //   • demo → "NOOP Demo"  (com.noop.whoop.demo) — preloaded with 120 days of synthetic data and
+    //   • full → "ALKE"      (com.otidotid.alke.whoop)     — the real app, starts empty, pair a strap / import.
+    //   • demo → "ALKE Demo"  (com.otidotid.alke.whoop.demo) — preloaded with 120 days of synthetic data and
     //                          a visible DEMO badge, so anyone can explore every screen with no strap.
     // Build e.g. ./gradlew assembleFullRelease assembleDemoRelease.
     flavorDimensions += "tier"
@@ -299,7 +299,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2") // collectAsStateWithLifecycle
     implementation("androidx.navigation:navigation-compose:2.7.7")
     // Google Sign-In via Android Credential Manager.
-    // Pinned for compatibility with THOOP's current build system.
+    // Pinned for compatibility with ALKE's current build system.
     implementation("androidx.credentials:credentials:1.5.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")

@@ -2,12 +2,12 @@
 
 ## Scope
 - **No personal data**. Clean-install the standalone ALKE debug APK on the second Android phone.
-- Do **not** restore THOOP backups, pair the user's WHOOP strap, import Health Connect data, use real lab entries, or sign in to existing cloud health accounts.
-- THOOP on the first phone and all its personal records remain untouched. There is no cross-device synchronization in this smoke test.
+- Do **not** restore ALKE backups, pair the user's WHOOP strap, import Health Connect data, use real lab entries, or sign in to existing cloud health accounts.
+- ALKE on the first phone and all its personal records remain untouched. There is no cross-device synchronization in this smoke test.
 - For UI screenshot checks, use empty states or separately generated synthetic fixtures only, clearly labeled as synthetic.
 
 ## Smoke checks (after a passing build)
-1. Confirm Android installs ALKE as a separate package (`com.otidotid.alke.debug` for `fullDebug`) and no THOOP installation is overwritten.
+1. Confirm Android installs ALKE as a separate package (`com.otidotid.alke.debug` for `fullDebug`) and no ALKE installation is overwritten.
 2. Confirm launcher displays **ALKE**; verify approved flat **Option D** icon once the actual artwork is integrated.
 3. Open the application from a clean state; confirm it does not crash and provides useful empty-data states.
 4. Verify Today, Sleep, Workouts, Trends, Health, VO2/Body Age details, AI/Coach, Settings and available navigation routes.
@@ -19,9 +19,9 @@
 10. Capture crashes/logcat and screenshots without personal data.
 
 ## Deferred to Stage 5 — real migration
-- THOOP encrypted backup / Google Drive appDataFolder access across Android application IDs.
+- ALKE encrypted backup / Google Drive appDataFolder access across Android application IDs.
 - Import existing real health history, food/lab data, backup restore, device pairing and algorithm/score parity.
 - Only after safe backup, explicit authorization and verification on the second phone.
 
 ## Release safety
-A debug APK is not a validated production build. Do not install ALKE over THOOP, change the THOOP repository, or publish a production release from this checklist.
+A debug APK is not a validated production build. Do not install ALKE over ALKE, change the ALKE repository, or publish a production release from this checklist.

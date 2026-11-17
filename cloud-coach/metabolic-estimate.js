@@ -1,6 +1,6 @@
 import { toWorkersAIInput, extractWorkersAIText } from "./workers-ai-response.js";
 
-// Explicitly separate experimental AI estimate. It cannot modify THOOP equations or records.
+// Explicitly separate experimental AI estimate. It cannot modify ALKE equations or records.
 export const METABOLIC_MODEL = "@cf/openai/gpt-oss-120b";
 export const METABOLIC_PROMPT_VERSION = "metabolic-prompt-v1";
 const SCHEMA = "metabolic-estimate-v1";
@@ -73,7 +73,7 @@ export async function estimateMetabolicSafely(env, request, labConsent, metaboli
     const prompt = [
       "Return one JSON object only, with no markdown or text outside JSON.",
       "You are providing one experimental, unvalidated wellness adjustment estimate, NOT clinical or biological age.",
-      "THOOP owns all final equations and weights. Do not return a final age, scores, coefficients, weights, edits or replacement measurements.",
+      "ALKE owns all final equations and weights. Do not return a final age, scores, coefficients, weights, edits or replacement measurements.",
       "The user-authorized scalar metabolicAgeDeltaYears is the only allowed numerical output. Its allowed product range is -2 through +4 years.",
       "This range is a product bound, not a validated medical conversion. Do not claim a scientifically validated lab-to-age equation.",
       "Inputs are the latest original result for EVERY supplied marker as of snapshotDay, with prior structured interpretations.",

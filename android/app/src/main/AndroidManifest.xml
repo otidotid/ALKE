@@ -158,7 +158,7 @@
     </queries>
 
     <application
-        android:name=".NoopApplication"
+        android:name=".AlkeApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
@@ -179,7 +179,7 @@
           activity stays exported so the enabled alias can target it. (#v3-titanium-gold)
         -->
         <activity
-            android:name="com.noop.ui.MainActivity"
+            android:name="com.otidotid.alke.ui.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:windowSoftInputMode="adjustResize"
@@ -204,8 +204,8 @@
           one home-screen entry point. Toggling them is what re-paints the launcher icon at runtime.
         -->
         <activity-alias
-            android:name="com.noop.IconDefault"
-            android:targetActivity="com.noop.ui.MainActivity"
+            android:name="com.otidotid.alke.IconDefault"
+            android:targetActivity="com.otidotid.alke.ui.MainActivity"
             android:exported="true"
             android:enabled="true"
             android:icon="@mipmap/ic_launcher"
@@ -218,8 +218,8 @@
         </activity-alias>
 
         <activity-alias
-            android:name="com.noop.IconNavy"
-            android:targetActivity="com.noop.ui.MainActivity"
+            android:name="com.otidotid.alke.IconNavy"
+            android:targetActivity="com.otidotid.alke.ui.MainActivity"
             android:exported="true"
             android:enabled="false"
             android:icon="@mipmap/ic_launcher_navy"
@@ -235,7 +235,7 @@
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"
-            android:targetActivity="com.noop.ui.MainActivity"
+            android:targetActivity="com.otidotid.alke.ui.MainActivity"
             android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
@@ -247,7 +247,7 @@
              started/stopped only from within the app, gated by the "Keep connected in the
              background" Settings toggle. -->
         <service
-            android:name="com.noop.ble.WhoopConnectionService"
+            android:name="com.otidotid.alke.ble.WhoopConnectionService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice|location" />
 
@@ -256,7 +256,7 @@
              access; it reads which app posted a notification — never the content — to buzz the strap,
              gated by the Notifications-screen settings. Does nothing until access is granted + enabled. -->
         <service
-            android:name="com.noop.notif.NoopNotificationListener"
+            android:name="com.otidotid.alke.notif.AlkeNotificationListener"
             android:label="ALKE wrist alerts"
             android:exported="false"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
@@ -269,7 +269,7 @@
              required so the launcher can deliver APPWIDGET_UPDATE; it renders only from our own
              SharedPreferences snapshot. -->
         <receiver
-            android:name="com.noop.widget.NoopWidgetReceiver"
+            android:name="com.otidotid.alke.widget.AlkeWidgetReceiver"
             android:exported="true"
             android:label="@string/app_name">
             <intent-filter>
@@ -277,13 +277,13 @@
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/noop_widget_info" />
+                android:resource="@xml/alke_widget_info" />
         </receiver>
 
         <!-- Compact home-screen widget, offered as a separate picker entry so the existing 2x2 widget
              remains available unchanged. -->
         <receiver
-            android:name="com.noop.widget.NoopCompactWidgetReceiver"
+            android:name="com.otidotid.alke.widget.AlkeCompactWidgetReceiver"
             android:exported="true"
             android:label="@string/widget_compact_name">
             <intent-filter>
@@ -291,13 +291,13 @@
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/noop_compact_widget_info" />
+                android:resource="@xml/alke_compact_widget_info" />
         </receiver>
 
         <!-- Heart-rate widget (#1957): live bpm with the last three hours as a trace. Same snapshot
              source as the score widgets; the trace is a Bitmap because Glance cannot draw one. -->
         <receiver
-            android:name="com.noop.widget.HrWidgetReceiver"
+            android:name="com.otidotid.alke.widget.HrWidgetReceiver"
             android:exported="true"
             android:label="@string/widget_hr_name">
             <intent-filter>
@@ -311,7 +311,7 @@
         <!-- Stress widget (#2040): today's intraday stress as the curve the Stress screen draws.
              Same snapshot source as its siblings; the curve is a Bitmap because Glance cannot draw. -->
         <receiver
-            android:name="com.noop.widget.StressWidgetReceiver"
+            android:name="com.otidotid.alke.widget.StressWidgetReceiver"
             android:exported="true"
             android:label="@string/widget_stress_name">
             <intent-filter>
@@ -325,7 +325,7 @@
         <!-- K10: Coach brief home-screen widget. Shows the stored morning brief (generated on a
              schedule by CoachBriefScheduler, K5) — never live-networked. Tap → opens the app. -->
         <receiver
-            android:name="com.noop.widget.CoachBriefWidgetReceiver"
+            android:name="com.otidotid.alke.widget.CoachBriefWidgetReceiver"
             android:exported="true"
             android:label="Coach Brief">
             <intent-filter>
@@ -340,7 +340,7 @@
              and never reads the incoming-number extra. Delivery is gated by the Notifications screen
              settings and by the just-in-time READ_PHONE_STATE runtime permission. -->
         <receiver
-            android:name="com.noop.notif.PhoneCallReceiver"
+            android:name="com.otidotid.alke.notif.PhoneCallReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.PHONE_STATE" />
@@ -352,13 +352,13 @@
              full-screen alarm notification with sound + vibration. Not exported — only our own
              PendingIntent triggers it — but it survives the app being killed so the wake is reliable. -->
         <receiver
-            android:name="com.noop.alarm.SmartAlarmReceiver"
+            android:name="com.otidotid.alke.alarm.SmartAlarmReceiver"
             android:exported="false" />
 
         <!-- Re-arms the persisted hard-deadline alarm after a reboot so an overnight restart can't
              silently drop the user's wake. -->
         <receiver
-            android:name="com.noop.alarm.SmartAlarmBootReceiver"
+            android:name="com.otidotid.alke.alarm.SmartAlarmBootReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -369,7 +369,7 @@
         <!-- Wind-down nudge (non-critical): the daily evening reminder fires this receiver, which
              raises a low-key notification. Not exported. -->
         <receiver
-            android:name="com.noop.alarm.WindDownReceiver"
+            android:name="com.otidotid.alke.alarm.WindDownReceiver"
             android:exported="false" />
 
         <!-- Shares the strap log (a cache file) for bug reports. Not exported; read access is granted

@@ -1,0 +1,22 @@
+package com.otidotid.alke.ui
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.otidotid.alke.ingest.HealthConnectImporter.ImportCategory
+
+/** Manual Health Connect scope: activity only, or activity plus workouts. */
+@Composable
+internal fun HealthConnectCategorySelector(
+    selected: Set<ImportCategory>,
+    onSelectionChange: (Set<ImportCategory>) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val choice = if (ImportCategory.ALL in selected) ImportCategory.ALL else ImportCategory.ACTIVITY_ONLY
+    SegmentedPillControl(
+        items = listOf(ImportCategory.ACTIVITY_ONLY, ImportCategory.ALL),
+        selection = choice,
+        label = { if (it == ImportCategory.ACTIVITY_ONLY) "Workout Only" else "Workout + Activity" },
+        onSelect = { onSelectionChange(setOf(it)) },
+        modifier = modifier,
+    )
+}

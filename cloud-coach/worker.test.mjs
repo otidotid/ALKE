@@ -55,7 +55,7 @@ function fakeD1({ failRead = false, failWrite = false } = {}) {
 test('health status avoids infrastructure disclosure', async () => {
   const response = await worker.fetch(new Request('https://coach.example.test/'), { AI: ai(), DB: fakeD1() });
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { service: 'THOOP Cloud Coach', status: 'ok' });
+  assert.deepEqual(await response.json(), { service: 'ALKE Cloud Coach', status: 'ok' });
 });
 
 test('retains Android contract, no D1 required for healthy answer', async () => {

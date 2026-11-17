@@ -81,7 +81,7 @@ import kotlin.math.sqrt
 //
 // "Your own logbook." A private place to KEEP the numbers you already get from your
 // doctor or pharmacy — bloods, BP, body measurements — and SEE them next to your
-// wearable signals, entirely on this phone. NOOP never tests you, never reads a result,
+// wearable signals, entirely on this phone. ALKE never tests you, never reads a result,
 // and never tells you what a number means medically.
 // (Spec: docs/superpowers/specs/2026-06-19-v5-health-records-design.md.)
 //
@@ -363,7 +363,7 @@ fun LabBookScreen(vm: AppViewModel) {
             onSave = { drafts ->
                 scope.launch {
                     vm.repo.upsertLabMarkers(drafts)
-                    // Lab inputs affect THOOP Age/VO2 via the existing deterministic engine.
+                    // Lab inputs affect ALKE Age/VO2 via the existing deterministic engine.
                     vm.refreshFitnessAgeNow { }
                     reloadSeq++
                 }
@@ -503,12 +503,12 @@ private fun MarkerDetailSheet(
             val scoreRelationship = latest?.let {
                 LabCalculationContract.assess(it, java.time.LocalDate.now().toString())
             }
-            SectionHeader("THOOP score relationship", overline = "verified calculations, not AI-generated")
+            SectionHeader("ALKE score relationship", overline = "verified calculations, not AI-generated")
             NoopCard {
                 val connected = scoreRelationship?.scoreKeys.orEmpty()
                 val explanation = if (connected.isNotEmpty()) {
                     "Validated input for: " + connected.sorted().joinToString(", ") +
-                        ". The THOOP engine applies its existing formula; no score comes from AI."
+                        ". The ALKE engine applies its existing formula; no score comes from AI."
                 } else {
                     "AI can interpret this lab marker when Coach data sharing is enabled, " +
                         "but it cannot directly change VO₂ max, Fitness Age, Calories, Vitality or Recovery."
@@ -607,7 +607,7 @@ private fun CorrelationResult(
                     "(and keep wearing your strap)."
             } else {
                 "$n reading${if (n == 1) "" else "s"} line up so far, not enough to read a trend yet " +
-                    "(NOOP waits for $LAB_FLOOR)."
+                    "(ALKE waits for $LAB_FLOOR)."
             },
             style = NoopType.subhead,
             color = Palette.textTertiary,
@@ -717,10 +717,10 @@ private fun LabBookDisclaimerSheet(onDismiss: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(uiString(R.string.l10n_lab_book_screen_about_lab_book_37bf2691), style = NoopType.title2, color = Palette.textPrimary)
             Text(uiString(R.string.l10n_lab_book_screen_a_private_notebook_not_a_medical_f63242cb), style = NoopType.subhead, color = Palette.textSecondary)
-            DisclaimerBullet("NOOP stores and lines up the numbers you enter yourself. It does not test you, read your results, give medical advice, or diagnose anything.")
+            DisclaimerBullet("ALKE stores and lines up the numbers you enter yourself. It does not test you, read your results, give medical advice, or diagnose anything.")
             DisclaimerBullet("Anything you see here (including any side-by-side trend) is your own information shown back to you. It's an association, never a cause, and never a medical finding.")
-            DisclaimerBullet("NOOP never decides whether a value is \"normal,\" \"high,\" or \"low.\" Any reference range shown is exactly what you typed from your own report.")
-            DisclaimerBullet("Your records never leave this phone. There's no account, no cloud, no NOOP server. Because NOOP is an independent app you run yourself (not a healthcare provider), it isn't \"HIPAA-covered,\" and that protection doesn't apply here; the safety comes from the data being local-only and yours.")
+            DisclaimerBullet("ALKE never decides whether a value is \"normal,\" \"high,\" or \"low.\" Any reference range shown is exactly what you typed from your own report.")
+            DisclaimerBullet("Your records never leave this phone. There's no account, no cloud, no ALKE server. Because ALKE is an independent app you run yourself (not a healthcare provider), it isn't \"HIPAA-covered,\" and that protection doesn't apply here; the safety comes from the data being local-only and yours.")
             DisclaimerBullet("Always rely on your doctor, pharmacist, or a qualified professional to interpret results and make decisions. If a number worries you, talk to them, not to an app.")
             PrimaryActionButton("Got it", Icons.Filled.Check, onClick = onDismiss)
         }

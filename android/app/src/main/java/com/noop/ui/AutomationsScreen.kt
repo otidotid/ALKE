@@ -105,7 +105,7 @@ fun AutomationsScreen(viewModel: AppViewModel) {
     // enabling the reminder while master is off isn't silently inert.
     val notifMasterOn = NotifPrefs.getBool(ctx, NotifPrefs.MASTER, false)
 
-    // #haptics (#1115): per-event toggles for NOOP's IN-SESSION strap buzzes. Default ON (opt-out) — these
+    // #haptics (#1115): per-event toggles for ALKE's IN-SESSION strap buzzes. Default ON (opt-out) — these
     // are feedback to a feature you started, so a fresh install buzzes as before and a user turns off any
     // cue they find noisy. Ambient cues (inactivity / calls / notifications) keep their own opt-in sections;
     // double-tap is gated by its action picker, not here. SharedPreferences isn't reactive → read into state.
@@ -391,13 +391,13 @@ private fun NapDetectionSection(viewModel: AppViewModel) {
         icon = Icons.Filled.Bedtime,
         title = uiString(R.string.l10n_automations_screen_nap_detection_ca2dedf5),
         blurb = "Spots a likely daytime nap from the strap's motion and heart rate on each history sync, " +
-            "then asks you to confirm it. Inferred and approximate: NOOP never adds a nap to your sleep " +
+            "then asks you to confirm it. Inferred and approximate: ALKE never adds a nap to your sleep " +
             "without your OK.",
         active = enabled,
     ) {
         ToggleRow(
             label = uiString(R.string.l10n_automations_screen_detect_short_naps_bbfd136d),
-            help = "When a sync shows a quiet, settled stretch in the day, NOOP offers it here for you to keep or skip.",
+            help = "When a sync shows a quiet, settled stretch in the day, ALKE offers it here for you to keep or skip.",
             checked = enabled,
             onChange = {
                 viewModel.setNapDetectionEnabled(it)

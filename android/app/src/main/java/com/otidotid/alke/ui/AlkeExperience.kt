@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -1002,6 +1003,20 @@ private fun AlkeFitnessAgeHero(
         else tween(durationMillis = 940, easing = FastOutSlowInEasing),
         label = "fitness_age_reveal",
     )
+    // Gentle continuous living-instrument motion. Never interpolate the stored age itself.
+    // Reduced Motion produces an entirely static view; Compose stops running after navigation.
+    val ambient = if (reduceMotion || fitnessAge == null) 0f else {
+        val motion = rememberInfiniteTransition(label = "alke_fitness_age_ambient")
+        motion.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(durationMillis = 3_800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "alke_fitness_age_breathe",
+        ).value
+    }
     val difference = fitnessAge?.let { age ->
         if (chronologicalAge > 0) chronologicalAge.toDouble() - age else null
     }
@@ -1024,7 +1039,7 @@ private fun AlkeFitnessAgeHero(
             }
             AlkePill("WEEKLY", A.gold)
         }
-        // No chevron and no infinite "loading" effect: the metric settles once.
+        // The age-scale position remains data-accurate; only glow and number breathe.
         Box(Modifier.fillMaxWidth().height(206.dp), contentAlignment = Alignment.Center) {
             Box(Modifier.size(194.dp), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.fillMaxSize()) {
@@ -1035,7 +1050,7 @@ private fun AlkeFitnessAgeHero(
                     val radius = arcSize.width / 2f
                     drawCircle(
                         brush = Brush.radialGradient(
-                            listOf(A.cyan.copy(alpha = 0.12f), A.cardDark.copy(alpha = 0.02f)),
+                            listOf(A.cyan.copy(alpha = 0.10f + ambient * 0.13f), A.cardDark.copy(alpha = 0.02f)),
                             center = center, radius = size.minDimension * 0.48f,
                         ),
                         radius = radius * 0.92f,
@@ -1057,7 +1072,9 @@ private fun AlkeFitnessAgeHero(
                             center.x + kotlin.math.cos(angle).toFloat() * radius,
                             center.y + kotlin.math.sin(angle).toFloat() * radius,
                         )
-                        drawCircle(A.white, radius = 3.6.dp.toPx(), center = marker)
+                        drawCircle(A.cyan.copy(alpha = 0.11f + ambient * 0.22f),
+                            radius = (8f + 4f * ambient).dp.toPx(), center = marker)
+                        drawCircle(A.white, radius = (3.4f + 0.45f * ambient).dp.toPx(), center = marker)
                     }
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally,
@@ -1066,8 +1083,14 @@ private fun AlkeFitnessAgeHero(
                         fitnessAge?.let {
                             fitnessAgeBoundSymbol(it) + String.format(Locale.US, "%.1f", it)
                         } ?: "—",
-                        color = A.white, fontWeight = FontWeight.Bold,
+                        color = A.white.copy(alpha = 0.90f + 0.10f * ambient),
+                        fontWeight = FontWeight.Bold,
                         fontSize = 48.sp, lineHeight = 55.sp,
+                        modifier = Modifier.graphicsLayer {
+                            val scale = 1f + ambient * 0.018f
+                            scaleX = scale
+                            scaleY = scale
+                        },
                     )
                     Text("YEARS", color = A.muted, fontSize = 11.sp,
                         letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
@@ -1107,8 +1130,8 @@ private fun AlkeFitnessAgeHero(
 
 
 /**
- * Shared age-factor tile. One short staggered entrance and a bounded bar animation,
- * never an endless shimmer. Missing metrics remain explicitly unavailable.
+ * Shared age-factor tile: accurate, fixed-value fill with an ambient repeating glow.
+ * Missing metrics stay unavailable. Motion stops under the system Reduce Motion setting.
  */
 @Composable
 private fun AlkeFitnessFactorCard(
@@ -1132,8 +1155,20 @@ private fun AlkeFitnessFactorCard(
         else tween(durationMillis = 780, delayMillis = index * 90, easing = FastOutSlowInEasing),
         label = "alke_factor_${index}_fill",
     )
+    val shimmer = if (reduced) 0f else {
+        val motion = rememberInfiniteTransition(label = "alke_factor_${index}_ambient")
+        motion.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(durationMillis = 2_900 + index * 270, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "alke_factor_${index}_glow",
+        ).value
+    }
     AlkePanel(modifier.staggeredAppear(index), onClick = onClick) {
-        Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 10.sp,
+        Text(label, color = tint.copy(alpha = 0.75f + shimmer * 0.25f), fontWeight = FontWeight.Bold, fontSize = 10.sp,
             letterSpacing = 0.8.sp, maxLines = 1)
         Text(value, color = A.white, fontWeight = FontWeight.Bold,
             fontSize = if (value.length > 10) 16.sp else 24.sp, maxLines = 1,
@@ -1142,7 +1177,12 @@ private fun AlkeFitnessFactorCard(
             .background(A.stroke.copy(alpha = 0.62f))) {
             if (fraction != null && fill > 0f) {
                 Box(Modifier.fillMaxWidth(fill).height(7.dp)
-                    .clip(CircleShape).background(tint))
+                    .clip(CircleShape)
+                    .background(Brush.horizontalGradient(listOf(
+                        tint.copy(alpha = 0.62f + 0.30f * shimmer),
+                        tint.copy(alpha = 0.92f),
+                        A.white.copy(alpha = 0.20f + 0.32f * shimmer),
+                    ))))
             }
         }
         Text(caption, color = A.muted, fontSize = 10.sp, lineHeight = 14.sp,
@@ -1224,7 +1264,7 @@ fun AlkeProgressExperience(
     val latestSteps = stepsReadings.lastOrNull()
     AlkePage {
         AlkeHeading("Progress", "The long view of your performance.")
-        // Hero comes first, not a menu row. The circle animates once and opens
+        // Hero comes first, not a menu row. The age ring and number breathe continuously and open
         // the original Fitness Age analysis (history, factors and methodology).
         AlkeFitnessAgeHero(
             fitnessAge = fitnessAgeReading?.first,

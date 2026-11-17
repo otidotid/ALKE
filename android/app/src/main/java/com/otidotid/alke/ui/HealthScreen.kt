@@ -4,6 +4,7 @@ import com.otidotid.alke.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -760,8 +761,6 @@ private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile
     // card's tap-through (VitalDetailScreen) via one helper so a single gate feeds both surfaces.
     val (rhrDays, readiness) = rememberFitnessReadiness(days, profile)
 
-    var showChecklist by remember { mutableStateOf(false) }
-
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader("Fitness Age", overline = "Weekly", trailing = "± 5 yr")
         val value = fitnessAge
@@ -776,36 +775,7 @@ private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile
                 restingHr = days.takeLast(7).mapNotNull { it.restingHr?.toDouble() }.average().takeIf { !it.isNaN() },
                 weeklyEffort = days.takeLast(7).mapNotNull { it.strain }.average().takeIf { !it.isNaN() },
                 history = fitnessAgeHistory,
-                onHowAccurate = { showChecklist = !showChecklist },
-                checklistOpen = showChecklist,
             )
-            // #1391: VO₂max is shown even without a waist (the Uth HR-ratio fallback), so a waist no longer
-            // "unlocks" the number — it upgrades it to the more accurate Nes waist-based estimate. Key on
-            // waist being unset and nudge for it (tap → Settings) to sharpen the figure already displayed.
-            if (profile.waistCm <= 0.0) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClick = onOpenSettings)
-                        .padding(vertical = Metrics.space8),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Metrics.space8),
-                ) {
-                    Icon(Icons.Filled.MonitorHeart, contentDescription = null,
-                        tint = Palette.metricCyan, modifier = Modifier.size(16.dp))
-                    Text(
-                        uiString(R.string.l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e),
-                        style = AlkeType.footnote, color = Palette.textSecondary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null,
-                        tint = Palette.textTertiary, modifier = Modifier.size(16.dp))
-                }
-            }
-            if (showChecklist) {
-                FitnessReadinessCard(readiness = readiness, headed = false, onOpenSettings = onOpenSettings)
-            }
         } else {
             // No weekly value yet — lead with a concrete countdown, then the checklist. The refresh button
             // forces the weekly recompute now (from stored data), so a ready user doesn't have to wait.
@@ -1041,8 +1011,6 @@ private fun FitnessAgeHero(
     restingHr: Double?,
     weeklyEffort: Double?,
     history: List<Pair<String, Double>>,
-    onHowAccurate: () -> Unit,
-    checklistOpen: Boolean,
 ) {
     val shown = fitnessAge.roundToInt()
     val boundSymbol = fitnessAgeBoundSymbol(fitnessAge)
@@ -1067,6 +1035,17 @@ private fun FitnessAgeHero(
     val vo2Position = vo2max?.let { ((it - 15.0) / 55.0).toFloat().coerceIn(0f, 1f) }
     val rhrPosition = restingHr?.let { (1f - ((it - 40.0) / 40.0).toFloat()).coerceIn(0f, 1f) }
     val effortPosition = weeklyEffort?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) }
+    val pace = remember(history) {
+        FitnessAgePaceEngine.calculate(history.map {
+            FitnessAgePaceEngine.Point(it.first, it.second)
+        })
+    }
+    val paceValue = pace.pace?.let { String.format(Locale.US, "%.1fx", kotlin.math.abs(it)) } ?: "—"
+    val paceLabel = when {
+        !pace.ready -> "CALIBRATING"
+        (pace.pace ?: 0.0) < 0.0 -> "AGE DOWN"
+        else -> "AGING PACE"
+    }
     // A low-amplitude continuous glow keeps the recorded weekly age alive, without changing it.
     val reduceAgeMotion = rememberReduceMotion()
     val agePulse = if (reduceAgeMotion) 0f else {
@@ -1075,10 +1054,21 @@ private fun FitnessAgeHero(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                tween(4_100, easing = FastOutSlowInEasing),
+                tween(2_450, easing = FastOutSlowInEasing),
                 repeatMode = RepeatMode.Reverse,
             ),
             label = "alke_health_fitness_age_breathe",
+        ).value
+    }
+    val orbit = if (reduceAgeMotion) 0f else {
+        val motion = rememberInfiniteTransition(label = "alke_health_age_orbit")
+        motion.animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(3_150, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "alke_health_age_orbit_sweep",
         ).value
     }
 
@@ -1098,27 +1088,46 @@ private fun FitnessAgeHero(
                         modifier = Modifier
                             .size(142.dp)
                             .graphicsLayer {
-                                val scale = 1f + agePulse * 0.012f
+                                val scale = 1f + agePulse * 0.045f
                                 scaleX = scale
                                 scaleY = scale
                             }
                             .clip(RoundedCornerShape(24.dp))
                             .background(Palette.surfaceInset)
-                            .border(1.dp, accent.copy(alpha = 0.25f + agePulse * 0.25f), RoundedCornerShape(24.dp)),
+                            .border(1.dp, accent.copy(alpha = 0.30f + agePulse * 0.52f), RoundedCornerShape(24.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
+                        Canvas(Modifier.matchParentSize()) {
+                            val angle = Math.toRadians((-90f + 360f * orbit).toDouble())
+                            val spot = Offset(
+                                center.x + kotlin.math.cos(angle).toFloat() * size.minDimension * 0.40f,
+                                center.y + kotlin.math.sin(angle).toFloat() * size.minDimension * 0.40f,
+                            )
+                            drawCircle(accent.copy(alpha = 0.16f + agePulse * 0.16f),
+                                radius = 12.dp.toPx(), center = spot)
+                            drawCircle(Palette.textPrimary.copy(alpha = 0.87f),
+                                radius = 3.dp.toPx(), center = spot)
+                        }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 "$boundSymbol$shown",
                                 style = AlkeType.number(42f, weight = FontWeight.Bold),
-                                color = accent.copy(alpha = 0.87f + 0.13f * agePulse),
+                                color = androidx.compose.ui.graphics.lerp(accent, Palette.textPrimary, agePulse * 0.75f),
+                                modifier = Modifier.graphicsLayer {
+                                    val scale = 1f + agePulse * 0.088f
+                                    scaleX = scale
+                                    scaleY = scale
+                                    translationY = -(agePulse * 2.dp.toPx())
+                                },
                             )
                             Text("FITNESS AGE", style = AlkeType.caption, color = Palette.textSecondary)
                         }
                     }
                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("WEEKLY", style = AlkeType.number(19f, weight = FontWeight.Bold), color = Color.White)
-                        Text("UPDATE", style = AlkeType.caption, color = Palette.textSecondary)
+                        Text(paceValue, style = AlkeType.number(22f, weight = FontWeight.Bold),
+                            color = if (pace.ready) accent else Palette.textSecondary)
+                        Text(paceLabel, style = AlkeType.caption, color = Palette.textSecondary,
+                            textAlign = TextAlign.Center)
                     }
                 }
                 Text(
@@ -1211,24 +1220,6 @@ private fun FitnessAgeHero(
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .clickable(onClick = onHowAccurate)
-                .padding(vertical = Metrics.space8),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("How this estimate is built", style = AlkeType.title2, color = Palette.textPrimary)
-                Text(
-                    if (checklistOpen) "Hide data-readiness details" else "View data readiness and accuracy",
-                    style = AlkeType.footnote,
-                    color = Palette.textSecondary,
-                )
-            }
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Palette.textTertiary)
-        }
     }
 }
 
@@ -1396,7 +1387,7 @@ private fun FitnessReadinessCard(
         .filter { it.role == FitnessReadinessRole.DRIVES_AGE }
         .sortedBy { if (headed) readinessSortKey(it) else 0 }
     val unlocksVo2 = readiness.items
-        .filter { it.role == FitnessReadinessRole.UNLOCKS_VO2MAX }
+        .filter { it.role == FitnessReadinessRole.UNLOCKS_VO2MAX && it.key != "waist" }
         .sortedBy { if (headed) readinessSortKey(it) else 0 }
 
     AlkeCard(tint = if (headed) Palette.chargeColor else null) {
@@ -1441,11 +1432,6 @@ private fun FitnessReadinessCard(
             ReadinessGroup(title = uiString(R.string.l10n_health_screen_drives_your_fitness_age_9d0d1219), items = drivesAge, onOpenSettings = onOpenSettings)
             ReadinessGroup(title = uiString(R.string.l10n_health_screen_sharpens_your_vo_max_c9d52991), items = unlocksVo2, onOpenSettings = onOpenSettings)
 
-            Text(
-                uiString(R.string.l10n_health_screen_weight_height_and_waist_add_a_fd2699f5),
-                style = AlkeType.footnote,
-                color = Palette.textTertiary,
-            )
         }
     }
 }

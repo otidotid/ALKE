@@ -218,18 +218,10 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
      * True once the coach can actually send: a stored key for the cloud providers, or, for the
      * Custom (local) provider, a committed base URL (a key is optional there). Gates setup vs. chat.
      */
-    fun isConfigured(): Boolean {
-        if (usesCloudCoach()) return true
-        val context = getApplication<Application>().applicationContext
-        return when (_provider.value) {
-            AiProvider.CUSTOM -> _customConnected.value && _customBaseUrl.value.isNotBlank()
-            else -> AiKeyStore.read(context, _provider.value) != null
-        }
-    }
+    fun isConfigured(): Boolean = CloudCoachClient().configured
 
-    /** Cloud endpoint and BYO-key provider are intentionally independent paths. */
-    private fun usesCloudCoach(): Boolean =
-        BuildConfig.CLOUD_COACH_BASE_URL.startsWith("https://")
+    /** ALKE Coach routes exclusively to the owner-managed Cloudflare Worker. */
+    private fun usesCloudCoach(): Boolean = true
 
     // MARK: - Selection mutators
 
@@ -497,45 +489,21 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
                 // must not be able to survive in memory on the one call that egresses data.
                 val consentNow = AiKeyStore.readConsent(appCtx)
                 _consent.value = consentNow
-                if (usesCloudCoach()) {
-                    // Keep the existing managed Cloud Coach transport, nutrition intent and
-                    // conversation identity unchanged when that endpoint is configured.
-                    val cloudReply = aiCoach.chatCloud(
-                        ctx = appCtx,
-                        history = _messages.value.dropLast(1), // exclude the placeholder
-                        conversationId = cloudConversationId,
-                        consent = consentNow,
-                        includeSignals = consentNow && AlkePrefs.coachSignals(appCtx),
-                    )
-                    cloudConversationId = cloudReply.conversationId
-                    _pendingNutrition.value = cloudReply.nutrition.takeIf { cloudReply.intent == "food_log" }
-                    accumulated = cloudReply.answer
-                    _messages.value = _messages.value.map { msg ->
-                        if (msg.id == placeholderId) ChatMsg(id = placeholderId, role = "assistant", text = accumulated)
-                        else msg
-                    }
-                } else {
-                    // The existing BYO-key/OpenAI/Anthropic/Gemini/Custom engine was still
-                    // present but unreachable from the chat's Cloud-only dispatch path.
-                    // Stream from the selected provider without persisting or exposing its key.
-                    _pendingNutrition.value = null
-                    aiCoach.chatStream(
-                        ctx = appCtx,
-                        history = _messages.value.dropLast(1),
-                        provider = _provider.value,
-                        model = _model.value,
-                        consent = consentNow,
-                        customBaseUrl = _customBaseUrl.value,
-                        customAuthHeader = _customAuthHeader.value,
-                        includeSignals = consentNow && AlkePrefs.coachSignals(appCtx),
-                        onDelta = { delta ->
-                            accumulated += delta
-                            val partial = accumulated
-                            _messages.value = _messages.value.map { msg ->
-                                if (msg.id == placeholderId) msg.copy(text = partial) else msg
-                            }
-                        },
-                    )
+                // Single managed route: ALKE Coach -> CloudCoachClient -> Cloudflare Worker.
+                // No BYO provider, model, or user API key is used or transmitted by the app.
+                val cloudReply = aiCoach.chatCloud(
+                    ctx = appCtx,
+                    history = _messages.value.dropLast(1), // exclude the placeholder
+                    conversationId = cloudConversationId,
+                    consent = consentNow,
+                    includeSignals = consentNow && AlkePrefs.coachSignals(appCtx),
+                )
+                cloudConversationId = cloudReply.conversationId
+                _pendingNutrition.value = cloudReply.nutrition.takeIf { cloudReply.intent == "food_log" }
+                accumulated = cloudReply.answer
+                _messages.value = _messages.value.map { msg ->
+                    if (msg.id == placeholderId) ChatMsg(id = placeholderId, role = "assistant", text = accumulated)
+                    else msg
                 }
                 // Finalize: trim whitespace. If the stream produced nothing, show "(no reply)".
                 val clean = accumulated.trim()

@@ -283,6 +283,7 @@ internal fun alkeModuleAlias(destination: Destination): String? = when (destinat
     Destination.Trends -> "Progress"
     Destination.Intelligence -> "Insight"
     Destination.Live -> "Live HR"
+    Destination.Health -> "Fitness Age"
     Destination.More -> "Me"
     else -> null
 }
@@ -972,6 +973,8 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onHealth = { nav.navigate(Destination.Health.route) },
                         onFitnessAge = { nav.navigate("vital_detail/fitness_age") },
                         onVo2 = { nav.navigate("vital_detail/vo2max_est") },
+                        onRestingHr = { nav.navigate("vital_detail/resting_hr") },
+                        onTrain = { nav.navigateTopLevel(Destination.Workouts.route) },
                         onBodyAge = { nav.navigate("vital_detail/vitality") },
                         onTrends = { nav.navigate(Destination.AlkeTrendHistory.route) },
                         onSteps = { nav.navigate("vital_detail/steps_est") },
@@ -1322,7 +1325,7 @@ private fun MoreScreen(onNavigate: (String) -> Unit) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(destination.icon, null, tint = Palette.accent)
                                     Spacer(Modifier.width(10.dp))
-                                    Text(stringResource(destination.titleRes), modifier = Modifier.weight(1f))
+                                    Text(alkeModuleLabel(destination), modifier = Modifier.weight(1f))
                                     Text("↑", modifier = Modifier.clickable { BottomBarModuleStore.move(context, destination, -1) }.padding(10.dp))
                                     Text("↓", modifier = Modifier.clickable { BottomBarModuleStore.move(context, destination, 1) }.padding(10.dp))
                                     Text("Remove", color = Palette.statusCritical, modifier = Modifier.clickable { BottomBarModuleStore.setPinned(context, destination, false) }.padding(10.dp))
@@ -1337,7 +1340,7 @@ private fun MoreScreen(onNavigate: (String) -> Unit) {
                                 }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(destination.icon, null, tint = Palette.textSecondary)
                                     Spacer(Modifier.width(10.dp))
-                                    Text(stringResource(destination.titleRes), modifier = Modifier.weight(1f))
+                                    Text(alkeModuleLabel(destination), modifier = Modifier.weight(1f))
                                     Text("Add", color = if (canAdd) Palette.accent else Palette.textTertiary)
                                 }
                             }
@@ -1404,7 +1407,7 @@ private fun MoreRow(
     ) {
         Icon(iconOverride ?: dest.icon, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(14.dp))
-        Text(titleOverride ?: stringResource(dest.titleRes), style = AlkeType.body, color = Palette.textPrimary, modifier = Modifier.weight(1f))
+        Text(titleOverride ?: alkeModuleLabel(dest), style = AlkeType.body, color = Palette.textPrimary, modifier = Modifier.weight(1f))
         Icon(
             Icons.Filled.ChevronRight,
             contentDescription = null,

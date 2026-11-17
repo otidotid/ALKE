@@ -1686,7 +1686,9 @@ private fun RenameDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    uiString(R.string.l10n_devices_screen_give_device_brand_device_model_a_7a15585c, device.brand, device.model),
+                    uiString(R.string.l10n_devices_screen_give_device_brand_device_model_a_7a15585c,
+                        if (alkeHiddenDeviceVendor(device)) "Heart-rate strap" else device.brand,
+                        if (alkeHiddenDeviceVendor(device)) "standard Bluetooth" else device.model),
                     style = NoopType.subhead,
                     color = Palette.textSecondary,
                 )
@@ -1810,7 +1812,20 @@ private fun devicesFieldColors() = OutlinedTextFieldDefaults.colors(
  * model if it already contains the brand (so the seeded WHOOP/WHOOP reads "WHOOP", not "WHOOP WHOOP"),
  * else "brand model".
  */
+private fun alkeHiddenDeviceVendor(device: PairedDeviceRow): Boolean =
+    device.brand.equals("Polar", ignoreCase = true) ||
+        com.noop.polar.PolarModel.isPolar(device.model)
+
+/**
+ * Old paired devices stay available to manage; ALKE does not surface a vendor
+ * that was removed from the supported-device picker. Nothing is migrated or
+ * deleted from the device registry.
+ */
 internal fun displayName(device: PairedDeviceRow): String {
+    if (alkeHiddenDeviceVendor(device)) {
+        return device.nickname?.takeIf { it.isNotBlank() && !it.contains("polar", ignoreCase = true) }
+            ?: "Heart-rate strap"
+    }
     device.nickname?.takeIf { it.isNotBlank() }?.let { return it }
     return if (device.model.contains(device.brand, ignoreCase = true)) device.model
     else "${device.brand} ${device.model}"

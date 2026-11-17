@@ -728,7 +728,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
             icon = Icons.Filled.Map,
             tint = Palette.metricAmber,
             subtitle = "Import a single exported workout file from any brand (Garmin, Coros, Suunto, " +
-                "Wahoo, Polar, Strava, Apple) straight off your phone. GPS route, distance, heart rate " +
+                "Wahoo and Strava) straight off your phone. GPS route, distance, heart rate " +
                 "and calories come in where the file has them. Fully offline; nothing leaves your phone.",
         ) {
             val hasFiles = (activityFiles ?: 0) > 0

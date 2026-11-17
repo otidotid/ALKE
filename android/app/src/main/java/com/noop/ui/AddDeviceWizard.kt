@@ -991,8 +991,12 @@ private fun HrPickStep(
 ) {
     val discovered by scanner.discovered.collectAsStateWithLifecycle()
     val scanning by scanner.scanning.collectAsStateWithLifecycle()
-    PickList(searching = scanning, isEmpty = discovered.isEmpty(), onRescan = onRescan) {
-        discovered.sortedByDescending { it.rssi }.forEach { strap ->
+    // ALKE supported-device picker: Polar is not an offered device brand.
+    // Exclude its advertised devices from this UI only; never delete existing
+    // paired-device records, wearable history or the frozen BLE decoder.
+    val visibleStraps = discovered.filterNot { com.noop.polar.PolarModel.isPolar(it.name) }
+    PickList(searching = scanning, isEmpty = visibleStraps.isEmpty(), onRescan = onRescan) {
+        visibleStraps.sortedByDescending { it.rssi }.forEach { strap ->
             DiscoveredRow(
                 name = strap.name,
                 subtitle = brandGuess(strap.name),

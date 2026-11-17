@@ -8,6 +8,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.round
+import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -47,8 +48,60 @@ object DemoSeeder {
 
     /** Seed only if the demo (and the user) has no daily history yet. Safe to call on every launch. */
     suspend fun seedIfEmpty(repo: WhoopRepository) {
-        if (repo.days(WHOOP).isNotEmpty()) return
-        seed(repo)
+        // Seed the full synthetic account once. A pre-existing ALKE Demo install
+        // might already contain the 120 days but lack the HR time-series.
+        // Retrofit ONLY those missing demo HR rows without modifying daily data.
+        if (repo.days(WHOOP).isEmpty()) seed(repo)
+        seedRecentHeartRateIfMissing(repo)
+    }
+
+    /**
+     * Synthetic 5-minute heart-rate trace for the ALKE Heart Rate Timeline.
+     *
+     * The existing demo seeded daily metrics, sleep sessions, and workouts but
+     * no hrSample rows, so the new detailed HR screen appeared empty. Cover the
+     * most recent 15 dates (through the actual current time only), including
+     * sleeping lows, an active daytime baseline, and peaks near recorded
+     * morning/evening workout periods. Does not read/modify any real sensor
+     * samples, and is only called by the ENABLE_DEMO flavor.
+     */
+    private suspend fun seedRecentHeartRateIfMissing(repo: WhoopRepository) {
+        val zone = ZoneId.systemDefault()
+        val now = System.currentTimeMillis() / 1000L
+        val today = LocalDate.now()
+        val firstDay = today.minusDays(14)
+        val firstTs = firstDay.atStartOfDay(zone).toEpochSecond()
+        // Don't overwrite an old demo or any manually imported HR observations.
+        if (repo.hrSamplesForDevice(WHOOP, firstTs, now, limit = 1).isNotEmpty()) return
+
+        val rng = Random(0xA11CE)
+        val samples = ArrayList<HrSample>(15 * 288)
+        for (daysBack in 14 downTo 0) {
+            val date = today.minusDays(daysBack.toLong())
+            val weekend = date.dayOfWeek.value >= 6
+            val start = date.atStartOfDay(zone).toEpochSecond()
+            for (slot in 0 until 288) {
+                val ts = start + slot * 300L
+                if (ts > now) break  // never fabricate measurements in the future
+                val hour = slot / 12.0
+                val asleep = hour < 6.7 || hour >= 23.1
+                // Demonstration exercise peaks align with the same periods
+                // used by the existing synthetic workout generator.
+                val trainingWindow = if (weekend) hour in 9.0..11.3 else hour in 18.0..20.3
+                val intervalWave = (sin(slot * 0.53) + 1.0) * 13.0
+                val baseline = when {
+                    trainingWindow -> 111.0 + intervalWave
+                    asleep -> 55.0 + 2.5 * sin(slot * 0.18)
+                    hour < 9.0 -> 68.0
+                    hour < 18.0 -> 79.0 + 7.0 * sin(slot * 0.12)
+                    else -> 70.0
+                }
+                val bpm = (baseline + rng.nextDouble(-5.0, 5.0))
+                    .toInt().coerceIn(46, 185)
+                samples.add(HrSample(WHOOP, ts, bpm))
+            }
+        }
+        repo.insertHr(samples)
     }
 
     /**

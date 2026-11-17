@@ -72,18 +72,21 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(history.contains("WorkoutDetailSheet("))
     }
 
-    @Test fun stepsAreVisibleAndClickableWithinTodayActivityAndKeepFullHistory() {
+    @Test fun stepsRemainExclusivelyInProgressWithFullHistoryRoute() {
         val ui = source("src/main/java/com/noop/ui/AlkeExperience.kt")
-        val beginToday = ui.indexOf("fun AlkeTodayExperience(")
-        val endToday = ui.indexOf("fun AlkeTrainingExperience(")
-        val today = ui.substring(beginToday, endToday)
+        val today = ui.substring(ui.indexOf("fun AlkeTodayExperience("),
+            ui.indexOf("fun AlkeTrainingExperience("))
         assertTrue(today.contains("AlkeSectionTitle(\"Today's Activity\")"))
         assertFalse(today.contains("AlkeSectionTitle(\"Today's Activity\", \"Train\""))
-        assertTrue(today.contains("buildSeriesVitalDetail(vm, \"steps_est\")"))
-        assertTrue(today.contains("Text(\"STEPS\""))
-        assertTrue(today.contains("onClick = onSteps"))
-        assertTrue(today.contains("Last recorded"))
-        assertTrue(today.contains("Awaiting step data"))
+        assertFalse(today.contains("onSteps"))
+        assertFalse(today.contains("Text(\"STEPS\""))
+        assertFalse(today.contains("buildSeriesVitalDetail(vm, \"steps_est\")"))
+        val progress = ui.substring(ui.indexOf("fun AlkeProgressExperience("),
+            ui.indexOf("fun AlkeInsightExperience("))
+        assertTrue(progress.contains("buildSeriesVitalDetail(vm, \"steps_est\")"))
+        assertTrue(progress.contains("Text(\"STEPS\""))
+        assertTrue(progress.contains("onClick = onSteps"))
+        assertTrue(progress.contains("Recent steps"))
         val nav = source("src/main/java/com/noop/ui/AppRoot.kt")
         assertTrue(nav.contains("onSteps = { nav.navigate(\"vital_detail/steps_est\") }"))
         val health = source("src/main/java/com/noop/ui/HealthScreen.kt")

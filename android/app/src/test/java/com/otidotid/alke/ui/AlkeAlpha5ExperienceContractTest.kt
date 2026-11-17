@@ -145,7 +145,7 @@ class AlkeAlpha5ExperienceContractTest {
             assertTrue("Missing animated Progress factor: $factor", progress.contains("label = \"$factor\""))
         }
         assertTrue(ui.contains("private fun AlkeFitnessFactorCard("))
-        assertTrue(ui.contains("Modifier.staggeredAppear(index)"))
+        assertTrue(ui.contains("modifier.staggeredAppear(index)"))
         assertTrue(ui.contains("animateFloatAsState("))
         assertTrue(ui.contains("currentFitnessAgeMetabolicFactor("))
         assertTrue(ui.contains("No eligible inputs yet"))

@@ -953,6 +953,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onCoach = { nav.navigate(Destination.Coach.route) },
                         onIntelligence = { nav.navigate(Destination.AlkeIntelligenceDetails.route) },
                         onHealth = { nav.navigate(Destination.Health.route) },
+                        onSkinTemp = { nav.navigate("vital_detail/skin") },
                     )
                 }
                 composable(Destination.AlkeIntelligenceDetails.route) { IntelligenceScreen(viewModel) }

@@ -781,7 +781,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
         }
         }
 
-        // --- Broadcast heart rate (NOOP as a standard BLE HR peripheral) ---
+        // --- Broadcast heart rate (ALKE as a standard BLE HR peripheral) ---
         item {
         SourceCard(
             title = uiString(R.string.l10n_data_sources_screen_broadcast_hr_from_this_phone_10e5605c),
@@ -947,7 +947,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
             text = {
                 Text(
                     "This manual import may replace existing Health Connect activity or workout records " +
-                        "for the same dates. THOOP device history, sleep, recovery and manually entered data " +
+                        "for the same dates. ALKE device history, sleep, recovery and manually entered data " +
                         "will not be deleted. Continue?",
                     style = NoopType.subhead,
                     color = Palette.textSecondary,

@@ -513,6 +513,10 @@ private val RESTORE_MIME_TYPES = arrayOf(
     "application/octet-stream",
     "application/zip",
     "application/x-sqlite3",
+    // Historical exported archives may carry a .txt suffix and Android's picker
+    // identifies them as text/plain. MIME is a picker hint, never a trust decision:
+    // DataBackup still checks ZIP/SQLite magic, Room origin and quick_check before swap.
+    "text/plain",
 )
 
 /** A short, human label for a SAF tree Uri (the part after the volume colon). */

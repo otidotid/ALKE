@@ -40,7 +40,9 @@ jobs:
           grep -q 'seedRecentHeartRateIfMissing(repo)' android/app/src/main/java/com/noop/data/DemoSeeder.kt
           grep -q 'class AlkeAlpha5ExperienceContractTest' android/app/src/test/java/com/noop/ui/AlkeAlpha5ExperienceContractTest.kt
           grep -q 'Text("STEPS"' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
-          grep -q 'onMetric("skin")' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'onClick = onSkinTemp' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'onSkinTemp = { nav.navigate("vital_detail/skin") }' android/app/src/main/java/com/noop/ui/AppRoot.kt
+          ! grep -q 'clickable { onMetric("skin") }' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
           grep -q 'Text("History"' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
           grep -q 'trainOnlyShowsFourRequestedPrimarySurfacesAndRetainsOriginalHistory' android/app/src/test/java/com/noop/ui/AlkeAlpha5ExperienceContractTest.kt
           ! grep -q '24-hour HR chart with workout markers and sleep periods' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
@@ -139,7 +141,7 @@ jobs:
 
           ### Today
           - Steps returns inside Today > Today's Activity with the original steps resolver, recorded date and direct link to full history.
-          - Skin Temperature is linked under Today > My Day and opens the original historical vital detail. The full skin-temperature suite remains available in Health.
+          - Skin Temperature now sits directly below Resting HR in Insight > Your signals, linked to its full detail history. The Health suite remains available.
           - No redundant Train label beside Today's Activity; the full HR Timeline retains sport icons and sleep overlays.
 
           ### Train

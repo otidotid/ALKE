@@ -1274,6 +1274,7 @@ private fun FitnessAgeFactorRow(
                     ),
                 ),
         ) {
+            FitnessAgeBarShimmer(index = index)
             position?.let {
                 Box(
                     modifier = Modifier
@@ -1300,6 +1301,42 @@ private fun FitnessAgeFactorRow(
             Text(highLabel, style = AlkeType.caption, color = Palette.textTertiary)
         }
         Text("$source · $detail", style = AlkeType.footnote, color = Palette.textSecondary)
+    }
+}
+
+/**
+ * Traveling optical glint over a *fixed* factor scale.
+ * Unlike the one-shot entry fill this repeats visibly while the screen is present;
+ * neither the marker nor the user's recorded measurement moves.
+ */
+@Composable
+private fun FitnessAgeBarShimmer(index: Int) {
+    if (rememberReduceMotion()) return
+    val motion = rememberInfiniteTransition(label = "fitness_age_bar_shimmer_${index}")
+    val phase by motion.animateFloat(
+        initialValue = -0.15f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(
+            tween(durationMillis = 1_750 + (index % 8) * 200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "fitness_age_bar_sweep_${index}",
+    )
+    Canvas(Modifier.fillMaxSize()) {
+        val position = Offset(size.width * phase, size.height / 2f)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.92f),
+                    Color.White.copy(alpha = 0.42f),
+                    Color.Transparent,
+                ),
+                center = position,
+                radius = 19.dp.toPx(),
+            ),
+            radius = 19.dp.toPx(),
+            center = position,
+        )
     }
 }
 
@@ -3318,6 +3355,7 @@ private fun FitnessAgeDetailFactor(
                 Brush.horizontalGradient(listOf(Palette.strainColor(20.0), Palette.chargeColor, Palette.recoveryColor(100.0))),
             ),
         ) {
+            FitnessAgeBarShimmer(index = index + 10)
             marker?.let {
                 Box(Modifier.fillMaxWidth(display.coerceIn(.025f, 1f)).fillMaxHeight(), contentAlignment = Alignment.CenterEnd) {
                     Box(Modifier.size(12.dp)

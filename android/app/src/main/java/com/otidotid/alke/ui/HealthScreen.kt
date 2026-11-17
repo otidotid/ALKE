@@ -690,113 +690,60 @@ private fun rememberFitnessReadiness(days: List<DailyMetric>, profile: ProfileSt
 }
 
 @Composable
-private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile: ProfileStore, onOpenSettings: () -> Unit = {}) {
-    val context = LocalContext.current
-    // Latest weekly value + its optional VO₂max companion, read once (metricSeries has no Flow, so we
-    // re-read whenever the merged history changes — a fresh sync/import is what moves these).
-    var fitnessAge by remember { mutableStateOf<Double?>(null) }
-    var vo2max by remember { mutableStateOf<Double?>(null) }
-    var vo2maxEstimator by remember { mutableStateOf<Vo2MaxEstimator?>(null) }
-    var fitnessAgeHistory by remember { mutableStateOf<List<Pair<String, Double>>>(emptyList()) }
-    var metabolicDeltaYears by remember { mutableStateOf<Double?>(null) }
-    var aiMetabolic by remember { mutableStateOf(false) }
-    // Manual-refresh plumbing: the not-ready card's refresh button recomputes Fitness Age NOW and bumps
-    // this tick, which re-keys the read below so a freshly written value shows without waiting for a sync.
-    var refreshTick by remember { mutableStateOf(0) }
-    var refreshing by remember { mutableStateOf(false) }
-    LaunchedEffect(days, refreshTick) {
-        // Latest-value reads (LIMIT-1 per source) — the full-series `.lastOrNull()` scan is gone (perf).
-        val faRow = runCatching {
-            vm.repo.latestMetricComputedUnion(vm.activeStrapId, "fitness_age")
-        }.getOrNull()
-        val fa = faRow?.value
-        // Read only a metabolic factor belonging to the exact weekly score.
-        // A missing value means "not available", never a synthetic zero.
-        val metabolic = faRow?.let { row ->
-            runCatching {
-                vm.repo.withMetabolicCalculationTransaction {
-                    val scoreTrace = vm.repo.scoreInputDetails(row.deviceId, row.day, "fitness_age")
-                    val factor = vm.repo.metricSeries(
-                        row.deviceId, "fitness_factor_metabolic_delta", row.day, row.day,
-                    ).firstOrNull { it.deviceId == row.deviceId && it.day == row.day }
-                    val factorTrace = vm.repo.scoreInputDetails(
-                        row.deviceId, row.day, "fitness_factor_metabolic_delta",
-                    )
-                    val current = com.otidotid.alke.analytics.currentFitnessAgeMetabolicFactor(
-                        row.deviceId, row.day, scoreTrace, factor, factorTrace,
-                    )
-                    current?.value?.takeIf { it.isFinite() }?.let {
-                        it to hasAiMetabolicProvenance(scoreTrace, row.deviceId, row.day)
-                    }
-                }
-            }.getOrNull()
-        }
-        metabolicDeltaYears = metabolic?.first
-        aiMetabolic = metabolic?.second == true
-        val vo2Row = runCatching {
-            vm.repo.latestMetricComputedUnion(vm.activeStrapId, "vo2max_est")
-        }.getOrNull()
-        val estimator = vo2Row?.let { row ->
-            runCatching {
-                Vo2MaxEstimator.fromProvenanceId(
-                    vm.repo.scoreInputSource(row.deviceId, row.day, row.key),
-                )
-            }.getOrNull()
-        }
-        fitnessAge = fa
-        vo2max = vo2Row?.value
-        vo2maxEstimator = estimator
-        fitnessAgeHistory = runCatching {
+private fun FitnessAgeSection(
+    vm: AppViewModel,
+    days: List<DailyMetric>,
+    profile: ProfileStore,
+    onOpenSettings: () -> Unit = {},
+) {
+    // Fitness Age's live headline and its factors already live in Progress.
+    // This module starts directly at the persisted weekly Trend View; keep the
+    // entire downstream Health module intact and do not rewrite any stored score.
+    var history by remember { mutableStateOf<List<Pair<String, Double>>>(emptyList()) }
+    LaunchedEffect(days, vm.activeStrapId) {
+        history = runCatching {
             vm.repo.metricSeriesComputedUnion(
                 vm.activeStrapId, "fitness_age", "0000-01-01", "9999-12-31",
             ).map { it.day to it.value }
         }.getOrDefault(emptyList())
     }
-
-    // Readiness from what THIS screen can see: the last 7 merged daily rows. RHR coverage drives the
-    // age; activity (a scored strain day) is an enrichment signal; height/weight/waist sit under the
-    // VO₂max role. Age/sex come from the profile. Approximate by design — the weekly value is the
-    // authority; this just explains the gaps.
-    // rhrDays drives BOTH the readiness verdict AND the not-ready countdown lead. Shared with the Today
-    // card's tap-through (VitalDetailScreen) via one helper so a single gate feeds both surfaces.
-    val (rhrDays, readiness) = rememberFitnessReadiness(days, profile)
-
+    val age = history.lastOrNull()?.second
+    val delta = if (age != null && profile.age > 0) profile.age - age else 0.0
+    val accent = when {
+        delta > 0.5 -> Palette.recoveryColor(100.0)
+        delta < -0.5 -> Palette.strainColor(20.0)
+        else -> Palette.metricCyan
+    }
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        SectionHeader("Fitness Age", overline = "Weekly", trailing = "± 5 yr")
-        val value = fitnessAge
-        if (value != null) {
-            FitnessAgeHero(
-                fitnessAge = value,
-                chronoAge = profile.age,
-                vo2max = vo2max,
-                vo2maxEstimator = vo2maxEstimator,
-                metabolicDeltaYears = metabolicDeltaYears,
-                aiMetabolic = aiMetabolic,
-                restingHr = days.takeLast(7).mapNotNull { it.restingHr?.toDouble() }.average().takeIf { !it.isNaN() },
-                weeklyEffort = days.takeLast(7).mapNotNull { it.strain }.average().takeIf { !it.isNaN() },
-                history = fitnessAgeHistory,
-            )
-        } else {
-            // No weekly value yet — lead with a concrete countdown, then the checklist. The refresh button
-            // forces the weekly recompute now (from stored data), so a ready user doesn't have to wait.
-            FitnessReadinessCard(
-                readiness = readiness, headed = true,
-                lead = fitnessReadyLead(rhrDays, profile.age > 0, profile.sex.isNotBlank()),
-                refreshing = refreshing,
-                onRefresh = {
-                    refreshing = true
-                    vm.refreshFitnessAgeNow { wrote ->
-                        refreshing = false
-                        refreshTick++
-                        Toast.makeText(
-                            context,
-                            if (wrote) "Fitness Age updated."
-                            else "Not enough wear yet — keep your strap on overnight.",
-                            Toast.LENGTH_SHORT,
-                        ).show()
+        SectionHeader("Trend View", overline = "Weekly history", trailing = "${history.size} readings")
+        AlkeCard {
+            Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
+                if (history.isEmpty()) {
+                    Text(
+                        "No weekly Fitness Age readings yet. Your trend will appear after the first stored result.",
+                        style = AlkeType.subhead,
+                        color = Palette.textSecondary,
+                    )
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Metrics.space16)) {
+                        FitnessAgeLegendDot(accent, "ALKE Fitness Age")
+                        FitnessAgeLegendDot(Palette.textPrimary, "Chronological Age")
                     }
-                },
-            )
+                    FitnessAgeTrendChart(
+                        history = history,
+                        chronologicalAge = profile.age,
+                        accent = accent,
+                        modifier = Modifier.fillMaxWidth().height(190.dp),
+                    )
+                    Text(
+                        if (history.size <= 1)
+                            "The latest weekly point is shown now. More weekly updates will build the trend."
+                        else "Each point is a stored weekly Fitness Age result. Chronological age is shown as the comparison line.",
+                        style = AlkeType.footnote,
+                        color = Palette.textSecondary,
+                    )
+                }
+            }
         }
     }
 }
@@ -3016,304 +2963,18 @@ private fun FitnessAgeDetailExperience(
     aiMetabolic: Boolean,
     color: Color,
     format: (Double) -> String,
-) {
+) { 
+    // This detail route and the main Fitness Age module both begin at Trend View.
+    // Progress remains the sole home for the animated age score and factors.
     val ordered = readings.sortedBy { it.day }
     val latest = ordered.last()
-    val fitnessPace = remember(ordered) {
-        FitnessAgePaceEngine.calculate(ordered.map { FitnessAgePaceEngine.Point(it.day, it.value) })
-    }
     val delta = if (chronologicalAge > 0) chronologicalAge - latest.value else 0.0
-    val favorable = delta > 0.5
-    val unfavorable = delta < -0.5
     val accent = when {
-        favorable -> Palette.recoveryColor(100.0)
-        unfavorable -> Palette.strainColor(20.0)
+        delta > 0.5 -> Palette.recoveryColor(100.0)
+        delta < -0.5 -> Palette.strainColor(20.0)
         else -> color
     }
-    // Presentation-only motion for the large ALKE Age hero. The stored value and scoring path stay
-    // untouched: only the hero's scale, glow, and translucent inner layers breathe slowly.
-    val poseStill = rememberPoseStill()
-    val reduceAgeMotion = rememberReduceMotion()
-    val (ageHeroScale, ageHeroGlow, ageHeroShift) = if (poseStill || reduceAgeMotion) {
-        Triple(1f, 0.10f, 0f)
-    } else {
-        val ageHeroMotion = rememberInfiniteTransition(label = "alke-age-hero")
-        val scale = ageHeroMotion.animateFloat(
-            initialValue = 1f,
-            targetValue = 1.025f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 4_800, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "alke-age-scale",
-        ).value
-        val glow = ageHeroMotion.animateFloat(
-            initialValue = 0.10f,
-            targetValue = 0.24f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 4_800, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "alke-age-glow",
-        ).value
-        val shift = ageHeroMotion.animateFloat(
-            initialValue = -0.035f,
-            targetValue = 0.035f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 6_000, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "alke-age-blob-shift",
-        ).value
-        Triple(scale, glow, shift)
-    }
-
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(32.dp))
-                .background(Palette.heroFill.copy(alpha = 0.94f))
-                .border(1.dp, accent.copy(alpha = 0.42f), RoundedCornerShape(32.dp))
-                .padding(horizontal = Metrics.cardPadding, vertical = 24.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            when {
-                                chronologicalAge <= 0 -> "●"
-                                favorable -> "↓"
-                                unfavorable -> "↑"
-                                else -> "●"
-                            },
-                            style = AlkeType.number(22f, FontWeight.Bold),
-                            color = accent,
-                        )
-                        if (chronologicalAge > 0 && (favorable || unfavorable)) {
-                            Text(
-                                String.format(Locale.US, "%.1f", kotlin.math.abs(delta)),
-                                style = AlkeType.number(27f, FontWeight.Bold),
-                                color = accent,
-                            )
-                        }
-                        Text(
-                            when {
-                                chronologicalAge <= 0 -> "ADD YOUR AGE"
-                                favorable -> "YEARS YOUNGER"
-                                unfavorable -> "YEARS OLDER"
-                                else -> "SAME AGE"
-                            },
-                            style = AlkeType.caption,
-                            color = Palette.textSecondary,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(158.dp)
-                            .graphicsLayer {
-                                scaleX = ageHeroScale
-                                scaleY = ageHeroScale
-                                shadowElevation = 18.dp.toPx() * ageHeroGlow
-                                shape = androidx.compose.foundation.shape.CircleShape
-                                clip = false
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        val ageProgress = ((latest.value - FitnessAgeEngine.minAge) /
-                            (FitnessAgeEngine.maxAge - FitnessAgeEngine.minAge))
-                            .toFloat().coerceIn(0f, 1f)
-                        Canvas(Modifier.matchParentSize()) {
-                            val stroke = 7.dp.toPx()
-                            val radius = (size.minDimension - stroke) / 2f
-                            drawCircle(
-                                color = Color(0xFF082A22),
-                                radius = radius,
-                                center = center,
-                            )
-                            drawCircle(
-                                color = Color(0xFF0D3B31).copy(alpha = 0.78f),
-                                radius = radius * 0.82f,
-                                center = center,
-                            )
-                            drawArc(
-                                color = Color.White.copy(alpha = 0.14f),
-                                startAngle = -90f,
-                                sweepAngle = 360f,
-                                useCenter = false,
-                                style = Stroke(width = stroke, cap = StrokeCap.Round),
-                            )
-                            drawArc(
-                                color = Color(0xFF20D99A),
-                                startAngle = -90f,
-                                sweepAngle = 360f * ageProgress,
-                                useCenter = false,
-                                style = Stroke(width = stroke, cap = StrokeCap.Round),
-                            )
-                            val angle = Math.toRadians((-90f + 360f * ageProgress).toDouble())
-                            val marker = Offset(
-                                x = center.x + kotlin.math.cos(angle).toFloat() * radius,
-                                y = center.y + kotlin.math.sin(angle).toFloat() * radius,
-                            )
-                            drawCircle(Color.White, radius = 3.5.dp.toPx(), center = marker)
-                            drawCircle(
-                                Color.White.copy(alpha = 0.10f + ageHeroGlow * 0.12f),
-                                radius = radius * 0.45f,
-                                center = Offset(
-                                    center.x + size.width * ageHeroShift * 0.35f,
-                                    center.y - size.height * ageHeroShift * 0.20f,
-                                ),
-                            )
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                format(latest.value),
-                                style = AlkeType.number(39f, FontWeight.Bold),
-                                color = Color.White.copy(
-                                    alpha = 0.91f + 0.09f * ((ageHeroGlow - 0.10f) / 0.14f).coerceIn(0f, 1f),
-                                ),
-                                modifier = Modifier.graphicsLayer {
-                                    val scale = 1f + (ageHeroScale - 1f) * 0.7f
-                                    scaleX = scale
-                                    scaleY = scale
-                                },
-                            )
-                            androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
-                            Text("FITNESS AGE", style = AlkeType.caption, color = Color.White.copy(alpha = .78f))
-                        }
-                    }
-                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            fitnessPace.pace?.let { String.format(Locale.US, "%.1fx", it) } ?: "--",
-                            style = AlkeType.number(19f, FontWeight.Bold),
-                            color = if (fitnessPace.ready) accent else Palette.textSecondary,
-                        )
-                        Text("FITNESS PACE", style = AlkeType.caption, color = Palette.textSecondary,
-                            textAlign = TextAlign.Center)
-                    }
-                }
-                Text(
-                    if (fitnessPace.ready) "${FitnessAgePaceEngine.label(fitnessPace)} · ${fitnessPace.sampleWeeks} WEEKLY READINGS"
-                    else "NEED ${fitnessPace.weeksNeeded} MORE WEEKLY ${if (fitnessPace.weeksNeeded == 1) "READING" else "READINGS"}",
-                    style = AlkeType.footnote,
-                    color = Palette.textTertiary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text("Latest week: ${shortDayLabel(latest.day)}", style = AlkeType.footnote, color = Palette.textTertiary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-            }
-        }
-
-        SectionHeader("Fitness Factors", overline = if (aiMetabolic) "Fitness and metabolic inputs" else "On-device inputs")
-        AlkeCard {
-            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                FitnessAgeDetailFactor(
-                    index = 1,
-                    label = "VO₂ MAX",
-                    value = vo2max?.let { String.format(Locale.US, "%.1f ml/kg/min", it) } ?: "Building baseline",
-                    marker = vo2max?.let { ((it - 15.0) / 55.0).toFloat().coerceIn(0f, 1f) },
-                    left = "15", right = "70",
-                    source = "On-device estimate",
-                    method = when (vo2maxEstimator) {
-                        Vo2MaxEstimator.NES -> "Nes 2011 waist model"
-                        Vo2MaxEstimator.UTH -> "Uth 2004 HR-ratio fallback"
-                        else -> "Estimator provenance unavailable"
-                    },
-                )
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
-                FitnessAgeDetailFactor(
-                    index = 2,
-                    label = "RESTING HEART RATE",
-                    value = restingHr?.let { "${it.roundToInt()} bpm" } ?: "Building baseline",
-                    marker = restingHr?.let { (1f - ((it - 40.0) / 40.0).toFloat()).coerceIn(0f, 1f) },
-                    left = "80 bpm", right = "40 bpm",
-                    source = "On-device", method = "7-day mean",
-                )
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
-                FitnessAgeDetailFactor(
-                    index = 3,
-                    label = "WEEKLY ACTIVITY",
-                    value = weeklyEffort?.let { String.format(Locale.US, "%.1f effort", it) } ?: "Building baseline",
-                    marker = weeklyEffort?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) },
-                    left = "Lower", right = "Higher",
-                    source = "On-device", method = "Recent activity coverage",
-                )
-                metabolicFactors["fitness_factor_bmi"]?.let { bmi ->
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
-                    FitnessAgeDetailFactor(
-                        index = 4,
-                        label = "BODY MASS INDEX",
-                        value = String.format(Locale.US, "%.1f kg/m2", bmi),
-                        marker = ((bmi - 15.0) / 25.0).toFloat().coerceIn(0f, 1f),
-                        left = "15", right = "40",
-                        source = "Labs", method = if (aiMetabolic) "Weight / height^2 · Lab context"
-                            else "Weight / height^2 · Metabolic domain",
-                    )
-                }
-                metabolicFactors["fitness_factor_whtr"]?.let { whtr ->
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
-                    FitnessAgeDetailFactor(
-                        index = 5,
-                        label = "WAIST-TO-HEIGHT RATIO",
-                        value = String.format(Locale.US, "%.2f", whtr),
-                        marker = (whtr / 0.70).toFloat().coerceIn(0f, 1f),
-                        left = "0.35", right = "0.70",
-                        source = "Labs", method = if (aiMetabolic) "Waist / height · Lab context"
-                            else "Waist / height · Metabolic domain",
-                    )
-                }
-                metabolicFactors["fitness_factor_body_fat"]?.let { bodyFat ->
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
-                    FitnessAgeDetailFactor(
-                        index = 6,
-                        label = "BODY FAT",
-                        value = String.format(Locale.US, "%.1f%%", bodyFat),
-                        marker = (bodyFat / 50.0).toFloat().coerceIn(0f, 1f),
-                        left = "Lower", right = "Higher",
-                        source = "Labs", method = if (aiMetabolic) "Measured marker · Lab context"
-                            else "Manual marker · Metabolic domain",
-                    )
-                }
-                val metabolicImpact = metabolicFactors["fitness_factor_metabolic_delta"]
-                if (metabolicImpact != null) {
-                    val impact = metabolicImpact
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
-                    FitnessAgeDetailFactor(
-                        index = 7,
-                        label = if (aiMetabolic) "AI METABOLIC ESTIMATE" else "METABOLIC ESTIMATE",
-                        value = String.format(Locale.US, "%+.1f years", impact),
-                        marker = if (aiMetabolic) null else (impact / 4.0).toFloat().coerceIn(0f, 1f),
-                        left = if (aiMetabolic) "Younger" else "Neutral",
-                        right = if (aiMetabolic) "Older" else "Higher impact",
-                        source = if (aiMetabolic) "AI · Experimental" else "ALKE Fitness Age",
-                        method = if (aiMetabolic) "Metabolic age delta · 20% blend in Fitness Age"
-                            else "Local metabolic age delta · 20% blend",
-                    )
-                } else {
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
-                    FitnessAgeDetailFactor(
-                        index = 7,
-                        label = "METABOLIC",
-                        value = "Not available",
-                        marker = null,
-                        left = "No validated weekly inputs",
-                        right = "",
-                        source = "Optional factor",
-                        method = "Add eligible body or metabolic readings in Lab Book; only verified weekly inputs contribute.",
-                    )
-                }
-            }
-        }
-
         SectionHeader("Trend View", overline = "Weekly history", trailing = "${ordered.size} readings")
         AlkeCard {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {

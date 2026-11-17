@@ -31,10 +31,9 @@ class AlkeNavigationConsistencyTest {
         assertTrue(Destination.Health in allModules)
     }
 
-    @Test fun unpinnedTrainCanBeDiscoveredOnceAndItsHistoryStaysADifferentRoute() {
+    @Test fun unpinnedTrainCanBeDiscoveredOnceWithoutSeparateHistoryModule() {
         val allModules = alkeAllModulesGroups(emptyList()).flatMap { it.items }
         assertEquals(1, allModules.count { it == Destination.Workouts })
-        assertFalse(Destination.AlkeWorkoutHistory in allModules)
-        assertTrue(Destination.AlkeWorkoutHistory.route != Destination.Workouts.route)
+        assertFalse(Destination.entries.any { it.route == "alke_workout_history" })
     }
 }

@@ -939,8 +939,6 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onProfile = { nav.navigate(Destination.Profile.route) },
                         unreadCount = updateStore.unreadCount,
                         onWorkouts = { nav.navigate(Destination.AlkeWorkoutHistory.route) },
-                        onLive = { nav.navigate(Destination.Live.route) },
-                        onRecovery = { nav.navigate(Destination.AlkeRecovery.route) },
                     )
                 }
                 composable(Destination.AlkeWorkoutHistory.route) { WorkoutsScreen(viewModel) }

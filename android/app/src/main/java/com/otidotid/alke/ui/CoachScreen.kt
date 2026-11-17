@@ -86,10 +86,10 @@ import com.otidotid.alke.ai.CustomAiAuthHeader
 @Composable
 fun CoachScreen(vm: CoachViewModel = viewModel(), onOpenSettings: () -> Unit = {}) {
     val context = LocalContext.current
-    val configured = remember { vm.isConfigured() }
-    LaunchedEffect(configured) {
-        val handed = CoachHandoff.consume()
-        if (handed != null && configured) vm.send(context, handed)
+    // Managed ALKE Cloud Coach: there is no provider/key setup on the device.
+    // A missing deployment URL is reported by CloudCoachClient on Send.
+    LaunchedEffect(Unit) {
+        CoachHandoff.consume()?.let { vm.send(context, it) }
     }
 
     // Coach uses a fixed chat viewport instead of ScreenScaffold's vertically scrolling column.
@@ -114,191 +114,16 @@ fun CoachScreen(vm: CoachViewModel = viewModel(), onOpenSettings: () -> Unit = {
                 color = Palette.textSecondary,
                 modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
             )
-            if (configured) {
-                CoachChat(
-                    vm = vm,
-                    onOpenSettings = onOpenSettings,
-                    modifier = Modifier.weight(1f),
-                )
-            } else {
-                AlkeCard(padding = 18.dp) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            "ALKE Intelligence",
-                            style = AlkeType.headline,
-                            color = Palette.textPrimary,
-                        )
-                        Text(
-                            "Connect an AI provider to ask questions about your recovery, sleep, activity and trends. " +
-                                "Until then, your on-device metrics remain available throughout ALKE.",
-                            style = AlkeType.subhead,
-                            color = Palette.textSecondary,
-                        )
-                        TextButton(onClick = onOpenSettings) {
-                            Icon(
-                                Icons.Filled.Tune,
-                                contentDescription = null,
-                                tint = Palette.accent,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("Configure in Settings", color = Palette.accent)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Setup (no key saved)
-
-@Composable
-private fun CoachSetup(vm: CoachViewModel) {
-    val context = LocalContext.current
-    val provider by vm.provider.collectAsStateWithLifecycle()
-    val model by vm.model.collectAsStateWithLifecycle()
-    val availableModels by vm.availableModels.collectAsStateWithLifecycle()
-    val refreshingModels by vm.refreshingModels.collectAsStateWithLifecycle()
-    val customBaseUrl by vm.customBaseUrl.collectAsStateWithLifecycle()
-    val customAuthHeader by vm.customAuthHeader.collectAsStateWithLifecycle()
-    // The setup card had no error line at all, so every way this screen can fail before a key is
-    // committed failed silently: a Refresh the provider turned away, a Connect to a server that wants
-    // auth. The wearer saw a button do nothing. The chat has had one since the beginning; this is the
-    // half that was missing.
-    val error by vm.error.collectAsStateWithLifecycle()
-    var keyInput by remember { mutableStateOf("") }
-    val isCustom = provider == AiProvider.CUSTOM
-
-    AlkeCard(padding = 20.dp) {
-        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Filled.Lock, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(18.dp))
-                Text(uiString(R.string.l10n_coach_screen_connect_a_provider_6967f288), style = AlkeType.headline, color = Palette.textPrimary)
-            }
-            Text(
-                if (isCustom)
-                    "Point the coach at any OpenAI-compatible server: a local model (Ollama, LM " +
-                        "Studio, llama.cpp) keeps everything on your device; an API key is optional."
-                else
-                    "Bring your own API key. It is stored encrypted on this device and only used to " +
-                        "send your question plus a short summary of your metrics to the provider you pick.",
-                style = AlkeType.subhead, color = Palette.textSecondary,
+            CoachChat(
+                vm = vm,
+                onOpenSettings = onOpenSettings,
+                modifier = Modifier.weight(1f),
             )
-
-            // Provider choice.
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Overline("Provider")
-                SegmentedPillControl(
-                    items = AiProvider.entries,
-                    selection = provider,
-                    label = { it.displayName },
-                    onSelect = { vm.selectProvider(context, it) },
-                )
-            }
-
-            // Server URL, Custom (local LLM) only.
-            if (isCustom) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Overline("Server URL")
-                    OutlinedTextField(
-                        value = customBaseUrl,
-                        onValueChange = { vm.setCustomBaseUrl(context, it) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics { contentDescription = uiString(R.string.l10n_coach_screen_server_url_1d5d1eff) },
-                        placeholder = { Text("http://localhost:11434/v1", style = AlkeType.body, color = Palette.textTertiary) },
-                        textStyle = AlkeType.mono(13f),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                        colors = coachFieldColors(),
-                        shape = RoundedCornerShape(24.dp),
-                    )
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Overline(uiString(R.string.l10n_coach_screen_key_header_3f2a9b10))
-                    SegmentedPillControl(
-                        items = CustomAiAuthHeader.entries,
-                        selection = customAuthHeader,
-                        label = { it.displayName },
-                        onSelect = { vm.setCustomAuthHeader(context, it) },
-                    )
-                    Text(
-                        uiString(R.string.l10n_coach_screen_use_bearer_for_most_local_servers_4429ab64),
-                        style = AlkeType.footnote,
-                        color = Palette.textSecondary,
-                    )
-                }
-            }
-
-            // Model dropdown + live-list refresh.
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Overline("Model")
-                    Spacer(Modifier.weight(1f))
-                    RefreshModelsButton(
-                        refreshing = refreshingModels,
-                        // Cloud providers need a saved key to fetch; a local server just needs a URL.
-                        enabled = if (isCustom) customBaseUrl.isNotBlank() else vm.hasKey(context),
-                        onClick = { vm.refreshModels(context) },
-                    )
-                }
-                ModelDropdown(
-                    models = availableModels,
-                    selected = model,
-                    onSelect = { vm.selectModel(context, it) },
-                )
-            }
-
-            // Masked key field, optional for a local Custom server.
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Overline(if (isCustom) "API Key (optional)" else "API Key")
-                CoachKeyField(
-                    value = keyInput,
-                    onValueChange = { keyInput = it },
-                    placeholder = if (isCustom) "Only if your server requires one"
-                                  else "Paste your ${provider.displayName} key",
-                )
-            }
-
-            // Connect (Custom) / Save key (cloud).
-            if (isCustom) {
-                CoachPrimaryButton(
-                    label = uiString(R.string.l10n_coach_screen_connect_b65463cb),
-                    enabled = customBaseUrl.isNotBlank(),
-                    onClick = {
-                        if (keyInput.isNotBlank()) vm.saveKey(context, keyInput)
-                        vm.connectCustom(context)
-                    },
-                )
-            } else {
-                CoachPrimaryButton(
-                    label = uiString(R.string.l10n_coach_screen_save_key_f5216b3a),
-                    enabled = keyInput.isNotBlank(),
-                    onClick = { vm.saveKey(context, keyInput) },
-                )
-            }
-
-            // Whatever the last attempt from THIS card ran into. No repair affordance beside it:
-            // unlike the chat, the key field is already on screen, which is the whole point of the card.
-            val errorMsg = error
-            if (errorMsg != null) {
-                Text(
-                    errorMsg,
-                    style = AlkeType.subhead,
-                    color = Palette.statusCritical,
-                    modifier = Modifier.semantics {
-                        contentDescription = uiString(R.string.l10n_coach_screen_coach_error_error_ad9c8c46, errorMsg)
-                    },
-                )
-            }
-
-            // Privacy note, one line, always visible.
-            PrivacyNote(local = isCustom)
         }
     }
 }
+
+// The provider/API-key setup has been removed from the managed Coach surface.
 
 // MARK: - Chat (key saved)
 
@@ -386,7 +211,7 @@ private fun CoachChat(
                 verticalArrangement = Arrangement.spacedBy(1.dp),
             ) {
                 Text("ALKE Coach", style = AlkeType.subhead, color = Palette.textPrimary)
-                Text("AI provider configured", style = AlkeType.caption, color = Palette.textTertiary)
+                Text("ALKE Cloud Coach", style = AlkeType.caption, color = Palette.textTertiary)
             }
                 if (messages.isNotEmpty()) {
                     val clearInteraction = remember { MutableInteractionSource() }

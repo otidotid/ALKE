@@ -42,7 +42,7 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(ui.contains("alkeStyle = true"))
     }
 
-    @Test fun trainOnlyShowsFourRequestedPrimarySurfacesAndRetainsOriginalHistory() {
+    @Test fun trainUnifiesWorkoutActionsBreakdownAndSessionsWithoutHistoryRoute() {
         val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
         val begin = ui.indexOf("fun AlkeTrainingExperience(")
         val end = ui.indexOf("/** ALKE native presentation of the EXISTING", begin)
@@ -53,23 +53,30 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(train.contains("CALORIES"))
         assertTrue(train.contains("MOST ACTIVE SPORTS"))
         assertTrue(train.contains("Text(\"Add Workout\""))
-        assertTrue(train.contains("AlkeActiveCaloriesCalendar(vm, days)"))
+        assertTrue(train.contains("Text(\"Start Workout\""))
+        assertTrue(train.contains("AlkeTrainWorkoutActions(vm, onAdd = { showAddDialog = true })"))
+        val calendar = train.indexOf("AlkeActiveCaloriesCalendar(vm, days)")
+        val sections = train.indexOf("AlkeTrainHistorySections(vm)")
+        assertTrue("Activity Breakdown and All Sessions must be placed below Active Calories",
+            calendar >= 0 && sections > calendar)
+        assertTrue(train.contains("StartWorkoutSheet(vm = vm"))
+        assertTrue(train.contains("WorkoutStartSection(vm, onAdd = onAdd)"))
         assertTrue(train.contains("ManualWorkoutDialog(vm, editing = null"))
         assertTrue(train.contains("vm.saveManualWorkout(row, replacing)"))
-        assertTrue(train.contains("Text(\"History\""))
-        assertTrue(train.contains("onWorkouts"))
-        assertFalse(train.contains("StartWorkoutSheet(vm"))
-        assertFalse(train.contains("LiveWorkoutScreen(vm"))
-        assertFalse(train.contains("Text(\"Sessions\""))
-        assertFalse(train.contains("Show older sessions"))
-        assertFalse(train.contains("selectedSession"))
-        assertFalse(train.contains("AlkeLinkRow(\"Live HR\""))
-        assertFalse(train.contains("AlkeLinkRow(\"Recovery\""))
+        assertFalse(train.contains("Text(\"History\""))
+        assertFalse(train.contains("onWorkouts: () -> Unit"))
         val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
-        assertTrue(nav.contains("composable(Destination.AlkeWorkoutHistory.route) { WorkoutsScreen(viewModel) }"))
-        val history = source("src/main/java/com/otidotid/alke/ui/WorkoutsScreen.kt")
-        assertTrue(history.contains("WorkoutStartSection(vm, onAdd = { dialog = DialogTarget(null) })"))
-        assertTrue(history.contains("WorkoutDetailSheet("))
+        assertFalse(nav.contains("Destination.AlkeWorkoutHistory"))
+        assertTrue(nav.contains("composable(Destination.Workouts.route)"))
+        val original = source("src/main/java/com/otidotid/alke/ui/WorkoutsScreen.kt")
+        assertTrue(original.contains("fun AlkeTrainHistorySections("))
+        assertTrue(original.contains("BreakdownSection(groups = sportGroups(allRows), rows = allRows)"))
+        assertTrue(original.contains("SessionsSection("))
+        assertTrue(original.contains("WorkoutDetailSheet("))
+        for (operation in listOf("vm.mergeWorkouts(", "vm.bulkDeleteWorkouts(", "vm.relabelDetected(",
+                "vm.dismissDetected(", "vm.deleteWorkout(", "ManualWorkoutDialog(")) {
+            assertTrue("Workout action must survive inline move: $operation", original.contains(operation))
+        }
     }
 
     @Test fun todayActivityTilesAreDayStrainStepsActiveTimeInOrder() {

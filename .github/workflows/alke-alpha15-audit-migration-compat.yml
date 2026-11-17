@@ -1,4 +1,4 @@
-name: ALKE alpha.15 - Algorithm Parity and Legacy Migration Dual APK Release
+name: ALKE alpha.15 - Source Parity and Private Migration Release
 
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Guard alpha.15 renamed Fitness Age, animated metabolic factors, data and dual packages
+      - name: Guard alpha.15 data and release safety, no synthetic APK
         shell: bash
         run: |
           set -euo pipefail
@@ -35,9 +35,13 @@ jobs:
           grep -q 'supportedHealthBackupEntry(entry.name)' android/app/src/main/java/com/otidotid/alke/data/DataBackup.kt
           grep -q 'text/plain' android/app/src/main/java/com/otidotid/alke/ui/BackupSyncScreen.kt
           test -f android/app/src/test/java/com/otidotid/alke/data/LegacyBackupRestoreTest.kt
+          test -f android/app/src/main/java/com/otidotid/alke/data/PersonalBackupBootstrap.kt
+          grep -q 'supportedFoodBackupEntry(entry.name)' android/app/src/main/java/com/otidotid/alke/data/DataBackup.kt
+          ! test -f android/app/src/main/assets/alke-private-backup.noopbak
+          ! git ls-files | grep -F 'alke-private-backup.noopbak'
           grep -q 'ALKE' android/app/src/main/res/values/strings.xml
           ! git ls-files | grep -Eq '([N]OOP|[N]oop|[n]oop|[T]HOOP|[T]hoop|[t]hoop)'
-          ! git grep -nE '([N]OOP|[N]oop|[n]oop|[T]HOOP|[T]hoop|[t]hoop)' -- . ':!LICENSE' ':!NOTICE' ':!ATTRIBUTION.md' ':!android/app/src/main/java/com/otidotid/alke/data/DataBackup.kt' ':!android/app/src/test/java/com/otidotid/alke/data/LegacyBackupRestoreTest.kt' ':!docs/alke-15-migration-audit.md'
+          ! git grep -nE '([N]OOP|[N]oop|[n]oop|[T]HOOP|[T]hoop|[t]hoop)' -- . ':!LICENSE' ':!NOTICE' ':!ATTRIBUTION.md' ':!android/app/src/main/java/com/otidotid/alke/data/DataBackup.kt' ':!android/app/src/test/java/com/otidotid/alke/data/LegacyBackupRestoreTest.kt' ':!android/app/src/main/java/com/otidotid/alke/data/PersonalBackupBootstrap.kt' ':!docs/alke-15-migration-audit.md'
           echo 'ALKE active repository: no old source identity, filenames or readable project labels'
 
           grep -q 'versionName = "1.0.0-alpha.15"' android/app/build.gradle.kts
@@ -143,13 +147,13 @@ jobs:
               print(f"PASS exact algorithm source parity: {name}")
           PY
 
-      - name: Build normal and demo APKs from one commit
+      - name: Build GitHub Release APK only, WITHOUT synthetic or personal data
         shell: bash
         working-directory: android
         run: |
           set -euo pipefail
           chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace :app:assembleFullDebug :app:assembleDemoDebug
+          ./gradlew --no-daemon --stacktrace :app:assembleFullDebug
 
       - name: Run all full-debug unit and numeric parity tests
         shell: bash
@@ -158,27 +162,28 @@ jobs:
           set -euo pipefail
           ./gradlew --no-daemon --stacktrace :app:testFullDebugUnitTest
 
-      - name: Validate full and demo APK, signing and archive integrity
+      - name: Validate public APK, ensure private data is absent, and package offline signer tools
         shell: bash
         run: |
           set -euo pipefail
           mapfile -t full_apks < <(find android/app/build/outputs/apk/full/debug -maxdepth 1 -type f -name '*.apk')
-          mapfile -t demo_apks < <(find android/app/build/outputs/apk/demo/debug -maxdepth 1 -type f -name '*.apk')
           test "${#full_apks[@]}" -eq 1
-          test "${#demo_apks[@]}" -eq 1
-          mkdir -p release-apk demo-apk
+          mkdir -p release-apk local-package-tools
           cp "${full_apks[0]}" release-apk/ALKE-v1.0.0-alpha.15-debug.apk
-          cp "${demo_apks[0]}" demo-apk/ALKE-v1.0.0-alpha.15-demo-debug.apk
-          for apk in release-apk/*.apk demo-apk/*.apk; do
-            test "$(stat -c '%s' "$apk")" -gt 1000000
-            unzip -t "$apk" | tail -1
-            sha256sum "$apk"
-          done
+          apk=release-apk/ALKE-v1.0.0-alpha.15-debug.apk
+          test "$(stat -c '%s' "$apk")" -gt 1000000
+          unzip -t "$apk" | tail -1
+          ! unzip -Z1 "$apk" | grep -Fq 'alke-private-backup.noopbak'
+          sha256sum "$apk"
           aapt=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)
           test -n "$aapt"
-          "$aapt" dump badging release-apk/ALKE-v1.0.0-alpha.15-debug.apk | grep -q "package: name='com.otidotid.alke.debug'"
-          "$aapt" dump badging demo-apk/ALKE-v1.0.0-alpha.15-demo-debug.apk | grep -q "package: name='com.otidotid.alke.demo.debug'"
-          echo 'Normal and demo Android package IDs verified as distinct.'
+          "$aapt" dump badging "$apk" | grep -q "package: name='com.otidotid.alke.debug'"
+          buildtools=$(dirname "$aapt")
+          test -f "$buildtools/lib/apksigner.jar"
+          test -x "$buildtools/zipalign"
+          cp "$buildtools/lib/apksigner.jar" local-package-tools/apksigner.jar
+          cp "$buildtools/zipalign" local-package-tools/zipalign
+          echo 'Public APK verified; no private backup or synthetic demo included.'
 
       - name: Save normal APK as independent CI artifact
         uses: actions/upload-artifact@v4
@@ -188,13 +193,13 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Save demo APK as chat-download artifact only
+      - name: Save signing tools for private offline packaging, not for distribution
         uses: actions/upload-artifact@v4
         with:
-          name: ALKE-alpha15-synthetic-demo-APK
-          path: demo-apk/ALKE-v1.0.0-alpha.15-demo-debug.apk
+          name: ALKE-alpha15-offline-signing-tools
+          path: local-package-tools/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
       - name: Create GitHub prerelease with normal APK only
         env:
@@ -212,7 +217,9 @@ jobs:
 
           This build continues the independent ALKE identity and design lock from alpha.11. **The immutable pre-migration source code is protected in `alke/backup-20261117-pre-design-lock`.**
 
-          - Added read-only ZIP acceptance of historical Android backup names, with proper integrity and preflight checks. Original and user data are never bundled in CI.
+          - Historical Android health and food ZIP entries are recognized and integrity-checked for complete offline restore (including meals). No actual health records enter the GitHub source, CI or public release.
+          - A privately packaged APK can import its owner's backup on first fresh launch using the existing integrity-checked, rollback-protected restore path. It is created ONLY offline and never uploaded to GitHub.
+          - Power saver and pose-still gate are applied to the remaining Fitness Age animation; unit test coverage must pass.
           - Fixed the SAF file picker to include historical .txt-named archives; incoming files still pass SQLite magic, Room origin and integrity checks before any live database replacement.
           - Registered additive Room migrations from schema 41 through 43 remain unchanged, with automated migration-chain coverage.
           - Verifies byte-identical source parity (after naming-only migration) against eight critical computations from immutable reference SHA de24b55946de9d904f002441e0d24923ef91f2c6.
@@ -240,11 +247,11 @@ jobs:
           Google Drive private app data can be associated with the previous OAuth app and may not be visible to newly registered ALKE credentials. Reconnect your Google account using the ALKE Android OAuth client plus web client ID.
           Cloudflare/Groq endpoints, AI keys and cloud tokens are not embedded. Set new ALKE-specific configuration, then enter your own keys securely.
 
-          ### Two separate APKs
-          - **Normal debug APK in this GitHub Release only:** `ALKE-v1.0.0-alpha.15-debug.apk` (package `com.otidotid.alke.debug`), without dummy data.
-          - **Synthetic demo APK in GitHub Actions artifacts only:** `ALKE-v1.0.0-alpha.15-demo-debug.apk` (package `com.otidotid.alke.demo.debug`), includes synthetic data for visual review.
-          - Neither APK contains personal health data or plaintext cloud provider tokens.
-          - Debug signing; on-device BLE, Google OAuth and data migration must be verified before treating this as stable.
+          ### Distribution
+          - **This GitHub Release** includes only the normal APK, `ALKE-v1.0.0-alpha.15-debug.apk` (package `com.otidotid.alke.debug`), without any synthetic or personal data.
+          - **Personal offline APK**, containing owner-provided history, must be prepared locally, privately delivered to its owner and never shared or published in GitHub.
+          - Personal APKs are sensitive and may use a different signing certificate; reinstall or signing-key continuity must be planned for future updates.
+          - Google OAuth, AI cloud connectivity, real-device BLE and personal restoration still need user acceptance checks before stable release.
           EOF
           gh release create "$TAG" release-apk/ALKE-v1.0.0-alpha.15-debug.apk \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \

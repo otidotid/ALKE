@@ -13,6 +13,38 @@ import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.otidotid.alke.BuildConfig
 
+/**
+ * Google OAuth Web client IDs are public identifiers, not credentials or tokens.
+ * The build can supply one; an owner may configure one locally when a CI APK
+ * was compiled without it. Neither OAuth tokens nor signing keys are stored here.
+ */
+internal object GoogleOAuthClientConfig {
+    private const val PREFERENCES = "alke_google_oauth"
+    private const val KEY_WEB_CLIENT_ID = "web_client_id"
+
+    fun current(context: Context): String {
+        val saved = context.applicationContext.getSharedPreferences(
+            PREFERENCES, Context.MODE_PRIVATE,
+        ).getString(KEY_WEB_CLIENT_ID, null).orEmpty().trim()
+        if (isValidGoogleWebClientId(saved)) return saved
+        return BuildConfig.GOOGLE_WEB_CLIENT_ID.trim()
+            .takeIf(::isValidGoogleWebClientId).orEmpty()
+    }
+
+    fun save(context: Context, value: String): Boolean {
+        val normalized = value.trim()
+        if (!isValidGoogleWebClientId(normalized)) return false
+        context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+            .edit().putString(KEY_WEB_CLIENT_ID, normalized).apply()
+        return true
+    }
+}
+
+/** Keep invalid/placeholder OAuth IDs out of the Google credential request. */
+internal fun isValidGoogleWebClientId(value: String): Boolean =
+    Regex("^[0-9]+-[A-Za-z0-9_-]+\\.apps\\.googleusercontent\\.com$")
+        .matches(value.trim())
+
 internal data class GoogleAccountState(
     val accountId: String,
     val displayName: String?,
@@ -87,11 +119,12 @@ internal class GoogleSignInController(
                 "Google Sign-In requires an active ALKE screen.",
             )
 
-        val webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID.trim()
+        val webClientId = GoogleOAuthClientConfig.current(appContext)
         if (webClientId.isBlank()) {
             return GoogleSignInResult.Failure(
-                "Google Sign-In is not configured for this ALKE build. " +
-                    "Set ALKE_GOOGLE_WEB_CLIENT_ID in android/local.properties, then rebuild.",
+                "Google Sign-In needs a Google OAuth Web Client ID. " +
+                    "Open ALKE Settings > Backup & History > Google Drive to configure it. " +
+                    "The Google Cloud Android OAuth client must also match this APK package and signing SHA-1.",
             )
         }
 
@@ -142,7 +175,7 @@ internal class GoogleSignInController(
             val detail = failure.message?.takeIf { it.isNotBlank() }
             GoogleSignInResult.Failure(
                 buildString {
-                    append("Google Sign-In failed. Verify the OAuth Android client package name and SHA-1 for this APK, plus ALKE_GOOGLE_WEB_CLIENT_ID.")
+                    append("Google Sign-In failed for ${appContext.packageName}. Verify the Google Cloud Android OAuth client package and APK signing SHA-1, plus the Web Client ID configured in ALKE.")
                     if (detail != null) append(" Details: $detail")
                 },
             )

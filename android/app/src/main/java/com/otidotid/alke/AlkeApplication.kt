@@ -10,6 +10,7 @@ import com.otidotid.alke.ble.SourceIdentity
 import com.otidotid.alke.ble.WhoopBleClient
 import com.otidotid.alke.ble.WhoopModel
 import com.otidotid.alke.data.DeviceRegistry
+import com.otidotid.alke.data.PersonalBackupBootstrap
 import com.otidotid.alke.data.WhoopDatabase
 import com.otidotid.alke.data.WhoopRepository
 import com.otidotid.alke.ui.AlkePrefs
@@ -50,17 +51,23 @@ class AlkeApplication : Application() {
         // #1008: pin the pre-change Overnight-only default for existing installs before anything
         // reads it. Idempotent; a no-op on fresh installs and on every launch after the first.
         com.otidotid.alke.ui.AlkePrefs.migrateContinuousHrvOvernightDefault(this)
-        // #2185: a stress widget placed by an older version fired its `onEnabled` long before the
-        // scheduler existed, so the receiver hook alone would never reach it. Enqueued with KEEP, so
-        // this is a no-op once a schedule exists, and the worker retires itself when no widget is
-        // placed — which is what stops this costing anything for an install that has never had one.
-        com.otidotid.alke.widget.StressWidgetRefresh.ensureScheduled(this)
-        // #2556: the stale-battery warning needs a wake that does NOT depend on the BLE link, because the
-        // case it exists for is a strap that stopped talking. Scheduled here rather than beside a widget
-        // so it does not inherit that widget's lifecycle. KEEP, so this is a no-op once scheduled.
-        com.otidotid.alke.notif.StaleBatteryWorker.ensureScheduled(this)
-        // Rolling offline snapshots and, after one-time secure setup, encrypted daily cloud archives.
-        com.otidotid.alke.data.AutomaticHybridHistoryScheduler.ensureScheduled(this)
+        // A private owner-backup APK imports on its first launch. Do NOT schedule
+        // any application work that might open the new Room database before the
+        // private bootstrap has validated/recovered it. Following the successful
+        // import, Activity recreates and this normal scheduling resumes.
+        if (!PersonalBackupBootstrap.needsInitialRestore(this)) {
+            // #2185: a stress widget placed by an older version fired its `onEnabled` long before the
+            // scheduler existed, so the receiver hook alone would never reach it. Enqueued with KEEP, so
+            // this is a no-op once a schedule exists, and the worker retires itself when no widget is
+            // placed — which is what stops this costing anything for an install that has never had one.
+            com.otidotid.alke.widget.StressWidgetRefresh.ensureScheduled(this)
+            // #2556: the stale-battery warning needs a wake that does NOT depend on the BLE link, because the
+            // case it exists for is a strap that stopped talking. Scheduled here rather than beside a widget
+            // so it does not inherit that widget's lifecycle. KEEP, so this is a no-op once scheduled.
+            com.otidotid.alke.notif.StaleBatteryWorker.ensureScheduled(this)
+            // Rolling offline snapshots and, after one-time secure setup, encrypted daily cloud archives.
+            com.otidotid.alke.data.AutomaticHybridHistoryScheduler.ensureScheduled(this)
+        }
     }
 
     /** Process-wide Room-backed store. One instance shared by the UI and the background service. */

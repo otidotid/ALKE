@@ -127,6 +127,16 @@ android {
             buildConfigField("String", "TIER", "\"full\"")
             buildConfigField("boolean", "ENABLE_DEMO", "false")
         }
+        // Built on CI with ZERO personal data, then the owner adds their own backup
+        // and re-signs the APK LOCALLY. Different Android package id keeps it safely
+        // separate from the public GitHub Release APK and the old Thoop install.
+        create("personal") {
+            dimension = "tier"
+            applicationIdSuffix = ".personal"
+            versionNameSuffix = "-personal"
+            buildConfigField("String", "TIER", "\"personal\"")
+            buildConfigField("boolean", "ENABLE_DEMO", "false")
+        }
         create("demo") {
             dimension = "tier"
             applicationIdSuffix = ".demo"

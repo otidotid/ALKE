@@ -670,19 +670,6 @@ fun AlkeTodayExperience(
                 Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp)).clickable { onMetric("skin") }
-                .padding(vertical = 8.dp)) {
-                Icon(Icons.Filled.MonitorHeart, contentDescription = null, tint = A.cyan)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Skin Temperature", color = A.white, fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold)
-                    Text("Nighttime readings and temperature trends",
-                        color = A.muted, fontSize = 11.sp)
-                }
-                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp)).clickable(onClick = onTrain).padding(vertical = 8.dp)) {
                 Icon(Icons.Filled.DirectionsRun, contentDescription = null, tint = A.gold)
                 Spacer(Modifier.width(12.dp))
@@ -1089,9 +1076,22 @@ fun AlkeInsightExperience(
     onCoach: () -> Unit,
     onIntelligence: () -> Unit,
     onHealth: () -> Unit,
+    onSkinTemp: () -> Unit,
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val recovery = day?.recovery
+    val absoluteSkinC = day?.skinTempC?.takeIf { it.isFinite() }
+        ?: day?.skinTempDevC?.takeIf {
+            it.isFinite() && com.noop.analytics.VitalBands.isAbsoluteSkinTemp(it)
+        }
+    val deviationSkinC = day?.skinTempDevC?.takeIf {
+        it.isFinite() && !com.noop.analytics.VitalBands.isAbsoluteSkinTemp(it)
+    }
+    val skinValue = when {
+        absoluteSkinC != null -> String.format(Locale.getDefault(), "%.1f °C", absoluteSkinC)
+        deviationSkinC != null -> String.format(Locale.getDefault(), "%+.1f °C Δ", deviationSkinC)
+        else -> "—"
+    }
     AlkePage {
         AlkeHeading("Insight", "Your data, made meaningful.")
         AlkePanel(Modifier.fillMaxWidth()) {
@@ -1122,6 +1122,21 @@ fun AlkeInsightExperience(
                     Text(label, color = A.muted, modifier = Modifier.weight(1f), fontSize = 13.sp)
                     Text(value, color = A.white, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 }
+            }
+        }
+        // Skin temperature belongs with physiology/insight signals, directly
+        // below Resting HR. Original Health and full history continue unchanged.
+        AlkePanel(Modifier.fillMaxWidth(), onClick = onSkinTemp) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(A.cyan))
+                Spacer(Modifier.width(10.dp))
+                Text("Skin Temperature", color = A.muted,
+                    modifier = Modifier.weight(1f), fontSize = 13.sp)
+                Text(skinValue, color = A.white, fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp)
+                Spacer(Modifier.width(5.dp))
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Skin temperature history",
+                    tint = A.cyan, modifier = Modifier.size(18.dp))
             }
         }
         AlkeLinkRow("Intelligence details", "How Charge, Effort and Rest are calculated", Icons.Filled.Insights, onIntelligence)

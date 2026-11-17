@@ -211,8 +211,8 @@ fun HealthScreen(
             item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
             // ScreenScaffold applies a 20dp arrangement gap between its direct children;
             // a small top-up reaches the section gap (28dp) used between macOS sections.
-            item { HeartRateSection(vm = vm, hrMax = hrMax) }
-            item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
+            // The dedicated live-HR card is intentionally hidden on Fitness Age.
+            // Live stream, HR history, Today, and their routes are unchanged.
             item {
                 VitalsSection(
                     title = uiString(R.string.l10n_health_screen_vital_signs_e7d9e1b1),
@@ -1013,7 +1013,6 @@ private fun FitnessAgeHero(
     history: List<Pair<String, Double>>,
 ) {
     val shown = fitnessAge.roundToInt()
-    val boundSymbol = fitnessAgeBoundSymbol(fitnessAge)
     val delta = if (chronoAge > 0) chronoAge - fitnessAge else 0.0
     val younger = chronoAge > 0 && delta > 0.5
     val older = chronoAge > 0 && delta < -0.5
@@ -1098,19 +1097,61 @@ private fun FitnessAgeHero(
                         contentAlignment = Alignment.Center,
                     ) {
                         Canvas(Modifier.matchParentSize()) {
-                            val angle = Math.toRadians((-90f + 360f * orbit).toDouble())
-                            val spot = Offset(
-                                center.x + kotlin.math.cos(angle).toFloat() * size.minDimension * 0.40f,
-                                center.y + kotlin.math.sin(angle).toFloat() * size.minDimension * 0.40f,
+                            // ALKE aurora: slowly drifting cyan/gold light layers behind the
+                            // stationary metric value. Composed locally; nothing is fetched.
+                            val span = size.minDimension
+                            val cyanCenter = Offset(
+                                center.x + span * (orbit - 0.5f) * 0.40f,
+                                center.y - span * 0.25f + span * agePulse * 0.08f,
                             )
-                            drawCircle(accent.copy(alpha = 0.16f + agePulse * 0.16f),
+                            val goldCenter = Offset(
+                                center.x + span * (0.5f - orbit) * 0.28f,
+                                center.y + span * 0.32f - span * agePulse * 0.09f,
+                            )
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    listOf(Color(0xFF26DEEB).copy(alpha = 0.22f + agePulse * 0.18f),
+                                        Color.Transparent),
+                                    center = cyanCenter, radius = span * 0.48f,
+                                ),
+                                radius = span * 0.48f, center = cyanCenter,
+                            )
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    listOf(Color(0xFFF0BF60).copy(alpha = 0.13f + agePulse * 0.16f),
+                                        Color.Transparent),
+                                    center = goldCenter, radius = span * 0.40f,
+                                ),
+                                radius = span * 0.40f, center = goldCenter,
+                            )
+                            drawArc(
+                                brush = Brush.sweepGradient(
+                                    listOf(Color.Transparent,
+                                        Color(0xFF26DEEB).copy(alpha = 0.18f + agePulse * 0.30f),
+                                        Color.Transparent,
+                                        Color(0xFFF0BF60).copy(alpha = 0.22f),
+                                        Color.Transparent),
+                                ),
+                                startAngle = -90f + orbit * 360f,
+                                sweepAngle = 125f,
+                                useCenter = false,
+                                topLeft = Offset(span * 0.105f, span * 0.105f),
+                                size = androidx.compose.ui.geometry.Size(span * 0.79f, span * 0.79f),
+                                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round),
+                            )
+                            val angle = Math.toRadians((-90f + orbit * 360f).toDouble())
+                            val spot = Offset(
+                                center.x + kotlin.math.cos(angle).toFloat() * span * 0.40f,
+                                center.y + kotlin.math.sin(angle).toFloat() * span * 0.40f,
+                            )
+                            drawCircle(accent.copy(alpha = 0.16f + agePulse * 0.22f),
                                 radius = 12.dp.toPx(), center = spot)
                             drawCircle(Palette.textPrimary.copy(alpha = 0.87f),
                                 radius = 3.dp.toPx(), center = spot)
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                "$boundSymbol$shown",
+                                "$shown",
                                 style = AlkeType.number(42f, weight = FontWeight.Bold),
                                 color = androidx.compose.ui.graphics.lerp(accent, Palette.textPrimary, agePulse * 0.75f),
                                 modifier = Modifier.graphicsLayer {
@@ -3135,7 +3176,7 @@ private fun FitnessAgeDetailExperience(
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                fitnessAgeBoundSymbol(latest.value) + format(latest.value),
+                                format(latest.value),
                                 style = AlkeType.number(39f, FontWeight.Bold),
                                 color = Color.White.copy(
                                     alpha = 0.91f + 0.09f * ((ageHeroGlow - 0.10f) / 0.14f).coerceIn(0f, 1f),

@@ -1,0 +1,162 @@
+name: ALKE alpha.7 - Normal Release + Synthetic Demo APK
+
+on:
+  push:
+    branches:
+      - alke/alpha7-today-train-review
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: alke-alpha7-release
+  cancel-in-progress: true
+
+jobs:
+  verify-build-publish:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    steps:
+      - name: Checkout exact ALKE alpha.7 source
+        uses: actions/checkout@v4
+
+      - name: Guard alpha.7 route, data provenance and separate demo package
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'versionName = "1.0.0-alpha.7"' android/app/build.gradle.kts
+          grep -q 'applicationId = "com.otidotid.alke"' android/app/build.gradle.kts
+          grep -q 'AlkeHeartRatePreview(vm, onHeartRateTimeline)' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'vm.repo.latestHr(activeId)' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'WorkoutDetailSheet(' android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt
+          grep -q 'AlkeActiveCaloriesCalendar(vm, days)' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'ManualWorkoutDialog(vm, editing = null' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'buildSeriesVitalDetail(vm, "steps_est")' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'onSteps = { nav.navigate("vital_detail/steps_est") }' android/app/src/main/java/com/noop/ui/AppRoot.kt
+          grep -q 'AlkeSectionTitle("Today'\''s Activity")' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'onHeartRateTimeline = { nav.navigate(Destination.AlkeHeartRateTimeline.route) }' android/app/src/main/java/com/noop/ui/AppRoot.kt
+          grep -q 'seedRecentHeartRateIfMissing(repo)' android/app/src/main/java/com/noop/data/DemoSeeder.kt
+          grep -q 'class AlkeAlpha5ExperienceContractTest' android/app/src/test/java/com/noop/ui/AlkeAlpha5ExperienceContractTest.kt
+          grep -q 'Text("STEPS"' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'onMetric("skin")' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'Text("History"' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          grep -q 'trainOnlyShowsFourRequestedPrimarySurfacesAndRetainsOriginalHistory' android/app/src/test/java/com/noop/ui/AlkeAlpha5ExperienceContractTest.kt
+          ! grep -q '24-hour HR chart with workout markers and sleep periods' android/app/src/main/java/com/noop/ui/AlkeExperience.kt
+          echo 'ALKE alpha.7 route and data guards pass'
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Restore immutable THOOP parity reference data
+        shell: bash
+        env:
+          SOURCE_SHA: de24b55946de9d904f002441e0d24923ef91f2c6
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch v13.2.0 --single-branch \
+            https://github.com/otidotid/thoop.git "$RUNNER_TEMP/thoop-v13.2.0"
+          test "$(git -C "$RUNNER_TEMP/thoop-v13.2.0" rev-parse HEAD)" = "$SOURCE_SHA"
+          for dir in Strand StrandTests StrandiOS; do
+            rsync -a "$RUNNER_TEMP/thoop-v13.2.0/$dir/" "$GITHUB_WORKSPACE/$dir/"
+          done
+          mkdir -p "$GITHUB_WORKSPACE/Tools/parity_cases"
+          cp "$RUNNER_TEMP/thoop-v13.2.0/Tools/parity_cases/device_raw_sources.json" \
+            "$GITHUB_WORKSPACE/Tools/parity_cases/device_raw_sources.json"
+
+      - name: Build normal and demo APKs from one commit
+        shell: bash
+        working-directory: android
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace :app:assembleFullDebug :app:assembleDemoDebug
+
+      - name: Run all full-debug unit and numeric parity tests
+        shell: bash
+        working-directory: android
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --stacktrace :app:testFullDebugUnitTest
+
+      - name: Validate full and demo APK, signing and archive integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t full_apks < <(find android/app/build/outputs/apk/full/debug -maxdepth 1 -type f -name '*.apk')
+          mapfile -t demo_apks < <(find android/app/build/outputs/apk/demo/debug -maxdepth 1 -type f -name '*.apk')
+          test "${#full_apks[@]}" -eq 1
+          test "${#demo_apks[@]}" -eq 1
+          mkdir -p release-apk demo-apk
+          cp "${full_apks[0]}" release-apk/ALKE-v1.0.0-alpha.7-debug.apk
+          cp "${demo_apks[0]}" demo-apk/ALKE-v1.0.0-alpha.7-demo-debug.apk
+          for apk in release-apk/*.apk demo-apk/*.apk; do
+            test "$(stat -c '%s' "$apk")" -gt 1000000
+            unzip -t "$apk" | tail -1
+            sha256sum "$apk"
+          done
+          aapt=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)
+          test -n "$aapt"
+          "$aapt" dump badging release-apk/ALKE-v1.0.0-alpha.7-debug.apk | grep -q "package: name='com.otidotid.alke.debug'"
+          "$aapt" dump badging demo-apk/ALKE-v1.0.0-alpha.7-demo-debug.apk | grep -q "package: name='com.otidotid.alke.demo.debug'"
+          echo 'Normal and demo Android package IDs verified as distinct.'
+
+      - name: Save normal APK as independent CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha7-normal-APK
+          path: release-apk/ALKE-v1.0.0-alpha.7-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Save demo APK as chat-download artifact only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha7-synthetic-demo-APK
+          path: demo-apk/ALKE-v1.0.0-alpha.7-demo-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create GitHub prerelease with normal APK only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v1.0.0-alpha.7
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG exists; refusing overwrite."
+            exit 1
+          fi
+          cat > release-notes.md <<'EOF'
+          ## ALKE v1.0.0-alpha.7 — Today Steps, Skin Temperature & Focused Train
+
+          **Normal Android debug APK with real user data only.** No synthetic health data in the normal package.
+
+          ### Today
+          - Steps returns inside Today > Today's Activity with the original steps resolver, recorded date and direct link to full history.
+          - Skin Temperature is linked under Today > My Day and opens the original historical vital detail. The full skin-temperature suite remains available in Health.
+          - No redundant Train label beside Today's Activity; the full HR Timeline retains sport icons and sleep overlays.
+
+          ### Train
+          - Exactly four primary surfaces: Calories, Most Active Sports, Add Workout, and 13-week Active Calories calendar.
+          - History in the heading opens the existing full Workout History with live recording, session detail, edit, filters and reports.
+          - Existing all-source workout data, saved sessions and the original ActivityHeatmap logic remain intact.
+
+          ### Compatibility and variants
+          - Keep all inherited data, numerical algorithms, Google/AI, backup/restore and BLE behavior unchanged.
+          - Normal GitHub Release APK: ALKE-v1.0.0-alpha.7-debug.apk, package com.otidotid.alke.debug.
+          - Separate synthetic demo APK only in GitHub Actions artifact (NOT the Release): ALKE-v1.0.0-alpha.7-demo-debug.apk, package com.otidotid.alke.demo.debug.
+          - The demo includes 120 days synthetic metrics and 15 days recent HR. No synthetic data is seeded in normal build.
+          - Both packages must pass compilation, full unit/numeric parity suite and APK integrity checks before publication.
+          - Debug-signed builds; on-device physical BLE, sign-in and personal backup restoration still require manual acceptance.
+          EOF
+          gh release create "$TAG" release-apk/ALKE-v1.0.0-alpha.7-debug.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "ALKE v1.0.0-alpha.7 — Today HR & Train" \
+            --notes-file release-notes.md --prerelease
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,isPrerelease,assets

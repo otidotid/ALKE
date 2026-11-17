@@ -21,7 +21,9 @@ jobs:
       # Google Web client IDs are public identifiers; keep configurable in the build.
       # IMPORTANT: A Web ID alone is not sufficient. Google Cloud must register the
       # Android OAuth package + signing SHA-1 for EACH installed app variant.
-      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID }}
+      # Web OAuth Client ID is a public identifier (not a client secret).
+      # An Actions secret can override this project default if configuration changes.
+      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID || '542598370283-1gr0qq8ad4ga691k3lvrotma140hcu5r.apps.googleusercontent.com' }}
     steps:
       - uses: actions/checkout@v4
       - name: Java 17

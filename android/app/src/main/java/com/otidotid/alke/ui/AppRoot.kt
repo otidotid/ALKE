@@ -970,6 +970,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onProfile = { nav.navigate(Destination.Profile.route) },
                         unreadCount = updateStore.unreadCount,
                         onHealth = { nav.navigate(Destination.Health.route) },
+                        onFitnessAge = { nav.navigate("vital_detail/fitness_age") },
                         onVo2 = { nav.navigate("vital_detail/vo2max_est") },
                         onBodyAge = { nav.navigate("vital_detail/vitality") },
                         onTrends = { nav.navigate(Destination.AlkeTrendHistory.route) },

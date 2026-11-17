@@ -1,0 +1,192 @@
+name: ALKE alpha.11 - Fitness Age Hero, Regression Tests and Dual APKs
+
+on:
+  push:
+    branches:
+      - alke/alpha11-fitness-age-hero
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: alke-alpha11-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-build-publish:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    steps:
+      - name: Checkout exact ALKE alpha.11 source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Guard alpha.11 Fitness Age and Train navigation, data provenance and separate demo package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d android/app/src/main/java/com/otidotid/alke
+          grep -q 'namespace = "com.otidotid.alke"' android/app/build.gradle.kts
+          grep -q 'versionName = "1.0.0-alpha.11"' android/app/build.gradle.kts
+          grep -q 'ALKE' android/app/src/main/res/values/strings.xml
+          ! git ls-files | grep -Eq '([N]OOP|[N]oop|[n]oop|[T]HOOP|[T]hoop|[t]hoop)'
+          ! git grep -nE '([N]OOP|[N]oop|[n]oop|[T]HOOP|[T]hoop|[t]hoop)' -- . ':!LICENSE' ':!NOTICE' ':!ATTRIBUTION.md'
+          echo 'ALKE active repository: no old source identity, filenames or readable project labels'
+
+          grep -q 'versionName = "1.0.0-alpha.11"' android/app/build.gradle.kts
+          grep -q 'applicationId = "com.otidotid.alke"' android/app/build.gradle.kts
+          grep -q 'AlkeHeartRatePreview(vm, onHeartRateTimeline)' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'vm.repo.latestHr(activeId)' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'WorkoutDetailSheet(' android/app/src/main/java/com/otidotid/alke/ui/WorkoutsScreen.kt
+          grep -q 'AlkeActiveCaloriesCalendar(vm, days)' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'ManualWorkoutDialog(vm, editing = null' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'buildSeriesVitalDetail(vm, "steps_est")' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'onSteps = { nav.navigate("vital_detail/steps_est") }' android/app/src/main/java/com/otidotid/alke/ui/AppRoot.kt
+          grep -q 'AlkeSectionTitle("Today'\''s Activity")' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'onHeartRateTimeline = { nav.navigate(Destination.AlkeHeartRateTimeline.route) }' android/app/src/main/java/com/otidotid/alke/ui/AppRoot.kt
+          grep -q 'seedRecentHeartRateIfMissing(repo)' android/app/src/main/java/com/otidotid/alke/data/DemoSeeder.kt
+          grep -q 'class AlkeAlpha5ExperienceContractTest' android/app/src/test/java/com/otidotid/alke/ui/AlkeAlpha5ExperienceContractTest.kt
+          grep -q 'todayActivityTilesAreDayStrainStepsActiveTimeInOrder' android/app/src/test/java/com/otidotid/alke/ui/AlkeAlpha5ExperienceContractTest.kt
+          grep -q 'AlkeMetricTile("Steps"' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'Icons.Filled.DirectionsWalk' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'Text("STEPS"' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'onClick = onSkinTemp' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'onSkinTemp = { nav.navigate("vital_detail/skin") }' android/app/src/main/java/com/otidotid/alke/ui/AppRoot.kt
+          ! grep -q 'clickable { onMetric("skin") }' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          ! grep -q 'Text("History"' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          ! grep -q 'Destination.AlkeWorkoutHistory' android/app/src/main/java/com/otidotid/alke/ui/AppRoot.kt
+          grep -q 'AlkeTrainHistorySections(vm)' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'AlkeTrainWorkoutActions(vm' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'trainUnifiesWorkoutActionsBreakdownAndSessionsWithoutHistoryRoute' android/app/src/test/java/com/otidotid/alke/ui/AlkeAlpha5ExperienceContractTest.kt
+          grep -q 'AlkeFitnessAgeHero(' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          grep -q 'onFitnessAge = { nav.navigate("vital_detail/fitness_age") }' android/app/src/main/java/com/otidotid/alke/ui/AppRoot.kt
+          grep -q 'progressStartsWithOriginalFitnessAgeAndQuietHeroAnimation' android/app/src/test/java/com/otidotid/alke/ui/AlkeAlpha5ExperienceContractTest.kt
+          ! grep -q '24-hour HR chart with workout markers and sleep periods' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+          echo 'ALKE alpha.11 route and data guards pass'
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Restore immutable numerical parity reference by repository ID
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REFERENCE_REPOSITORY_ID: 1401373206
+          SOURCE_SHA: de24b55946de9d904f002441e0d24923ef91f2c6
+        run: |
+          set -euo pipefail
+          REFERENCE_URL="$(gh api "/repositories/$REFERENCE_REPOSITORY_ID" --jq '.clone_url')"
+          test "$REFERENCE_URL" != "null"
+          test -n "$REFERENCE_URL"
+          git clone --depth=1 --branch v13.2.0 --single-branch \
+            "$REFERENCE_URL" "$RUNNER_TEMP/alke-reference-v13.2.0"
+          test "$(git -C "$RUNNER_TEMP/alke-reference-v13.2.0" rev-parse HEAD)" = "$SOURCE_SHA"
+          for dir in Strand StrandTests StrandiOS; do
+            rsync -a "$RUNNER_TEMP/alke-reference-v13.2.0/$dir/" "$GITHUB_WORKSPACE/$dir/"
+          done
+          mkdir -p "$GITHUB_WORKSPACE/Tools/parity_cases"
+          cp "$RUNNER_TEMP/alke-reference-v13.2.0/Tools/parity_cases/device_raw_sources.json" \
+            "$GITHUB_WORKSPACE/Tools/parity_cases/device_raw_sources.json"
+
+      - name: Build normal and demo APKs from one commit
+        shell: bash
+        working-directory: android
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace :app:assembleFullDebug :app:assembleDemoDebug
+
+      - name: Run all full-debug unit and numeric parity tests
+        shell: bash
+        working-directory: android
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --stacktrace :app:testFullDebugUnitTest
+
+      - name: Validate full and demo APK, signing and archive integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t full_apks < <(find android/app/build/outputs/apk/full/debug -maxdepth 1 -type f -name '*.apk')
+          mapfile -t demo_apks < <(find android/app/build/outputs/apk/demo/debug -maxdepth 1 -type f -name '*.apk')
+          test "${#full_apks[@]}" -eq 1
+          test "${#demo_apks[@]}" -eq 1
+          mkdir -p release-apk demo-apk
+          cp "${full_apks[0]}" release-apk/ALKE-v1.0.0-alpha.11-debug.apk
+          cp "${demo_apks[0]}" demo-apk/ALKE-v1.0.0-alpha.11-demo-debug.apk
+          for apk in release-apk/*.apk demo-apk/*.apk; do
+            test "$(stat -c '%s' "$apk")" -gt 1000000
+            unzip -t "$apk" | tail -1
+            sha256sum "$apk"
+          done
+          aapt=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)
+          test -n "$aapt"
+          "$aapt" dump badging release-apk/ALKE-v1.0.0-alpha.11-debug.apk | grep -q "package: name='com.otidotid.alke.debug'"
+          "$aapt" dump badging demo-apk/ALKE-v1.0.0-alpha.11-demo-debug.apk | grep -q "package: name='com.otidotid.alke.demo.debug'"
+          echo 'Normal and demo Android package IDs verified as distinct.'
+
+      - name: Save normal APK as independent CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha11-normal-APK
+          path: release-apk/ALKE-v1.0.0-alpha.11-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Save demo APK as chat-download artifact only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha11-synthetic-demo-APK
+          path: demo-apk/ALKE-v1.0.0-alpha.11-demo-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create GitHub prerelease with normal APK only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v1.0.0-alpha.11
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG exists; refusing overwrite."
+            exit 1
+          fi
+          cat > release-notes.md <<'EOF'
+          ## ALKE v1.0.0-alpha.11 — Fitness Age is first in Progress
+
+          This build continues the independent ALKE identity and design lock from alpha.10. **The immutable pre-migration source code is protected in `alke/backup-20261117-pre-design-lock`.**
+
+          - Today presents Day Strain, Steps and Active Time. Insight presents Skin Temperature directly below Resting HR.
+          - Progress now opens with an animated **Fitness Age** hero instead of a chevron tile, reading the original weekly Fitness Age (including its existing optional metabolic calculation) with no new score math.
+          - Its ring settles once, honors Reduce Motion, and opens the original Fitness Age factors, readiness and trends. The arc is explicitly the 20–80 age scale.
+          - Train retains alpha.10 Start Workout + Add Workout, Active Calories, Activity Breakdown, and All Sessions in one page.
+          - Reuses the original All Sessions details, filters, edit/duplicate, relabel, dismiss, merge and delete actions. Live Start reuses the existing picker and in-progress controls; recording needs a bonded wearable.
+          - Premium navy/cyan/gold styling is locked. The Appearance, custom background and icon-selection controls were removed from Settings. Language/time preferences remain accessible.
+          - Migrated source namespaces and filenames to ALKE, plus resource IDs, app notifications, generated reports, storage keys, database/backup identifiers and AI service labels.
+          - Original numerical algorithms and BLE protocols are not intentionally redesigned. Unit tests and hardware integration still need practical acceptance on real devices.
+
+          ### Migrating existing installs and cloud services
+
+          **Important:** changing local database/preference/backup identifiers is a deliberate breaking change. An earlier installed app's private database, old backup envelope, and encrypted API credentials do **not** automatically transfer to the new names. Keep the old app installed and retain verified personal backups until a dedicated migration conversion is proven.
+          Google Drive private app data can be associated with the previous OAuth app and may not be visible to newly registered ALKE credentials. Reconnect your Google account using the ALKE Android OAuth client plus web client ID.
+          Cloudflare/Groq endpoints, AI keys and cloud tokens are not embedded. Set new ALKE-specific configuration, then enter your own keys securely.
+
+          ### Two separate APKs
+          - **Normal debug APK in this GitHub Release only:** `ALKE-v1.0.0-alpha.11-debug.apk` (package `com.otidotid.alke.debug`), without dummy data.
+          - **Synthetic demo APK in GitHub Actions artifacts only:** `ALKE-v1.0.0-alpha.11-demo-debug.apk` (package `com.otidotid.alke.demo.debug`), includes synthetic data for visual review.
+          - Neither APK contains personal health data or plaintext cloud provider tokens.
+          - Debug signing; on-device BLE, Google OAuth and data migration must be verified before treating this as stable.
+          EOF
+          gh release create "$TAG" release-apk/ALKE-v1.0.0-alpha.11-debug.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "ALKE v1.0.0-alpha.11 — Fitness Age Hero" \
+            --notes-file release-notes.md --prerelease
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,isPrerelease,assets

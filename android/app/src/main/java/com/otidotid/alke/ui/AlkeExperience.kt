@@ -94,6 +94,7 @@ import com.otidotid.alke.analytics.RestScorer
 import com.otidotid.alke.analytics.ActivityHeatmap
 import com.otidotid.alke.analytics.ReadinessEngine
 import com.otidotid.alke.analytics.FitnessAgeEngine
+import com.otidotid.alke.analytics.FitnessAgePaceEngine
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.Instant
@@ -987,6 +988,7 @@ private fun AlkeFitnessAgeHero(
     fitnessAge: Double?,
     readingDay: String?,
     chronologicalAge: Int,
+    agePace: FitnessAgePaceEngine.Result,
     onClick: () -> Unit,
 ) {
     val reduceMotion = rememberReduceMotion()
@@ -1017,6 +1019,26 @@ private fun AlkeFitnessAgeHero(
             label = "alke_fitness_age_breathe",
         ).value
     }
+    // Repeating sweep is deliberately separate from the measured age pointer: the reading
+    // stays at its exact position while decorative light travels along the instrument.
+    val orbit = if (reduceMotion || fitnessAge == null) 0f else {
+        val motion = rememberInfiniteTransition(label = "alke_age_orbit")
+        motion.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(durationMillis = 3_000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "alke_age_orbit_sweep",
+        ).value
+    }
+    // Annualized trend comes exclusively from the existing FitnessAgePaceEngine;
+    // an improving (negative) slope is shown as AGE DOWN, never a fabricated value.
+    val paceLabel = agePace.pace?.let { rate ->
+        String.format(Locale.US, "%.1fx", kotlin.math.abs(rate)) +
+            if (rate < 0.0) " AGE DOWN" else " AGING PACE"
+    } ?: "PACE CALIBRATING"
     val difference = fitnessAge?.let { age ->
         if (chronologicalAge > 0) chronologicalAge.toDouble() - age else null
     }
@@ -1037,7 +1059,7 @@ private fun AlkeFitnessAgeHero(
                 Text("Your fitness, in perspective", color = A.white,
                     fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
             }
-            AlkePill("WEEKLY", A.gold)
+            AlkePill(paceLabel, A.gold)
         }
         // The age-scale position remains data-accurate; only glow and number breathe.
         Box(Modifier.fillMaxWidth().height(206.dp), contentAlignment = Alignment.Center) {
@@ -1050,7 +1072,7 @@ private fun AlkeFitnessAgeHero(
                     val radius = arcSize.width / 2f
                     drawCircle(
                         brush = Brush.radialGradient(
-                            listOf(A.cyan.copy(alpha = 0.10f + ambient * 0.13f), A.cardDark.copy(alpha = 0.02f)),
+                            listOf(A.cyan.copy(alpha = 0.15f + ambient * 0.34f), A.cardDark.copy(alpha = 0.02f)),
                             center = center, radius = size.minDimension * 0.48f,
                         ),
                         radius = radius * 0.92f,
@@ -1075,23 +1097,49 @@ private fun AlkeFitnessAgeHero(
                         drawCircle(A.cyan.copy(alpha = 0.11f + ambient * 0.22f),
                             radius = (8f + 4f * ambient).dp.toPx(), center = marker)
                         drawCircle(A.white, radius = (3.4f + 0.45f * ambient).dp.toPx(), center = marker)
+                        // Visible orbiting light, not a second reading marker.
+                        val orbitAngle = Math.toRadians((135f + 270f * orbit).toDouble())
+                        val orbitDot = Offset(
+                            center.x + kotlin.math.cos(orbitAngle).toFloat() * radius,
+                            center.y + kotlin.math.sin(orbitAngle).toFloat() * radius,
+                        )
+                        drawCircle(A.gold.copy(alpha = 0.18f), radius = 12.dp.toPx(), center = orbitDot)
+                        drawCircle(A.white.copy(alpha = 0.90f), radius = 3.dp.toPx(), center = orbitDot)
                     }
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(
-                        fitnessAge?.let {
-                            fitnessAgeBoundSymbol(it) + String.format(Locale.US, "%.1f", it)
-                        } ?: "—",
-                        color = A.white.copy(alpha = 0.90f + 0.10f * ambient),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 48.sp, lineHeight = 55.sp,
-                        modifier = Modifier.graphicsLayer {
-                            val scale = 1f + ambient * 0.018f
-                            scaleX = scale
-                            scaleY = scale
-                        },
-                    )
+                    val ageText = fitnessAge?.let {
+                        fitnessAgeBoundSymbol(it) + String.format(Locale.US, "%.1f", it)
+                    } ?: "—"
+                    Box(contentAlignment = Alignment.Center) {
+                        // A soft neon echo behind the real numeral gives an observable
+                        // perpetual breathing/rolling effect without changing its digits.
+                        Text(
+                            ageText,
+                            color = A.cyan.copy(alpha = 0.08f + ambient * 0.32f),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 48.sp, lineHeight = 55.sp,
+                            modifier = Modifier.graphicsLayer {
+                                val scale = 1.04f + ambient * 0.14f
+                                scaleX = scale
+                                scaleY = scale
+                                translationY = -(ambient * 2.dp.toPx())
+                            },
+                        )
+                        Text(
+                            ageText,
+                            color = androidx.compose.ui.graphics.lerp(A.white, A.gold, ambient * 0.58f),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 48.sp, lineHeight = 55.sp,
+                            modifier = Modifier.graphicsLayer {
+                                val scale = 1f + ambient * 0.082f
+                                scaleX = scale
+                                scaleY = scale
+                                translationY = -(ambient * 3.dp.toPx())
+                            },
+                        )
+                    }
                     Text("YEARS", color = A.muted, fontSize = 11.sp,
                         letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
                 }
@@ -1167,22 +1215,50 @@ private fun AlkeFitnessFactorCard(
             label = "alke_factor_${index}_glow",
         ).value
     }
+    val sweep = if (reduced) 0f else {
+        val motion = rememberInfiniteTransition(label = "alke_factor_${index}_sweep_transition")
+        motion.animateFloat(
+            initialValue = -0.20f,
+            targetValue = 1.20f,
+            animationSpec = infiniteRepeatable(
+                tween(durationMillis = 1_650 + index * 240, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "alke_factor_${index}_traveling_light",
+        ).value
+    }
     AlkePanel(modifier.staggeredAppear(index), onClick = onClick) {
         Text(label, color = tint.copy(alpha = 0.75f + shimmer * 0.25f), fontWeight = FontWeight.Bold, fontSize = 10.sp,
             letterSpacing = 0.8.sp, maxLines = 1)
         Text(value, color = A.white, fontWeight = FontWeight.Bold,
             fontSize = if (value.length > 10) 16.sp else 24.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis)
-        Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape)
+        Box(Modifier.fillMaxWidth().height(10.dp).clip(CircleShape)
             .background(A.stroke.copy(alpha = 0.62f))) {
             if (fraction != null && fill > 0f) {
-                Box(Modifier.fillMaxWidth(fill).height(7.dp)
+                Box(Modifier.fillMaxWidth(fill).fillMaxSize()
                     .clip(CircleShape)
-                    .background(Brush.horizontalGradient(listOf(
-                        tint.copy(alpha = 0.62f + 0.30f * shimmer),
-                        tint.copy(alpha = 0.92f),
-                        A.white.copy(alpha = 0.20f + 0.32f * shimmer),
-                    ))))
+                    .background(tint.copy(alpha = 0.68f + 0.28f * shimmer))) {
+                    if (!reduced) {
+                        Canvas(Modifier.fillMaxSize()) {
+                            val highlight = Offset(size.width * sweep, size.height / 2f)
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    listOf(A.white.copy(alpha = 0.92f), tint.copy(alpha = 0.25f),
+                                        Color.Transparent),
+                                    center = highlight, radius = 16.dp.toPx(),
+                                ),
+                                radius = 16.dp.toPx(), center = highlight,
+                            )
+                        }
+                    }
+                }
+            } else if (!reduced) {
+                // A dim traveling indicator means the card is alive, not that data exists.
+                Canvas(Modifier.fillMaxSize()) {
+                    drawCircle(tint.copy(alpha = 0.30f), radius = 3.dp.toPx(),
+                        center = Offset(size.width * sweep, size.height / 2f))
+                }
             }
         }
         Text(caption, color = A.muted, fontSize = 10.sp, lineHeight = 14.sp,
@@ -1219,6 +1295,19 @@ fun AlkeProgressExperience(
         value = row?.value?.takeIf { it.isFinite() }?.let {
             Triple(it, row.day, row.deviceId)
         }
+    }
+    // Reuse the longitudinal Theil-Sen Fitness Age pace; never infer speed from one week.
+    val agePace by produceState(
+        initialValue = FitnessAgePaceEngine.calculate(emptyList()),
+        key1 = vm.activeStrapId, key2 = days,
+    ) {
+        value = runCatching {
+            FitnessAgePaceEngine.calculate(
+                vm.repo.metricSeriesComputedUnion(
+                    vm.activeStrapId, "fitness_age", "0000-01-01", "9999-12-31",
+                ).map { FitnessAgePaceEngine.Point(it.day, it.value) },
+            )
+        }.getOrDefault(FitnessAgePaceEngine.calculate(emptyList()))
     }
     // Show exactly the metabolic factor associated with this stored weekly score.
     // The existing provenance gate filters out stale AI or unrelated lab samples.
@@ -1270,6 +1359,7 @@ fun AlkeProgressExperience(
             fitnessAge = fitnessAgeReading?.first,
             readingDay = fitnessAgeReading?.second,
             chronologicalAge = chronologicalAge,
+            agePace = agePace,
             onClick = onFitnessAge,
         )
         AlkeSectionTitle("Fitness Factors")

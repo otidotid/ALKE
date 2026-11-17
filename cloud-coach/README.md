@@ -1,6 +1,6 @@
-# THOOP Cloud Coach Worker
+# ALKE Cloud Coach Worker
 
-This is THOOP's separately hosted, optional Cloudflare Worker for AI coaching. It uses the Workers AI `AI` binding and, when available, a `DB` D1 binding for conversation summaries and previously stored memories. It is **not** the Android Google Drive backup/restore service.
+This is ALKE's separately hosted, optional Cloudflare Worker for AI coaching. It uses the Workers AI `AI` binding and, when available, a `DB` D1 binding for conversation summaries and previously stored memories. It is **not** the Android Google Drive backup/restore service.
 
 ## Compatibility
 

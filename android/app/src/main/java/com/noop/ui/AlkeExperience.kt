@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -50,6 +51,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.Icon
@@ -84,6 +86,7 @@ import com.noop.data.DailyMetric
 import com.noop.data.HrSample
 import com.noop.data.WorkoutRow
 import com.noop.analytics.RestScorer
+import com.noop.analytics.ActivityHeatmap
 import com.noop.analytics.ReadinessEngine
 import kotlinx.coroutines.delay
 import java.time.LocalDate
@@ -607,7 +610,7 @@ fun AlkeTodayExperience(
                 Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
             }
         }
-        AlkeSectionTitle("Today's Activity", "Train", onTrain)
+        AlkeSectionTitle("Today's Activity")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AlkeMetricTile("Day Strain", niceOne(day?.strain), Icons.Filled.DirectionsRun,
                 Modifier.weight(1f), A.gold, { onMetric("strain") })
@@ -675,6 +678,14 @@ fun AlkeTodayExperience(
  * retains its original full-detail sheet; advanced editing/reporting stays behind
  * the existing workout history destination rather than crowding the overview.
  */
+/**
+ * ALKE Train's deliberately small front surface:
+ * live recording and manual entry, workout Calories and Most Active Sports,
+ * the original 13-week ActivityHeatmap core, and session history.
+ *
+ * All deeper workout filters, reports, edits and history still exist behind
+ * the understated "Manage" link, rather than being deleted from ALKE.
+ */
 @Composable
 fun AlkeTrainingExperience(
     vm: AppViewModel,
@@ -684,53 +695,102 @@ fun AlkeTrainingExperience(
     unreadCount: Int,
     onWorkouts: () -> Unit,
 ) {
-    val day by vm.today.collectAsStateWithLifecycle()
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val sessions by vm.workouts.collectAsStateWithLifecycle()
-    val strain = day?.strain?.takeIf { it.isFinite() && it >= 0 }
+    val live by vm.live.collectAsStateWithLifecycle()
+    val activeWorkout by vm.activeWorkout.collectAsStateWithLifecycle()
     val sortedSessions = remember(sessions) { sessions.sortedByDescending { it.startTs } }
+    val rankedSports = remember(sortedSessions) {
+        sortedSessions.groupBy { WorkoutEditing.displaySport(it.sport) }
+            .map { (sport, rows) ->
+                Triple(sport, rows.size, rows.sumOf { it.durationS ?: 0.0 })
+            }
+            .sortedWith(compareByDescending<Triple<String, Int, Double>> { it.second }
+                .thenByDescending { it.third })
+    }
+    val validCalories = remember(sortedSessions) {
+        sortedSessions.mapNotNull { it.energyKcal?.takeIf { value -> value.isFinite() && value >= 0.0 } }
+    }
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var showActiveWorkout by remember { mutableStateOf(false) }
     var visibleCount by rememberSaveable { mutableIntStateOf(8) }
     var selectedSession by remember { mutableStateOf<WorkoutRow?>(null) }
     LaunchedEffect(vm) { vm.loadWorkouts() }
 
     AlkePage {
-        AlkeHeading("Train", "Every session, one clear picture.")
-        // Keep the measured training load and 7-day effort trend. Redundant
-        // Recovery and Live HR route links are intentionally absent from Train.
-        AlkePanel(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("TODAY'S STRAIN", color = A.gold, fontSize = 10.sp,
-                        letterSpacing = 1.6.sp, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(strain?.roundToInt()?.toString() ?: "—", color = A.white,
-                            fontSize = 41.sp, fontWeight = FontWeight.Bold, lineHeight = 44.sp)
-                        Text(" / 100", color = A.muted, fontSize = 13.sp,
-                            modifier = Modifier.padding(bottom = 6.dp))
-                    }
-                    Text(
-                        if (strain == null) "Awaiting activity data" else "Today's recorded training load",
-                        color = A.muted, fontSize = 11.sp,
-                    )
-                }
-                Box(Modifier.size(74.dp), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.DirectionsRun, contentDescription = null, tint = A.gold,
-                        modifier = Modifier.size(32.dp))
-                }
+        Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val canStart = live.bonded && activeWorkout == null
+            val continueWorkout = activeWorkout != null
+            AlkePanel(Modifier.weight(1f), onClick = when {
+                continueWorkout -> ({ showActiveWorkout = true })
+                canStart -> ({ showStartPicker = true })
+                else -> null
+            }) {
+                Icon(Icons.Filled.DirectionsRun, contentDescription = null,
+                    tint = if (canStart || continueWorkout) A.cyan else A.muted,
+                    modifier = Modifier.size(25.dp))
+                Text(if (continueWorkout) "Continue Workout" else "Start Workout",
+                    color = if (canStart || continueWorkout) A.white else A.muted,
+                    fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(
+                    when {
+                        continueWorkout -> "Recording in progress"
+                        canStart -> "Record a live session"
+                        else -> "Connect a wearable"
+                    },
+                    color = A.muted, fontSize = 11.sp, maxLines = 1,
+                )
+            }
+            AlkePanel(Modifier.weight(1f), onClick = { showAddDialog = true }) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null,
+                    tint = A.gold, modifier = Modifier.size(25.dp))
+                Text("Add Workout", color = A.white, fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text("Log a past session", color = A.muted, fontSize = 11.sp, maxLines = 1)
             }
         }
-        AlkeSectionTitle("7-day effort")
-        AlkeMiniBars(days.takeLast(7).map { it.day.takeLast(5) to it.strain }, A.gold)
+        // The total follows the original Workouts SummarySection calculation
+        // (sum of recorded workout energyKcal, no invented missing values).
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AlkePanel(Modifier.weight(1f)) {
+                Text("CALORIES", color = A.gold, fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                Text(if (validCalories.isEmpty()) "—"
+                    else String.format(Locale.US, "%,.0f", validCalories.sum()),
+                    color = A.white, fontSize = 27.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1)
+                Text("Workout kcal · all sessions", color = A.muted, fontSize = 10.sp,
+                    maxLines = 1)
+            }
+            AlkePanel(Modifier.weight(1f)) {
+                Text("MOST ACTIVE SPORTS", color = A.gold, fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp, maxLines = 1)
+                Text(rankedSports.firstOrNull()?.first ?: "—",
+                    color = A.white, fontSize = 19.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(rankedSports.firstOrNull()?.let {
+                    "${it.second} recorded sessions"
+                } ?: "No sessions yet", color = A.muted, fontSize = 10.sp, maxLines = 1)
+            }
+        }
+        AlkeActiveCaloriesCalendar(days)
 
+        // The all-source, newest-first workout list remains directly on Train
+        // as previously requested; tapping a row opens the ORIGINAL detail sheet.
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Sessions", color = A.white, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            Text("${sortedSessions.size} recorded", color = A.muted, fontSize = 12.sp)
+            Text("Sessions", color = A.white, fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold)
+            Text("Manage", modifier = Modifier.clickable(onClick = onWorkouts)
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+                color = A.cyan, fontSize = 12.sp)
         }
         AlkePanel(Modifier.fillMaxWidth()) {
             if (sortedSessions.isEmpty()) {
-                Text("Recorded workouts will appear here after a session or import.",
-                    color = A.muted, fontSize = 13.sp, lineHeight = 19.sp)
+                Text("Your recorded workouts will appear here.",
+                    color = A.muted, fontSize = 13.sp)
             } else {
                 sortedSessions.take(visibleCount).forEachIndexed { index, row ->
                     if (index > 0) {
@@ -747,38 +807,36 @@ fun AlkeTrainingExperience(
                         modifier = Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .clickable { selectedSession = row }
-                            .padding(vertical = 11.dp),
+                            .padding(vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Box(
-                            Modifier.size(44.dp).clip(RoundedCornerShape(14.dp))
-                                .background(A.gold.copy(alpha = 0.12f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
+                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp))
+                            .background(A.gold.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center) {
                             Icon(Icons.Filled.DirectionsRun, contentDescription = null,
                                 tint = A.gold, modifier = Modifier.size(22.dp))
                         }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(sportName, color = A.white, fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold, maxLines = 1)
                             Text(whenRecorded, color = A.muted, fontSize = 11.sp)
                             Text(buildString {
                                 append("${durationMinutes} min")
-                                row.avgHr?.let { append("  ·  ${it} avg BPM") }
+                                row.avgHr?.let { append(" · ${it} avg BPM") }
                                 row.energyKcal?.takeIf { it.isFinite() }?.let {
-                                    append("  ·  ${it.roundToInt()} kcal")
+                                    append(" · ${it.roundToInt()} kcal")
                                 }
                             }, color = A.muted, fontSize = 11.sp, maxLines = 1,
                                 overflow = TextOverflow.Ellipsis)
                         }
-                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(horizontalAlignment = Alignment.End) {
                             Text(row.strain?.takeIf { it.isFinite() }?.roundToInt()?.toString() ?: "—",
                                 color = A.gold, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                            Text("STRAIN", color = A.muted, fontSize = 9.sp, letterSpacing = 0.6.sp)
-                            Icon(Icons.Filled.ChevronRight, contentDescription = "Workout details",
-                                tint = A.cyan, modifier = Modifier.size(17.dp))
+                            Text("STRAIN", color = A.muted, fontSize = 9.sp)
                         }
+                        Icon(Icons.Filled.ChevronRight, contentDescription = "Workout details",
+                            tint = A.cyan, modifier = Modifier.size(17.dp))
                     }
                 }
             }
@@ -789,25 +847,105 @@ fun AlkeTrainingExperience(
             }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Show older sessions", color = A.cyan, fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text("${sortedSessions.size - visibleCount} remaining",
-                        color = A.muted, fontSize = 11.sp)
-                    Spacer(Modifier.width(7.dp))
+                        modifier = Modifier.weight(1f))
+                    Text("${sortedSessions.size - visibleCount} remaining", color = A.muted, fontSize = 11.sp)
                     Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
                 }
             }
         }
-        // Full legacy tools remain available without a second "All Workouts" module
-        // or duplicated shortcuts above the embedded session feed.
-        Text(
-            "Advanced filters, editing and full training analysis",
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onWorkouts)
-                .padding(vertical = 8.dp),
-            color = A.cyan, fontSize = 12.sp, textAlign = TextAlign.Center,
-        )
+    }
+    if (showStartPicker) {
+        // Same picker, GPS permission flow and LiveWorkoutScreen as the frozen
+        // Workout History: no duplicate recording logic.
+        StartWorkoutSheet(vm, onDismiss = { showStartPicker = false })
+    }
+    if (showAddDialog) {
+        ManualWorkoutDialog(vm, editing = null, onDismiss = { showAddDialog = false },
+            onSave = { row, replacing ->
+                vm.saveManualWorkout(row, replacing)
+                showAddDialog = false
+            })
+    }
+    if (showActiveWorkout && activeWorkout != null) {
+        Dialog(onDismissRequest = { showActiveWorkout = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            LiveWorkoutScreen(vm, onClose = { showActiveWorkout = false })
+        }
     }
     selectedSession?.let { row ->
         WorkoutDetailSheet(vm, row) { selectedSession = null }
+    }
+}
+
+/** ALKE native presentation of the EXISTING, parity-tested ActivityHeatmap model. */
+@Composable
+private fun AlkeActiveCaloriesCalendar(days: List<DailyMetric>) {
+    val values = remember(days) {
+        days.mapNotNull { day ->
+            day.activeKcalEst?.takeIf { it.isFinite() && it >= 0.0 }?.let { day.day to it }
+        }.groupBy({ it.first }, { it.second })
+            .mapValues { (_, kcal) -> kcal.max() }
+    }
+    val today = LocalDate.now().toString()
+    val grid = remember(values, today) { ActivityHeatmap.build(values, today) }
+    val shades = listOf(
+        A.stroke.copy(alpha = 0.34f),
+        A.gold.copy(alpha = 0.25f),
+        A.gold.copy(alpha = 0.48f),
+        A.gold.copy(alpha = 0.72f),
+        A.gold,
+    )
+    AlkePanel(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("ACTIVE CALORIES", color = A.gold, fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                Text("Last 13 weeks", color = A.muted, fontSize = 12.sp)
+            }
+            if (!grid.isEmpty) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(String.format(Locale.US, "%,.0f", grid.total), color = A.white,
+                        fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("kcal · recorded days", color = A.muted, fontSize = 10.sp)
+                }
+            }
+        }
+        if (grid.isEmpty) {
+            Text("Daily active-calorie readings will appear here when available.",
+                color = A.muted, fontSize = 12.sp, lineHeight = 18.sp)
+        } else {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val gap = 3.dp
+                val leftInset = 5.dp
+                val cell = ((maxWidth - leftInset - gap * (grid.weeks - 1)) / grid.weeks)
+                    .coerceAtLeast(3.dp)
+                Canvas(Modifier.fillMaxWidth().height(cell * 7 + gap * 6)) {
+                    val step = cell.toPx() + gap.toPx()
+                    for (c in 0 until grid.weeks) {
+                        for (r in 0 until 7) {
+                            val reading = grid.columns[c][r]
+                            val topLeft = Offset(leftInset.toPx() + c * step, r * step)
+                            val rect = androidx.compose.ui.geometry.Size(cell.toPx(), cell.toPx())
+                            val radius = androidx.compose.ui.geometry.CornerRadius(cell.toPx() * 0.22f)
+                            drawRoundRect(shades[reading.level.coerceIn(0, 4)],
+                                topLeft = topLeft, size = rect, cornerRadius = radius)
+                            if (reading.day == today) {
+                                drawRoundRect(A.white, topLeft = topLeft, size = rect,
+                                    cornerRadius = radius, style = Stroke(width = 1.3.dp.toPx()))
+                            }
+                        }
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
+                Text("Less", color = A.muted, fontSize = 10.sp)
+                shades.forEach { shade ->
+                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(shade))
+                }
+                Text("More", color = A.muted, fontSize = 10.sp)
+            }
+        }
     }
 }
 

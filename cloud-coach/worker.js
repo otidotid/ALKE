@@ -1,6 +1,7 @@
 import { interpretLabsSafely, validLabRequest } from "./lab-interpretation.js";
 import { estimateMetabolicSafely, validMetabolicRequest, METABOLIC_MODEL, METABOLIC_PROMPT_VERSION } from "./metabolic-estimate.js";
 import { toWorkersAIInput, extractWorkersAIText } from "./workers-ai-response.js";
+import { createGroqAI } from "./groq-ai.js";
 
 const WORKERS_AI_MODEL = "@cf/openai/gpt-oss-120b";
 const FOOD_AI_MODEL = "@cf/openai/gpt-oss-20b";
@@ -20,8 +21,14 @@ class HttpError extends Error {
 }
 
 export default {
-  async fetch(request, env = {}) {
+  async fetch(request, deploymentEnv = {}) {
     try {
+      // Production preference: Groq key is a Cloudflare Secret, never in the APK.
+      // Retain the legacy AI binding only while existing deployments migrate.
+      // Set AI_BACKEND=groq to fail closed when its secret is absent.
+      const env = deploymentEnv.GROQ_API_KEY
+        ? { ...deploymentEnv, AI: createGroqAI(deploymentEnv.GROQ_API_KEY) }
+        : { ...deploymentEnv, AI: deploymentEnv.AI_BACKEND === "groq" ? null : deploymentEnv.AI };
       const url = new URL(request.url);
       if (request.method === "GET" && url.pathname === "/") {
         // Health checks do not reveal infrastructure configuration.

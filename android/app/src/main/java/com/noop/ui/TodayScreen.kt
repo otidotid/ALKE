@@ -3475,7 +3475,7 @@ private fun SynthesisHeroCard(
         }
 
         val prompt = buildString {
-            append("Create one concise THOOP Synthesis insight from the latest health recap. ")
+            append("Create one concise ALKE Synthesis insight from the latest health recap. ")
             append("Charge=")
             append(triggerCharge?.roundToInt() ?: "unavailable")
             append(", Effort=")
@@ -3486,7 +3486,7 @@ private fun SynthesisHeroCard(
             )
             append(", Rest=")
             append(triggerRest?.roundToInt() ?: "unavailable")
-            append(". Read the complete current THOOP context supplied with this request. ")
+            append(". Read the complete current ALKE context supplied with this request. ")
             append("Return 2 to 4 short sentences and never more than 5. ")
             append("Choose the single most relevant insight and one practical recommendation. ")
             append("Do not diagnose. Do not use headings, bullets, Markdown, or disclaimers.")

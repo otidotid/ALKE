@@ -72,21 +72,26 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(history.contains("WorkoutDetailSheet("))
     }
 
-    @Test fun stepsRemainExclusivelyInProgressWithFullHistoryRoute() {
+    @Test fun todayActivityTilesAreDayStrainStepsActiveTimeInOrder() {
         val ui = source("src/main/java/com/noop/ui/AlkeExperience.kt")
         val today = ui.substring(ui.indexOf("fun AlkeTodayExperience("),
             ui.indexOf("fun AlkeTrainingExperience("))
         assertTrue(today.contains("AlkeSectionTitle(\"Today's Activity\")"))
         assertFalse(today.contains("AlkeSectionTitle(\"Today's Activity\", \"Train\""))
-        assertFalse(today.contains("onSteps"))
-        assertFalse(today.contains("Text(\"STEPS\""))
-        assertFalse(today.contains("buildSeriesVitalDetail(vm, \"steps_est\")"))
+        val activity = today.substring(today.indexOf("AlkeSectionTitle(\"Today's Activity\")"),
+            today.indexOf("AlkeHeartRatePreview(vm, onHeartRateTimeline)"))
+        val strainPos = activity.indexOf("AlkeMetricTile(\"Day Strain\"")
+        val stepsPos = activity.indexOf("AlkeMetricTile(\"Steps\"")
+        val timePos = activity.indexOf("AlkeMetricTile(\"Active Time\"")
+        assertTrue(strainPos >= 0 && stepsPos > strainPos && timePos > stepsPos)
+        assertTrue(today.contains("buildSeriesVitalDetail(vm, \"steps_est\")"))
+        assertTrue(today.contains("it.day == LocalDate.now().toString()"))
+        assertTrue(today.contains("A.cyan, onSteps"))
+        assertFalse(today.contains("Text(\"Skin Temperature\""))
         val progress = ui.substring(ui.indexOf("fun AlkeProgressExperience("),
             ui.indexOf("fun AlkeInsightExperience("))
         assertTrue(progress.contains("buildSeriesVitalDetail(vm, \"steps_est\")"))
-        assertTrue(progress.contains("Text(\"STEPS\""))
         assertTrue(progress.contains("onClick = onSteps"))
-        assertTrue(progress.contains("Recent steps"))
         val nav = source("src/main/java/com/noop/ui/AppRoot.kt")
         assertTrue(nav.contains("onSteps = { nav.navigate(\"vital_detail/steps_est\") }"))
         val health = source("src/main/java/com/noop/ui/HealthScreen.kt")

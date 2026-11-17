@@ -90,14 +90,22 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(health.contains("mergeStepsReadings(real, imported, est)"))
     }
 
-    @Test fun skinTemperatureIsDiscoverableFromTodayWithoutRemovingHealthSuite() {
+    @Test fun skinTemperatureLivesInInsightBelowRestingHrAndKeepsOriginalHistory() {
         val ui = source("src/main/java/com/noop/ui/AlkeExperience.kt")
         val today = ui.substring(ui.indexOf("fun AlkeTodayExperience("),
             ui.indexOf("fun AlkeTrainingExperience("))
-        assertTrue(today.contains("Text(\"Skin Temperature\""))
-        assertTrue(today.contains("onMetric(\"skin\")"))
+        assertFalse(today.contains("Text(\"Skin Temperature\""))
+        assertFalse(today.contains("onMetric(\"skin\")"))
+        val insight = ui.substring(ui.indexOf("fun AlkeInsightExperience("),
+            ui.indexOf("ALKE-exclusive Heart Rate Timeline"))
+        val rest = insight.indexOf("Triple(\"Resting HR\"")
+        val skin = insight.indexOf("Text(\"Skin Temperature\"")
+        assertTrue(rest >= 0 && skin > rest)
+        assertTrue(insight.contains("onClick = onSkinTemp"))
+        assertTrue(insight.contains("absoluteSkinC"))
+        assertTrue(insight.contains("deviationSkinC"))
         val nav = source("src/main/java/com/noop/ui/AppRoot.kt")
-        assertTrue(nav.contains("onMetric = { key -> nav.navigate(\"vital_detail/$key\") }"))
+        assertTrue(nav.contains("onSkinTemp = { nav.navigate(\"vital_detail/skin\") }"))
         val health = source("src/main/java/com/noop/ui/HealthScreen.kt")
         assertTrue(health.contains("SkinTempSuiteSection("))
     }

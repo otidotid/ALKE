@@ -135,7 +135,7 @@ class AlkeAlpha5ExperienceContractTest {
         val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
         assertTrue(nav.contains("Destination.Health -> \"Fitness Age\""))
         assertTrue(nav.contains("Text(titleOverride ?: alkeModuleLabel(dest)"))
-        assertTrue(nav.contains("onRestingHr = { nav.navigate(\"vital_detail/resting_hr\") }"))
+        assertTrue(nav.contains("onRestingHr = { nav.navigate(\"vital_detail/rhr\") }"))
         val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
         val progress = ui.substring(ui.indexOf("fun AlkeProgressExperience("),
             ui.indexOf("fun AlkeInsightExperience("))

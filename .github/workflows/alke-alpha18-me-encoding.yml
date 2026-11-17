@@ -1,0 +1,136 @@
+name: ALKE - Alpha 18 Me and Encoding Verification
+
+on:
+  push:
+    branches:
+      - alke/alpha18-me-encoding-repair
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: alke-alpha18-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  google-login-build-and-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      # Google Web client IDs are public identifiers; keep configurable in the build.
+      # IMPORTANT: A Web ID alone is not sufficient. Google Cloud must register the
+      # Android OAuth package + signing SHA-1 for EACH installed app variant.
+      # Web OAuth Client ID is a public identifier (not a client secret).
+      # An Actions secret can override this project default if configuration changes.
+      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID || '542598370283-1gr0qq8ad4ga691k3lvrotma140hcu5r.apps.googleusercontent.com' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Restore immutable parity fixtures for full Android unit tests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REFERENCE_REPOSITORY_ID: 1401373206
+          SOURCE_SHA: de24b55946de9d904f002441e0d24923ef91f2c6
+        run: |
+          set -euo pipefail
+          REFERENCE_URL="$(gh api "/repositories/$REFERENCE_REPOSITORY_ID" --jq '.clone_url')"
+          test -n "$REFERENCE_URL"
+          git clone --depth=1 --branch v13.2.0 --single-branch \
+            "$REFERENCE_URL" "$RUNNER_TEMP/alke-reference-v13.2.0"
+          test "$(git -C "$RUNNER_TEMP/alke-reference-v13.2.0" rev-parse HEAD)" = "$SOURCE_SHA"
+          for dir in Strand StrandTests StrandiOS; do
+            rsync -a "$RUNNER_TEMP/alke-reference-v13.2.0/$dir/" "$GITHUB_WORKSPACE/$dir/"
+          done
+          mkdir -p "$GITHUB_WORKSPACE/Tools/parity_cases"
+          cp "$RUNNER_TEMP/alke-reference-v13.2.0/Tools/parity_cases/device_raw_sources.json" \
+            "$GITHUB_WORKSPACE/Tools/parity_cases/device_raw_sources.json"
+      - name: Report Google OAuth setup status
+        shell: bash
+        run: |
+          if [[ -z "${ALKE_GOOGLE_WEB_CLIENT_ID}" ]]; then
+            echo "### Google login configuration: MISSING" >> "$GITHUB_STEP_SUMMARY"
+            echo "Compile/test will run. Sign-in on this APK needs local Web client ID setup or a rebuild with ALKE_GOOGLE_WEB_CLIENT_ID." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${ALKE_GOOGLE_WEB_CLIENT_ID}" =~ ^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$ ]]; then
+            echo "### Google login configuration: Web OAuth ID present" >> "$GITHUB_STEP_SUMMARY"
+            echo "Android OAuth clients still need the exact package + installed signing SHA-1 in Google Cloud." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::ALKE_GOOGLE_WEB_CLIENT_ID has an invalid format (expected a Web OAuth Client ID)."
+            exit 1
+          fi
+      - name: Build APK variants without any personal data
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:assembleFullDebug :app:assemblePersonalDebug
+      - name: Test Google OAuth and whole-app JVM suite
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon :app:testFullDebugUnitTest
+      - name: Validate public and private-base APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          full=(android/app/build/outputs/apk/full/debug/*.apk)
+          personal=(android/app/build/outputs/apk/personal/debug/*.apk)
+          test "${#full[@]}" -eq 1
+          test "${#personal[@]}" -eq 1
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          "$aapt" dump badging "${full[0]}" | grep -q "package: name='com.otidotid.alke.debug'"
+          "$aapt" dump badging "${personal[0]}" | grep -q "package: name='com.otidotid.alke.personal.debug'"
+          for apk in "${full[0]}" "${personal[0]}"; do
+            test "$(stat -c '%s' "$apk")" -gt 1000000
+            unzip -t "$apk" | tail -1
+            ! unzip -Z1 "$apk" | grep -Eq '(alke-private-backup|noop-backup|\\.alkebak|\\.noopbak)'
+            sha256sum "$apk"
+          done
+          mkdir -p release-apk personal-base
+          cp "${full[0]}" release-apk/ALKE-v1.0.0-alpha.18-debug.apk
+          cp "${personal[0]}" personal-base/ALKE-v1.0.0-alpha.18-personal-UNSIGNED-FOR-OWNER.apk
+      - name: Upload public APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha18-public-APK-NO-PERSONAL-DATA
+          path: release-apk/ALKE-v1.0.0-alpha.18-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload clean personal-base APK artifact for local re-signing only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha18-personal-base-REQUIRES-PRIVATE-RE-SIGN
+          path: personal-base/ALKE-v1.0.0-alpha.18-personal-UNSIGNED-FOR-OWNER.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Publish verified PUBLIC GitHub prerelease APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v1.0.0-alpha.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists. Refusing overwrite."
+            exit 1
+          fi
+          cat > release-notes.md <<'EOF'
+          ## ALKE v1.0.0-alpha.18 — Google Login, Coach Chat, Me
+          - Repaired mojibake in Settings and Me source text, including separators and arrow symbols.
+          - Retained Me embedding Settings controls; device smoke testing is still required.
+          - Restored real AI Coach chat for configured OpenAI, Anthropic, Gemini and Custom providers; preserves the existing Cloud Coach transport.
+          - Coach now exposes provider/API key setup directly on the Coach screen and transitions to chat without a restart.
+          - Moved the complete Settings controls into Me; removed My profile and Settings rows from Me without deleting settings.
+          - Google Sign-In validates a Web OAuth Client ID and offers local setup when a build has no ID. Android OAuth client must match the installed package and signing certificate SHA-1.
+          - No health records, private tokens, backup data or signing keys are included in this public APK.
+          - This PUBLIC APK uses package com.otidotid.alke.debug. The PRIVATE personal installation (com.otidotid.alke.personal.debug) has a distinct package and MUST be updated by locally re-signing the separate personal-base artifact with the owner's original certificate; do not uninstall an existing personal installation.
+          - Build and JVM unit tests are CI-gated. Google OAuth, provider requests, and hardware interactions still require real-device smoke tests.
+          EOF
+          gh release create "$TAG" release-apk/ALKE-v1.0.0-alpha.18-debug.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "ALKE v1.0.0-alpha.18 — Me encoding repair" \
+            --notes-file release-notes.md --prerelease

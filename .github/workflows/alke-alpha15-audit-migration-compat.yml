@@ -37,7 +37,7 @@ jobs:
           test -f android/app/src/test/java/com/otidotid/alke/data/LegacyBackupRestoreTest.kt
           grep -q 'ALKE' android/app/src/main/res/values/strings.xml
           ! git ls-files | grep -Eq '([N]OOP|[N]oop|[n]oop|[T]HOOP|[T]hoop|[t]hoop)'
-          ! git grep -nE '([N]OOP|[N]oop|[n]oop|[T]HOOP|[T]hoop|[t]hoop)' -- . ':!LICENSE' ':!NOTICE' ':!ATTRIBUTION.md ':!android/app/src/main/java/com/otidotid/alke/data/DataBackup.kt' ':!android/app/src/test/java/com/otidotid/alke/data/LegacyBackupRestoreTest.kt' ':!docs/alke-15-migration-audit.md'
+          ! git grep -nE '([N]OOP|[N]oop|[n]oop|[T]HOOP|[T]hoop|[t]hoop)' -- . ':!LICENSE' ':!NOTICE' ':!ATTRIBUTION.md' ':!android/app/src/main/java/com/otidotid/alke/data/DataBackup.kt' ':!android/app/src/test/java/com/otidotid/alke/data/LegacyBackupRestoreTest.kt' ':!docs/alke-15-migration-audit.md'
           echo 'ALKE active repository: no old source identity, filenames or readable project labels'
 
           grep -q 'versionName = "1.0.0-alpha.15"' android/app/build.gradle.kts

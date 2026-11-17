@@ -44,8 +44,8 @@ class AlkeIntegrationCompatibilityTest {
         assertTrue(manifest.contains("android:name=\"com.otidotid.alke.ui.MainActivity\""))
         assertTrue(manifest.contains("android:authorities=\"${'$'}{applicationId}.fileprovider\""))
         assertTrue(manifest.contains("com.otidotid.alke.ble.WhoopConnectionService"))
-        // Existing Android component class names are not user-visible branding.
-        assertFalse(manifest.contains("com.otidotid.alke.ui.MainActivity"))
+        // The rebranded manifest must point to the existing ALKE activity.
+        assertTrue(manifest.contains("com.otidotid.alke.ui.MainActivity"))
     }
 
     @Test fun existingWorkManagerAndBackupIdentifiersAreNeverBlindlyRenamed() {

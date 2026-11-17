@@ -67,8 +67,12 @@ class AlkeIntegrationCompatibilityTest {
             "ALKE_CLOUD_COACH_URL", "ALKE_CLOUD_COACH_URL",
         )) assertTrue("Missing config: $key", gradle.contains(key))
         val signin = source("src/main/java/com/otidotid/alke/ui/GoogleAccountSettings.kt")
-        assertTrue(signin.contains("ALKE_GOOGLE_WEB_CLIENT_ID"))
+        // Google OAuth can now be configured at runtime for a CI APK without a compiled-in ID.
+        // The Gradle config key remains supported (asserted above); the UI controller should
+        // read validated runtime configuration and retain the original BuildConfig fallback.
+        assertTrue(signin.contains("GoogleOAuthClientConfig.current(appContext)"))
         assertTrue(signin.contains("BuildConfig.GOOGLE_WEB_CLIENT_ID"))
+        assertTrue(signin.contains("isValidGoogleWebClientId"))
         val cloud = source("src/main/java/com/otidotid/alke/ai/CloudCoachClient.kt")
         assertTrue(cloud.contains("ALKE Cloud Coach"))
         assertTrue(cloud.contains("BuildConfig.CLOUD_COACH_BASE_URL"))

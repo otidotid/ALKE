@@ -993,7 +993,8 @@ private fun FitnessAgeHero(
         else -> "AGING PACE"
     }
     // A low-amplitude continuous glow keeps the recorded weekly age alive, without changing it.
-    val reduceAgeMotion = rememberReduceMotion()
+    // Continuous animation must respect power saver as well as system Reduce Motion.
+    val reduceAgeMotion = rememberReduceMotion() || rememberPoseStill()
     val agePulse = if (reduceAgeMotion) 0f else {
         val motion = rememberInfiniteTransition(label = "alke_health_fitness_age_ambient")
         motion.animateFloat(

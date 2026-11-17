@@ -75,6 +75,50 @@ class LegacyBackupRestoreTest {
         assertTrue(DataBackup.backupStreamIsIntact(file.inputStream()))
     }
 
+    @Test fun legacyThoopFoodHistoryIsPreservedInSameRestore() {
+        val backup = tmp.newFile()
+        val foodBytes = magic + "synthetic-food-rows".toByteArray()
+        ZipOutputStream(backup.outputStream()).use { zip ->
+            zip.putNextEntry(ZipEntry("noop-backup.sqlite"))
+            zip.write(sample)
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("thoop-food.sqlite"))
+            zip.write(foodBytes)
+            zip.closeEntry()
+        }
+        val staged = tmp.newFile()
+        val stagedFood = tmp.newFile()
+        stagedFood.delete()
+        assertEquals(
+            DataBackup.StageResult.OK,
+            DataBackup.stageBackupSqlite(
+                backup.inputStream(), DataBackup.peekHeader(backup), staged,
+                foodDest = stagedFood,
+            ),
+        )
+        assertArrayEquals(sample, staged.readBytes())
+        assertArrayEquals(foodBytes, stagedFood.readBytes())
+        assertTrue(DataBackup.containsFoodHistory(backup))
+        assertEquals(sample.size.toLong() + foodBytes.size, DataBackup.restoreDatabaseBytes(backup))
+    }
+
+    @Test fun unknownFoodDatabaseIsNotMistakenForAValidLegacyEntry() {
+        assertTrue(DataBackup.supportedFoodBackupEntry("thoop-food.sqlite"))
+        assertTrue(DataBackup.supportedFoodBackupEntry("noop-food.sqlite"))
+        assertTrue(DataBackup.supportedFoodBackupEntry("alke-food.sqlite"))
+        assertFalse(DataBackup.supportedFoodBackupEntry("foreign-food.sqlite"))
+        val backup = tmp.newFile()
+        ZipOutputStream(backup.outputStream()).use { zip ->
+            zip.putNextEntry(ZipEntry("noop-backup.sqlite"))
+            zip.write(sample)
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("foreign-food.sqlite"))
+            zip.write(magic)
+            zip.closeEntry()
+        }
+        assertFalse(DataBackup.containsFoodHistory(backup))
+    }
+
     @Test fun unrelatedSqliteAndForgedNameAreRejected() {
         assertFalse(DataBackup.supportedHealthBackupEntry("unrelated.sqlite"))
         assertFalse(DataBackup.supportedHealthBackupEntry("my-noop-backup.sqlite"))

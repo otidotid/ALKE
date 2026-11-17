@@ -81,6 +81,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.data.DailyMetric
+import com.noop.data.HrSample
+import com.noop.data.WorkoutRow
 import com.noop.analytics.RestScorer
 import com.noop.analytics.ReadinessEngine
 import kotlinx.coroutines.delay
@@ -444,6 +446,59 @@ private fun readinessText(score: Double?): String = when {
     else -> "Your recorded recovery is lower today. Prioritize rest and check your trends."
 }
 
+/**
+ * The compact Today hero reads the actual live BLE stream while connected,
+ * falling back to the latest STORED HR sample. It never invents a current BPM:
+ * stale samples are labeled with their recorded time. The existing detail route
+ * is deliberately unchanged, including workout/sleep overlays and gestures.
+ */
+@Composable
+private fun AlkeHeartRatePreview(vm: AppViewModel, onOpen: () -> Unit) {
+    val live by vm.live.collectAsStateWithLifecycle()
+    val activeId = vm.activeStrapId
+    val stored by produceState<HrSample?>(initialValue = null, key1 = activeId) {
+        while (true) {
+            value = runCatching {
+                listOfNotNull(
+                    vm.repo.latestHr(activeId),
+                    if (activeId != "my-whoop") vm.repo.latestHr("my-whoop") else null,
+                ).maxByOrNull { it.ts }
+            }.getOrNull()
+            delay(15_000L)
+        }
+    }
+    // "Live" is truthful only when the device is really connected.
+    val currentBpm = if (live.connected) live.heartRate?.takeIf { it in 35..220 } else null
+    val shownBpm = currentBpm ?: stored?.bpm?.takeIf { it in 35..220 }
+    val label = when {
+        currentBpm != null -> "LIVE · WEARABLE CONNECTED"
+        stored != null -> "LAST RECORDED · " +
+            Instant.ofEpochSecond(stored!!.ts).atZone(ZoneId.systemDefault())
+                .format(DateTimeFormatter.ofPattern("d MMM, HH:mm", Locale.getDefault()))
+        else -> "AWAITING HEART-RATE DATA"
+    }
+    AlkePanel(Modifier.fillMaxWidth(), onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Favorite, contentDescription = null, tint = A.cyan,
+                modifier = Modifier.size(21.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("HEART RATE", color = A.cyan, fontWeight = FontWeight.Bold,
+                letterSpacing = 1.6.sp, fontSize = 11.sp)
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Filled.ChevronRight, contentDescription = "Open heart-rate timeline",
+                tint = A.cyan, modifier = Modifier.size(23.dp))
+        }
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(shownBpm?.toString() ?: "—", color = A.white, fontSize = 49.sp,
+                fontWeight = FontWeight.Bold, lineHeight = 51.sp)
+            Text("BPM", color = A.muted, fontSize = 16.sp,
+                fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 8.dp))
+        }
+        Text(label, color = if (currentBpm != null) A.green else A.muted,
+            fontSize = 11.sp, letterSpacing = 0.3.sp, maxLines = 1)
+    }
+}
+
 @Composable
 fun AlkeTodayExperience(
     vm: AppViewModel,
@@ -563,13 +618,9 @@ fun AlkeTodayExperience(
         }
         Text("Active Time reflects recorded workouts; unavailable activity is never estimated.",
             color = A.muted, fontSize = 10.sp)
-        // Retain THOOP's complete time-aligned HR chart with its workout icons,
-        // sleep bands and zoom controls. This is a drill-down, not a Strain replacement.
-        AlkeLinkRow(
-            "Heart Rate Timeline",
-            "24-hour HR chart with workout markers and sleep periods",
-            Icons.Filled.MonitorHeart, onHeartRateTimeline, A.cyan,
-        )
+        // Tapping this compact real/latest BPM card retains the existing detailed
+        // Heart Rate Timeline route, chart, workout icons, sleep bands and gestures.
+        AlkeHeartRatePreview(vm, onHeartRateTimeline)
         AlkeSectionTitle("My Day")
         AlkePanel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
@@ -618,6 +669,12 @@ fun AlkeTodayExperience(
     }
 }
 
+/**
+ * Activity-centric Train surface. Shows the same all-source session list owned
+ * by AppViewModel.loadWorkouts(), not a duplicate database/query. Each session
+ * retains its original full-detail sheet; advanced editing/reporting stays behind
+ * the existing workout history destination rather than crowding the overview.
+ */
 @Composable
 fun AlkeTrainingExperience(
     vm: AppViewModel,
@@ -626,28 +683,131 @@ fun AlkeTrainingExperience(
     onProfile: () -> Unit,
     unreadCount: Int,
     onWorkouts: () -> Unit,
-    onLive: () -> Unit,
-    onRecovery: () -> Unit,
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val days by vm.recentDays.collectAsStateWithLifecycle()
+    val sessions by vm.workouts.collectAsStateWithLifecycle()
     val strain = day?.strain?.takeIf { it.isFinite() && it >= 0 }
+    val sortedSessions = remember(sessions) { sessions.sortedByDescending { it.startTs } }
+    var visibleCount by rememberSaveable { mutableIntStateOf(8) }
+    var selectedSession by remember { mutableStateOf<WorkoutRow?>(null) }
+    LaunchedEffect(vm) { vm.loadWorkouts() }
+
     AlkePage {
-        AlkeHeading("Train", "Know the effort behind every session.")
+        AlkeHeading("Train", "Every session, one clear picture.")
+        // Keep the measured training load and 7-day effort trend. Redundant
+        // Recovery and Live HR route links are intentionally absent from Train.
         AlkePanel(Modifier.fillMaxWidth()) {
-            Text("TODAY'S EFFORT", color = A.gold, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                AlkeGauge("Training strain", strain, ((strain ?: 0.0) / 100.0).toFloat(), 210.dp, colors = listOf(A.gold, Color(0xFFF19B34), A.gold))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("TODAY'S STRAIN", color = A.gold, fontSize = 10.sp,
+                        letterSpacing = 1.6.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(strain?.roundToInt()?.toString() ?: "—", color = A.white,
+                            fontSize = 41.sp, fontWeight = FontWeight.Bold, lineHeight = 44.sp)
+                        Text(" / 100", color = A.muted, fontSize = 13.sp,
+                            modifier = Modifier.padding(bottom = 6.dp))
+                    }
+                    Text(
+                        if (strain == null) "Awaiting activity data" else "Today's recorded training load",
+                        color = A.muted, fontSize = 11.sp,
+                    )
+                }
+                Box(Modifier.size(74.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.DirectionsRun, contentDescription = null, tint = A.gold,
+                        modifier = Modifier.size(32.dp))
+                }
             }
-            Text(
-                if (strain == null) "Waiting for enough activity data" else "On-device effort estimate (0–100 scale)",
-                color = A.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-            )
         }
-        AlkeSectionTitle("Recent effort", "All workouts", onWorkouts)
+        AlkeSectionTitle("7-day effort")
         AlkeMiniBars(days.takeLast(7).map { it.day.takeLast(5) to it.strain }, A.gold)
-        AlkeLinkRow("Live HR", "Heart rate, zones and recording tools", Icons.Filled.Favorite, onLive, A.cyan)
-        AlkeLinkRow("Recovery", "Rest and recovery before your next workout", Icons.Filled.Bedtime, onRecovery, A.blue)
+
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Sessions", color = A.white, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text("${sortedSessions.size} recorded", color = A.muted, fontSize = 12.sp)
+        }
+        AlkePanel(Modifier.fillMaxWidth()) {
+            if (sortedSessions.isEmpty()) {
+                Text("Recorded workouts will appear here after a session or import.",
+                    color = A.muted, fontSize = 13.sp, lineHeight = 19.sp)
+            } else {
+                sortedSessions.take(visibleCount).forEachIndexed { index, row ->
+                    if (index > 0) {
+                        Spacer(Modifier.height(1.dp).fillMaxWidth()
+                            .background(A.stroke.copy(alpha = 0.45f)))
+                    }
+                    val sportName = WorkoutEditing.displaySport(row.sport)
+                    val whenRecorded = Instant.ofEpochSecond(row.startTs)
+                        .atZone(ZoneId.systemDefault())
+                        .format(DateTimeFormatter.ofPattern("d MMM yyyy · HH:mm", Locale.getDefault()))
+                    val durationMinutes = ((row.durationS ?: (row.endTs - row.startTs).toDouble())
+                        .coerceAtLeast(0.0) / 60.0).roundToInt()
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { selectedSession = row }
+                            .padding(vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Box(
+                            Modifier.size(44.dp).clip(RoundedCornerShape(14.dp))
+                                .background(A.gold.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Filled.DirectionsRun, contentDescription = null,
+                                tint = A.gold, modifier = Modifier.size(22.dp))
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(sportName, color = A.white, fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text(whenRecorded, color = A.muted, fontSize = 11.sp)
+                            Text(buildString {
+                                append("${durationMinutes} min")
+                                row.avgHr?.let { append("  ·  ${it} avg BPM") }
+                                row.energyKcal?.takeIf { it.isFinite() }?.let {
+                                    append("  ·  ${it.roundToInt()} kcal")
+                                }
+                            }, color = A.muted, fontSize = 11.sp, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis)
+                        }
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(row.strain?.takeIf { it.isFinite() }?.roundToInt()?.toString() ?: "—",
+                                color = A.gold, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            Text("STRAIN", color = A.muted, fontSize = 9.sp, letterSpacing = 0.6.sp)
+                            Icon(Icons.Filled.ChevronRight, contentDescription = "Workout details",
+                                tint = A.cyan, modifier = Modifier.size(17.dp))
+                        }
+                    }
+                }
+            }
+        }
+        if (visibleCount < sortedSessions.size) {
+            AlkePanel(Modifier.fillMaxWidth(), onClick = {
+                visibleCount = (visibleCount + 10).coerceAtMost(sortedSessions.size)
+            }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Show older sessions", color = A.cyan, fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text("${sortedSessions.size - visibleCount} remaining",
+                        color = A.muted, fontSize = 11.sp)
+                    Spacer(Modifier.width(7.dp))
+                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
+                }
+            }
+        }
+        // Full legacy tools remain available without a second "All Workouts" module
+        // or duplicated shortcuts above the embedded session feed.
+        Text(
+            "Advanced filters, editing and full training analysis",
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onWorkouts)
+                .padding(vertical = 8.dp),
+            color = A.cyan, fontSize = 12.sp, textAlign = TextAlign.Center,
+        )
+    }
+    selectedSession?.let { row ->
+        WorkoutDetailSheet(vm, row) { selectedSession = null }
     }
 }
 

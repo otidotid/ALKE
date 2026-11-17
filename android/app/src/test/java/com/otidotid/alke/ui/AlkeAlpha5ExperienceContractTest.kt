@@ -118,7 +118,7 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(progress.contains("onClick = onFitnessAge"))
         assertTrue(ui.contains("rememberReduceMotion()"))
         assertTrue(ui.contains("animateFloatAsState("))
-        assertTrue(ui.contains("fitnessAgeBoundSymbol(it)"))
+        assertFalse("Fitness Age should render a bare numeric value", ui.contains("fitnessAgeBoundSymbol(it)"))
         assertTrue(ui.contains("AGE SCALE 20–80"))
         val hero = ui.substring(ui.indexOf("private fun AlkeFitnessAgeHero("),
             ui.indexOf("fun AlkeProgressExperience("))
@@ -196,6 +196,21 @@ class AlkeAlpha5ExperienceContractTest {
         assertFalse(module.contains("l10n_health_screen_weight_height_and_waist_add_a_fd2699f5"))
         assertTrue(module.contains("currentFitnessAgeMetabolicFactor("))
         assertTrue(module.contains("FitnessAgeDetailExperience("))
+        // Today UI and its existing live-preview card remain untouched.
+        val today = ui.substring(ui.indexOf("fun AlkeTodayExperience("),
+            ui.indexOf("fun AlkeTrainingExperience("))
+        assertTrue(today.contains("AlkeHeartRatePreview(vm, onHeartRateTimeline)"))
+        // The duplicate live HR card is hidden only within the Fitness Age module.
+        val healthPage = module.substring(module.indexOf("fun HealthScreen("),
+            module.indexOf("fun FitnessAgeSection("))
+        assertFalse(healthPage.contains("item { HeartRateSection(vm = vm"))
+        assertTrue(module.contains("private fun HeartRateSection("))
+        assertTrue(module.contains("alke_health_age_orbit_sweep"))
+        assertTrue(module.contains("ALKE aurora:"))
+        assertTrue(ui.contains("Continuous ALKE cyan/gold aurora"))
+        assertFalse(module.contains("\"\$boundSymbol\$shown\""))
+        assertFalse(module.contains("fitnessAgeBoundSymbol(latest.value) + format(latest.value)"))
+        assertFalse(ui.contains("fitnessAgeBoundSymbol(it)"))
     }
 
     @Test fun skinTemperatureLivesInInsightBelowRestingHrAndKeepsOriginalHistory() {

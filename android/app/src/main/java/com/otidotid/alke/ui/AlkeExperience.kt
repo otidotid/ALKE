@@ -687,10 +687,8 @@ fun AlkeTodayExperience(
 }
 
 /**
- * Four primary Train surfaces requested for ALKE:
- * Calories, Most Active Sports, Add Workout, and Active Calories calendar.
- * The understated History action opens the ORIGINAL WorkoutsScreen, preserving
- * live start/stop, full session details, filters, reports, and editing.
+ * Train unifies the workout summary, live/manual controls, Active Calories,
+ * Activity Breakdown, and All Sessions on one page. No separate History route.
  */
 @Composable
 fun AlkeTrainingExperience(
@@ -699,7 +697,6 @@ fun AlkeTrainingExperience(
     onDevices: () -> Unit,
     onProfile: () -> Unit,
     unreadCount: Int,
-    onWorkouts: () -> Unit,
 ) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val sessions by vm.workouts.collectAsStateWithLifecycle()
@@ -719,13 +716,7 @@ fun AlkeTrainingExperience(
     LaunchedEffect(vm) { vm.loadWorkouts() }
 
     AlkePage {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-            Text("History", modifier = Modifier.clickable(onClick = onWorkouts)
-                .padding(horizontal = 4.dp, vertical = 10.dp),
-                color = A.cyan, fontSize = 13.sp)
-        }
+        Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
         // Original all-source workout summary; unavailable calories are not estimated.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AlkePanel(Modifier.weight(1f)) {
@@ -749,20 +740,10 @@ fun AlkeTrainingExperience(
                 } ?: "No sessions yet", color = A.muted, fontSize = 10.sp, maxLines = 1)
             }
         }
-        AlkePanel(Modifier.fillMaxWidth(), onClick = { showAddDialog = true }) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = A.gold,
-                    modifier = Modifier.size(26.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Add Workout", color = A.white, fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold)
-                    Text("Log a past session", color = A.muted, fontSize = 11.sp)
-                }
-                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
-            }
-        }
+        AlkeTrainWorkoutActions(vm, onAdd = { showAddDialog = true })
         AlkeActiveCaloriesCalendar(vm, days)
+        // Both original workout sections now sit directly below Active Calories.
+        AlkeTrainHistorySections(vm)
     }
     if (showAddDialog) {
         ManualWorkoutDialog(vm, editing = null, onDismiss = { showAddDialog = false },
@@ -770,6 +751,42 @@ fun AlkeTrainingExperience(
                 vm.saveManualWorkout(row, replacing)
                 showAddDialog = false
             })
+    }
+}
+
+/**
+ * Premium Start/Add row. A live start requires a bonded wearable; while recording
+ * we reuse the original pause/resume/open/end banner and manual Add action.
+ */
+@Composable
+private fun AlkeTrainWorkoutActions(vm: AppViewModel, onAdd: () -> Unit) {
+    val live by vm.live.collectAsStateWithLifecycle()
+    val activeWorkout by vm.activeWorkout.collectAsStateWithLifecycle()
+    var showStartWorkout by remember { mutableStateOf(false) }
+    if (activeWorkout != null) {
+        WorkoutStartSection(vm, onAdd = onAdd)
+    } else {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AlkePanel(Modifier.weight(1f),
+                onClick = if (live.bonded) ({ showStartWorkout = true }) else null) {
+                Icon(Icons.Filled.DirectionsRun, contentDescription = null,
+                    tint = if (live.bonded) A.gold else A.muted, modifier = Modifier.size(24.dp))
+                Text("Start Workout", color = if (live.bonded) A.white else A.muted,
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(if (live.bonded) "Record a live session" else "Connect a wearable",
+                    color = A.muted, fontSize = 10.sp, maxLines = 1)
+            }
+            AlkePanel(Modifier.weight(1f), onClick = onAdd) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null,
+                    tint = A.cyan, modifier = Modifier.size(24.dp))
+                Text("Add Workout", color = A.white, fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text("Log a past session", color = A.muted, fontSize = 10.sp, maxLines = 1)
+            }
+        }
+    }
+    if (showStartWorkout) {
+        StartWorkoutSheet(vm = vm, onDismiss = { showStartWorkout = false })
     }
 }
 

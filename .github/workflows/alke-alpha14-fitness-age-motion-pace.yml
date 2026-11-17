@@ -68,6 +68,9 @@ jobs:
           grep -q 'alke_fitness_age_breathe' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
           grep -q 'alke_health_fitness_age_breathe' android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
           grep -q 'continuousAgeMotionUsesRealPaceAndHasNoExtraWaistNags' android/app/src/test/java/com/otidotid/alke/ui/AlkeAlpha5ExperienceContractTest.kt
+          grep -q 'ALKE aurora:' android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
+          ! grep -q 'item { HeartRateSection(vm = vm, hrMax = hrMax) }' android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
+          grep -q 'AlkeHeartRatePreview(vm, onHeartRateTimeline)' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
           grep -q 'alke_age_orbit_sweep' android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
           grep -q 'fitness_age_bar_sweep_' android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
           ! grep -q 'How this estimate is built' android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
@@ -185,7 +188,8 @@ jobs:
           - Metabolic displays the factor from the same saved weekly score and passes the original provenance validation; when unavailable, it displays an explicit missing-data state. No new age calculations are introduced.
           - Fitness Age numerals visibly animate their halo, size, color and orbiting light continuously; factor bars now carry a traveling highlight on every cycle, including Health detail scales. Measurement positions and numerical data stay fixed. System Reduce Motion disables motion.
           - Replaced WEEKLY UPDATE beside the Fitness Age score with the actual Theil-Sen longitudinal pace from saved weekly Fitness Age history. AGE DOWN is only used for a negative trend; positive trends display AGING PACE, insufficient history displays CALIBRATING. The scale remains 20–80.
-          - Removed the optional 'How this estimate is built' disclosure and 'Add your waist' prompts from the Fitness Age module. Original history, readiness for not-yet-scored users, medical/lab data, algorithms and detailed views remain accessible.\n          - Train retains alpha.10 Start Workout + Add Workout, Active Calories, Activity Breakdown, and All Sessions in one page.
+          - Removed the optional 'How this estimate is built' disclosure, 'Add your waist' prompts, and redundant Live Heart Rate card from Fitness Age only. Today, original live HR functionality, saved HR history, readiness for not-yet-scored users, medical/lab data, algorithms and detailed views remain unchanged.
+          - Cyan/gold aurora, animated background halo and traveling light orbit behind Fitness Age digits; removed the ≤/≥ bound prefixes in Fitness Age modules and the Progress hero while retaining actual stored numerical values.\n          - Train retains alpha.10 Start Workout + Add Workout, Active Calories, Activity Breakdown, and All Sessions in one page.
           - Reuses the original All Sessions details, filters, edit/duplicate, relabel, dismiss, merge and delete actions. Live Start reuses the existing picker and in-progress controls; recording needs a bonded wearable.
           - Premium navy/cyan/gold styling is locked. The Appearance, custom background and icon-selection controls were removed from Settings. Language/time preferences remain accessible.
           - Migrated source namespaces and filenames to ALKE, plus resource IDs, app notifications, generated reports, storage keys, database/backup identifiers and AI service labels.

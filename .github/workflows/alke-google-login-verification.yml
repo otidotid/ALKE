@@ -1,0 +1,60 @@
+name: ALKE - Google Login OAuth Fix Verification
+
+on:
+  push:
+    branches:
+      - alke/google-login-oauth-repair
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alke-google-login-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  google-login-build-and-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      # Google Web client IDs are public identifiers; keep configurable in the build.
+      # IMPORTANT: A Web ID alone is not sufficient. Google Cloud must register the
+      # Android OAuth package + signing SHA-1 for EACH installed app variant.
+      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Report Google OAuth setup status
+        shell: bash
+        run: |
+          if [[ -z "${ALKE_GOOGLE_WEB_CLIENT_ID}" ]]; then
+            echo "### Google login configuration: MISSING" >> "$GITHUB_STEP_SUMMARY"
+            echo "Compile/test will run. Sign-in on this APK needs local Web client ID setup or a rebuild with ALKE_GOOGLE_WEB_CLIENT_ID." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${ALKE_GOOGLE_WEB_CLIENT_ID}" =~ ^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$ ]]; then
+            echo "### Google login configuration: Web OAuth ID present" >> "$GITHUB_STEP_SUMMARY"
+            echo "Android OAuth clients still need the exact package + installed signing SHA-1 in Google Cloud." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::ALKE_GOOGLE_WEB_CLIENT_ID has an invalid format (expected a Web OAuth Client ID)."
+            exit 1
+          fi
+      - name: Build APK variants without any personal data
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:assembleFullDebug :app:assemblePersonalDebug
+      - name: Test Google OAuth and whole-app JVM suite
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon :app:testFullDebugUnitTest
+      - name: Upload test APK - public full debug only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-google-login-full-debug-NO-PERSONAL-DATA
+          path: android/app/build/outputs/apk/full/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7

@@ -43,6 +43,8 @@ import com.otidotid.alke.R
 import com.otidotid.alke.ble.WhoopModel
 import com.otidotid.alke.data.DemoSeeder
 import com.otidotid.alke.data.WhoopRepository
+import com.otidotid.alke.data.DataBackup
+import com.otidotid.alke.data.PersonalBackupBootstrap
 import com.otidotid.alke.push.SelfHostedPushScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -89,6 +91,45 @@ class MainActivity : ComponentActivity() {
             }
             return
         }
+        // Private offline package only: import the owner's own backup on first launch.
+        // Normal GitHub Release APKs have no private asset and skip this path.
+        // The populated Room store is NEVER replaced: the guard requires NO DB file.
+        // Keep the UI responsive while hundreds of MB are verified and imported off-main.
+        if (PersonalBackupBootstrap.needsInitialRestore(applicationContext)) {
+            val restoreFailure = mutableStateOf<String?>(null)
+            setContent {
+                AlkeTheme {
+                    Surface(Modifier.fillMaxSize(), color = Palette.surfaceBase) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 48.dp),
+                            verticalArrangement = Arrangement.spacedBy(18.dp),
+                        ) {
+                            Text("ALKE · YOUR HISTORY", style = AlkeType.title1, color = Palette.textPrimary)
+                            if (restoreFailure.value == null) {
+                                Text(
+                                    "Restoring your private health, workout, sleep and food history on this phone. " +
+                                        "Keep ALKE open while the database is being verified.",
+                                    style = AlkeType.body,
+                                    color = Palette.textSecondary,
+                                )
+                            } else {
+                                Text(restoreFailure.value.orEmpty(), style = AlkeType.body, color = Palette.textSecondary)
+                                Button(onClick = { recreate() }) { Text("Try restore again") }
+                            }
+                        }
+                    }
+                }
+            }
+            lifecycleScope.launch {
+                when (val outcome = PersonalBackupBootstrap.restoreBundledOnFreshInstall(applicationContext)) {
+                    DataBackup.ImportResult.NeedsRestart -> recreate()
+                    is DataBackup.ImportResult.Failed -> restoreFailure.value = outcome.message
+                    is DataBackup.ImportResult.TooLarge -> restoreFailure.value = outcome.message
+                }
+            }
+            return
+        }
+
         // Load the saved "Card transparency" so every frosted card renders at the chosen opacity from launch.
         CardAppearance.init(this)
 

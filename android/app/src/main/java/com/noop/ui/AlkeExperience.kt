@@ -515,10 +515,19 @@ fun AlkeTodayExperience(
     onProgress: () -> Unit,
     onCoach: () -> Unit,
     onMetric: (String) -> Unit,
+    onSteps: () -> Unit,
     onHeartRateTimeline: () -> Unit,
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
+    // Use the SAME real/imported/estimated steps resolver as the full steps trend.
+    // Never invent today's count from a stale or unavailable reading.
+    val stepsModel by produceState<VitalDetailModel?>(
+        initialValue = null, key1 = vm.activeStrapId, key2 = recentDays,
+    ) {
+        value = runCatching { buildSeriesVitalDetail(vm, "steps_est") }.getOrNull()
+    }
+    val lastSteps = stepsModel?.readings.orEmpty().maxByOrNull { it.day }
     val readinessLevel = remember(recentDays, day?.day) {
         ReadinessEngine.evaluate(recentDays, today = day?.day).level
     }
@@ -617,6 +626,28 @@ fun AlkeTodayExperience(
             AlkeMetricTile("Active Time", workoutMinutes?.let { niceMinutes(it) } ?: "—",
                 Icons.Filled.MonitorHeart, Modifier.weight(1f), A.blue, onTrain)
         }
+        AlkePanel(Modifier.fillMaxWidth(), onClick = onSteps) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Filled.DirectionsRun, contentDescription = null, tint = A.cyan)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("STEPS", color = A.cyan, fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+                    Text(
+                        lastSteps?.value?.let {
+                            java.text.NumberFormat.getIntegerInstance().format(it.roundToInt())
+                        } ?: "—",
+                        color = A.white, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        lastSteps?.day?.let { "Last recorded · $it" } ?: "Awaiting step data",
+                        color = A.muted, fontSize = 11.sp,
+                    )
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Open steps history",
+                    tint = A.cyan, modifier = Modifier.size(22.dp))
+            }
+        }
         Text("Active Time reflects recorded workouts; unavailable activity is never estimated.",
             color = A.muted, fontSize = 10.sp)
         // Tapping this compact real/latest BPM card retains the existing detailed
@@ -635,6 +666,19 @@ fun AlkeTodayExperience(
                         else "Awaiting a recorded night",
                         color = A.muted, fontSize = 11.sp,
                     )
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp)).clickable { onMetric("skin") }
+                .padding(vertical = 8.dp)) {
+                Icon(Icons.Filled.MonitorHeart, contentDescription = null, tint = A.cyan)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Skin Temperature", color = A.white, fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold)
+                    Text("Nighttime readings and temperature trends",
+                        color = A.muted, fontSize = 11.sp)
                 }
                 Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
             }
@@ -671,18 +715,10 @@ fun AlkeTodayExperience(
 }
 
 /**
- * Activity-centric Train surface. Shows the same all-source session list owned
- * by AppViewModel.loadWorkouts(), not a duplicate database/query. Each session
- * retains its original full-detail sheet; advanced editing/reporting stays behind
- * the existing workout history destination rather than crowding the overview.
- */
-/**
- * ALKE Train's deliberately small front surface:
- * live recording and manual entry, workout Calories and Most Active Sports,
- * the original 13-week ActivityHeatmap core, and session history.
- *
- * All deeper workout filters, reports, edits and history still exist behind
- * the understated "Manage" link, rather than being deleted from ALKE.
+ * Four primary Train surfaces requested for ALKE:
+ * Calories, Most Active Sports, Add Workout, and Active Calories calendar.
+ * The understated History action opens the ORIGINAL WorkoutsScreen, preserving
+ * live start/stop, full session details, filters, reports, and editing.
  */
 @Composable
 fun AlkeTrainingExperience(
@@ -695,8 +731,6 @@ fun AlkeTrainingExperience(
 ) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val sessions by vm.workouts.collectAsStateWithLifecycle()
-    val live by vm.live.collectAsStateWithLifecycle()
-    val activeWorkout by vm.activeWorkout.collectAsStateWithLifecycle()
     val sortedSessions = remember(sessions) { sessions.sortedByDescending { it.startTs } }
     val rankedSports = remember(sortedSessions) {
         sortedSessions.groupBy { WorkoutEditing.displaySport(it.sport) }
@@ -709,48 +743,18 @@ fun AlkeTrainingExperience(
     val validCalories = remember(sortedSessions) {
         sortedSessions.mapNotNull { it.energyKcal?.takeIf { value -> value.isFinite() && value >= 0.0 } }
     }
-    var showStartPicker by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
-    var showActiveWorkout by remember { mutableStateOf(false) }
-    var visibleCount by rememberSaveable { mutableIntStateOf(8) }
-    var selectedSession by remember { mutableStateOf<WorkoutRow?>(null) }
     LaunchedEffect(vm) { vm.loadWorkouts() }
 
     AlkePage {
-        Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val canStart = live.bonded && activeWorkout == null
-            val continueWorkout = activeWorkout != null
-            AlkePanel(Modifier.weight(1f), onClick = when {
-                continueWorkout -> ({ showActiveWorkout = true })
-                canStart -> ({ showStartPicker = true })
-                else -> null
-            }) {
-                Icon(Icons.Filled.DirectionsRun, contentDescription = null,
-                    tint = if (canStart || continueWorkout) A.cyan else A.muted,
-                    modifier = Modifier.size(25.dp))
-                Text(if (continueWorkout) "Continue Workout" else "Start Workout",
-                    color = if (canStart || continueWorkout) A.white else A.muted,
-                    fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text(
-                    when {
-                        continueWorkout -> "Recording in progress"
-                        canStart -> "Record a live session"
-                        else -> "Connect a wearable"
-                    },
-                    color = A.muted, fontSize = 11.sp, maxLines = 1,
-                )
-            }
-            AlkePanel(Modifier.weight(1f), onClick = { showAddDialog = true }) {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null,
-                    tint = A.gold, modifier = Modifier.size(25.dp))
-                Text("Add Workout", color = A.white, fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text("Log a past session", color = A.muted, fontSize = 11.sp, maxLines = 1)
-            }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Text("History", modifier = Modifier.clickable(onClick = onWorkouts)
+                .padding(horizontal = 4.dp, vertical = 10.dp),
+                color = A.cyan, fontSize = 13.sp)
         }
-        // The total follows the original Workouts SummarySection calculation
-        // (sum of recorded workout energyKcal, no invented missing values).
+        // Original all-source workout summary; unavailable calories are not estimated.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AlkePanel(Modifier.weight(1f)) {
                 Text("CALORIES", color = A.gold, fontSize = 10.sp,
@@ -773,89 +777,20 @@ fun AlkeTrainingExperience(
                 } ?: "No sessions yet", color = A.muted, fontSize = 10.sp, maxLines = 1)
             }
         }
+        AlkePanel(Modifier.fillMaxWidth(), onClick = { showAddDialog = true }) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = A.gold,
+                    modifier = Modifier.size(26.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Add Workout", color = A.white, fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold)
+                    Text("Log a past session", color = A.muted, fontSize = 11.sp)
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
+            }
+        }
         AlkeActiveCaloriesCalendar(vm, days)
-
-        // The all-source, newest-first workout list remains directly on Train
-        // as previously requested; tapping a row opens the ORIGINAL detail sheet.
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Sessions", color = A.white, fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold)
-            Text("Manage", modifier = Modifier.clickable(onClick = onWorkouts)
-                .padding(horizontal = 4.dp, vertical = 8.dp),
-                color = A.cyan, fontSize = 12.sp)
-        }
-        AlkePanel(Modifier.fillMaxWidth()) {
-            if (sortedSessions.isEmpty()) {
-                Text("Your recorded workouts will appear here.",
-                    color = A.muted, fontSize = 13.sp)
-            } else {
-                sortedSessions.take(visibleCount).forEachIndexed { index, row ->
-                    if (index > 0) {
-                        Spacer(Modifier.height(1.dp).fillMaxWidth()
-                            .background(A.stroke.copy(alpha = 0.45f)))
-                    }
-                    val sportName = WorkoutEditing.displaySport(row.sport)
-                    val whenRecorded = Instant.ofEpochSecond(row.startTs)
-                        .atZone(ZoneId.systemDefault())
-                        .format(DateTimeFormatter.ofPattern("d MMM yyyy · HH:mm", Locale.getDefault()))
-                    val durationMinutes = ((row.durationS ?: (row.endTs - row.startTs).toDouble())
-                        .coerceAtLeast(0.0) / 60.0).roundToInt()
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { selectedSession = row }
-                            .padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp))
-                            .background(A.gold.copy(alpha = 0.12f)),
-                            contentAlignment = Alignment.Center) {
-                            Icon(Icons.Filled.DirectionsRun, contentDescription = null,
-                                tint = A.gold, modifier = Modifier.size(22.dp))
-                        }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(sportName, color = A.white, fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold, maxLines = 1)
-                            Text(whenRecorded, color = A.muted, fontSize = 11.sp)
-                            Text(buildString {
-                                append("${durationMinutes} min")
-                                row.avgHr?.let { append(" · ${it} avg BPM") }
-                                row.energyKcal?.takeIf { it.isFinite() }?.let {
-                                    append(" · ${it.roundToInt()} kcal")
-                                }
-                            }, color = A.muted, fontSize = 11.sp, maxLines = 1,
-                                overflow = TextOverflow.Ellipsis)
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(row.strain?.takeIf { it.isFinite() }?.roundToInt()?.toString() ?: "—",
-                                color = A.gold, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                            Text("STRAIN", color = A.muted, fontSize = 9.sp)
-                        }
-                        Icon(Icons.Filled.ChevronRight, contentDescription = "Workout details",
-                            tint = A.cyan, modifier = Modifier.size(17.dp))
-                    }
-                }
-            }
-        }
-        if (visibleCount < sortedSessions.size) {
-            AlkePanel(Modifier.fillMaxWidth(), onClick = {
-                visibleCount = (visibleCount + 10).coerceAtMost(sortedSessions.size)
-            }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Show older sessions", color = A.cyan, fontSize = 13.sp,
-                        modifier = Modifier.weight(1f))
-                    Text("${sortedSessions.size - visibleCount} remaining", color = A.muted, fontSize = 11.sp)
-                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.cyan)
-                }
-            }
-        }
-    }
-    if (showStartPicker) {
-        // Same picker, GPS permission flow and LiveWorkoutScreen as the frozen
-        // Workout History: no duplicate recording logic.
-        StartWorkoutSheet(vm, onDismiss = { showStartPicker = false })
     }
     if (showAddDialog) {
         ManualWorkoutDialog(vm, editing = null, onDismiss = { showAddDialog = false },
@@ -863,15 +798,6 @@ fun AlkeTrainingExperience(
                 vm.saveManualWorkout(row, replacing)
                 showAddDialog = false
             })
-    }
-    if (showActiveWorkout && activeWorkout != null) {
-        Dialog(onDismissRequest = { showActiveWorkout = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            LiveWorkoutScreen(vm, onClose = { showActiveWorkout = false })
-        }
-    }
-    selectedSession?.let { row ->
-        WorkoutDetailSheet(vm, row) { selectedSession = null }
     }
 }
 

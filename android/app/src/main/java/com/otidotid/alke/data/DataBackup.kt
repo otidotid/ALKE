@@ -46,6 +46,14 @@ object DataBackup {
 
     /** Entry name of the SQLite inside the `.alkebak` ZIP. */
     private const val ZIP_ENTRY_NAME = "alke-backup.sqlite"
+    // Historical THOOP/NOOP Android archives have a different ZIP entry but the SAME
+    // Room data format. Accept only these exact known legacy names; never any .sqlite.
+    // Proven against the user's real, privately-inspected v41 archive from Oct 2026.
+    private val LEGACY_ZIP_ENTRY_NAMES = setOf("noop-backup.sqlite", "thoop-backup.sqlite")
+    internal fun supportedHealthBackupEntry(name: String): Boolean {
+        val base = name.substringAfterLast('/')
+        return base == ZIP_ENTRY_NAME || base in LEGACY_ZIP_ENTRY_NAMES
+    }
     /** Optional in legacy files; REQUIRED for new complete Android recovery backups. */
     internal const val FOOD_ENTRY_NAME = "alke-food.sqlite"
     private const val FOOD_DB_NAME = "alke_food_intake.db"
@@ -186,7 +194,7 @@ object DataBackup {
         ZipInputStream(stream).use { zip ->
             var entry = zip.nextEntry
             while (entry != null) {
-                if (!entry.isDirectory && entry.name.substringAfterLast('/') == ZIP_ENTRY_NAME) {
+                if (!entry.isDirectory && supportedHealthBackupEntry(entry.name)) {
                     val header = ByteArray(SQLITE_MAGIC.size)
                     var got = 0
                     while (got < header.size) {
@@ -210,7 +218,9 @@ object DataBackup {
     /** Estimated uncompressed database bytes for a full restore preflight (unknown → null). */
     internal fun restoreDatabaseBytes(file: File): Long? = runCatching {
         java.util.zip.ZipFile(file).use { zip ->
-            val health = zip.getEntry(ZIP_ENTRY_NAME)?.size?.takeIf { it >= 0 } ?: return@use null
+            val health = (sequenceOf(ZIP_ENTRY_NAME) + LEGACY_ZIP_ENTRY_NAMES.asSequence())
+                .mapNotNull { zip.getEntry(it)?.size?.takeIf { size -> size >= 0 } }
+                .firstOrNull() ?: return@use null
             val food = zip.getEntry(FOOD_ENTRY_NAME)?.size?.takeIf { it >= 0 } ?: 0L
             if (health > Long.MAX_VALUE - food) null else health + food
         }
@@ -712,7 +722,7 @@ object DataBackup {
                         while (entry != null) {
                             when {
                                 !entry.isDirectory && !foundDb &&
-                                    entry.name.substringAfterLast('/') == ZIP_ENTRY_NAME -> {
+                                    supportedHealthBackupEntry(entry.name) -> {
                                     FileOutputStream(dest).use { out ->
                                         if (!copyBounded(zip, out, sqliteCap(allowOversize))) {
                                             dest.delete()

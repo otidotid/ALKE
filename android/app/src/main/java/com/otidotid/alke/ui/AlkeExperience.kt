@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -72,6 +74,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -89,6 +92,7 @@ import com.otidotid.alke.data.WorkoutRow
 import com.otidotid.alke.analytics.RestScorer
 import com.otidotid.alke.analytics.ActivityHeatmap
 import com.otidotid.alke.analytics.ReadinessEngine
+import com.otidotid.alke.analytics.FitnessAgeEngine
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.Instant
@@ -972,6 +976,135 @@ fun AlkeRecoveryExperience(
     }
 }
 
+/**
+ * Quiet, premium Fitness Age hero: the arc is a clearly labelled 20–80 AGE SCALE,
+ * not a fabricated "Healthspan score" or pace-of-aging prediction.
+ * Never estimates absent metrics. Opens the existing detailed weekly Fitness Age.
+ */
+@Composable
+private fun AlkeFitnessAgeHero(
+    fitnessAge: Double?,
+    readingDay: String?,
+    chronologicalAge: Int,
+    onClick: () -> Unit,
+) {
+    val reduceMotion = rememberReduceMotion()
+    val minAge = FitnessAgeEngine.minAge
+    val maxAge = FitnessAgeEngine.maxAge
+    val position = fitnessAge?.let {
+        ((it - minAge) / (maxAge - minAge)).toFloat().coerceIn(0f, 1f)
+    } ?: 0f
+    var entered by remember(fitnessAge) { mutableStateOf(false) }
+    LaunchedEffect(fitnessAge, reduceMotion) { entered = true }
+    val animatedPosition by animateFloatAsState(
+        targetValue = if (reduceMotion || entered) position else 0f,
+        animationSpec = if (reduceMotion) tween(0)
+        else tween(durationMillis = 940, easing = FastOutSlowInEasing),
+        label = "fitness_age_reveal",
+    )
+    val difference = fitnessAge?.let { age ->
+        if (chronologicalAge > 0) chronologicalAge.toDouble() - age else null
+    }
+    val comparison = when {
+        difference == null -> "Add your age in Profile for a comparison"
+        difference > 0.05 -> String.format(Locale.US, "%.1f years younger", difference)
+        difference < -0.05 -> String.format(Locale.US, "%.1f years older", -difference)
+        else -> "In line with your chronological age"
+    }
+    val comparisonColor = if (difference != null && difference > 0.05) A.green
+        else if (difference != null && difference < -0.05) A.gold else A.white
+
+    AlkePanel(Modifier.fillMaxWidth(), onClick = onClick) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("FITNESS AGE", color = A.cyan,
+                    letterSpacing = 1.7.sp, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text("Your fitness, in perspective", color = A.white,
+                    fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+            }
+            AlkePill("WEEKLY", A.gold)
+        }
+        // No chevron and no infinite "loading" effect: the metric settles once.
+        Box(Modifier.fillMaxWidth().height(206.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(194.dp), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val width = 10.dp.toPx()
+                    val inset = width / 2 + 10.dp.toPx()
+                    val arcSize = Size(size.width - 2f * inset, size.height - 2f * inset)
+                    val origin = Offset(inset, inset)
+                    val radius = arcSize.width / 2f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            listOf(A.cyan.copy(alpha = 0.12f), A.cardDark.copy(alpha = 0.02f)),
+                            center = center, radius = size.minDimension * 0.48f,
+                        ),
+                        radius = radius * 0.92f,
+                    )
+                    drawArc(
+                        color = A.stroke.copy(alpha = 0.72f), startAngle = 135f,
+                        sweepAngle = 270f, useCenter = false, topLeft = origin,
+                        size = arcSize, style = Stroke(width = width, cap = StrokeCap.Round),
+                    )
+                    if (fitnessAge != null) {
+                        drawArc(
+                            brush = Brush.sweepGradient(listOf(A.cyan, A.gold, A.cyan)),
+                            startAngle = 135f, sweepAngle = 270f * animatedPosition,
+                            useCenter = false, topLeft = origin,
+                            size = arcSize, style = Stroke(width = width, cap = StrokeCap.Round),
+                        )
+                        val angle = Math.toRadians((135f + 270f * animatedPosition).toDouble())
+                        val marker = Offset(
+                            center.x + kotlin.math.cos(angle).toFloat() * radius,
+                            center.y + kotlin.math.sin(angle).toFloat() * radius,
+                        )
+                        drawCircle(A.white, radius = 3.6.dp.toPx(), center = marker)
+                    }
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        fitnessAge?.let {
+                            fitnessAgeBoundSymbol(it) + String.format(Locale.US, "%.1f", it)
+                        } ?: "—",
+                        color = A.white, fontWeight = FontWeight.Bold,
+                        fontSize = 48.sp, lineHeight = 55.sp,
+                    )
+                    Text("YEARS", color = A.muted, fontSize = 11.sp,
+                        letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        if (fitnessAge != null) {
+            Text(comparison, color = comparisonColor,
+                fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text(
+                if (chronologicalAge > 0) "Chronological age: $chronologicalAge years"
+                else "Weekly fitness estimate based on your recorded metrics",
+                color = A.muted, fontSize = 12.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            Text("Fitness Age is not available yet", color = A.white,
+                fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text("Open details to check which recordings are still needed.",
+                color = A.muted, fontSize = 12.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth())
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("AGE SCALE 20–80", color = A.muted, fontSize = 10.sp,
+                letterSpacing = 1.sp)
+            Text(readingDay?.let { "Recorded $it" } ?: "Awaiting weekly result",
+                color = A.muted, fontSize = 10.sp)
+        }
+        Text("Weekly estimate · ±5-year uncertainty · View factors and trends",
+            color = A.cyan, fontSize = 11.sp, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth())
+    }
+}
+
 @Composable
 fun AlkeProgressExperience(
     vm: AppViewModel,
@@ -980,6 +1113,7 @@ fun AlkeProgressExperience(
     onProfile: () -> Unit,
     unreadCount: Int,
     onHealth: () -> Unit,
+    onFitnessAge: () -> Unit,
     onVo2: () -> Unit,
     onBodyAge: () -> Unit,
     onTrends: () -> Unit,
@@ -987,6 +1121,20 @@ fun AlkeProgressExperience(
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val days by vm.recentDays.collectAsStateWithLifecycle()
+    // Use the same persisted weekly Fitness Age metric as Health and its detail view.
+    // React to merged days after sync/import; never create a new scoring algorithm.
+    val fitnessAgeReading by produceState<Pair<Double, String>?>(
+        initialValue = null, key1 = vm.activeStrapId, key2 = days,
+    ) {
+        val row = runCatching {
+            vm.repo.latestMetricComputedUnion(vm.activeStrapId, "fitness_age")
+        }.getOrNull()
+        value = row?.value?.takeIf { it.isFinite() &&
+            it >= FitnessAgeEngine.minAge && it <= FitnessAgeEngine.maxAge
+        }?.let { it to row.day }
+    }
+    val context = LocalContext.current
+    val chronologicalAge = remember(context) { ProfileStore.from(context.applicationContext).age }
     val vo2 by produceState<Double?>(initialValue = null, key1 = vm.activeStrapId) {
         value = runCatching { vm.repo.latestMetricComputedUnion(vm.activeStrapId, "vo2max_est")?.value }.getOrNull()
     }
@@ -1002,6 +1150,14 @@ fun AlkeProgressExperience(
     val latestSteps = stepsReadings.lastOrNull()
     AlkePage {
         AlkeHeading("Progress", "The long view of your performance.")
+        // Hero comes first, not a menu row. The circle animates once and opens
+        // the original Fitness Age analysis (history, factors and methodology).
+        AlkeFitnessAgeHero(
+            fitnessAge = fitnessAgeReading?.first,
+            readingDay = fitnessAgeReading?.second,
+            chronologicalAge = chronologicalAge,
+            onClick = onFitnessAge,
+        )
         AlkePanel(Modifier.fillMaxWidth(), onClick = onVo2) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -1020,8 +1176,8 @@ fun AlkeProgressExperience(
                     Text("Your biological trends", color = A.white, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                     Text("Methodology, factors and confidence", color = A.muted, fontSize = 11.sp)
                 }
-                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.gold)
             }
+            Text("Explore Body Age factors", color = A.gold, fontSize = 12.sp)
         }
         AlkePanel(Modifier.fillMaxWidth(), onClick = onSteps) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

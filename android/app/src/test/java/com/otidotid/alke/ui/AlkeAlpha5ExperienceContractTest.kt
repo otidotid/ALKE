@@ -134,38 +134,47 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(detailed.contains("metricSeriesComputedUnion(vm.activeStrapId, \"fitness_age\""))
     }
 
-    @Test fun healthModuleIsFitnessAgeWithHeroAndAnimatedFourFactors() {
+    @Test fun fitnessAgeModuleBeginsAtTrendWithoutDuplicatingProgressCards() {
         val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
+        val progressUi = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
+        val health = source("src/main/java/com/otidotid/alke/ui/HealthScreen.kt")
         assertTrue(nav.contains("Destination.Health -> \"Fitness Age\""))
-        assertTrue(nav.contains("Text(titleOverride ?: alkeModuleLabel(dest)"))
-        assertTrue(nav.contains("onRestingHr = { nav.navigate(\"vital_detail/rhr\") }"))
-        val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
-        val progress = ui.substring(ui.indexOf("fun AlkeProgressExperience("),
-            ui.indexOf("fun AlkeInsightExperience("))
-        assertTrue(progress.indexOf("AlkeFitnessAgeHero(") < progress.indexOf("AlkeSectionTitle(\"Fitness Factors\")"))
-        assertTrue(progress.indexOf("AlkeSectionTitle(\"Fitness Factors\")") < progress.indexOf("onClick = onBodyAge"))
+        val progress = progressUi.substring(progressUi.indexOf("fun AlkeProgressExperience("),
+            progressUi.indexOf("fun AlkeInsightExperience("))
+        // Progress remains the only page with the animated headline and four factors.
+        assertTrue(progress.contains("AlkeFitnessAgeHero("))
+        assertTrue(progress.contains("AlkeSectionTitle(\"Fitness Factors\")"))
         for (factor in listOf("VO₂ MAX", "RESTING HR", "WEEKLY ACTIVITY", "METABOLIC")) {
-            assertTrue("Missing animated Progress factor: $factor", progress.contains("label = \"$factor\""))
+            assertTrue("Missing Progress factor $factor", progress.contains("label = \"$factor\""))
         }
-        assertTrue(ui.contains("private fun AlkeFitnessFactorCard("))
-        assertTrue(ui.contains("modifier.staggeredAppear(index)"))
-        assertTrue(ui.contains("animateFloatAsState("))
-        assertTrue(ui.contains("currentFitnessAgeMetabolicFactor("))
-        assertTrue(ui.contains("No eligible inputs yet"))
-        val module = source("src/main/java/com/otidotid/alke/ui/HealthScreen.kt")
-        assertTrue(module.contains("title = \"Fitness Age\""))
-        val first = module.indexOf("item { FitnessAgeSection(vm = vm, days = days, profile = profile")
-        val sync = module.indexOf("item { SyncStatusSection(vm = vm")
-        assertTrue("Fitness Age should appear before synchronisation/vitals", first >= 0 && sync > first)
-        assertTrue(module.contains("label = \"METABOLIC\""))
-        assertTrue(module.contains("value = \"Not available\""))
-        assertTrue(module.contains("withMetabolicCalculationTransaction {"))
-        assertTrue(module.contains("fitness_age_detail_factor_"))
-        assertTrue(module.contains("fitness_age_detail_factor_\${index}_ambient"))
-        assertTrue(module.contains("fitness_age_factor_\${index}_ambient"))
-        assertTrue(module.contains("alke_health_fitness_age_breathe"))
-        assertTrue(module.contains("reduceAgeMotion"))
-        assertTrue(module.contains("fitness_age_factor_"))
+        assertTrue(progressUi.contains("alke_age_orbit_sweep"))
+        // The *rendered module path* must begin at Trend View; the old unused
+        // helpers elsewhere in the file cannot mask a regression in this route.
+        val screen = health.substring(health.indexOf("fun HealthScreen("),
+            health.indexOf("private fun FitnessAgeSection("))
+        assertTrue(screen.contains("item { FitnessAgeSection("))
+        val module = health.substring(health.indexOf("private fun FitnessAgeSection("),
+            health.indexOf("/** Vitality / Body Age"))
+        assertTrue(module.contains("SectionHeader(\"Trend View\""))
+        assertTrue(module.contains("FitnessAgeTrendChart("))
+        assertTrue(module.contains("metricSeriesComputedUnion("))
+        assertFalse(module.contains("FitnessAgeHero("))
+        assertFalse(module.contains("FitnessReadinessCard("))
+        assertFalse(module.contains("SectionHeader(\"Fitness Factors\""))
+        assertFalse(module.contains("SectionHeader(\"Fitness Age\""))
+        // Fitness Age's detail route must also start at trend; stored History follows.
+        val detail = health.substring(health.indexOf("private fun FitnessAgeDetailExperience("),
+            health.indexOf("@Composable\nprivate fun FitnessAgeDetailFactor("))
+        assertTrue(detail.contains("SectionHeader(\"Trend View\""))
+        assertTrue(detail.indexOf("SectionHeader(\"Trend View\"") <
+            detail.indexOf("SectionHeader(\"History\""))
+        assertFalse(detail.contains("FitnessAgeDetailFactor("))
+        assertFalse(detail.contains("SectionHeader(\"Fitness Factors\""))
+        // Original downstream module data and HR/Today remain reachable.
+        assertTrue(screen.contains("SyncStatusSection("))
+        assertTrue(screen.contains("VitalsSection("))
+        assertTrue(screen.contains("RecordsAndSourcesSection("))
+        assertFalse(screen.contains("item { HeartRateSection(vm = vm"))
     }
 
     @Test fun continuousAgeMotionUsesRealPaceAndHasNoExtraWaistNags() {

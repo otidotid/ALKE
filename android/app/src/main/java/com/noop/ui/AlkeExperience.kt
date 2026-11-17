@@ -614,8 +614,6 @@ fun AlkeTodayExperience(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AlkeMetricTile("Day Strain", niceOne(day?.strain), Icons.Filled.DirectionsRun,
                 Modifier.weight(1f), A.gold, { onMetric("strain") })
-            AlkeMetricTile("Steps", day?.steps?.let { "%,d".format(Locale.US, it) } ?: "—",
-                Icons.Filled.ShowChart, Modifier.weight(1f), A.cyan, { onMetric("steps_est") })
             AlkeMetricTile("Active Time", workoutMinutes?.let { niceMinutes(it) } ?: "—",
                 Icons.Filled.MonitorHeart, Modifier.weight(1f), A.blue, onTrain)
         }
@@ -1042,12 +1040,23 @@ fun AlkeProgressExperience(
     onVo2: () -> Unit,
     onBodyAge: () -> Unit,
     onTrends: () -> Unit,
+    onSteps: () -> Unit,
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val vo2 by produceState<Double?>(initialValue = null, key1 = vm.activeStrapId) {
         value = runCatching { vm.repo.latestMetricComputedUnion(vm.activeStrapId, "vo2max_est")?.value }.getOrNull()
     }
+    // Reuse the original steps-history data resolver: real wearable measurements
+    // first, then Apple/Health Connect imports, then the motion-model estimate.
+    // One source of truth for both this overview and its detail chart.
+    val stepsModel by produceState<VitalDetailModel?>(
+        initialValue = null, key1 = vm.activeStrapId, key2 = days,
+    ) {
+        value = runCatching { buildSeriesVitalDetail(vm, "steps_est") }.getOrNull()
+    }
+    val stepsReadings = stepsModel?.readings.orEmpty().sortedBy { it.day }
+    val latestSteps = stepsReadings.lastOrNull()
     AlkePage {
         AlkeHeading("Progress", "The long view of your performance.")
         AlkePanel(Modifier.fillMaxWidth(), onClick = onVo2) {
@@ -1069,6 +1078,44 @@ fun AlkeProgressExperience(
                     Text("Methodology, factors and confidence", color = A.muted, fontSize = 11.sp)
                 }
                 Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.gold)
+            }
+        }
+        AlkePanel(Modifier.fillMaxWidth(), onClick = onSteps) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("STEPS", color = A.cyan, letterSpacing = 1.6.sp,
+                        fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                    Text(
+                        latestSteps?.value?.let {
+                            java.text.NumberFormat.getIntegerInstance().format(it.roundToInt())
+                        } ?: "—",
+                        color = A.white, fontWeight = FontWeight.Bold, fontSize = 39.sp,
+                    )
+                    Text(
+                        latestSteps?.day?.let { "Last recorded · $it" } ?: "Awaiting step data",
+                        color = A.muted, fontSize = 11.sp,
+                    )
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Open steps history",
+                    tint = A.cyan, modifier = Modifier.size(24.dp))
+            }
+            // Compact 14-reading history; the full date-range chart and exact values
+            // remain behind the card. Missing readings are never invented.
+            val history = stepsReadings.takeLast(14)
+            if (history.isNotEmpty()) {
+                val max = history.maxOf { it.value }.coerceAtLeast(1.0)
+                Row(Modifier.fillMaxWidth().height(73.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    history.forEach { reading ->
+                        val height = (reading.value / max).coerceIn(0.0, 1.0)
+                        Box(Modifier.weight(1f)
+                            .height((7.0 + 64.0 * height).dp)
+                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                            .background(A.cyan.copy(alpha = 0.32f + 0.60f * height.toFloat())))
+                    }
+                }
+                Text("Recent steps · Tap to view full history", color = A.muted, fontSize = 11.sp)
             }
         }
         AlkeSectionTitle("Recovery trend", "Full trends", onTrends)

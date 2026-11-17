@@ -37,8 +37,8 @@ class MeSettingsConsolidationTest {
         assertTrue(settings.contains("title = \"Me\""))
         assertTrue(settings.contains("meHeader()"))
         assertTrue(settings.contains("SettingsCard("))
-        assertTrue(settings.contains("onOpenTestCentre()"))
-        assertTrue(settings.contains("onOpenBackupSync()"))
+        assertTrue(settings.contains("onClick = onOpenTestCentre"))
+        assertTrue(settings.contains("onClick = onOpenBackupSync"))
     }
 
     @Test fun settingsModuleIsRetiredButLegacyRouteStillResolves() {

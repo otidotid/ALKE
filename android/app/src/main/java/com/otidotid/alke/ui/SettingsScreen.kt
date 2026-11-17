@@ -551,6 +551,7 @@ fun SettingsScreen(
     onOpenBackupSync: () -> Unit = {},
     onOpenSelfHostedPush: () -> Unit = {},
     onOpenStepsCalibration: () -> Unit = {},
+    meHeader: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -944,9 +945,11 @@ fun SettingsScreen(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> if (uri != null) setBackgroundFromUri(uri) }
 
+    // Settings are now embedded directly in the Me tab, using its single scrolling
+    // scaffold. The former Settings screen remains only as a compatibility route.
     ScreenScaffold(
-        title = uiString(R.string.l10n_settings_screen_settings_c7f73bb5),
-        subtitle = "Your metrics, your device, and the insights behind them.",
+        title = "Me",
+        subtitle = "Your preferences, devices and data, in one place.",
         // LIQUID SKY BACKDROP (the pilot pattern â€” LiquidScreenSky.kt): the static time-of-day sky settles
         // into the theme canvas behind the top of the list, exactly like the liquid Today. This is a long,
         // scroll-heavy list with NO hero gauge, so the liquid finish here is just the sky + liquidPress on
@@ -960,6 +963,10 @@ fun SettingsScreen(
         // Read the revision counter so every profile write recomposes this subtree
         // (SharedPreferences is not observable; `mutate` bumps `rev` after each write).
         @Suppress("UNUSED_VARIABLE") val tick = rev
+
+        // The Me shortcuts sit inside this SAME scrolling column; don't nest
+        // verticalScroll / ScreenScaffold or Compose will receive infinite height.
+        meHeader()
 
         // --- Profile photo (optional, on-device) ---
         // Split into its own section ahead of the body-numbers Profile card, mirroring the iOS

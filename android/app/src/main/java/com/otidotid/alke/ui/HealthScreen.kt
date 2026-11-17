@@ -3111,6 +3111,7 @@ private fun FitnessAgeDetailExperience(
         AlkeCard {
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 FitnessAgeDetailFactor(
+                    index = 1,
                     label = "VO₂ MAX",
                     value = vo2max?.let { String.format(Locale.US, "%.1f ml/kg/min", it) } ?: "Building baseline",
                     marker = vo2max?.let { ((it - 15.0) / 55.0).toFloat().coerceIn(0f, 1f) },
@@ -3124,6 +3125,7 @@ private fun FitnessAgeDetailExperience(
                 )
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
                 FitnessAgeDetailFactor(
+                    index = 2,
                     label = "RESTING HEART RATE",
                     value = restingHr?.let { "${it.roundToInt()} bpm" } ?: "Building baseline",
                     marker = restingHr?.let { (1f - ((it - 40.0) / 40.0).toFloat()).coerceIn(0f, 1f) },
@@ -3132,6 +3134,7 @@ private fun FitnessAgeDetailExperience(
                 )
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
                 FitnessAgeDetailFactor(
+                    index = 3,
                     label = "WEEKLY ACTIVITY",
                     value = weeklyEffort?.let { String.format(Locale.US, "%.1f effort", it) } ?: "Building baseline",
                     marker = weeklyEffort?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) },
@@ -3141,6 +3144,7 @@ private fun FitnessAgeDetailExperience(
                 metabolicFactors["fitness_factor_bmi"]?.let { bmi ->
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
                     FitnessAgeDetailFactor(
+                        index = 4,
                         label = "BODY MASS INDEX",
                         value = String.format(Locale.US, "%.1f kg/m2", bmi),
                         marker = ((bmi - 15.0) / 25.0).toFloat().coerceIn(0f, 1f),
@@ -3152,6 +3156,7 @@ private fun FitnessAgeDetailExperience(
                 metabolicFactors["fitness_factor_whtr"]?.let { whtr ->
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
                     FitnessAgeDetailFactor(
+                        index = 5,
                         label = "WAIST-TO-HEIGHT RATIO",
                         value = String.format(Locale.US, "%.2f", whtr),
                         marker = (whtr / 0.70).toFloat().coerceIn(0f, 1f),
@@ -3163,6 +3168,7 @@ private fun FitnessAgeDetailExperience(
                 metabolicFactors["fitness_factor_body_fat"]?.let { bodyFat ->
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
                     FitnessAgeDetailFactor(
+                        index = 6,
                         label = "BODY FAT",
                         value = String.format(Locale.US, "%.1f%%", bodyFat),
                         marker = (bodyFat / 50.0).toFloat().coerceIn(0f, 1f),
@@ -3171,9 +3177,12 @@ private fun FitnessAgeDetailExperience(
                             else "Manual marker · Metabolic domain",
                     )
                 }
-                metabolicFactors["fitness_factor_metabolic_delta"]?.let { impact ->
+                val metabolicImpact = metabolicFactors["fitness_factor_metabolic_delta"]
+                if (metabolicImpact != null) {
+                    val impact = metabolicImpact
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
                     FitnessAgeDetailFactor(
+                        index = 7,
                         label = if (aiMetabolic) "AI METABOLIC ESTIMATE" else "METABOLIC ESTIMATE",
                         value = String.format(Locale.US, "%+.1f years", impact),
                         marker = if (aiMetabolic) null else (impact / 4.0).toFloat().coerceIn(0f, 1f),
@@ -3182,6 +3191,18 @@ private fun FitnessAgeDetailExperience(
                         source = if (aiMetabolic) "AI · Experimental" else "ALKE Fitness Age",
                         method = if (aiMetabolic) "Metabolic age delta · 20% blend in Fitness Age"
                             else "Local metabolic age delta · 20% blend",
+                    )
+                } else {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.hairline))
+                    FitnessAgeDetailFactor(
+                        index = 7,
+                        label = "METABOLIC",
+                        value = "Not available",
+                        marker = null,
+                        left = "No validated weekly inputs",
+                        right = "",
+                        source = "Optional factor",
+                        method = "Add eligible body or metabolic readings in Lab Book; only verified weekly inputs contribute.",
                     )
                 }
             }
@@ -3226,6 +3247,7 @@ private fun FitnessAgeDetailExperience(
 
 @Composable
 private fun FitnessAgeDetailFactor(
+    index: Int = 0,
     label: String,
     value: String,
     marker: Float?,
@@ -3234,7 +3256,19 @@ private fun FitnessAgeDetailFactor(
     source: String,
     method: String,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val reduced = rememberReduceMotion()
+    var target by remember(marker, reduced) {
+        mutableStateOf(if (reduced) marker ?: 0f else 0f)
+    }
+    LaunchedEffect(marker, reduced) { target = marker ?: 0f }
+    val display by animateFloatAsState(
+        targetValue = target.coerceIn(0f, 1f),
+        animationSpec = if (reduced) tween(0)
+            else tween(800, delayMillis = index * 90, easing = FastOutSlowInEasing),
+        label = "fitness_age_detail_factor_${index}_fill",
+    )
+    Column(modifier = Modifier.staggeredAppear(index),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = AlkeType.title2, color = Palette.textPrimary, modifier = Modifier.weight(1f))
             Text(value, style = AlkeType.body, color = Palette.textPrimary)
@@ -3244,8 +3278,8 @@ private fun FitnessAgeDetailFactor(
                 Brush.horizontalGradient(listOf(Palette.strainColor(20.0), Palette.chargeColor, Palette.recoveryColor(100.0))),
             ),
         ) {
-            marker?.let { valuePosition ->
-                Box(Modifier.fillMaxWidth(valuePosition.coerceIn(.025f, 1f)).fillMaxHeight(), contentAlignment = Alignment.CenterEnd) {
+            marker?.let {
+                Box(Modifier.fillMaxWidth(display.coerceIn(.025f, 1f)).fillMaxHeight(), contentAlignment = Alignment.CenterEnd) {
                     Box(Modifier.size(12.dp).clip(RoundedCornerShape(99.dp)).background(Color.White).border(2.dp, Color.Black.copy(alpha=.35f), RoundedCornerShape(99.dp)))
                 }
             }

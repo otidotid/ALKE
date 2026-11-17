@@ -3261,7 +3261,7 @@ fun SettingsScreen(
                             color = Palette.textTertiary,
                         )
                         Text(
-                            "Based on NOOP. Original copyright and licensing preserved.",
+                            "ALKE retains original upstream copyright and licensing.",
                             style = NoopType.caption,
                             color = Palette.textTertiary,
                         )
@@ -3538,7 +3538,7 @@ fun SettingsScreen(
                             color = Palette.textSecondary,
                         )
                         Text(
-                            "The original NOOP copyright, license and attribution notices " +
+                            "The original source copyright, license and attribution notices " +
                                 "are retained. See the accompanying project LICENSE for details.",
                             style = NoopType.footnote,
                             color = Palette.textTertiary,

@@ -89,14 +89,14 @@ fun BackupSyncScreen() {
     fun runRestore(uri: Uri) {
         busy = true
         scope.launch {
-            // Clear in a `finally` so it clears on ANY exit â€” the twin of the Apple `defer` in
+            // Clear in a `finally` so it clears on ANY exit — the twin of the Apple `defer` in
             // `BackupSyncView.runRestore`. All five controls in the screen body are gated on `!busy`
-            // â€” folder picker, auto toggle, keep-count, Back up now, Restore â€” so a flag left set is a
+            // — folder picker, auto toggle, keep-count, Back up now, Restore — so a flag left set is a
             // dead end rather than one stuck button. (The restore sheet and confirm dialog are not
             // gated, but they are transient overlays, not the way back to a working screen.)
             //
             // The NeedsRestart branch never reaches the `finally`: it exits the process first. That is
-            // the wanted behaviour â€” the screen stays disabled through the restart rather than briefly
+            // the wanted behaviour — the screen stays disabled through the restart rather than briefly
             // accepting taps against a database that has already been swapped underneath it.
             try {
                 val r = withContext(Dispatchers.IO) { DataBackup.importFrom(context, uri) }
@@ -104,14 +104,14 @@ fun BackupSyncScreen() {
                     is DataBackup.ImportResult.NeedsRestart -> {
                         // #57: the restore CLOSED and swapped the database file. The long-lived WhoopRepository +
                         // BLE client still hold a DAO on the OLD (now-closed) connection, so any strap sync would
-                        // fail with "connection pool has been closed" â€” and, worse, empty/metadata history ENDs
+                        // fail with "connection pool has been closed" — and, worse, empty/metadata history ENDs
                         // would still ack and trim the strap PAST records we can't store, discarding real history.
                         // Relaunching the process re-opens Room against the restored file. Do it automatically
                         // rather than trust the user to read a toast (which is exactly how #57 happened).
                         Toast.makeText(context, "Backup restored — restarting ALKE…", Toast.LENGTH_LONG).show()
                         // NonCancellable: this coroutine runs in the screen's scope, which is cancelled the
                         // instant the user navigates away. The restart is a data-safety guarantee (the DB is
-                        // already swapped), so it must complete even if the composition leaves â€” otherwise the
+                        // already swapped), so it must complete even if the composition leaves — otherwise the
                         // user could keep syncing into the closed DB, the very bug we're fixing.
                         withContext(NonCancellable) {
                             delay(800)   // let the toast render before the process dies
@@ -123,9 +123,9 @@ fun BackupSyncScreen() {
                         }
                     }
                     is DataBackup.ImportResult.Failed -> backupFailure = r.message
-                    // #1807: recoverable, but not from here â€” this screen restores a folder snapshot
-                    // directly and has no confirm step to hang the override on. Settings â†’ Backup & restore
-                    // â†’ Import does, and shows the same sentence with a way through. Which is the reason
+                    // #1807: recoverable, but not from here — this screen restores a folder snapshot
+                    // directly and has no confirm step to hang the override on. Settings → Backup & restore
+                    // → Import does, and shows the same sentence with a way through. Which is the reason
                     // it has to be READABLE here: the dialog is where the reader learns where to go.
                     is DataBackup.ImportResult.TooLarge -> backupFailure = r.message
                 }
@@ -181,7 +181,7 @@ fun BackupSyncScreen() {
                         uiString(R.string.l10n_backup_sync_screen_tip_a_desktop_drive_dropbox_app_2eaff1e3),
                         style = AlkeType.caption, color = Palette.accent,
                     )
-                    // #644: these .alkebak snapshots are a plain, unencrypted ZIP â€” pointing this folder
+                    // #644: these .alkebak snapshots are a plain, unencrypted ZIP — pointing this folder
                     // at a cloud sync app (per the tip above) also uploads that readable file there.
                     // Say so plainly next to the folder picker, before anyone turns auto-backup on.
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -207,7 +207,7 @@ fun BackupSyncScreen() {
             }
         }
 
-        // 2 Â· Auto-backup + back up now
+        // 2 · Auto-backup + back up now
         item {
             AlkeCard(padding = 20.dp, tint = if (auto && treeUri != null) Palette.accent else null) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -316,7 +316,7 @@ fun BackupSyncScreen() {
                         },
                         style = AlkeType.caption, color = Palette.textTertiary,
                     )
-                    // Auto is ON but the last SUCCESSFUL backup is stale â€” the daily catch-up isn't landing
+                    // Auto is ON but the last SUCCESSFUL backup is stale — the daily catch-up isn't landing
                     // (a lost folder grant, or the app hasn't been opened in a while). backupNow only stamps
                     // lastMs on success, so this surfaces a silently-failing auto-backup instead of it being
                     // discovered only at restore.
@@ -340,14 +340,14 @@ fun BackupSyncScreen() {
                         }
                     }
                     AlkeButton(
-                        text = if (busy) "Workingâ€¦" else "Back up now",
+                        text = if (busy) "Working…" else "Back up now",
                         leadingIcon = Icons.Filled.CloudUpload,
                         fullWidth = true,
                         enabled = treeUri != null && !busy,
                         onClick = {
                             busy = true
                             scope.launch {
-                                // Clear in a `finally` so it clears on ANY exit â€” the twin of the Apple `defer` in
+                                // Clear in a `finally` so it clears on ANY exit — the twin of the Apple `defer` in
                                 // `BackupSyncView.backupNow`. The flag now clears after the toast rather than before it,
                                 // which is the point: the screen stays disabled until the work is genuinely finished.
                                 try {
@@ -372,7 +372,7 @@ fun BackupSyncScreen() {
             }
         }
 
-        // 3 Â· Restore (must-fix #1: from the chosen folder, newest-first)
+        // 3 · Restore (must-fix #1: from the chosen folder, newest-first)
         item {
             AlkeCard(padding = 20.dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -506,7 +506,7 @@ fun BackupSyncScreen() {
  * the live DB.
  */
 /** Retention choices for the "Keep last snapshots" menu. Each snapshot is a dated .alkebak; the daily
- *  job keeps this many and prunes the oldest. Kept modest â€” a few days of rollback without hoarding. */
+ *  job keeps this many and prunes the oldest. Kept modest — a few days of rollback without hoarding. */
 private val KEEP_OPTIONS = listOf(1, 3, 5, 7, 10, 14)
 
 private val RESTORE_MIME_TYPES = arrayOf(

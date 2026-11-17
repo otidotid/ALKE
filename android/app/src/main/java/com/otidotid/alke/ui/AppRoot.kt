@@ -269,7 +269,7 @@ internal val drawerGroups: List<DrawerGroup> = listOf(
     ), defaultExpanded = false),
     DrawerGroup("Settings", R.string.more_group_app, listOf(
         Destination.Automations, Destination.SmartAlarm, Destination.Notifications,
-        Destination.TestCentre, Destination.PowerSaving, Destination.Settings,
+        Destination.TestCentre, Destination.PowerSaving,
     ), defaultExpanded = false),
 )
 
@@ -319,7 +319,6 @@ internal val configurableBottomBarDestinations: List<Destination> = listOf(
     Destination.Notifications,
     Destination.TestCentre,
     Destination.PowerSaving,
-    Destination.Settings,
 )
 
 /**
@@ -404,8 +403,8 @@ internal fun visibleMoreGroups(pinned: List<Destination>): List<DrawerGroup> {
 
 /**
  * ALKE's All Modules is for discovery, not a second copy of the dock or Me.
- * Me already has one-tap Settings, Devices, Data sources and Backup & Restore;
- * preserve their routes and dock-pinning eligibility but avoid duplicate rows.
+ * Me already includes all settings and one-tap Devices, Data sources and
+ * Backup & Restore. Keep old route IDs for history, not as duplicate modules.
  */
 internal fun alkeAllModulesGroups(pinned: List<Destination>): List<DrawerGroup> {
     val meShortcuts = setOf(
@@ -1024,16 +1023,19 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.Notifications.route) { NotificationsSettingsScreen(viewModel) }
                 composable(Destination.PowerSaving.route) { PowerSavingScreen(viewModel) }
                 composable(Destination.Profile.route) {
-                    ProfileScreen(onOpenSettings = { nav.navigate(Destination.Settings.route) })
+                    // The legacy profile view still works from Today/avatar; all settings
+                    // it links to now live directly in Me, not a separate Settings page.
+                    ProfileScreen(onOpenSettings = { nav.navigateTopLevel(Destination.More.route) })
                 }
                 composable(Destination.Settings.route) {
-                    SettingsScreen(
-                        viewModel,
-                        onOpenTestCentre = { nav.navigate(Destination.TestCentre.route) },
-                        onOpenBackupSync = { nav.navigate(Destination.BackupSync.route) },
-                        onOpenSelfHostedPush = { nav.navigate(Destination.SelfHostedPush.route) },
-                        onOpenStepsCalibration = { nav.navigate(Destination.StepsCalibration.route) },
-                    )
+                    // Keep legacy settings route names for old saved/deep navigation, but
+                    // redirect to the canonical Me tab so there is no parallel settings UI.
+                    LaunchedEffect(Unit) {
+                        nav.navigate(Destination.More.route) {
+                            popUpTo(Destination.Settings.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
                 }
                 composable(Destination.StepsCalibration.route) {
                     val profile = remember(context) { ProfileStore.from(context) }
@@ -1063,12 +1065,13 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         vm = viewModel,
                         onNotifications = { showUpdatesInbox = true },
                         unreadCount = updateStore.unreadCount,
-                        onProfile = { nav.navigate(Destination.Profile.route) },
                         onDevices = { nav.navigate(Destination.Devices.route) },
-                        onSettings = { nav.navigate(Destination.Settings.route) },
                         onModules = { nav.navigate(Destination.AlkeAllModules.route) },
                         onSources = { nav.navigate(Destination.DataSources.route) },
                         onBackupRestore = { nav.navigate(Destination.BackupSync.route) },
+                        onOpenTestCentre = { nav.navigate(Destination.TestCentre.route) },
+                        onOpenSelfHostedPush = { nav.navigate(Destination.SelfHostedPush.route) },
+                        onOpenStepsCalibration = { nav.navigate(Destination.StepsCalibration.route) },
                     )
                 }
                 composable(Destination.AlkeAllModules.route) {

@@ -1741,27 +1741,37 @@ fun AlkeMeExperience(
     vm: AppViewModel,
     onNotifications: () -> Unit,
     unreadCount: Int,
-    onProfile: () -> Unit,
     onDevices: () -> Unit,
-    onSettings: () -> Unit,
     onModules: () -> Unit,
     onSources: () -> Unit,
     onBackupRestore: () -> Unit,
+    onOpenTestCentre: () -> Unit,
+    onOpenSelfHostedPush: () -> Unit,
+    onOpenStepsCalibration: () -> Unit,
 ) {
     var showDockEditor by remember { mutableStateOf(false) }
-    AlkePage {
-        AlkeHeading("Me", "Your preferences, devices and data, in one place.")
-        AlkeSectionTitle("Your experience")
-        AlkeLinkRow("My profile", "Personal settings and metrics", Icons.Filled.FavoriteBorder, onProfile)
-        AlkeLinkRow("Devices", "Connect and manage wearable sensors", Icons.Filled.Sensors, onDevices)
-        AlkeLinkRow("Data sources", "Imports, Health Connect and provenance", Icons.Filled.Storage, onSources)
-        AlkeLinkRow("Settings", "Privacy, connected accounts and preferences", Icons.Filled.Settings, onSettings)
-        AlkeLinkRow("Customize Dock", "Choose and reorder your quick navigation", Icons.Filled.Tune,
-            { showDockEditor = true }, A.cyan)
-        AlkeLinkRow("Backup & Restore", "Import your ALKE or legacy backup", Icons.Filled.Storage,
-            onBackupRestore, A.blue)
-        AlkeLinkRow("All modules", "Explore the complete ALKE toolkit", Icons.Filled.Tune, onModules, A.gold)
-    }
+
+    // Me is the only home of settings. Reuse the COMPLETE existing SettingsScreen
+    // body rather than duplicating hundreds of controls or reimplementing settings
+    // callbacks. SettingsScreen provides one scrollable scaffold for the full page.
+    SettingsScreen(
+        vm = vm,
+        onOpenTestCentre = onOpenTestCentre,
+        onOpenBackupSync = onBackupRestore,
+        onOpenSelfHostedPush = onOpenSelfHostedPush,
+        onOpenStepsCalibration = onOpenStepsCalibration,
+        meHeader = {
+            AlkeSectionTitle("Quick access")
+            AlkeLinkRow("Devices", "Connect and manage wearable sensors", Icons.Filled.Sensors, onDevices)
+            AlkeLinkRow("Data sources", "Imports, Health Connect and provenance", Icons.Filled.Storage, onSources)
+            AlkeLinkRow("Customize Dock", "Choose and reorder your quick navigation", Icons.Filled.Tune,
+                { showDockEditor = true }, A.cyan)
+            AlkeLinkRow("Backup & Restore", "Import your ALKE or legacy backup", Icons.Filled.Storage,
+                onBackupRestore, A.blue)
+            AlkeLinkRow("All modules", "Explore the complete ALKE toolkit", Icons.Filled.Tune, onModules, A.gold)
+            AlkeSectionTitle("Personal & app settings")
+        },
+    )
     if (showDockEditor) AlkeDockEditorDialog(onDismiss = { showDockEditor = false })
 }
 

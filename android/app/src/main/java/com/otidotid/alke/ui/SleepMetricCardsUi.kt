@@ -566,8 +566,8 @@ internal fun DurationTrend(m: SleepModel) {
             footer = {
                 SleepChartFooter(
                     listOf(
-                        "Avg" to (m.trendDebtHours.sleepAverageOrNull()?.let { durationText(it * 60.0) } ?: "â€”"),
-                        "Max" to (m.trendDebtHours.maxOrNull()?.let { durationText(it * 60.0) } ?: "â€”"),
+                        "Avg" to (m.trendDebtHours.sleepAverageOrNull()?.let { durationText(it * 60.0) } ?: "—"),
+                        "Max" to (m.trendDebtHours.maxOrNull()?.let { durationText(it * 60.0) } ?: "—"),
                         "Days" to "${m.trendDebtHours.size}",
                     ),
                 )

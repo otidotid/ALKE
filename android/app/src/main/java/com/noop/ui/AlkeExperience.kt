@@ -1316,7 +1316,7 @@ fun AlkeMeExperience(
         AlkeLinkRow("My profile", "Personal settings and metrics", Icons.Filled.FavoriteBorder, onProfile)
         AlkeLinkRow("Devices", "Connect and manage wearable sensors", Icons.Filled.Sensors, onDevices)
         AlkeLinkRow("Data sources", "Imports, Health Connect and provenance", Icons.Filled.Storage, onSources)
-        AlkeLinkRow("Settings", "Privacy, preferences and appearance", Icons.Filled.Settings, onSettings)
+        AlkeLinkRow("Settings", "Privacy, connected accounts and preferences", Icons.Filled.Settings, onSettings)
         AlkeLinkRow("Customize Dock", "Choose and reorder your quick navigation", Icons.Filled.Tune,
             { showDockEditor = true }, A.cyan)
         AlkeLinkRow("Backup & Restore", "Import your ALKE or legacy backup", Icons.Filled.Storage,

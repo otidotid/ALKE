@@ -1070,12 +1070,31 @@ private fun AlkeFitnessAgeHero(
                     val arcSize = Size(size.width - 2f * inset, size.height - 2f * inset)
                     val origin = Offset(inset, inset)
                     val radius = arcSize.width / 2f
+                    // Continuous ALKE cyan/gold aurora beneath the age number.
+                    val span = size.minDimension
+                    val cyanCenter = Offset(
+                        center.x + (orbit - 0.5f) * span * 0.38f,
+                        center.y - span * 0.10f + ambient * span * 0.07f,
+                    )
+                    val goldCenter = Offset(
+                        center.x - (orbit - 0.5f) * span * 0.30f,
+                        center.y + span * 0.22f - ambient * span * 0.08f,
+                    )
                     drawCircle(
                         brush = Brush.radialGradient(
-                            listOf(A.cyan.copy(alpha = 0.15f + ambient * 0.34f), A.cardDark.copy(alpha = 0.02f)),
-                            center = center, radius = size.minDimension * 0.48f,
+                            listOf(A.cyan.copy(alpha = 0.24f + ambient * 0.26f),
+                                Color.Transparent),
+                            center = cyanCenter, radius = span * 0.43f,
                         ),
-                        radius = radius * 0.92f,
+                        radius = span * 0.43f, center = cyanCenter,
+                    )
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            listOf(A.gold.copy(alpha = 0.16f + ambient * 0.22f),
+                                Color.Transparent),
+                            center = goldCenter, radius = span * 0.37f,
+                        ),
+                        radius = span * 0.37f, center = goldCenter,
                     )
                     drawArc(
                         color = A.stroke.copy(alpha = 0.72f), startAngle = 135f,
@@ -1110,7 +1129,7 @@ private fun AlkeFitnessAgeHero(
                 Column(horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     val ageText = fitnessAge?.let {
-                        fitnessAgeBoundSymbol(it) + String.format(Locale.US, "%.1f", it)
+                        String.format(Locale.US, "%.1f", it)
                     } ?: "—"
                     Box(contentAlignment = Alignment.Center) {
                         // A soft neon echo behind the real numeral gives an observable

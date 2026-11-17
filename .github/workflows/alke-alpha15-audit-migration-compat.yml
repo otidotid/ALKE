@@ -147,13 +147,13 @@ jobs:
               print(f"PASS exact algorithm source parity: {name}")
           PY
 
-      - name: Build GitHub Release APK only, WITHOUT synthetic or personal data
+      - name: Build public and empty personal-base APKs, without any user data
         shell: bash
         working-directory: android
         run: |
           set -euo pipefail
           chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace :app:assembleFullDebug
+          ./gradlew --no-daemon --stacktrace :app:assembleFullDebug :app:assemblePersonalDebug
 
       - name: Run all full-debug unit and numeric parity tests
         shell: bash
@@ -167,22 +167,30 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t full_apks < <(find android/app/build/outputs/apk/full/debug -maxdepth 1 -type f -name '*.apk')
+          mapfile -t personal_apks < <(find android/app/build/outputs/apk/personal/debug -maxdepth 1 -type f -name '*.apk')
           test "${#full_apks[@]}" -eq 1
-          mkdir -p release-apk local-package-tools
+          test "${#personal_apks[@]}" -eq 1
+          mkdir -p release-apk personal-base local-package-tools
           cp "${full_apks[0]}" release-apk/ALKE-v1.0.0-alpha.15-debug.apk
+          cp "${personal_apks[0]}" personal-base/ALKE-v1.0.0-alpha.15-personal-base-NO-DATA.apk
           apk=release-apk/ALKE-v1.0.0-alpha.15-debug.apk
-          test "$(stat -c '%s' "$apk")" -gt 1000000
-          unzip -t "$apk" | tail -1
-          ! unzip -Z1 "$apk" | grep -Fq 'alke-private-backup.noopbak'
-          sha256sum "$apk"
+          for candidate in "$apk" personal-base/*.apk; do
+            test "$(stat -c '%s' "$candidate")" -gt 1000000
+            unzip -t "$candidate" | tail -1
+            ! unzip -Z1 "$candidate" | grep -Fq 'alke-private-backup.noopbak'
+            sha256sum "$candidate"
+          done
           aapt=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)
           test -n "$aapt"
           "$aapt" dump badging "$apk" | grep -q "package: name='com.otidotid.alke.debug'"
+          "$aapt" dump badging personal-base/ALKE-v1.0.0-alpha.15-personal-base-NO-DATA.apk | grep -q "package: name='com.otidotid.alke.personal.debug'"
           buildtools=$(dirname "$aapt")
           test -f "$buildtools/lib/apksigner.jar"
           test -x "$buildtools/zipalign"
           cp "$buildtools/lib/apksigner.jar" local-package-tools/apksigner.jar
           cp "$buildtools/zipalign" local-package-tools/zipalign
+          chmod +x local-package-tools/zipalign
+          cp "$aapt" local-package-tools/aapt
           echo 'Public APK verified; no private backup or synthetic demo included.'
 
       - name: Save normal APK as independent CI artifact
@@ -192,6 +200,14 @@ jobs:
           path: release-apk/ALKE-v1.0.0-alpha.15-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Save EMPTY personal-base APK for local data insertion only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha15-personal-base-NO-DATA
+          path: personal-base/ALKE-v1.0.0-alpha.15-personal-base-NO-DATA.apk
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Save signing tools for private offline packaging, not for distribution
         uses: actions/upload-artifact@v4
@@ -218,7 +234,7 @@ jobs:
           This build continues the independent ALKE identity and design lock from alpha.11. **The immutable pre-migration source code is protected in `alke/backup-20261117-pre-design-lock`.**
 
           - Historical Android health and food ZIP entries are recognized and integrity-checked for complete offline restore (including meals). No actual health records enter the GitHub source, CI or public release.
-          - A privately packaged APK can import its owner's backup on first fresh launch using the existing integrity-checked, rollback-protected restore path. It is created ONLY offline and never uploaded to GitHub.
+          - A privately packaged APK can import its owner's backup on first fresh launch using the existing integrity-checked, rollback-protected restore path. It is created ONLY offline and never uploaded to GitHub. The personal build has a separate Android package ID, so it cannot overwrite the public one.
           - Power saver and pose-still gate are applied to the remaining Fitness Age animation; unit test coverage must pass.
           - Fixed the SAF file picker to include historical .txt-named archives; incoming files still pass SQLite magic, Room origin and integrity checks before any live database replacement.
           - Registered additive Room migrations from schema 41 through 43 remain unchanged, with automated migration-chain coverage.

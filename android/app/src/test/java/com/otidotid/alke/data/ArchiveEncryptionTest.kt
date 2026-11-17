@@ -23,6 +23,7 @@ class ArchiveEncryptionTest {
         val recovered = File(folder.root, "recovered.alkearc")
         ArchiveEncryption.encrypt(source, encrypted, password, testIterations)
         assertTrue(encrypted.isFile)
+        assertArrayEquals("ALKEENC1".toByteArray(Charsets.US_ASCII), encrypted.readBytes().copyOfRange(0, 8))
         assertFalse(encrypted.readBytes().contentEquals(original))
         ArchiveEncryption.decrypt(encrypted, recovered, password)
         assertArrayEquals(original, recovered.readBytes())

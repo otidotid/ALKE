@@ -44,8 +44,23 @@ class RawDataCollectorParityTest {
         }
     }
 
-    @Test fun androidAndAppleOracleCopiesAreByteIdentical() {
+    @Test fun androidAndAppleOracleCopiesMatchExceptBrandedImuMagic() {
         val apple = File(repoRoot(), "StrandTests/Resources/raw_data_collector_parity.json")
-        assertEquals(oracleBytes.toList(), apple.readBytes().toList())
+        val referenceText = apple.readText()
+        val androidText = oracleBytes.toString(Charsets.UTF_8)
+        val referenceImu = JSONObject(referenceText).getJSONObject("capabilities")
+            .getJSONObject("session_bound_imu_file")
+        val alkeImu = JSONObject(androidText).getJSONObject("capabilities")
+            .getJSONObject("session_bound_imu_file")
+        val referenceMagic = referenceImu.getJSONArray("swift").getString(2)
+        val actualMagic = alkeImu.getJSONArray("swift").getString(2)
+        assertEquals(referenceMagic, referenceImu.getJSONArray("kotlin").getString(2))
+        assertEquals("ALKEIMU2", actualMagic)
+        assertEquals(actualMagic, alkeImu.getJSONArray("kotlin").getString(2))
+        // Exactly two identity bytestrings (Swift + Kotlin) can differ. All
+        // numerical rules, capabilities, markers and other bytes must match.
+        assertEquals(2, referenceText.split("\"$referenceMagic\"").size - 1)
+        val normalizedReference = referenceText.replace("\"$referenceMagic\"", "\"$actualMagic\"")
+        assertEquals(oracleBytes.toList(), normalizedReference.toByteArray().toList())
     }
 }

@@ -34,7 +34,7 @@ class StressWidgetBackgroundScoringTest {
         val viewModel = source
             ?: error("AppViewModel.kt not found - this test must not pass by default")
         val foregroundProducer = Regex(
-            """val\s+stressCurve\s*=\s*if\s*\(WidgetSnapshotStore\.hasStressWidget\(appContext\)\)\s*\{\s*com\.alke\.widget\.StressWidgetProducer\.todayCurve"""
+            """val\s+stressCurve\s*=\s*if\s*\(WidgetSnapshotStore\.hasStressWidget\(appContext\)\)\s*\{\s*com\.otidotid\.alke\.widget\.StressWidgetProducer\.todayCurve"""
         )
 
         assertTrue(

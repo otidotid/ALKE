@@ -29,12 +29,13 @@ class BackupSyncTest {
         assertNull(BackupSync.snapshotTimeMs("random.txt"))
     }
 
-    @Test fun legacyAlkebakRemainsRestorableButNeverPruned() {
-        val legacy = "alke-backup-20260627-123456.alkebak"
-        assertTrue(BackupSync.isBackupFile(legacy))
-        assertFalse(BackupSync.isSnapshot(legacy))
-        assertTrue(BackupSync.snapshotTimeMs(legacy) != null)
-        assertFalse(BackupSync.snapshotsToPrune(listOf(legacy), keep = 0).contains(legacy))
+    @Test fun manuallyNamedAlkebakRemainsRestorableButNeverPruned() {
+        // User-named backups are restorable but cannot be silently auto-deleted.
+        val manual = "alke-backup-2026-06-27.alkebak"
+        assertTrue(BackupSync.isBackupFile(manual))
+        assertFalse(BackupSync.isSnapshot(manual))
+        assertNull(BackupSync.snapshotTimeMs(manual))
+        assertFalse(BackupSync.snapshotsToPrune(listOf(manual), keep = 0).contains(manual))
     }
 
     @Test fun latestPicksNewest() {

@@ -21,7 +21,7 @@ import java.nio.ByteBuffer
  * full-recovery backups. Legacy automatic backup files can still be unencrypted.
  *
  * Format v1 (big-endian):
- *   ASCII "ALKEENC" (8), version (1), PBKDF2 iterations (4), salt (16), nonce prefix (8),
+ *   ASCII "ALKEENC1" (8), version (1), PBKDF2 iterations (4), salt (16), nonce prefix (8),
  *   followed by authenticated frames: ciphertext length (4), final flag (1), AES-GCM payload.
  * An empty, authenticated final frame is required, so truncation is always detected.
  *
@@ -44,7 +44,7 @@ internal object ArchiveEncryption {
     private const val NONCE_PREFIX_BYTES = 8
     private const val GCM_TAG_BYTES = 16
     private const val VERSION: Byte = 1
-    private val MAGIC = "ALKEENC".toByteArray(Charsets.US_ASCII)
+    private val MAGIC = "ALKEENC1".toByteArray(Charsets.US_ASCII)
     private const val HEADER_BYTES = 8 + 1 + 4 + SALT_BYTES + NONCE_PREFIX_BYTES
     private val random = SecureRandom()
 

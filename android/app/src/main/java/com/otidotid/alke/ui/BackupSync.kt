@@ -40,11 +40,6 @@ object BackupSync {
 
     private const val PREFIX = "alke-backup-"
     private const val SUFFIX = ".alkebak"
-    // Historical ALKE/ALKE snapshots stay importable, but must never be auto-pruned
-    // as if they were ALKE-created backups.
-    private const val LEGACY_PREFIX = "alke-backup-"
-    private const val LEGACY_SUFFIX = ".alkebak"
-
     /** Generic binary MIME for the SAF createDocument call (the bytes are a ZIP container). */
     const val MIME = "application/octet-stream"
 
@@ -87,13 +82,8 @@ object BackupSync {
 
     /** The UTC instant (ms) encoded in a snapshot filename, or null if [name] is not one of ours. */
     fun snapshotTimeMs(name: String): Long? {
-        val (prefix, suffix) = when {
-            name.startsWith(PREFIX) && name.endsWith(SUFFIX) -> PREFIX to SUFFIX
-            name.startsWith(LEGACY_PREFIX) && name.endsWith(LEGACY_SUFFIX) ->
-                LEGACY_PREFIX to LEGACY_SUFFIX
-            else -> return null
-        }
-        val stamp = name.substring(prefix.length, name.length - suffix.length)
+        if (!name.startsWith(PREFIX) || !name.endsWith(SUFFIX)) return null
+        val stamp = name.substring(PREFIX.length, name.length - SUFFIX.length)
         return runCatching { fmt().parse(stamp)?.time }.getOrNull()
     }
 
@@ -108,7 +98,7 @@ object BackupSync {
      * restore but never auto-deleted.
      */
     fun isBackupFile(name: String): Boolean =
-        name.lowercase().let { it.endsWith(SUFFIX) || it.endsWith(LEGACY_SUFFIX) }
+        name.lowercase().endsWith(SUFFIX)
 
     /** Newest snapshot by encoded time among [names] (non-snapshots ignored), or null if none. */
     fun latestSnapshot(names: List<String>): String? =

@@ -48,8 +48,14 @@ class DeviceRawSourceParityTest {
             val imported = case.getJSONArray("imported").let { xs ->
                 List(xs.length()) { xs.getString(it) }
             }
+            // The immutable reference uses its original 8-byte branding suffix. Validate
+            // each owner against the oracle, then compare with ALKE's new source suffix.
             val computed = case.getJSONArray("computed").let { xs ->
-                List(xs.length()) { xs.getString(it) }
+                List(xs.length()) { index ->
+                    val sourceId = xs.getString(index).substringBeforeLast('-', "")
+                    assertTrue("Computed owner absent from imported sources: $sourceId", sourceId in imported)
+                    "$sourceId-alke"
+                }
             }
             val actual = WhoopRepository.rawWhoopSourceIdsFor(active, registered)
             assertEquals(case.getString("name"), imported, actual)

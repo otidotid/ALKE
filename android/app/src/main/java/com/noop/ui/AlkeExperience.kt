@@ -515,19 +515,10 @@ fun AlkeTodayExperience(
     onProgress: () -> Unit,
     onCoach: () -> Unit,
     onMetric: (String) -> Unit,
-    onSteps: () -> Unit,
     onHeartRateTimeline: () -> Unit,
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
-    // Use the SAME real/imported/estimated steps resolver as the full steps trend.
-    // Never invent today's count from a stale or unavailable reading.
-    val stepsModel by produceState<VitalDetailModel?>(
-        initialValue = null, key1 = vm.activeStrapId, key2 = recentDays,
-    ) {
-        value = runCatching { buildSeriesVitalDetail(vm, "steps_est") }.getOrNull()
-    }
-    val lastSteps = stepsModel?.readings.orEmpty().maxByOrNull { it.day }
     val readinessLevel = remember(recentDays, day?.day) {
         ReadinessEngine.evaluate(recentDays, today = day?.day).level
     }
@@ -625,28 +616,6 @@ fun AlkeTodayExperience(
                 Modifier.weight(1f), A.gold, { onMetric("strain") })
             AlkeMetricTile("Active Time", workoutMinutes?.let { niceMinutes(it) } ?: "—",
                 Icons.Filled.MonitorHeart, Modifier.weight(1f), A.blue, onTrain)
-        }
-        AlkePanel(Modifier.fillMaxWidth(), onClick = onSteps) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Icons.Filled.DirectionsRun, contentDescription = null, tint = A.cyan)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("STEPS", color = A.cyan, fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
-                    Text(
-                        lastSteps?.value?.let {
-                            java.text.NumberFormat.getIntegerInstance().format(it.roundToInt())
-                        } ?: "—",
-                        color = A.white, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        lastSteps?.day?.let { "Last recorded · $it" } ?: "Awaiting step data",
-                        color = A.muted, fontSize = 11.sp,
-                    )
-                }
-                Icon(Icons.Filled.ChevronRight, contentDescription = "Open steps history",
-                    tint = A.cyan, modifier = Modifier.size(22.dp))
-            }
         }
         Text("Active Time reflects recorded workouts; unavailable activity is never estimated.",
             color = A.muted, fontSize = 10.sp)

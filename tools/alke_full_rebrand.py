@@ -63,6 +63,11 @@ def main() -> None:
     changed = 0
     renamed = 0
     for relative in paths:
+        # GITHUB_TOKEN can commit application source, but GitHub denies its
+        # write to workflow definitions. Workflow cleanup is a separate
+        # authenticated GitHub operation, after this atomic source commit.
+        if relative.startswith(".github/workflows/"):
+            continue
         source = ROOT / relative
         destination_name = rename_identity(relative)
         if not source.exists() or not source.is_file():
@@ -88,6 +93,8 @@ def main() -> None:
     # No old product name may remain in active source paths or UTF-8 text,
     # except required unchanged third-party copyright/license notices.
     for relative in tracked():
+        if relative.startswith(".github/workflows/"):
+            continue
         if relative == SELF.relative_to(ROOT).as_posix():
             continue
         source = ROOT / relative

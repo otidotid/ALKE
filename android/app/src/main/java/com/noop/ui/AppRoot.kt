@@ -821,7 +821,6 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onProgress = { nav.navigateTopLevel(Destination.Trends.route) },
                         onCoach = { nav.navigate(Destination.Coach.route) },
                         onMetric = { key -> nav.navigate("vital_detail/$key") },
-                        onSteps = { nav.navigate("vital_detail/steps_est") },
                         onHeartRateTimeline = { nav.navigate(Destination.AlkeHeartRateTimeline.route) },
                     )
                 }

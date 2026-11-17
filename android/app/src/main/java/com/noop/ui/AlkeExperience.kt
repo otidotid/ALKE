@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Insights
@@ -515,10 +516,22 @@ fun AlkeTodayExperience(
     onProgress: () -> Unit,
     onCoach: () -> Unit,
     onMetric: (String) -> Unit,
+    onSteps: () -> Unit,
     onHeartRateTimeline: () -> Unit,
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
+    // The existing Steps detail resolver provides real, imported, and estimated
+    // readings with the same precedence as Progress. Show ONLY today's reading
+    // in the Today tile; a prior date must never masquerade as today's steps.
+    val stepsModel by produceState<VitalDetailModel?>(
+        initialValue = null, key1 = vm.activeStrapId, key2 = recentDays,
+    ) {
+        value = runCatching { buildSeriesVitalDetail(vm, "steps_est") }.getOrNull()
+    }
+    val todaysSteps = stepsModel?.readings.orEmpty().lastOrNull {
+        it.day == LocalDate.now().toString()
+    }?.value?.takeIf { it.isFinite() && it >= 0.0 }
     val readinessLevel = remember(recentDays, day?.day) {
         ReadinessEngine.evaluate(recentDays, today = day?.day).level
     }
@@ -614,6 +627,9 @@ fun AlkeTodayExperience(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AlkeMetricTile("Day Strain", niceOne(day?.strain), Icons.Filled.DirectionsRun,
                 Modifier.weight(1f), A.gold, { onMetric("strain") })
+            AlkeMetricTile("Steps",
+                todaysSteps?.let { java.text.NumberFormat.getIntegerInstance().format(it.roundToInt()) } ?: "—",
+                Icons.Filled.DirectionsWalk, Modifier.weight(1f), A.cyan, onSteps)
             AlkeMetricTile("Active Time", workoutMinutes?.let { niceMinutes(it) } ?: "—",
                 Icons.Filled.MonitorHeart, Modifier.weight(1f), A.blue, onTrain)
         }

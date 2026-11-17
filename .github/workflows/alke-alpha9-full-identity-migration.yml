@@ -3,7 +3,7 @@ name: ALKE alpha.9 - Full Identity Migration, Unit Tests and Dual APKs
 on:
   push:
     branches:
-      - alke/alpha9-today-train-review
+      - alke/alpha9-full-identity-migration
   workflow_dispatch:
 
 permissions:

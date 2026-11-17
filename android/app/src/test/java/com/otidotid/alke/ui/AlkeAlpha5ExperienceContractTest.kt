@@ -105,6 +105,32 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(health.contains("mergeStepsReadings(real, imported, est)"))
     }
 
+    @Test fun progressStartsWithOriginalFitnessAgeAndQuietHeroAnimation() {
+        val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
+        val progress = ui.substring(ui.indexOf("fun AlkeProgressExperience("),
+            ui.indexOf("fun AlkeInsightExperience("))
+        val fitnessPos = progress.indexOf("AlkeFitnessAgeHero(")
+        val vo2Pos = progress.indexOf("onClick = onVo2")
+        val bodyAgePos = progress.indexOf("onClick = onBodyAge")
+        assertTrue("Fitness Age must be the first Progress metric", fitnessPos >= 0 && vo2Pos > fitnessPos)
+        assertTrue("Body Age must remain accessible below", bodyAgePos > fitnessPos)
+        assertTrue(progress.contains("vm.repo.latestMetricComputedUnion(vm.activeStrapId, \"fitness_age\")"))
+        assertTrue(progress.contains("onClick = onFitnessAge"))
+        assertTrue(ui.contains("rememberReduceMotion()"))
+        assertTrue(ui.contains("animateFloatAsState("))
+        assertTrue(ui.contains("fitnessAgeBoundSymbol(it)"))
+        assertTrue(ui.contains("AGE SCALE 20–80"))
+        val hero = ui.substring(ui.indexOf("private fun AlkeFitnessAgeHero("),
+            ui.indexOf("fun AlkeProgressExperience("))
+        assertFalse("Fitness Age hero must not contain a menu chevron", hero.contains("ChevronRight"))
+        assertFalse("Fitness Age hero must not animate forever", hero.contains("rememberInfiniteTransition"))
+        val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
+        assertTrue(nav.contains("onFitnessAge = { nav.navigate(\"vital_detail/fitness_age\") }"))
+        val detailed = source("src/main/java/com/otidotid/alke/ui/HealthScreen.kt")
+        assertTrue(detailed.contains("FitnessAgeDetailExperience("))
+        assertTrue(detailed.contains("metricSeriesComputedUnion(vm.activeStrapId, \"fitness_age\""))
+    }
+
     @Test fun skinTemperatureLivesInInsightBelowRestingHrAndKeepsOriginalHistory() {
         val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
         val today = ui.substring(ui.indexOf("fun AlkeTodayExperience("),
@@ -135,7 +161,7 @@ class AlkeAlpha5ExperienceContractTest {
 
     @Test fun fullAndDemoStaySeparateWithExistingSyntheticData() {
         val build = source("build.gradle.kts")
-        assertTrue(build.contains("versionName = \"1.0.0-alpha.10\""))
+        assertTrue(build.contains("versionName = \"1.0.0-alpha.11\""))
         assertTrue(build.contains("applicationIdSuffix = \".demo\""))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"false\")"))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"true\")"))

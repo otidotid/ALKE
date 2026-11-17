@@ -433,7 +433,7 @@ internal class GoogleDriveArchiveManager(
         val source = appContext.getDatabasePath(WhoopDatabase.DB_NAME)
         check(source.isFile)
         check(StatFs(appContext.filesDir.absolutePath).availableBytes >= source.length() * 3L) {
-            "Not enough storage to build and verify a THOOP monthly archive."
+            "Not enough storage to build and verify a ALKE monthly archive."
         }
         source.copyTo(destination, overwrite = true)
     }

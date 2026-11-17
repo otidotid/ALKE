@@ -3,7 +3,7 @@ name: ALKE alpha.10 - Unified Train UI, Unit Tests and Dual APKs
 on:
   push:
     branches:
-      - alke/alpha10-full-identity-migration
+      - alke/alpha10-train-unification
   workflow_dispatch:
 
 permissions:

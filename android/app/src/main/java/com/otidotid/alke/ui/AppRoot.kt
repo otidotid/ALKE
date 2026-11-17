@@ -149,7 +149,6 @@ internal enum class Destination(
     AlkeDetailedToday("alke_detailed_today", R.string.nav_today, Icons.Filled.Home),
     AlkeHeartRateTimeline("alke_hr_timeline", R.string.nav_hr_timeline, Icons.Filled.MonitorHeart),
     AlkeRecovery("alke_recovery", R.string.nav_sleep, Icons.Filled.Bedtime),
-    AlkeWorkoutHistory("alke_workout_history", R.string.nav_workouts, Icons.Filled.FitnessCenter),
     AlkeTrendHistory("alke_trend_history", R.string.nav_trends, Icons.AutoMirrored.Filled.TrendingUp),
     AlkeIntelligenceDetails("alke_intelligence_details", R.string.nav_intelligence, Icons.Filled.Psychology),
     AlkeAllModules("alke_all_modules", R.string.nav_more, Icons.Filled.MoreHoriz),
@@ -830,7 +829,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         vm = viewModel,
                         onBack = { nav.popBackStack() },
                         onLive = { nav.navigate(Destination.Live.route) },
-                        onWorkouts = { nav.navigate(Destination.AlkeWorkoutHistory.route) },
+                        onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) },
                     )
                 }
                 composable(Destination.AlkeDetailedToday.route) {
@@ -939,10 +938,8 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onDevices = { nav.navigate(Destination.Devices.route) },
                         onProfile = { nav.navigate(Destination.Profile.route) },
                         unreadCount = updateStore.unreadCount,
-                        onWorkouts = { nav.navigate(Destination.AlkeWorkoutHistory.route) },
                     )
                 }
-                composable(Destination.AlkeWorkoutHistory.route) { WorkoutsScreen(viewModel) }
                 composable(Destination.Intelligence.route) {
                     AlkeInsightExperience(
                         vm = viewModel,

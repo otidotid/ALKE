@@ -390,6 +390,132 @@ fun WorkoutsScreen(vm: AppViewModel) {
     }
 }
 
+
+/**
+ * Inline Train sections extracted from the former separate History screen.
+ * Uses the same original sport grouping, session rows, dialogs, and mutations.
+ * Activity Breakdown is always all-time; range/filter controls scope All Sessions.
+ */
+@Composable
+internal fun AlkeTrainHistorySections(vm: AppViewModel) {
+    val allRows by vm.workouts.collectAsStateWithLifecycle()
+    val recentDays by vm.recentDays.collectAsStateWithLifecycle()
+    var range by remember { mutableStateOf(WorkoutRange.All) }
+    var sportFilter by remember { mutableStateOf<String?>(null) }
+    var sourceFilter by remember { mutableStateOf<WorkoutSource?>(null) }
+    var searchText by remember { mutableStateOf("") }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var mergeSportPrompt by remember { mutableStateOf<List<WorkoutRow>?>(null) }
+    var dialog by remember { mutableStateOf<DialogTarget?>(null) }
+    var pendingNoteSport by remember { mutableStateOf<String?>(null) }
+    var postLogNote by remember { mutableStateOf<String?>(null) }
+
+    val filter = WorkoutFilter(sportFilter, sourceFilter, searchText)
+    val resolved = effectiveRange(allRows, range, filter)
+    val windowRows = filter.apply(sessions(allRows, resolved))
+    val availableSports = remember(allRows) {
+        allRows.groupingBy { WorkoutEditing.displaySport(it.sport) }.eachCount()
+            .entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }
+                .thenBy { it.key })
+            .map { it.key }
+    }
+    LaunchedEffect(allRows, recentDays, pendingNoteSport) {
+        val sport = pendingNoteSport ?: return@LaunchedEffect
+        val match = computeActivityCosts(allRows, recentDays).firstOrNull { it.sport == sport }
+        pendingNoteSport = null
+        if (match != null) {
+            postLogNote = match.sentence()
+            kotlinx.coroutines.delay(7_000)
+            postLogNote = null
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // Activity Breakdown follows Train's existing Active Calories calendar.
+        BreakdownSection(groups = sportGroups(allRows), rows = allRows)
+        if (allRows.isEmpty()) {
+            Text("Recorded activities will appear here when workouts are available.",
+                style = AlkeType.footnote, color = Palette.textTertiary)
+        } else {
+            // Preserve range and source/sport search without opening a second screen.
+            RangeBar(
+                range = range, effectiveRange = resolved, rowCount = windowRows.size,
+                fellBack = resolved != range, filterActive = filter.isActive,
+                onSelect = { range = it },
+            )
+            FilterBar(
+                filter = filter, availableSports = availableSports,
+                onSport = { sportFilter = it }, onSource = { sourceFilter = it },
+                onSearch = { searchText = it },
+                onClear = { sportFilter = null; sourceFilter = null; searchText = "" },
+            )
+            postLogNote?.let { PostLogNoteBanner(it) }
+        }
+        SessionsSection(
+            vm = vm,
+            rows = windowRows,
+            selectionMode = selectionMode,
+            selectedKeys = selectedKeys,
+            onToggleSelectMode = {
+                selectionMode = !selectionMode
+                if (!selectionMode) selectedKeys = emptySet()
+            },
+            onToggleRow = { row ->
+                val key = sessionSelectionKey(row)
+                selectedKeys = if (key in selectedKeys) selectedKeys - key else selectedKeys + key
+            },
+            onMerge = { chosen ->
+                if (WorkoutMerge.resolvedSport(chosen) == null) {
+                    mergeSportPrompt = chosen
+                } else {
+                    vm.mergeWorkouts(chosen)
+                    selectionMode = false
+                    selectedKeys = emptySet()
+                }
+            },
+            onBulkDelete = { chosen ->
+                vm.bulkDeleteWorkouts(chosen)
+                selectionMode = false
+                selectedKeys = emptySet()
+            },
+            onCancelSelect = { selectionMode = false; selectedKeys = emptySet() },
+            onEdit = { row, isCopy -> dialog = DialogTarget(row, isCopy) },
+            onRelabel = { row, sport ->
+                vm.relabelDetected(row, sport)
+                pendingNoteSport = WorkoutEditing.displaySport(sport)
+            },
+            onDismiss = { vm.dismissDetected(it) },
+            onDelete = { vm.deleteWorkout(it) },
+        )
+    }
+
+    mergeSportPrompt?.let { chosen ->
+        MergeSportDialog(
+            onDismiss = { mergeSportPrompt = null },
+            onPick = { sport ->
+                vm.mergeWorkouts(chosen, sport)
+                mergeSportPrompt = null
+                selectionMode = false
+                selectedKeys = emptySet()
+            },
+        )
+    }
+    dialog?.let { target ->
+        ManualWorkoutDialog(
+            vm = vm,
+            editing = target.editing,
+            isCopy = target.isCopy,
+            onDismiss = { dialog = null },
+            onSave = { row, replacing ->
+                vm.saveManualWorkout(row, replacing)
+                pendingNoteSport = WorkoutEditing.displaySport(row.sport)
+                dialog = null
+            },
+        )
+    }
+}
+
 /** Drives the manual add/edit dialog. [editing] null = add a new workout, non-null = edit it.
  *  [isCopy] marks "Duplicate as manual": the dialog pre-fills FROM a read-only row, but the save is a
  *  pure ADD and must not travel on as `replacing`. Source alone cannot express this - the copy claims

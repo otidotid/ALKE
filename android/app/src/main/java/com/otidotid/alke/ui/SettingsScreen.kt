@@ -634,13 +634,6 @@ fun SettingsScreen(
     // is a manual re-open and writes nothing.
     var showWhatsNew by remember { mutableStateOf(false) }
 
-    // "How your scores work" explainer sheet, reachable any time from About (macOS/iOS parity).
-    var showScoringGuide by remember { mutableStateOf(false) }
-
-    // "How ALKE works" primer sheet (COMPONENT 5 of the explainability layer), reachable any time
-    // from About â€” the plain-English tour of sleep sorting, scores, recording and provenance.
-    var showHowAlkeWorks by remember { mutableStateOf(false) }
-
     // Concise legal/privacy information stays discoverable without a first-run questionnaire.
     var showLegalNotice by remember { mutableStateOf(false) }
 
@@ -3267,102 +3260,6 @@ fun SettingsScreen(
                         )
                     }
                 }
-                // How your scores work â€” the honest explainer for Charge/Effort/Rest + the
-                // confidence labels, opened any time (macOS/iOS About parity).
-                val scoringGuideInteraction = remember { MutableInteractionSource() }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .liquidPress(scoringGuideInteraction)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Palette.surfaceInset)
-                        .border(1.dp, Palette.hairline, RoundedCornerShape(10.dp))
-                        .clickable(
-                            interactionSource = scoringGuideInteraction,
-                            indication = null,
-                        ) { showScoringGuide = true }
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                        .semantics {
-                            contentDescription =
-                                uiString(R.string.l10n_settings_screen_how_your_scores_work_21a0e2be)
-                        },
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.Science,
-                            contentDescription = null,
-                            tint = Palette.accent,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                uiString(R.string.l10n_settings_screen_how_your_scores_work_21a0e2be),
-                                style = AlkeType.headline,
-                                color = Palette.textPrimary
-                            )
-                            Text(
-                                uiString(R.string.l10n_settings_screen_charge_effort_and_rest_and_how_d2c423a4),
-                                style = AlkeType.footnote,
-                                color = Palette.textSecondary,
-                            )
-                        }
-                        Text("â€º", style = AlkeType.title2, color = Palette.accent)
-                    }
-                }
-
-                // How ALKE works â€” the plain-English primer (COMPONENT 5 of the explainability layer):
-                // how sleep is sorted, how scores + calibration work, what recording means, and where
-                // each number comes from. The one "?" entry point into the primer (macOS/iOS parity).
-                val howAlkeWorksInteraction = remember { MutableInteractionSource() }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .liquidPress(howAlkeWorksInteraction)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Palette.surfaceInset)
-                        .border(1.dp, Palette.hairline, RoundedCornerShape(10.dp))
-                        .clickable(
-                            interactionSource = howAlkeWorksInteraction,
-                            indication = null,
-                        ) { showHowAlkeWorks = true }
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                        .semantics {
-                            contentDescription =
-                                "How ALKE works"
-                        },
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.MenuBook,
-                            contentDescription = null,
-                            tint = Palette.accent,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "How ALKE works",
-                                style = AlkeType.headline,
-                                color = Palette.textPrimary
-                            )
-                            Text(
-                                uiString(R.string.l10n_settings_screen_sleep_sorting_scores_recording_and_where_832378b5),
-                                style = AlkeType.footnote,
-                                color = Palette.textSecondary,
-                            )
-                        }
-                        Text("â€º", style = AlkeType.title2, color = Palette.accent)
-                    }
-                }
-
-
                 // Accessible legal and privacy information. No employment questionnaire or
                 // forced informational onboarding step; user can revisit this at any time.
                 AlkeCard(
@@ -3562,30 +3459,6 @@ fun SettingsScreen(
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = Palette.surfaceBase) {
                     WhatsNewSheet(onClose = { showWhatsNew = false })
-                }
-            }
-        }
-
-        // Scoring guide sheet, opened from the About row above. Same full-screen Dialog idiom.
-        if (showScoringGuide) {
-            Dialog(
-                onDismissRequest = { showScoringGuide = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false),
-            ) {
-                Surface(modifier = Modifier.fillMaxSize(), color = Palette.surfaceBase) {
-                    ScoringGuideScreen(onClose = { showScoringGuide = false })
-                }
-            }
-        }
-
-        // "How ALKE works" primer sheet, opened from the About row above. Same full-screen Dialog idiom.
-        if (showHowAlkeWorks) {
-            Dialog(
-                onDismissRequest = { showHowAlkeWorks = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false),
-            ) {
-                Surface(modifier = Modifier.fillMaxSize(), color = Palette.surfaceBase) {
-                    HowAlkeWorksScreen(onClose = { showHowAlkeWorks = false })
                 }
             }
         }

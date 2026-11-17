@@ -71,13 +71,12 @@ jobs:
       - name: Restore immutable numerical parity reference by repository ID
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           REFERENCE_REPOSITORY_ID: 1401373206
           SOURCE_SHA: de24b55946de9d904f002441e0d24923ef91f2c6
         run: |
           set -euo pipefail
-          REFERENCE_URL="$(curl --fail --silent --show-error \
-            -H 'Accept: application/vnd.github+json' \
-            "https://api.github.com/repositories/$REFERENCE_REPOSITORY_ID" | jq -r '.clone_url')"
+          REFERENCE_URL="$(gh api "/repositories/$REFERENCE_REPOSITORY_ID" --jq '.clone_url')"
           test "$REFERENCE_URL" != "null"
           test -n "$REFERENCE_URL"
           git clone --depth=1 --branch v13.2.0 --single-branch \

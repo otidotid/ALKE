@@ -26,7 +26,7 @@ object AppChangelog {
      * Bump this when you add a release below. The "What's New" sheet shows automatically when the
      * stored last-seen version is behind this. (Decoupled from the bundle version on purpose.)
      */
-    const val CURRENT_VERSION = "1.0.0-alpha.8"
+    const val CURRENT_VERSION = "1.0.0-alpha.9"
 
     data class Release(
         val version: String,
@@ -42,6 +42,18 @@ object AppChangelog {
      * but are not part of ALKE's own public changelog.
      */
     val releases: List<Release> = listOf(
+        Release(
+            version = "1.0.0-alpha.9",
+            title = "Independent ALKE technical identity",
+            date = "November 2026",
+            items = listOf(
+                "Complete technical rebrand including source namespaces, resources, persistent storage identifiers, app help and documents. Old source and rollback points remain on a separate protected backup branch.",
+                "Fixed premium navy-and-cyan appearance. Only language and clock-format preferences remain in General.",
+                "Retains all analytics engines and hardware logic. Existing installed database and encrypted app credentials do not automatically follow renamed storage keys: export a backup and verify migration before replacing a working install.",
+                "Google OAuth, Cloudflare endpoint and AI provider configuration require new ALKE credentials or user-entered keys. Do not embed secrets in APKs.",
+                "Normal APK and synthetic demonstration APK use separate Android application IDs.",
+            ),
+        ),
         Release(
             version = "1.0.0-alpha.8",
             title = "ALKE design lock and migration readiness",

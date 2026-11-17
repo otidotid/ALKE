@@ -974,6 +974,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onVo2 = { nav.navigate("vital_detail/vo2max_est") },
                         onBodyAge = { nav.navigate("vital_detail/vitality") },
                         onTrends = { nav.navigate(Destination.AlkeTrendHistory.route) },
+                        onSteps = { nav.navigate("vital_detail/steps_est") },
                     )
                 }
                 composable(Destination.AlkeTrendHistory.route) { TrendsScreen(viewModel) }

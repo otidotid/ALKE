@@ -22,7 +22,7 @@ internal class GoogleDriveBackupCoordinator(
     ): GoogleDriveBackupClient.RemoteBackup = withContext(Dispatchers.IO) {
         val directory = File(appContext.cacheDir, CLOUD_BACKUP_DIRECTORY).apply {
             if (!exists() && !mkdirs()) {
-                throw IllegalStateException("THOOP could not create its temporary backup directory.")
+                throw IllegalStateException("ALKE could not create its temporary backup directory.")
             }
         }
         val backupFile = File(directory, "thoop-upload-${System.currentTimeMillis()}.noopbak")
@@ -35,7 +35,7 @@ internal class GoogleDriveBackupCoordinator(
             )
             DataBackup.exportTo(appContext, uri)
             check(backupFile.isFile && backupFile.length() > 0L) {
-                "THOOP created an empty local backup."
+                "ALKE created an empty local backup."
             }
             check(DataBackup.containsFoodHistory(backupFile)) {
                 "Complete backup validation failed: food history is missing."
@@ -49,7 +49,7 @@ internal class GoogleDriveBackupCoordinator(
             val uploaded = driveClient.upload(accessToken, uploadFile, ownerId, encrypted = passphrase != null)
             val expectedSha256 = driveClient.sha256(uploadFile)
             check(uploaded.sha256 == expectedSha256) {
-                "Google Drive did not preserve the THOOP backup checksum metadata."
+                "Google Drive did not preserve the ALKE backup checksum metadata."
             }
             val verificationFile = File(directory, "thoop-verify-${uploaded.id}.noopbak")
             try {
@@ -106,7 +106,7 @@ internal class GoogleDriveBackupCoordinator(
         val downloaded = downloadBackup(accessToken, backup, passphrase)
         try {
             check(FileInputStream(downloaded).use(DataBackup::backupStreamIsIntact)) {
-                "The selected Google Drive backup is not a valid THOOP backup."
+                "The selected Google Drive backup is not a valid ALKE backup."
             }
             BackupPreview(backup, DataBackup.containsFoodHistory(downloaded))
         } finally {
@@ -124,7 +124,7 @@ internal class GoogleDriveBackupCoordinator(
 
         val safetyDirectory = File(appContext.filesDir, SAFETY_DIRECTORY).apply {
             if (!exists() && !mkdirs()) {
-                throw IllegalStateException("THOOP could not create its safety snapshot directory.")
+                throw IllegalStateException("ALKE could not create its safety snapshot directory.")
             }
         }
         val safetySnapshot = File(
@@ -153,7 +153,7 @@ internal class GoogleDriveBackupCoordinator(
             )
             DataBackup.exportTo(appContext, safetyUri)
             check(safetySnapshot.isFile && safetySnapshot.length() > 0L) {
-                "THOOP could not create a local safety snapshot. Restore was cancelled."
+                "ALKE could not create a local safety snapshot. Restore was cancelled."
             }
             check(FileInputStream(safetySnapshot).use(DataBackup::backupStreamIsIntact)) {
                 "The local safety snapshot failed validation. Restore was cancelled."

@@ -163,7 +163,7 @@ class CloudCoachClient(
         labRequest: LabInterpretation.Request? = null,
     ): Reply = withContext(Dispatchers.IO) {
         check(configured) {
-            "THOOP Cloud Coach belum dikonfigurasi. Isi THOOP_CLOUD_COACH_URL di android/local.properties lalu build ulang."
+            "ALKE Cloud Coach belum dikonfigurasi. Isi ALKE_CLOUD_COACH_URL di android/local.properties lalu build ulang."
         }
         val id = conversationId?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString()
         val payload = JSONObject()

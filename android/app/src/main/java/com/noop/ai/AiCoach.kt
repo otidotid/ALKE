@@ -88,7 +88,7 @@ class AiCoach(
      * key, network, rate limit, malformed response); the ViewModel maps that to a visible
      * error message and the app never crashes.
      */
-    /** Cloud-only Coach path. Existing THOOP health context remains authoritative. */
+    /** Cloud-only Coach path. Existing ALKE health context remains authoritative. */
     suspend fun chatCloud(
         ctx: Context,
         history: List<ChatMsg>,
@@ -707,12 +707,12 @@ class AiCoach(
             }
         }
 
-        // --- Current THOOP Age and body-composition factors: read-only persisted results. ---
+        // --- Current ALKE Age and body-composition factors: read-only persisted results. ---
         val activeId = activeStrapId()
         val ageRows = repo.withMetabolicCalculationTransaction {
             val currentAge = runCatching { repo.latestMetricComputedUnion(activeId, "fitness_age") }.getOrNull()
             linkedMapOf(
-                "THOOP Age" to "fitness_age",
+                "ALKE Age" to "fitness_age",
                 "Estimated VO2 Max" to "vo2max_est",
                 "BMI factor" to "fitness_factor_bmi",
                 "Waist-to-height ratio factor" to "fitness_factor_whtr",
@@ -736,8 +736,8 @@ class AiCoach(
         }
         if (ageRows.isNotEmpty()) {
             if (sb.isNotEmpty()) sb.append("\n")
-            sb.append("THOOP AGE AND BODY-COMPOSITION CONTEXT ")
-            sb.append("(saved THOOP outputs; may include an opted-in experimental AI metabolic input. Explain them but never recalculate or replace THOOP Age in chat):\n")
+            sb.append("ALKE AGE AND BODY-COMPOSITION CONTEXT ")
+            sb.append("(saved ALKE outputs; may include an opted-in experimental AI metabolic input. Explain them but never recalculate or replace ALKE Age in chat):\n")
             for ((label, day, value) in ageRows) {
                 sb.append("  â€¢ $label: ${fmt1(value)} (snapshot $day)\n")
             }
@@ -753,8 +753,8 @@ class AiCoach(
             sb.append("These are real recorded observations, not AI estimates. Interpret all custom markers ")
             sb.append("with their date, unit, sample condition and reported range. If marker identity is ")
             sb.append("ambiguous, say so. AI must never invent values, formulas, score weights, ")
-            sb.append("THOOP VO2 max, Fitness Age, Calories, Vitality or Recovery results. ")
-            sb.append("Only the on-device THOOP algorithms calculate scores.\n")
+            sb.append("ALKE VO2 max, Fitness Age, Calories, Vitality or Recovery results. ")
+            sb.append("Only the on-device ALKE algorithms calculate scores.\n")
             sb.append("INTERPRETATION IS REQUIRED when the user asks about a marker: for a real ")
             sb.append("result, explain meaning, measured date, units, own report range, ")
             sb.append("uncertainty and appropriate follow-up. For missing/invalid/ambiguous ")
@@ -787,7 +787,7 @@ class AiCoach(
                     sb.append("; note=").append(it.replace("\n", " ").take(130))
                 }
                 val assessment = com.noop.analytics.LabCalculationContract.assess(latest, snapshot)
-                sb.append("; THOOP score input=")
+                sb.append("; ALKE score input=")
                     .append(if (assessment.scoreKeys.isEmpty()) "not approved" else assessment.scoreKeys.sorted().joinToString(","))
                 sb.append("\n")
             }
@@ -799,7 +799,7 @@ class AiCoach(
                 sb.append(".\n")
             }
             sb.append("Missing markers are unknown, not zero, and not necessarily normal. ")
-            sb.append("A lab result never authorizes AI to write any numeric THOOP score.\n")
+            sb.append("A lab result never authorizes AI to write any numeric ALKE score.\n")
         } else {
             // Make the absence of lab results EXPLICIT to the AI when the user
             // opted into signal sharing. Absence is not a zero or normal value.

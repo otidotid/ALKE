@@ -165,11 +165,11 @@ internal class GoogleCloudBackupWorker(
             ?: return Result.failure().also { prefs.writeStatus("Sign in to Google before automatic backup.") }
         val authorization = silentAuthorization(applicationContext)
             ?: return Result.failure().also {
-                prefs.writeStatus("Open THOOP and re-authorize Google Drive for automatic backup.")
+                prefs.writeStatus("Open ALKE and re-authorize Google Drive for automatic backup.")
             }
         val token = authorization.accessToken?.takeIf(String::isNotBlank)
             ?: return Result.failure().also {
-                prefs.writeStatus("Google Drive authorization requires THOOP to be opened.")
+                prefs.writeStatus("Google Drive authorization requires ALKE to be opened.")
             }
         return runCatching {
             val uploaded = GoogleDriveBackupCoordinator(applicationContext)

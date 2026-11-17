@@ -21,7 +21,7 @@ internal class GoogleDriveAuthenticationException(val statusCode: Int) :
 
 /** Retryable server/rate-limit failures do not invalidate a user's Drive grant. */
 internal class GoogleDriveRetryableException(val statusCode: Int) :
-    IOException("Google Drive is temporarily busy or unavailable. THOOP will try again later.")
+    IOException("Google Drive is temporarily busy or unavailable. ALKE will try again later.")
 
 /** A quota needs action or a reset, rather than a new OAuth grant. */
 internal class GoogleDriveQuotaException(val statusCode: Int, message: String) : IOException(message)
@@ -48,13 +48,13 @@ internal class GoogleDriveBackupClient(
     suspend fun upload(accessToken: String, backup: File, ownerId: String, encrypted: Boolean = false): RemoteBackup =
         withContext(Dispatchers.IO) {
             require(accessToken.isNotBlank()) { "Google Drive access token is empty." }
-            require(ownerId.isNotBlank()) { "THOOP profile owner is empty." }
-            require(backup.isFile && backup.length() > 0L) { "THOOP backup file is empty." }
+            require(ownerId.isNotBlank()) { "ALKE profile owner is empty." }
+            require(backup.isFile && backup.length() > 0L) { "ALKE backup file is empty." }
 
             val createdAt = System.currentTimeMillis()
             val sha256 = sha256(backup)
             val metadata = JSONObject()
-                .put("name", "thoop-backup-$createdAt.${if (encrypted) "noopenc" else "noopbak"}")
+                .put("name", "alke-backup-$createdAt.${if (encrypted) "alkeenc" else "alkebak"}")
                 .put("parents", JSONArray().put(APP_DATA_FOLDER))
                 .put("appProperties", JSONObject()
                     .put("kind", BACKUP_KIND)
@@ -97,7 +97,7 @@ internal class GoogleDriveBackupClient(
         encrypted: Boolean = false,
     ): RemoteBackup = uploadObject(
         accessToken, archive, ownerId,
-        "thoop-archive-$month.${if (encrypted) "noopenc" else "nooparc"}", ARCHIVE_KIND,
+        "alke-archive-$month.${if (encrypted) "alkeenc" else "alkearc"}", ARCHIVE_KIND,
         mapOf(
             "month" to month,
             "recordCount" to recordCount.toString(),
@@ -186,11 +186,12 @@ internal class GoogleDriveBackupClient(
     }
 
     private fun parseBackup(json: JSONObject) = RemoteBackup(
-        json.getString("id"), json.optString("name", "THOOP backup"),
+        json.getString("id"), json.optString("name", "ALKE backup"),
         json.optString("createdTime"), json.optString("size").toLongOrNull() ?: 0L,
         json.optJSONObject("appProperties")?.optString("sha256")?.takeIf(String::isNotBlank),
         json.optJSONObject("appProperties")?.optString("encryption") == "THOOPENC-v1" ||
-            json.optString("name").endsWith(".noopenc"),
+            (json.optString("name").endsWith(".noopenc") ||
+                json.optString("name").endsWith(".alkeenc")),
     )
     internal fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")

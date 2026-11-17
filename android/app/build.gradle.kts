@@ -22,10 +22,15 @@ val localProps = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
-val cloudCoachBaseUrl = (localProps.getProperty("THOOP_CLOUD_COACH_URL")
+// ALKE-first public configuration; legacy THOOP keys remain valid for existing setups.
+val cloudCoachBaseUrl = (localProps.getProperty("ALKE_CLOUD_COACH_URL")
+    ?: System.getenv("ALKE_CLOUD_COACH_URL")
+    ?: localProps.getProperty("THOOP_CLOUD_COACH_URL")
     ?: System.getenv("THOOP_CLOUD_COACH_URL")
     ?: "").trim().trimEnd('/')
-val googleWebClientId = (localProps.getProperty("THOOP_GOOGLE_WEB_CLIENT_ID")
+val googleWebClientId = (localProps.getProperty("ALKE_GOOGLE_WEB_CLIENT_ID")
+    ?: System.getenv("ALKE_GOOGLE_WEB_CLIENT_ID")
+    ?: localProps.getProperty("THOOP_GOOGLE_WEB_CLIENT_ID")
     ?: System.getenv("THOOP_GOOGLE_WEB_CLIENT_ID")
     ?: "").trim()
 

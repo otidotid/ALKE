@@ -84,14 +84,14 @@ internal class GoogleSignInController(
     ): GoogleSignInResult {
         val activity = hostContext.findComponentActivity()
             ?: return GoogleSignInResult.Failure(
-                "Google Sign-In requires an active THOOP screen.",
+                "Google Sign-In requires an active ALKE screen.",
             )
 
         val webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID.trim()
         if (webClientId.isBlank()) {
             return GoogleSignInResult.Failure(
-                "Google Sign-In is not configured for this THOOP build. " +
-                    "Set THOOP_GOOGLE_WEB_CLIENT_ID in android/local.properties, then rebuild.",
+                "Google Sign-In is not configured for this ALKE build. " +
+                    "Set ALKE_GOOGLE_WEB_CLIENT_ID in android/local.properties, then rebuild.",
             )
         }
 
@@ -142,7 +142,7 @@ internal class GoogleSignInController(
             val detail = failure.message?.takeIf { it.isNotBlank() }
             GoogleSignInResult.Failure(
                 buildString {
-                    append("Google Sign-In failed. Verify the OAuth Android client package name and SHA-1 for this APK, plus THOOP_GOOGLE_WEB_CLIENT_ID.")
+                    append("Google Sign-In failed. Verify the OAuth Android client package name and SHA-1 for this APK, plus ALKE_GOOGLE_WEB_CLIENT_ID.")
                     if (detail != null) append(" Details: $detail")
                 },
             )

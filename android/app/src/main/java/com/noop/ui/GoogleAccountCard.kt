@@ -291,7 +291,7 @@ internal fun GoogleAccountCard() {
             title = { Text("Google Drive backup found") },
             text = {
                 Text(
-                    "A THOOP backup from ${formatCloudBackupDate(newestBackup.createdTime)} " +
+                    "A ALKE backup from ${formatCloudBackupDate(newestBackup.createdTime)} " +
                         "is available (${formatBackupSize(newestBackup.sizeBytes)}). " +
                         "You can preview it before deciding whether to restore."
                 )
@@ -328,7 +328,7 @@ internal fun GoogleAccountCard() {
                 Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
                     Text(
                         "Enter your EXISTING archive recovery passphrase (12+ characters). " +
-                            "THOOP will protect a device-only working copy with Android Keystore, " +
+                            "ALKE will protect a device-only working copy with Android Keystore, " +
                             "then automatically encrypt and verify rolling archives. " +
                             "Keep your original passphrase in your password manager for recovery. " +
                             "No local health records will be removed.",
@@ -412,10 +412,10 @@ internal fun GoogleAccountCard() {
                         if (creating) {
                             (if (migrating) "Encrypt a new copy of ${archiveMigrationMonth}; the original stays in Google Drive. " else "") +
                             "Choose a recovery passphrase (12+ characters) and keep it in your password manager. " +
-                                "It is NOT saved by THOOP. Without it, archives cannot be recovered on another phone."
+                                "It is NOT saved by ALKE. Without it, archives cannot be recovered on another phone."
                         } else {
                             "Enter the passphrase used when you created this archive. " +
-                                "THOOP does not store your recovery passphrase."
+                                "ALKE does not store your recovery passphrase."
                         },
                         style = NoopType.footnote,
                         color = Palette.textSecondary,
@@ -555,7 +555,7 @@ internal fun GoogleAccountCard() {
                 Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
                     Text(if (creating)
                         "Choose a recovery passphrase (12+ characters). Keep it in a password " +
-                            "manager. You will need it on a replacement phone; THOOP does not store it. " +
+                            "manager. You will need it on a replacement phone; ALKE does not store it. " +
                             "This includes the health and food databases and supported profile settings."
                     else "Enter the recovery passphrase used for this encrypted backup. " +
                         "Never share your passphrase in a chat or screenshot.")
@@ -613,7 +613,7 @@ internal fun GoogleAccountCard() {
                                         when (val result = outcome.result) {
                                             DataBackup.ImportResult.NeedsRestart -> {
                                                 restartRequired = true
-                                                backupStatus = "Restore completed. Restart THOOP. A safety backup was kept locally."
+                                                backupStatus = "Restore completed. Restart ALKE. A safety backup was kept locally."
                                                 pendingRestore = null
                                             }
                                             is DataBackup.ImportResult.Failed -> errorMessage = result.message
@@ -640,9 +640,9 @@ internal fun GoogleAccountCard() {
             title = { Text("Restore cloud backup?") },
             text = {
                 Text(
-                    "THOOP will check free space, create and validate a local safety snapshot, " +
+                    "ALKE will check free space, create and validate a local safety snapshot, " +
                         "then replace local data with ${formatCloudBackupDate(backup.createdTime)}. " +
-                        "Do not close THOOP during restore."
+                        "Do not close ALKE during restore."
                 )
             },
             dismissButton = {
@@ -937,7 +937,7 @@ internal fun GoogleAccountCard() {
                     Text(if (showTechnicalDetails) "Hide technical details" else "Technical details")
                 }
                 if (showTechnicalDetails) {
-                    Text("Drive access is limited to THOOP's private appDataFolder. No local record was deleted.",
+                    Text("Drive access is limited to ALKE's private appDataFolder. No local record was deleted.",
                         style = NoopType.caption, color = Palette.textTertiary)
                 }
             }
@@ -1053,7 +1053,7 @@ internal fun GoogleAccountCard() {
                     Text(
                         text = "${preview.backup.name}\n" +
                             "${formatCloudBackupDate(preview.backup.createdTime)} Â· " +
-                            "${formatBackupSize(preview.backup.sizeBytes)}\nValid THOOP backup Â· " +
+                            "${formatBackupSize(preview.backup.sizeBytes)}\nValid ALKE backup Â· " +
                             if (preview.includesFoodHistory) "Food history included" else "Legacy health-only backup",
                         style = NoopType.footnote,
                         color = Palette.textSecondary,
@@ -1071,7 +1071,7 @@ internal fun GoogleAccountCard() {
 
                 if (restartRequired) {
                     Text(
-                        text = "Restore completed. Fully close and reopen THOOP before continuing.",
+                        text = "Restore completed. Fully close and reopen ALKE before continuing.",
                         style = NoopType.footnote,
                         color = Palette.accent,
                     )

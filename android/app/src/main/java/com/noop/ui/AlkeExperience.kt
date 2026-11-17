@@ -773,7 +773,7 @@ fun AlkeTrainingExperience(
                 } ?: "No sessions yet", color = A.muted, fontSize = 10.sp, maxLines = 1)
             }
         }
-        AlkeActiveCaloriesCalendar(days)
+        AlkeActiveCaloriesCalendar(vm, days)
 
         // The all-source, newest-first workout list remains directly on Train
         // as previously requested; tapping a row opens the ORIGINAL detail sheet.
@@ -877,14 +877,42 @@ fun AlkeTrainingExperience(
 
 /** ALKE native presentation of the EXISTING, parity-tested ActivityHeatmap model. */
 @Composable
-private fun AlkeActiveCaloriesCalendar(days: List<DailyMetric>) {
-    val values = remember(days) {
-        days.mapNotNull { day ->
-            day.activeKcalEst?.takeIf { it.isFinite() && it >= 0.0 }?.let { day.day to it }
-        }.groupBy({ it.first }, { it.second })
-            .mapValues { (_, kcal) -> kcal.max() }
-    }
+private fun AlkeActiveCaloriesCalendar(vm: AppViewModel, days: List<DailyMetric>) {
+    // The original workout calendar core uses daily active calories. Those may
+    // come from imported Apple/Health Connect (AppleDaily), not only on-device
+    // DailyMetric.activeKcalEst. Prior ALKE demos already seeded 120 days of
+    // AppleDaily, so read the same imported-first source precedence as the
+    // existing active_kcal detail rather than showing an empty calendar.
     val today = LocalDate.now().toString()
+    val imported by produceState<Map<String, Double>>(
+        initialValue = emptyMap(), key1 = vm.activeStrapId, key2 = days,
+    ) {
+        val from = LocalDate.now().minusWeeks(14).toString()
+        value = runCatching {
+            val byDay = linkedMapOf<String, Double>()
+            // Health Connect wins within imports when both sources include a day.
+            for (row in vm.repo.appleDaily("health-connect", from, today) +
+                vm.repo.appleDaily("apple-health", from, today)) {
+                val kcal = row.activeKcal
+                if (kcal != null && kcal.isFinite() && kcal >= 0.0) {
+                    byDay.putIfAbsent(row.day, kcal)
+                }
+            }
+            byDay
+        }.getOrDefault(emptyMap())
+    }
+    val values = remember(days, imported) {
+        val byDay = linkedMapOf<String, Double>()
+        for (day in days) {
+            val kcal = day.activeKcalEst
+            if (kcal != null && kcal.isFinite() && kcal >= 0.0) {
+                byDay[day.day] = kcal
+            }
+        }
+        // Imported actual energy always wins over the HR-derived estimate.
+        byDay.putAll(imported)
+        byDay
+    }
     val grid = remember(values, today) { ActivityHeatmap.build(values, today) }
     val shades = listOf(
         A.stroke.copy(alpha = 0.34f),

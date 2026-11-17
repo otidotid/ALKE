@@ -17,7 +17,7 @@ jobs:
       - name: Checkout exact Alpha 15-derived Android source
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Confirm no Cloudflare backend modifications in this branch
         shell: bash
@@ -77,10 +77,10 @@ jobs:
           aapt=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)
           test -n "$aapt"
           "$aapt" dump badging "$apk" | grep -q "package: name='com.otidotid.alke.personal.debug'"
-          "$aapt" dump badging "$apk" | grep -q 'versionCode=\x27579\x27'
+          "$aapt" dump badging "$apk" | grep -q "versionCode='579'"
           found=0
           while IFS= read -r dex; do
-            if unzip -p "$apk" "$dex" | strings | grep -Fq "$ALKE_CLOUD_COACH_URL"; then found=1; fi
+            if unzip -p "$apk" "$dex" | strings | grep -F "$ALKE_CLOUD_COACH_URL" >/dev/null; then found=1; fi
           done < <(unzip -Z1 "$apk" | grep -E '^classes[0-9]*\\.dex$')
           test "$found" -eq 1
           if unzip -Z1 "$apk" | grep -Eiq 'private-backup|noopbak|alkebak'; then

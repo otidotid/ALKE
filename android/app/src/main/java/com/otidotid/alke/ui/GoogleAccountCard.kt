@@ -89,6 +89,18 @@ internal fun GoogleAccountCard() {
         mutableStateOf(false)
     }
 
+    // A CI/test APK may omit a Web OAuth client ID. Allow explicit local setup
+    // without storing tokens or requiring a new app build to correct the ID.
+    var googleWebClientId by remember {
+        mutableStateOf(GoogleOAuthClientConfig.current(context))
+    }
+    var googleWebClientIdDraft by remember {
+        mutableStateOf(googleWebClientId)
+    }
+    var showGoogleOauthSetup by remember {
+        mutableStateOf(false)
+    }
+
     var errorMessage by remember {
         mutableStateOf<String?>(null)
     }
@@ -704,11 +716,63 @@ internal fun GoogleAccountCard() {
                     color = Palette.textSecondary,
                 )
 
+                if (googleWebClientId.isBlank()) {
+                    Text(
+                        text = "Google Sign-In needs an OAuth Web Client ID. " +
+                            "Configure it below, and register this APK's package name and signing SHA-1 " +
+                            "as an Android OAuth client in the same Google Cloud project.",
+                        style = AlkeType.footnote,
+                        color = Palette.textSecondary,
+                    )
+                }
+
+                if (googleWebClientId.isBlank() || showGoogleOauthSetup) {
+                    OutlinedTextField(
+                        value = googleWebClientIdDraft,
+                        onValueChange = { googleWebClientIdDraft = it.trim() },
+                        label = { Text("Google OAuth Web Client ID") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = "This is a public client ID ending in apps.googleusercontent.com, " +
+                            "not an API key, password or client secret.",
+                        style = AlkeType.footnote,
+                        color = Palette.textSecondary,
+                    )
+                    AlkeButton(
+                        text = "Save OAuth configuration",
+                        kind = AlkeButtonKind.Secondary,
+                        fullWidth = true,
+                        enabled = !busy && isValidGoogleWebClientId(googleWebClientIdDraft),
+                        onClick = {
+                            if (GoogleOAuthClientConfig.save(context, googleWebClientIdDraft)) {
+                                googleWebClientId = GoogleOAuthClientConfig.current(context)
+                                showGoogleOauthSetup = false
+                                errorMessage = null
+                            } else {
+                                errorMessage = "Enter a valid Google Web OAuth client ID, not an API key."
+                            }
+                        },
+                    )
+                } else {
+                    AlkeButton(
+                        text = "Change Google OAuth setup",
+                        kind = AlkeButtonKind.Secondary,
+                        fullWidth = true,
+                        enabled = !busy,
+                        onClick = {
+                            googleWebClientIdDraft = googleWebClientId
+                            showGoogleOauthSetup = true
+                        },
+                    )
+                }
+
                 AlkeButton(
                     text = if (busy) "Signing in..." else "Sign in with Google",
                     leadingIcon = Icons.Filled.Login,
                     fullWidth = true,
-                    enabled = !busy,
+                    enabled = !busy && googleWebClientId.isNotBlank(),
                     onClick = {
                         busy = true
                         errorMessage = null

@@ -1105,6 +1105,51 @@ private fun AlkeFitnessAgeHero(
     }
 }
 
+
+/**
+ * Shared age-factor tile. One short staggered entrance and a bounded bar animation,
+ * never an endless shimmer. Missing metrics remain explicitly unavailable.
+ */
+@Composable
+private fun AlkeFitnessFactorCard(
+    modifier: Modifier,
+    index: Int,
+    label: String,
+    value: String,
+    caption: String,
+    fraction: Float?,
+    tint: Color,
+    onClick: () -> Unit,
+) {
+    val reduced = rememberReduceMotion()
+    var target by remember(label, fraction, reduced) {
+        mutableStateOf(if (reduced) (fraction ?: 0f).coerceIn(0f, 1f) else 0f)
+    }
+    LaunchedEffect(fraction, reduced) { target = (fraction ?: 0f).coerceIn(0f, 1f) }
+    val fill by animateFloatAsState(
+        targetValue = target,
+        animationSpec = if (reduced) tween(0)
+        else tween(durationMillis = 780, delayMillis = index * 90, easing = FastOutSlowInEasing),
+        label = "alke_factor_${index}_fill",
+    )
+    AlkePanel(modifier.staggeredAppear(index), onClick = onClick) {
+        Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 10.sp,
+            letterSpacing = 0.8.sp, maxLines = 1)
+        Text(value, color = A.white, fontWeight = FontWeight.Bold,
+            fontSize = if (value.length > 10) 16.sp else 24.sp, maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
+        Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape)
+            .background(A.stroke.copy(alpha = 0.62f))) {
+            if (fraction != null && fill > 0f) {
+                Box(Modifier.fillMaxWidth(fill).height(7.dp)
+                    .clip(CircleShape).background(tint))
+            }
+        }
+        Text(caption, color = A.muted, fontSize = 10.sp, lineHeight = 14.sp,
+            minLines = 2)
+    }
+}
+
 @Composable
 fun AlkeProgressExperience(
     vm: AppViewModel,
@@ -1115,6 +1160,8 @@ fun AlkeProgressExperience(
     onHealth: () -> Unit,
     onFitnessAge: () -> Unit,
     onVo2: () -> Unit,
+    onRestingHr: () -> Unit,
+    onTrain: () -> Unit,
     onBodyAge: () -> Unit,
     onTrends: () -> Unit,
     onSteps: () -> Unit,
@@ -1123,19 +1170,46 @@ fun AlkeProgressExperience(
     val days by vm.recentDays.collectAsStateWithLifecycle()
     // Use the same persisted weekly Fitness Age metric as Health and its detail view.
     // React to merged days after sync/import; never create a new scoring algorithm.
-    val fitnessAgeReading by produceState<Pair<Double, String>?>(
+    val fitnessAgeReading by produceState<Triple<Double, String, String>?>(
         initialValue = null, key1 = vm.activeStrapId, key2 = days,
     ) {
         val row = runCatching {
             vm.repo.latestMetricComputedUnion(vm.activeStrapId, "fitness_age")
         }.getOrNull()
-        value = row?.value?.takeIf { it.isFinite() &&
-            it >= FitnessAgeEngine.minAge && it <= FitnessAgeEngine.maxAge
-        }?.let { it to row.day }
+        value = row?.value?.takeIf { it.isFinite() }?.let {
+            Triple(it, row.day, row.deviceId)
+        }
+    }
+    // Show exactly the metabolic factor associated with this stored weekly score.
+    // The existing provenance gate filters out stale AI or unrelated lab samples.
+    val metabolicFactor by produceState<Pair<Double, Boolean>?>(
+        initialValue = null, key1 = fitnessAgeReading, key2 = days,
+    ) {
+        value = null
+        val score = fitnessAgeReading
+        if (score != null) {
+            value = runCatching {
+                vm.repo.withMetabolicCalculationTransaction {
+                    val scoreTrace = vm.repo.scoreInputDetails(score.third, score.second, "fitness_age")
+                    val candidate = vm.repo.metricSeries(
+                        score.third, "fitness_factor_metabolic_delta", score.second, score.second,
+                    ).firstOrNull { it.deviceId == score.third && it.day == score.second }
+                    val factorTrace = vm.repo.scoreInputDetails(
+                        score.third, score.second, "fitness_factor_metabolic_delta",
+                    )
+                    val valid = com.otidotid.alke.analytics.currentFitnessAgeMetabolicFactor(
+                        score.third, score.second, scoreTrace, candidate, factorTrace,
+                    )
+                    valid?.value?.takeIf { it.isFinite() }?.let {
+                        it to hasAiMetabolicProvenance(scoreTrace, score.third, score.second)
+                    }
+                }
+            }.getOrNull()
+        }
     }
     val context = LocalContext.current
     val chronologicalAge = remember(context) { ProfileStore.from(context.applicationContext).age }
-    val vo2 by produceState<Double?>(initialValue = null, key1 = vm.activeStrapId) {
+    val vo2 by produceState<Double?>(initialValue = null, key1 = vm.activeStrapId, key2 = days) {
         value = runCatching { vm.repo.latestMetricComputedUnion(vm.activeStrapId, "vo2max_est")?.value }.getOrNull()
     }
     // Reuse the original steps-history data resolver: real wearable measurements
@@ -1158,18 +1232,56 @@ fun AlkeProgressExperience(
             chronologicalAge = chronologicalAge,
             onClick = onFitnessAge,
         )
-        AlkePanel(Modifier.fillMaxWidth(), onClick = onVo2) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("VO₂ MAX", color = A.cyan, letterSpacing = 2.sp, fontSize = 10.sp)
-                    Text(niceOne(vo2), color = A.white, fontWeight = FontWeight.Bold, fontSize = 43.sp)
-                    Text("ml/kg/min • estimated", color = A.muted, fontSize = 11.sp)
-                }
-                Icon(Icons.Filled.ShowChart, contentDescription = null, tint = A.cyan, modifier = Modifier.size(39.dp))
-            }
-            Text("Open VO₂ Max detail", color = A.cyan, fontSize = 12.sp)
+        AlkeSectionTitle("Fitness Factors")
+        val rhr = days.takeLast(7).mapNotNull { it.restingHr?.toDouble() }
+            .average().takeIf { it.isFinite() }
+        val activity = days.takeLast(7).mapNotNull { it.strain }
+            .average().takeIf { it.isFinite() }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AlkeFitnessFactorCard(
+                modifier = Modifier.weight(1f), index = 1,
+                label = "VO₂ MAX", value = vo2?.let { String.format(Locale.US, "%.1f", it) } ?: "—",
+                caption = "ml/kg/min · estimated",
+                fraction = vo2?.let { ((it - 15.0) / 55.0).toFloat().coerceIn(0f, 1f) },
+                tint = A.cyan, onClick = onVo2,
+            )
+            AlkeFitnessFactorCard(
+                modifier = Modifier.weight(1f), index = 2,
+                label = "RESTING HR", value = rhr?.let { "${it.roundToInt()} bpm" } ?: "—",
+                caption = "Recent 7-day average",
+                fraction = rhr?.let { (1f - (it.toFloat() - 40f) / 40f).coerceIn(0f, 1f) },
+                tint = A.blue, onClick = onRestingHr,
+            )
         }
-        AlkePanel(Modifier.fillMaxWidth(), onClick = onBodyAge) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AlkeFitnessFactorCard(
+                modifier = Modifier.weight(1f), index = 3,
+                label = "WEEKLY ACTIVITY",
+                value = activity?.let { String.format(Locale.US, "%.0f / 100", it) } ?: "—",
+                caption = "7-day effort overview",
+                fraction = activity?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) },
+                tint = A.green, onClick = onTrain,
+            )
+            AlkeFitnessFactorCard(
+                modifier = Modifier.weight(1f), index = 4,
+                label = "METABOLIC",
+                value = metabolicFactor?.first?.let { String.format(Locale.US, "%+.1f yr", it) }
+                    ?: "Not available",
+                caption = when {
+                    metabolicFactor?.second == true -> "AI · experimental"
+                    metabolicFactor != null -> "Weekly age adjustment"
+                    else -> "No eligible inputs yet"
+                },
+                fraction = null,
+                tint = A.gold, onClick = onFitnessAge,
+            )
+        }
+        Text(
+            "Metabolic contributes to Fitness Age only when eligible weekly inputs are available.",
+            color = A.muted, fontSize = 11.sp, lineHeight = 17.sp,
+            modifier = Modifier.staggeredAppear(5),
+        )
+        AlkePanel(Modifier.fillMaxWidth().staggeredAppear(6), onClick = onBodyAge) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("ALKE BODY AGE", color = A.gold, letterSpacing = 2.sp, fontSize = 10.sp)
@@ -1179,7 +1291,7 @@ fun AlkeProgressExperience(
             }
             Text("Explore Body Age factors", color = A.gold, fontSize = 12.sp)
         }
-        AlkePanel(Modifier.fillMaxWidth(), onClick = onSteps) {
+        AlkePanel(Modifier.fillMaxWidth().staggeredAppear(7), onClick = onSteps) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("STEPS", color = A.cyan, letterSpacing = 1.6.sp,
@@ -1217,9 +1329,14 @@ fun AlkeProgressExperience(
                 Text("Recent steps · Tap to view full history", color = A.muted, fontSize = 11.sp)
             }
         }
-        AlkeSectionTitle("Recovery trend", "Full trends", onTrends)
-        AlkeMiniBars(days.takeLast(7).map { it.day.takeLast(5) to it.recovery }, A.cyan)
-        AlkeLinkRow("Vital signs", "HRV, RHR and measured physiology", Icons.Filled.MonitorHeart, onHealth)
+        Column(Modifier.staggeredAppear(8), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            AlkeSectionTitle("Recovery trend", "Full trends", onTrends)
+            AlkeMiniBars(days.takeLast(7).map { it.day.takeLast(5) to it.recovery }, A.cyan)
+        }
+        Column(Modifier.staggeredAppear(9)) {
+            AlkeLinkRow("Fitness Age details", "Health metrics and evidence",
+                Icons.Filled.MonitorHeart, onHealth)
+        }
         if (day == null) Text("Your progress screen will populate as measurements arrive.", color = A.muted, fontSize = 12.sp)
     }
 }

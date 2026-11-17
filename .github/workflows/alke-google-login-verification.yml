@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: alke-google-login-${{ github.ref }}
@@ -72,10 +72,63 @@ jobs:
         working-directory: android
         run: |
           ./gradlew --no-daemon :app:testFullDebugUnitTest
-      - name: Upload test APK - public full debug only
+      - name: Validate public and private-base APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          full=(android/app/build/outputs/apk/full/debug/*.apk)
+          personal=(android/app/build/outputs/apk/personal/debug/*.apk)
+          test "${#full[@]}" -eq 1
+          test "${#personal[@]}" -eq 1
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          "$aapt" dump badging "${full[0]}" | grep -q "package: name='com.otidotid.alke.debug'"
+          "$aapt" dump badging "${personal[0]}" | grep -q "package: name='com.otidotid.alke.personal.debug'"
+          for apk in "${full[0]}" "${personal[0]}"; do
+            test "$(stat -c '%s' "$apk")" -gt 1000000
+            unzip -t "$apk" | tail -1
+            ! unzip -Z1 "$apk" | grep -Eq '(alke-private-backup|noop-backup|\\.alkebak|\\.noopbak)'
+            sha256sum "$apk"
+          done
+          mkdir -p release-apk personal-base
+          cp "${full[0]}" release-apk/ALKE-v1.0.0-alpha.16-debug.apk
+          cp "${personal[0]}" personal-base/ALKE-v1.0.0-alpha.16-personal-UNSIGNED-FOR-OWNER.apk
+      - name: Upload public APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ALKE-google-login-full-debug-NO-PERSONAL-DATA
-          path: android/app/build/outputs/apk/full/debug/*.apk
+          name: ALKE-alpha16-public-APK-NO-PERSONAL-DATA
+          path: release-apk/ALKE-v1.0.0-alpha.16-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload clean personal-base APK artifact for local re-signing only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha16-personal-base-REQUIRES-PRIVATE-RE-SIGN
+          path: personal-base/ALKE-v1.0.0-alpha.16-personal-UNSIGNED-FOR-OWNER.apk
           if-no-files-found: error
           retention-days: 7
+      - name: Publish verified PUBLIC GitHub prerelease APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v1.0.0-alpha.16
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists. Refusing overwrite."
+            exit 1
+          fi
+          cat > release-notes.md <<'EOF'
+          ## ALKE v1.0.0-alpha.16 — Google Login, Coach Chat, Me
+          - Restored real AI Coach chat for configured OpenAI, Anthropic, Gemini and Custom providers; preserves the existing Cloud Coach transport.
+          - Coach now exposes provider/API key setup directly on the Coach screen and transitions to chat without a restart.
+          - Moved the complete Settings controls into Me; removed My profile and Settings rows from Me without deleting settings.
+          - Google Sign-In validates a Web OAuth Client ID and offers local setup when a build has no ID. Android OAuth client must match the installed package and signing certificate SHA-1.
+          - No health records, private tokens, backup data or signing keys are included in this public APK.
+          - This PUBLIC APK uses package com.otidotid.alke.debug. The PRIVATE personal installation (com.otidotid.alke.personal.debug) has a distinct package and MUST be updated by locally re-signing the separate personal-base artifact with the owner's original certificate; do not uninstall an existing personal installation.
+          - Build and JVM unit tests are CI-gated. Google OAuth, provider requests, and hardware interactions still require real-device smoke tests.
+          EOF
+          gh release create "$TAG" release-apk/ALKE-v1.0.0-alpha.16-debug.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "ALKE v1.0.0-alpha.16 — Google Login, Coach Chat & Me" \
+            --notes-file release-notes.md --prerelease

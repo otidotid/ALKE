@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * User smoke-test regression contract for ALKE alpha.5.
+ * User smoke-test regression contract carried into ALKE alpha.6.
  * These checks complement compilation and full numerical parity tests; they
  * explicitly guard the intended navigation and no-fabricated-HR behavior.
  */
@@ -58,13 +58,51 @@ class AlkeAlpha5ExperienceContractTest {
         assertFalse(train.contains("AlkeLinkRow(\"Recovery\""))
         assertFalse(train.contains("All workouts"))
         assertTrue(train.contains("onWorkouts"))
+        assertTrue(train.contains("StartWorkoutSheet(vm"))
+        assertTrue(train.contains("ManualWorkoutDialog(vm"))
+        assertTrue(train.contains("LiveWorkoutScreen(vm"))
+        assertTrue(train.contains("MOST ACTIVE SPORTS"))
+        assertTrue(train.contains("CALORIES"))
+        assertTrue(train.contains("AlkeActiveCaloriesCalendar(vm, days)"))
+        assertTrue(train.contains("ActivityHeatmap.build(values, today)"))
+        assertTrue(train.contains("WorkoutDetailSheet(vm, row)"))
+        assertFalse(train.contains("AlkeMiniBars(days.takeLast(7).map { it.day.takeLast(5) to it.strain }"))
         val nav = source("src/main/java/com/noop/ui/AppRoot.kt")
         assertTrue(nav.contains("composable(Destination.AlkeWorkoutHistory.route) { WorkoutsScreen(viewModel) }"))
     }
 
+    @Test fun stepsLiveOnlyInProgressWithCompleteHistoryRoute() {
+        val ui = source("src/main/java/com/noop/ui/AlkeExperience.kt")
+        val beginToday = ui.indexOf("fun AlkeTodayExperience(")
+        val endToday = ui.indexOf("fun AlkeTrainingExperience(")
+        val today = ui.substring(beginToday, endToday)
+        assertTrue(today.contains("AlkeSectionTitle(\"Today's Activity\")"))
+        assertFalse(today.contains("AlkeSectionTitle(\"Today's Activity\", \"Train\""))
+        assertFalse(today.contains("AlkeMetricTile(\"Steps\""))
+        val progressBegin = ui.indexOf("fun AlkeProgressExperience(")
+        val progressEnd = ui.indexOf("fun AlkeInsightExperience(", progressBegin)
+        val progress = ui.substring(progressBegin, progressEnd)
+        assertTrue(progress.contains("buildSeriesVitalDetail(vm, \"steps_est\")"))
+        assertTrue(progress.contains("STEPS"))
+        assertTrue(progress.contains("Recent steps"))
+        assertTrue(progress.contains("onClick = onSteps"))
+        val nav = source("src/main/java/com/noop/ui/AppRoot.kt")
+        assertTrue(nav.contains("onSteps = { nav.navigate(\"vital_detail/steps_est\") }"))
+        val health = source("src/main/java/com/noop/ui/HealthScreen.kt")
+        assertTrue(health.contains("mergeStepsReadings(real, imported, est)"))
+    }
+
+    @Test fun calendarCombinesImportedCaloriesAndOriginalHeatmapCore() {
+        val ui = source("src/main/java/com/noop/ui/AlkeExperience.kt")
+        assertTrue(ui.contains("vm.repo.appleDaily(\"health-connect\", from, today)"))
+        assertTrue(ui.contains("vm.repo.appleDaily(\"apple-health\", from, today)"))
+        assertTrue(ui.contains("byDay.putAll(imported)"))
+        assertTrue(ui.contains("ActivityHeatmap.build(values, today)"))
+    }
+
     @Test fun fullAndDemoStaySeparateWithExistingSyntheticData() {
         val build = source("build.gradle.kts")
-        assertTrue(build.contains("versionName = \"1.0.0-alpha.5\""))
+        assertTrue(build.contains("versionName = \"1.0.0-alpha.6\""))
         assertTrue(build.contains("applicationIdSuffix = \".demo\""))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"false\")"))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"true\")"))

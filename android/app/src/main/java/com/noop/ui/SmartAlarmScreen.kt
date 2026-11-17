@@ -45,7 +45,7 @@ import com.noop.ble.PuffinExperiment
 /**
  * Smart alarm (#207) — Android phone-based wake, with a guaranteed hard-deadline fallback.
  *
- * The user picks the EARLIEST acceptable wake time and a window length. NOOP watches the overnight
+ * The user picks the EARLIEST acceptable wake time and a window length. ALKE watches the overnight
  * strap stream and, if it spots a lighter sleep phase inside the window, wakes you then — but a
  * GUARANTEED exact OS alarm is always scheduled at the window's END (via AlarmManager), independent
  * of Bluetooth, the strap, or the app being alive. The smart logic can only ever move the alarm
@@ -256,7 +256,7 @@ fun SmartAlarmScreen(vm: AppViewModel) {
 
 /**
  * The strap's standalone silent wake-alarm (#766, moved from AutomationsScreen). Arms the strap's own
- * firmware alarm at the chosen time/weekdays over BLE, so it buzzes even if NOOP is closed. Reuses the
+ * firmware alarm at the chosen time/weekdays over BLE, so it buzzes even if ALKE is closed. Reuses the
  * shared [AlarmWeekdayPicker] / [AlarmDayOverridePicker] from AutomationsScreen (same behaviour, just a
  * new home). Functions are untouched: it drives the same `viewModel.setSmartAlarm*` calls as before.
  */
@@ -287,7 +287,7 @@ private fun StrapAlarmCard(vm: AppViewModel) {
             // 4.0 path experimental. The 5/MG Experimental-gate branch below is deliberately untouched.
             ToggleRowLocal(
                 label = uiString(R.string.l10n_smart_alarm_screen_wake_me_with_a_strap_buzz_1681ba1d),
-                help = "Arms the strap to buzz at your wake time, even if NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). Keep a backup alarm for anything you truly can't miss.",
+                help = "Arms the strap to buzz at your wake time, even if ALKE is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). Keep a backup alarm for anything you truly can't miss.",
                 checked = smartAlarm,
                 onChange = { vm.setSmartAlarmEnabled(it) },
             )
@@ -338,7 +338,7 @@ private fun StrapAlarmCard(vm: AppViewModel) {
                         if (live.bonded)
                             // Truth-sync (#535): confirmed buzzing on a real WHOOP 4.0; byte-identical
                             // wording to the Swift SmartAlarmView.
-                            "Armed on the strap itself, so it can buzz at your wake time even if your phone is asleep or NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). Keep a backup alarm for anything you truly can't miss."
+                            "Armed on the strap itself, so it can buzz at your wake time even if your phone is asleep or ALKE is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). Keep a backup alarm for anything you truly can't miss."
                         else
                             "Connect your strap to arm this; it's set on the strap's own firmware alarm. Confirmed working on WHOOP 4.0; still experimental on 5.0 and MG. Keep a backup alarm for anything you truly can't miss.",
                         style = NoopType.footnote, color = Palette.textTertiary,

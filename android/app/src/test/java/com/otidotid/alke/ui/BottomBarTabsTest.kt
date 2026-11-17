@@ -41,7 +41,8 @@ class BottomBarTabsTest {
         assertFalse(Destination.Health in modules)
         assertTrue(Destination.Trends in modules)
         assertTrue(Destination.Workouts in modules)
-        assertTrue(Destination.Settings in modules)
+        // Settings controls are embedded in Me, not a separate More module.
+        assertFalse(Destination.Settings in modules)
     }
 
     @Test fun todayAndMoreAreStructuralNotConfigurable() {

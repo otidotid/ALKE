@@ -34,7 +34,8 @@ REPLACEMENTS = (
     ("thoop", "alke"),
     ("noop", "alke"),
 )
-LEGACY = re.compile(r"(?i)(?:noop|thoop)")
+# Exact brand case variants only; noOp/NoOp are normal programming terms, not branding.
+LEGACY = re.compile(r"(?:THOOP|NOOP|Thoop|Noop|thoop|noop)")
 
 def rename_identity(value: str) -> str:
     for old, new in REPLACEMENTS:

@@ -4,6 +4,7 @@ import com.otidotid.alke.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -186,13 +187,16 @@ fun HealthScreen(
     val skyBehindCards = remember { AlkePrefs.skyBehindCards(context) }
 
     LazyScreenScaffold(
-        title = uiString(R.string.l10n_health_screen_health_monitor_c4abc3fc),
-        subtitle = "Live vitals, streamed from the strap.",
+        title = "Fitness Age",
+        subtitle = "Your fitness, metabolism and health in context.",
         topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
         fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
+        // Fitness Age is the module's hero, not a buried section below live vitals.
+        // The readiness state is still visible when no score exists yet.
+        item { FitnessAgeSection(vm = vm, days = days, profile = profile, onOpenSettings = onOpenSettings) }
         if (today == null && !hasLiveHr) {
             // Even with no history yet, a freshly-connected strap can be told to sync now (#364) — the
             // manual "Sync now" + honest status sits above the empty state so it's always reachable.
@@ -224,11 +228,8 @@ fun HealthScreen(
                     captionMode = VitalCaptionMode.AS_OF,
                 )
             }
-            // FITNESS AGE — the weekly Saturday number from the engine (resting HR + activity vs your
-            // age), with an honest readiness checklist behind a tap. Authoritative value comes from the
-            // metricSeries the IntelligenceEngine writes; readiness is derived from what this screen sees.
-            item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-            item { FitnessAgeSection(vm = vm, days = days, profile = profile, onOpenSettings = onOpenSettings) }
+            // Keep the separate, original Vitality / Body Age component below the
+            // Fitness Age hero and physiological readings; do not merge algorithms.
             item { VitalitySection(vm = vm, days = days, profile = profile) }
             // SKIN TEMPERATURE (v5 pillar) — Cycle awareness (opt-in), Body clock + an illness heads-up,
             // each from a pure engine RESULT the ViewModel publishes. A section of Health, never its own
@@ -696,15 +697,41 @@ private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile
     var vo2max by remember { mutableStateOf<Double?>(null) }
     var vo2maxEstimator by remember { mutableStateOf<Vo2MaxEstimator?>(null) }
     var fitnessAgeHistory by remember { mutableStateOf<List<Pair<String, Double>>>(emptyList()) }
+    var metabolicDeltaYears by remember { mutableStateOf<Double?>(null) }
+    var aiMetabolic by remember { mutableStateOf(false) }
     // Manual-refresh plumbing: the not-ready card's refresh button recomputes Fitness Age NOW and bumps
     // this tick, which re-keys the read below so a freshly written value shows without waiting for a sync.
     var refreshTick by remember { mutableStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
     LaunchedEffect(days, refreshTick) {
         // Latest-value reads (LIMIT-1 per source) — the full-series `.lastOrNull()` scan is gone (perf).
-        val fa = runCatching {
-            vm.repo.latestMetricComputedUnion(vm.activeStrapId, "fitness_age")?.value
+        val faRow = runCatching {
+            vm.repo.latestMetricComputedUnion(vm.activeStrapId, "fitness_age")
         }.getOrNull()
+        val fa = faRow?.value
+        // Read only a metabolic factor belonging to the exact weekly score.
+        // A missing value means "not available", never a synthetic zero.
+        val metabolic = faRow?.let { row ->
+            runCatching {
+                vm.repo.withMetabolicCalculationTransaction {
+                    val scoreTrace = vm.repo.scoreInputDetails(row.deviceId, row.day, "fitness_age")
+                    val factor = vm.repo.metricSeries(
+                        row.deviceId, "fitness_factor_metabolic_delta", row.day, row.day,
+                    ).firstOrNull { it.deviceId == row.deviceId && it.day == row.day }
+                    val factorTrace = vm.repo.scoreInputDetails(
+                        row.deviceId, row.day, "fitness_factor_metabolic_delta",
+                    )
+                    val current = com.otidotid.alke.analytics.currentFitnessAgeMetabolicFactor(
+                        row.deviceId, row.day, scoreTrace, factor, factorTrace,
+                    )
+                    current?.value?.takeIf { it.isFinite() }?.let {
+                        it to hasAiMetabolicProvenance(scoreTrace, row.deviceId, row.day)
+                    }
+                }
+            }.getOrNull()
+        }
+        metabolicDeltaYears = metabolic?.first
+        aiMetabolic = metabolic?.second == true
         val vo2Row = runCatching {
             vm.repo.latestMetricComputedUnion(vm.activeStrapId, "vo2max_est")
         }.getOrNull()
@@ -744,6 +771,8 @@ private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile
                 chronoAge = profile.age,
                 vo2max = vo2max,
                 vo2maxEstimator = vo2maxEstimator,
+                metabolicDeltaYears = metabolicDeltaYears,
+                aiMetabolic = aiMetabolic,
                 restingHr = days.takeLast(7).mapNotNull { it.restingHr?.toDouble() }.average().takeIf { !it.isNaN() },
                 weeklyEffort = days.takeLast(7).mapNotNull { it.strain }.average().takeIf { !it.isNaN() },
                 history = fitnessAgeHistory,
@@ -1007,6 +1036,8 @@ private fun FitnessAgeHero(
     chronoAge: Int,
     vo2max: Double?,
     vo2maxEstimator: Vo2MaxEstimator?,
+    metabolicDeltaYears: Double?,
+    aiMetabolic: Boolean,
     restingHr: Double?,
     weeklyEffort: Double?,
     history: List<Pair<String, Double>>,
@@ -1087,6 +1118,7 @@ private fun FitnessAgeHero(
         AlkeCard {
             Column(verticalArrangement = Arrangement.spacedBy(Metrics.space16)) {
                 FitnessAgeFactorRow(
+                    index = 1,
                     label = "VO₂ MAX",
                     value = vo2max?.let { String.format(Locale.US, "%.1f ml/kg/min", it) } ?: "Building baseline",
                     position = vo2Position,
@@ -1101,6 +1133,7 @@ private fun FitnessAgeHero(
                 )
                 HorizontalDivider(color = Palette.heroBorder.copy(alpha = 0.7f))
                 FitnessAgeFactorRow(
+                    index = 2,
                     label = "RESTING HEART RATE",
                     value = restingHr?.let { "${it.roundToInt()} bpm" } ?: "Building baseline",
                     position = rhrPosition,
@@ -1111,6 +1144,7 @@ private fun FitnessAgeHero(
                 )
                 HorizontalDivider(color = Palette.heroBorder.copy(alpha = 0.7f))
                 FitnessAgeFactorRow(
+                    index = 3,
                     label = "WEEKLY ACTIVITY",
                     value = weeklyEffort?.let { String.format(Locale.US, "%.1f effort", it) } ?: "Building baseline",
                     position = effortPosition,
@@ -1118,6 +1152,22 @@ private fun FitnessAgeHero(
                     highLabel = "Higher",
                     source = "On-device",
                     detail = "Recent activity coverage used by Fitness Age",
+                )
+                HorizontalDivider(color = Palette.heroBorder.copy(alpha = 0.7f))
+                FitnessAgeFactorRow(
+                    index = 4,
+                    label = "METABOLIC",
+                    value = metabolicDeltaYears?.let { String.format(Locale.US, "%+.1f years", it) }
+                        ?: "Not available",
+                    position = null, lowLabel = "Younger", highLabel = "Older",
+                    source = when {
+                        aiMetabolic -> "AI · Experimental"
+                        metabolicDeltaYears != null -> "Recorded labs"
+                        else -> "Unavailable"
+                    },
+                    detail = if (metabolicDeltaYears != null)
+                        "Validated weekly metabolic age delta · 20% blend"
+                    else "No eligible weekly metabolic inputs. Check Lab Book.",
                 )
             }
         }
@@ -1167,6 +1217,7 @@ private fun FitnessAgeHero(
 
 @Composable
 private fun FitnessAgeFactorRow(
+    index: Int,
     label: String,
     value: String,
     position: Float?,
@@ -1175,7 +1226,19 @@ private fun FitnessAgeFactorRow(
     source: String,
     detail: String,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(Metrics.space8)) {
+    val reduced = rememberReduceMotion()
+    var target by remember(position, reduced) {
+        mutableStateOf(if (reduced) position ?: 0f else 0f)
+    }
+    LaunchedEffect(position, reduced) { target = position ?: 0f }
+    val displayedPosition by animateFloatAsState(
+        targetValue = target.coerceIn(0f, 1f),
+        animationSpec = if (reduced) tween(0)
+            else tween(820, delayMillis = index * 90, easing = FastOutSlowInEasing),
+        label = "fitness_age_factor_${index}_fill",
+    )
+    Column(modifier = Modifier.staggeredAppear(index),
+        verticalArrangement = Arrangement.spacedBy(Metrics.space8)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = AlkeType.title2, color = Palette.textPrimary, modifier = Modifier.weight(1f))
             Text(value, style = AlkeType.body, color = Palette.textPrimary)
@@ -1191,10 +1254,10 @@ private fun FitnessAgeFactorRow(
                     ),
                 ),
         ) {
-            position?.let { fraction ->
+            position?.let {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(fraction.coerceIn(0.025f, 1f))
+                        .fillMaxWidth(displayedPosition.coerceIn(0.025f, 1f))
                         .fillMaxHeight(),
                     contentAlignment = Alignment.CenterEnd,
                 ) {

@@ -1,4 +1,4 @@
-name: ALKE alpha.9 - Full Identity Migration, Unit Tests and Dual APKs
+name: ALKE alpha.9 - Full Brand Audit, Unit Tests and Dual APKs
 
 on:
   push:
@@ -10,13 +10,12 @@ permissions:
   contents: write
 
 concurrency:
-  # Every run is separate; an automated migration push must not cancel its own build.
-  group: alke-alpha9-migration-${{ github.run_id }}
-  cancel-in-progress: false
+  group: alke-alpha9-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify-build-publish:
-    if: github.repository == 'otidotid/ALKE' && !contains(github.event.head_commit.message, '[alke-migrated]')
+    if: github.repository == 'otidotid/ALKE'
     runs-on: ubuntu-24.04
     timeout-minutes: 85
     steps:
@@ -26,35 +25,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Convert all active package, database, resources and source identifiers to ALKE
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/alke_full_rebrand.py
-          git add -A
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git diff --cached --stat | tail -20
-          git diff --cached --quiet && { echo "::error::Migration produced no changes"; exit 1; }
-          git commit -m "feat(alke): 100 percent independent technical identity [alke-migrated]"
-          MIGRATED_SHA="$(git rev-parse HEAD)"
-          git push origin HEAD:refs/heads/alke/alpha9-full-identity-migration
-          echo "MIGRATED_SHA=$MIGRATED_SHA" >> "$GITHUB_ENV"
-          echo "Migrated source commit: $MIGRATED_SHA"
-
-
-
       - name: Guard alpha.9 route, data provenance and separate demo package
         shell: bash
         run: |
           set -euo pipefail
           test -d android/app/src/main/java/com/otidotid/alke
-          test ! -d android/app/src/main/java/com/noop
           grep -q 'namespace = "com.otidotid.alke"' android/app/build.gradle.kts
           grep -q 'versionName = "1.0.0-alpha.9"' android/app/build.gradle.kts
           grep -q 'ALKE' android/app/src/main/res/values/strings.xml
-          ! git ls-files | grep -Eiq '(noop|thoop)'
-          ! git grep -niE '(noop|thoop)' -- . ':!LICENSE' ':!NOTICE' ':!ATTRIBUTION.md'
+          ! git ls-files | grep -Eq '([N]OOP|[N]oop|[n]oop|[T]HOOP|[T]hoop|[t]hoop)'
+          ! git grep -nE '([N]OOP|[N]oop|[n]oop|[T]HOOP|[T]hoop|[t]hoop)' -- . ':!LICENSE' ':!NOTICE' ':!ATTRIBUTION.md'
           echo 'ALKE active repository: no old source identity, filenames or readable project labels'
 
           grep -q 'versionName = "1.0.0-alpha.9"' android/app/build.gradle.kts
@@ -88,20 +68,26 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Restore immutable THOOP parity reference data
+      - name: Restore immutable numerical parity reference by repository ID
         shell: bash
         env:
+          REFERENCE_REPOSITORY_ID: 1401373206
           SOURCE_SHA: de24b55946de9d904f002441e0d24923ef91f2c6
         run: |
           set -euo pipefail
+          REFERENCE_URL="$(curl --fail --silent --show-error \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repositories/$REFERENCE_REPOSITORY_ID" | jq -r '.clone_url')"
+          test "$REFERENCE_URL" != "null"
+          test -n "$REFERENCE_URL"
           git clone --depth=1 --branch v13.2.0 --single-branch \
-            https://github.com/otidotid/thoop.git "$RUNNER_TEMP/thoop-v13.2.0"
-          test "$(git -C "$RUNNER_TEMP/thoop-v13.2.0" rev-parse HEAD)" = "$SOURCE_SHA"
+            "$REFERENCE_URL" "$RUNNER_TEMP/alke-reference-v13.2.0"
+          test "$(git -C "$RUNNER_TEMP/alke-reference-v13.2.0" rev-parse HEAD)" = "$SOURCE_SHA"
           for dir in Strand StrandTests StrandiOS; do
-            rsync -a "$RUNNER_TEMP/thoop-v13.2.0/$dir/" "$GITHUB_WORKSPACE/$dir/"
+            rsync -a "$RUNNER_TEMP/alke-reference-v13.2.0/$dir/" "$GITHUB_WORKSPACE/$dir/"
           done
           mkdir -p "$GITHUB_WORKSPACE/Tools/parity_cases"
-          cp "$RUNNER_TEMP/thoop-v13.2.0/Tools/parity_cases/device_raw_sources.json" \
+          cp "$RUNNER_TEMP/alke-reference-v13.2.0/Tools/parity_cases/device_raw_sources.json" \
             "$GITHUB_WORKSPACE/Tools/parity_cases/device_raw_sources.json"
 
       - name: Build normal and demo APKs from one commit
@@ -192,7 +178,7 @@ jobs:
           - Debug signing; on-device BLE, Google OAuth and data migration must be verified before treating this as stable.
           EOF
           gh release create "$TAG" release-apk/ALKE-v1.0.0-alpha.9-debug.apk \
-            --repo "$GITHUB_REPOSITORY" --target "$MIGRATED_SHA" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "ALKE v1.0.0-alpha.9 — Independent Identity & Design Lock" \
             --notes-file release-notes.md --prerelease
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,isPrerelease,assets

@@ -2099,7 +2099,7 @@ private fun Cell(text: String, modifier: Modifier, color: Color? = null) {
 // dialog to plain numeric fields - the persisted startTs is identical).
 
 @Composable
-private fun ManualWorkoutDialog(vm: AppViewModel, editing: WorkoutRow?, isCopy: Boolean = false, onDismiss: () -> Unit, onSave: (WorkoutRow, WorkoutRow?) -> Unit) {
+internal fun ManualWorkoutDialog(vm: AppViewModel, editing: WorkoutRow?, isCopy: Boolean = false, onDismiss: () -> Unit, onSave: (WorkoutRow, WorkoutRow?) -> Unit) {
     val nowSec = System.currentTimeMillis() / 1000
     var sport by remember { mutableStateOf(editing?.let { WorkoutEditing.displaySport(it.sport) } ?: WorkoutSport.default.name) }
     var title by remember { mutableStateOf(editing?.manualTitle().orEmpty()) }

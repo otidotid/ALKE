@@ -56,6 +56,11 @@ object DataBackup {
     }
     /** Optional in legacy files; REQUIRED for new complete Android recovery backups. */
     internal const val FOOD_ENTRY_NAME = "alke-food.sqlite"
+    private val LEGACY_FOOD_ENTRY_NAMES = setOf("thoop-food.sqlite", "noop-food.sqlite")
+    internal fun supportedFoodBackupEntry(name: String): Boolean {
+        val base = name.substringAfterLast('/')
+        return base == FOOD_ENTRY_NAME || base in LEGACY_FOOD_ENTRY_NAMES
+    }
     private const val FOOD_DB_NAME = "alke_food_intake.db"
 
     /** Entry name of the optional whitelisted-settings JSON (#1000). Matches the Apple exporter. */
@@ -212,7 +217,10 @@ object DataBackup {
 
     /** True for new multi-database backups; false for legacy health-only backups. */
     internal fun containsFoodHistory(file: File): Boolean = runCatching {
-        java.util.zip.ZipFile(file).use { it.getEntry(FOOD_ENTRY_NAME) != null }
+        java.util.zip.ZipFile(file).use { zip ->
+            (sequenceOf(FOOD_ENTRY_NAME) + LEGACY_FOOD_ENTRY_NAMES.asSequence())
+                .any { zip.getEntry(it) != null }
+        }
     }.getOrDefault(false)
 
     /** Estimated uncompressed database bytes for a full restore preflight (unknown → null). */
@@ -221,7 +229,9 @@ object DataBackup {
             val health = (sequenceOf(ZIP_ENTRY_NAME) + LEGACY_ZIP_ENTRY_NAMES.asSequence())
                 .mapNotNull { zip.getEntry(it)?.size?.takeIf { size -> size >= 0 } }
                 .firstOrNull() ?: return@use null
-            val food = zip.getEntry(FOOD_ENTRY_NAME)?.size?.takeIf { it >= 0 } ?: 0L
+            val food = (sequenceOf(FOOD_ENTRY_NAME) + LEGACY_FOOD_ENTRY_NAMES.asSequence())
+                .mapNotNull { zip.getEntry(it)?.size?.takeIf { size -> size >= 0 } }
+                .firstOrNull() ?: 0L
             if (health > Long.MAX_VALUE - food) null else health + food
         }
     }.getOrNull()
@@ -742,7 +752,7 @@ object DataBackup {
                                     foundSettings = true
                                 }
                                 !entry.isDirectory && !foundFood && foodDest != null &&
-                                    entry.name.substringAfterLast('/') == FOOD_ENTRY_NAME -> {
+                                    supportedFoodBackupEntry(entry.name) -> {
                                     FileOutputStream(foodDest).use { out ->
                                         if (!copyBounded(zip, out, sqliteCap(allowOversize))) {
                                             foodDest.delete()

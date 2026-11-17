@@ -131,6 +131,36 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(detailed.contains("metricSeriesComputedUnion(vm.activeStrapId, \"fitness_age\""))
     }
 
+    @Test fun healthModuleIsFitnessAgeWithHeroAndAnimatedFourFactors() {
+        val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
+        assertTrue(nav.contains("Destination.Health -> \"Fitness Age\""))
+        assertTrue(nav.contains("Text(titleOverride ?: alkeModuleLabel(dest)"))
+        assertTrue(nav.contains("onRestingHr = { nav.navigate(\"vital_detail/resting_hr\") }"))
+        val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
+        val progress = ui.substring(ui.indexOf("fun AlkeProgressExperience("),
+            ui.indexOf("fun AlkeInsightExperience("))
+        assertTrue(progress.indexOf("AlkeFitnessAgeHero(") < progress.indexOf("AlkeSectionTitle(\"Fitness Factors\")"))
+        assertTrue(progress.indexOf("AlkeSectionTitle(\"Fitness Factors\")") < progress.indexOf("onClick = onBodyAge"))
+        for (factor in listOf("VO₂ MAX", "RESTING HR", "WEEKLY ACTIVITY", "METABOLIC")) {
+            assertTrue("Missing animated Progress factor: $factor", progress.contains("label = \"$factor\""))
+        }
+        assertTrue(ui.contains("private fun AlkeFitnessFactorCard("))
+        assertTrue(ui.contains("Modifier.staggeredAppear(index)"))
+        assertTrue(ui.contains("animateFloatAsState("))
+        assertTrue(ui.contains("currentFitnessAgeMetabolicFactor("))
+        assertTrue(ui.contains("No eligible inputs yet"))
+        val module = source("src/main/java/com/otidotid/alke/ui/HealthScreen.kt")
+        assertTrue(module.contains("title = \"Fitness Age\""))
+        val first = module.indexOf("item { FitnessAgeSection(vm = vm, days = days, profile = profile")
+        val sync = module.indexOf("item { SyncStatusSection(vm = vm")
+        assertTrue("Fitness Age should appear before synchronisation/vitals", first >= 0 && sync > first)
+        assertTrue(module.contains("label = \"METABOLIC\""))
+        assertTrue(module.contains("value = \"Not available\""))
+        assertTrue(module.contains("withMetabolicCalculationTransaction {"))
+        assertTrue(module.contains("fitness_age_detail_factor_"))
+        assertTrue(module.contains("fitness_age_factor_"))
+    }
+
     @Test fun skinTemperatureLivesInInsightBelowRestingHrAndKeepsOriginalHistory() {
         val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
         val today = ui.substring(ui.indexOf("fun AlkeTodayExperience("),
@@ -161,7 +191,7 @@ class AlkeAlpha5ExperienceContractTest {
 
     @Test fun fullAndDemoStaySeparateWithExistingSyntheticData() {
         val build = source("build.gradle.kts")
-        assertTrue(build.contains("versionName = \"1.0.0-alpha.11\""))
+        assertTrue(build.contains("versionName = \"1.0.0-alpha.12\""))
         assertTrue(build.contains("applicationIdSuffix = \".demo\""))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"false\")"))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"true\")"))

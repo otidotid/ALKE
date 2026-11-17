@@ -14,6 +14,7 @@ class AlkeNavigationConsistencyTest {
         assertEquals("Insight", alkeModuleAlias(Destination.Intelligence))
         assertEquals("Me", alkeModuleAlias(Destination.More))
         assertEquals("Live HR", alkeModuleAlias(Destination.Live))
+        assertEquals("Fitness Age", alkeModuleAlias(Destination.Health))
     }
 
     @Test fun newAllModulesCatalogHasNoDuplicateRoutesAndHidesMeShortcuts() {

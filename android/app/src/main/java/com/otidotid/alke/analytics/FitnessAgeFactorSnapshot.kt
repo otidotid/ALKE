@@ -13,14 +13,18 @@ internal fun currentFitnessAgeMetabolicFactor(
 ): MetricSeriesRow? {
     if (factor == null || factor.deviceId != scoreSource || factor.day != scoreDay ||
         factor.key != "fitness_factor_metabolic_delta") return null
-    val aiVersion = MetabolicFitnessAge.ALGORITHM_VERSION
-    // Preserve historical local results, including legacy records without provenance.
-    if (scoreProvenance?.algorithmVersion != aiVersion && factorProvenance?.algorithmVersion != aiVersion)
-        return factor
-    fun matches(trace: ScoreInputProvenanceRow?, key: String) = trace != null &&
+    val legacyAi = MetabolicFitnessAge.ALGORITHM_VERSION
+    val newAi = AlkeWeightedFitnessAge.AI_ALGORITHM_VERSION
+    // Composite headlines and their metabolic factors may use different version IDs.
+    val scoreAi = scoreProvenance?.algorithmVersion in setOf(legacyAi, newAi)
+    val factorAi = factorProvenance?.algorithmVersion == legacyAi
+    if (!scoreAi && !factorAi) return factor
+    if (!scoreAi || !factorAi) return null
+    fun matches(trace: ScoreInputProvenanceRow?, key: String, versions: Set<String>) = trace != null &&
         trace.deviceId == scoreSource && trace.sourceId == scoreSource && trace.day == scoreDay &&
-        trace.key == key && trace.algorithmVersion == aiVersion
-    if (!matches(scoreProvenance, "fitness_age") || !matches(factorProvenance, factor.key)) return null
+        trace.key == key && trace.algorithmVersion in versions
+    if (!matches(scoreProvenance, "fitness_age", setOf(legacyAi, newAi)) ||
+        !matches(factorProvenance, factor.key, setOf(legacyAi))) return null
     // Both rows are written with the same captured weekly context, including the immutable request ID.
     val captured = scoreProvenance?.observedInputs?.takeIf { it.isNotBlank() } ?: return null
     return factor.takeIf { factorProvenance?.observedInputs == captured }

@@ -14,7 +14,7 @@
 ## Compatibility and verification
 - **APK:** `ALKE-v1.0.0-alpha.19.1-PERSONAL-v583-signed.apk`
 - **Application ID:** `com.otidotid.alke.personal.debug`
-- **Version:** `1.0.0-alpha.19.1` (`versionCode 583`)
+- **Version:** `1.0.0-alpha.19.1-personal-debug` (`versionCode 583`; branded release Alpha 19.1)
 - **Certificate SHA-256:** `f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877` — same Personal update signer as previous releases.
 - **APK SHA-256:** `c9ebb77178905f1a7cb49a77b4c610ab90134bbccfea3fb42029fba646b85d3b`
 - **Android APK Signature Scheme v2 and v3:** verified.

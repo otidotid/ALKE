@@ -28,11 +28,22 @@ class WeeklyLabSnapshotTest {
         lab("waist", 90.0, "cm"), lab("body_fat", 20.0, "%"),
     ).associate { row -> row.markerKey to LabCalculationContract.resolveLatest(listOf(row), row.markerKey, day)!! }
 
+    private fun coreYears(): Double = FitnessAgeEngine.fitnessAge(
+        profile.age, profile.sex, 65.0,
+        FitnessAgeEngine.physicalActivityIndexFromStrain(7, 60.0))
+
+    private fun vitalityYears(): Double =
+        requireNotNull(IntelligenceEngine.vitalityResult(week, profile)).bodyAge
+
+    private fun expectedAge(metabolicDelta: Double?): Double =
+        AlkeWeightedFitnessAge.combine(coreYears(), vitalityYears(),
+            AlkeWeightedFitnessAge.metabolicAge(profile.age, metabolicDelta)).fitnessAge
+
     @Test fun noLabsKeepsExistingFitnessAgeAndUthFallbackValues() {
         val labs = IntelligenceEngine.WeeklyLabInputs()
         val rows = IntelligenceEngine.fitnessAgeRows(labs, week, profile, computedId, day)
         val values = rows.associate { it.key to it.value }
-        assertEquals(36.182432432432435, values.getValue("fitness_age"), 1e-12)
+        assertEquals(expectedAge(null), values.getValue("fitness_age"), 1e-12)
         assertEquals(42.36923076923077, values.getValue("vo2max_est"), 1e-12)
         assertEquals(setOf("fitness_age", "vo2max_est"), values.keys)
         val provenance = IntelligenceEngine.weeklyScoreProvenance(labs, rows, computedId, week, profile)
@@ -49,13 +60,22 @@ class WeeklyLabSnapshotTest {
         val labs = IntelligenceEngine.WeeklyLabInputs(capturedBody(), customGlycemic = custom)
         val rows = IntelligenceEngine.fitnessAgeRows(labs, week, profile, computedId, day)
         val values = rows.associate { it.key to it.value }
-        assertEquals(37.062612612612616, values.getValue("fitness_age"), 1e-12)
+        // BMI=25, waist/height=.5, body-fat=20 => local body age delta 0;
+        // the eligible post-meal glucose contributes a separately validated delta.
+        val bodyDelta = requireNotNull(FitnessAgeEngine.compute(
+            profile.age, profile.sex, 65.0,
+            FitnessAgeEngine.physicalActivityIndexFromStrain(7, 60.0),
+            waistCm = 90.0, weightKg = 81.0, heightCm = 180.0, bodyFatPct = 20.0))
+            .metabolicDeltaYears ?: error("body metabolic input missing")
+        assertEquals(expectedAge(bodyDelta + custom.result.ageDeltaYears),
+            values.getValue("fitness_age"), 1e-12)
         assertEquals(47.405, values.getValue("vo2max_est"), 1e-12)
         assertEquals(25.0, values.getValue("fitness_factor_bmi"), 1e-12)
         assertEquals(0.5, values.getValue("fitness_factor_whtr"), 1e-12)
         val provenance = IntelligenceEngine.weeklyScoreProvenance(labs, rows, computedId, week, profile)
         val age = provenance.single { it.key == "fitness_age" }
-        assertEquals(FitnessAgeEngine.ALGORITHM_VERSION, age.algorithmVersion)
+        assertEquals(AlkeWeightedFitnessAge.ALGORITHM_VERSION, age.algorithmVersion)
+        assertTrue(age.observedInputs!!.contains("ALKE Fitness Age weighted v1: core="))
         val evidence = age.observedInputs!!
         for (key in listOf("weight", "height", "waist", "body_fat")) assertTrue(evidence.contains("row=row-" + key))
         assertTrue(evidence.contains("raw=81.0 kg"))
@@ -80,7 +100,7 @@ class WeeklyLabSnapshotTest {
         val primary = MetricSeriesRow("lab-book", "2026-11-10", "hba1c", 5.5)
         val labs = IntelligenceEngine.WeeklyLabInputs(capturedBody(), listOf(primary))
         val rows = IntelligenceEngine.fitnessAgeRows(labs, week, profile, computedId, day)
-        assertEquals(36.94594594594595, rows.single { it.key == "fitness_age" }.value, 1e-12)
+        assertEquals(expectedAge(0.0), rows.single { it.key == "fitness_age" }.value, 1e-12)
         val evidence = IntelligenceEngine.weeklyScoreProvenance(labs, rows, computedId, week, profile)
             .single { it.key == "fitness_age" }.observedInputs!!
         assertTrue(evidence.contains("presence-only projected markers"))

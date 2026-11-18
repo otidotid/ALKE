@@ -519,7 +519,7 @@ internal fun GoogleAccountCard() {
     archivePreview?.let { preview ->
         AlertDialog(
             onDismissRequest = { archivePreview = null },
-            title = { Text("Archived History Â· ${preview.selectedDay ?: preview.record.month}") },
+            title = { Text("Archived History | ${preview.selectedDay ?: preview.record.month}") },
             text = {
                 Column(
                     modifier = Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
@@ -530,9 +530,9 @@ internal fun GoogleAccountCard() {
                         Text("Archived through: $it", style = AlkeType.footnote, color = Palette.textSecondary)
                     }
                     Text("Total records: ${preview.totalRecords}", style = AlkeType.body, color = Palette.textPrimary)
-                    Text("Schema: ${preview.record.schemaVersion} Â· " +
+                    Text("Schema: ${preview.record.schemaVersion} | " +
                         (if (preview.record.encrypted) "Encrypted + authenticated" else "Legacy unencrypted") +
-                        " Â· SHA-256 verified", style = AlkeType.footnote, color = Palette.textSecondary)
+                        " | SHA-256 verified", style = AlkeType.footnote, color = Palette.textSecondary)
                     preview.tableCounts.entries.filter { it.value > 0 }.take(12).forEach { row ->
                         Text("${row.key}: ${row.value}", style = AlkeType.footnote, color = Palette.textSecondary)
                     }
@@ -865,7 +865,7 @@ internal fun GoogleAccountCard() {
                 }
                 Text(
                     "Cloud history is eligible from day 22 onward. " +
-                        "Days 15â€“21 use the rolling local snapshot window; " +
+                        "Days 15-21 use the rolling local snapshot window; " +
                         "no local records are deleted.",
                     style = AlkeType.footnote,
                     color = Palette.textSecondary,
@@ -930,9 +930,9 @@ internal fun GoogleAccountCard() {
                     } else {
                         archiveRecords.sortedByDescending { it.month }.forEach { archive ->
                             AlkeButton(
-                                text = "${archive.month} Â· " +
-                                    "through ${archive.coveredThrough ?: "month end"} Â· " +
-                                    "${archive.recordCount} records Â· " +
+                                text = "${archive.month} | " +
+                                    "through ${archive.coveredThrough ?: "month end"} | " +
+                                    "${archive.recordCount} records | " +
                                     (if (archive.encrypted) "Encrypted" else "Legacy unencrypted"),
                                 kind = AlkeButtonKind.Tertiary,
                                 fullWidth = true,
@@ -975,7 +975,7 @@ internal fun GoogleAccountCard() {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Rolling local history", style = AlkeType.subhead, color = Palette.textPrimary)
-                    Text("Days 15â€“21 Â· Offline Â· ${compactSnapshots.size} snapshot rows",
+                    Text("Days 15-21 | Offline | ${compactSnapshots.size} snapshot rows",
                         style = AlkeType.footnote, color = Palette.textSecondary)
                 }
                 TextButton(onClick = { showRollingSnapshotDetails = !showRollingSnapshotDetails }) {
@@ -987,7 +987,7 @@ internal fun GoogleAccountCard() {
                 if (compactSnapshots.isEmpty()) {
                     Text("No daily snapshot data in this seven-day window.", style = AlkeType.footnote, color = Palette.textSecondary)
                 } else compactSnapshots.take(35).forEach { snapshot ->
-                    Text("${snapshot.day} Â· ${snapshot.source} Â· ${snapshot.recordCount} records",
+                    Text("${snapshot.day} | ${snapshot.source} | ${snapshot.recordCount} records",
                         style = AlkeType.footnote, color = Palette.textTertiary)
                 }
             }
@@ -1007,11 +1007,11 @@ internal fun GoogleAccountCard() {
             }
             Text(
                 text = if (driveAuthorized && driveAccessToken != null) {
-                    "Google Drive Â· Connected"
+                    "Google Drive | Connected"
                 } else if (currentAccount != null) {
-                    "Google Drive Â· Reauthentication required"
+                    "Google Drive | Reauthentication required"
                 } else {
-                    "Google Drive Â· Not configured"
+                    "Google Drive | Not configured"
                 },
                 style = AlkeType.subhead,
                 color = if (driveAuthorized && driveAccessToken != null) Palette.textPrimary else Palette.textSecondary,
@@ -1089,7 +1089,7 @@ internal fun GoogleAccountCard() {
                 }
                 availableBackups.forEach { backup ->
                     AlkeButton(
-                        text = "${formatCloudBackupDate(backup.createdTime)} Â· ${formatBackupSize(backup.sizeBytes)} Â· " +
+                        text = "${formatCloudBackupDate(backup.createdTime)} | ${formatBackupSize(backup.sizeBytes)} | " +
                             if (backup.encrypted) "Encrypted" else "Legacy unencrypted",
                         fullWidth = true,
                         enabled = !driveBusy,
@@ -1116,8 +1116,8 @@ internal fun GoogleAccountCard() {
                 selectedPreview?.let { preview ->
                     Text(
                         text = "${preview.backup.name}\n" +
-                            "${formatCloudBackupDate(preview.backup.createdTime)} Â· " +
-                            "${formatBackupSize(preview.backup.sizeBytes)}\nValid ALKE backup Â· " +
+                            "${formatCloudBackupDate(preview.backup.createdTime)} | " +
+                            "${formatBackupSize(preview.backup.sizeBytes)}\nValid ALKE backup | " +
                             if (preview.includesFoodHistory) "Food history included" else "Legacy health-only backup",
                         style = AlkeType.footnote,
                         color = Palette.textSecondary,

@@ -1,4 +1,4 @@
-name: ALKE - Alpha 18 Personal Base Build
+name: ALKE - Alpha 18 Personal Only Build
 
 on:
   push:
@@ -63,48 +63,37 @@ jobs:
             echo "::error::ALKE_GOOGLE_WEB_CLIENT_ID has an invalid format (expected a Web OAuth Client ID)."
             exit 1
           fi
-      - name: Build APK variants without any personal data (runner key, offline re-sign required)
+      - name: Build ALKE Personal APK only
         working-directory: android
         run: |
+          set -euo pipefail
           grep -q 'versionCode = 581' app/build.gradle.kts
           chmod +x gradlew
-          ./gradlew --no-daemon :app:assembleFullDebug :app:assemblePersonalDebug
-      - name: Test Google OAuth and whole-app JVM suite
-        working-directory: android
-        run: |
-          ./gradlew --no-daemon :app:testFullDebugUnitTest
-      - name: Validate public and private-base APKs
+          ./gradlew --no-daemon :app:assemblePersonalDebug
+
+      - name: Validate personal APK
         shell: bash
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          full=(android/app/build/outputs/apk/full/debug/*.apk)
-          personal=(android/app/build/outputs/apk/personal/debug/*.apk)
-          test "${#full[@]}" -eq 1
-          test "${#personal[@]}" -eq 1
+          apk=android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+          test -s "$apk"
           aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
-          "$aapt" dump badging "${full[0]}" | grep -q "package: name='com.otidotid.alke.debug'"
-          "$aapt" dump badging "${personal[0]}" | grep -q "package: name='com.otidotid.alke.personal.debug'"
-          for apk in "${full[0]}" "${personal[0]}"; do
-            test "$(stat -c '%s' "$apk")" -gt 1000000
-            unzip -t "$apk" | tail -1
-            ! unzip -Z1 "$apk" | grep -Eq '(alke-private-backup|noop-backup|\\.alkebak|\\.noopbak)'
-            sha256sum "$apk"
-          done
-          mkdir -p release-apk personal-base
-          cp "${full[0]}" release-apk/ALKE-v1.0.0-alpha.18-debug.apk
-          cp "${personal[0]}" personal-base/ALKE-v1.0.0-alpha.18-personal-BASE-REQUIRES-OFFLINE-RESIGN.apk
-      - name: Upload public APK artifact
+          "$aapt" dump badging "$apk" | grep -q "package: name='com.otidotid.alke.personal.debug' versionCode='581'"
+          unzip -t "$apk" | tail -1
+          ! unzip -Z1 "$apk" | grep -Eq '(alke-private-backup|noop-backup|\\.alkebak|\\.noopbak|\\.p12|\\.keystore)'
+          mkdir -p personal-base
+          cp "$apk" personal-base/ALKE-v1.0.0-alpha.18-v581-PERSONAL-BASE.apk
+          sha256sum "$apk"
+
+      - name: Upload personal base for private offline signing
         uses: actions/upload-artifact@v4
         with:
-          name: ALKE-alpha18-public-APK-NO-PERSONAL-DATA
-          path: release-apk/ALKE-v1.0.0-alpha.18-debug.apk
+          name: ALKE-alpha18-v581-PERSONAL-BASE-for-offline-signing
+          path: personal-base/ALKE-v1.0.0-alpha.18-v581-PERSONAL-BASE.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Upload clean personal-base APK artifact for local re-signing only
-        uses: actions/upload-artifact@v4
-        with:
-          name: ALKE-alpha18-personal-BASE-REQUIRES-OFFLINE-RESIGN
-          path: personal-base/ALKE-v1.0.0-alpha.18-personal-BASE-REQUIRES-OFFLINE-RESIGN.apk
-          if-no-files-found: error
-          retention-days: 7
+
+      - name: Run ALKE Personal unit tests
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon :app:testPersonalDebugUnitTest

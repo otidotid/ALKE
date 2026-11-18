@@ -1,0 +1,99 @@
+name: ALKE - Alpha 19 Personal Build + Tests (unsigned)
+
+on:
+  push:
+    branches:
+      - alke/alpha19-final-ux-fitness-age
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alke-alpha19-personal-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  google-login-build-and-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      # Google Web client IDs are public identifiers; keep configurable in the build.
+      # IMPORTANT: A Web ID alone is not sufficient. Google Cloud must register the
+      # Android OAuth package + signing SHA-1 for EACH installed app variant.
+      # Web OAuth Client ID is a public identifier (not a client secret).
+      # An Actions secret can override this project default if configuration changes.
+      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID || '542598370283-1gr0qq8ad4ga691k3lvrotma140hcu5r.apps.googleusercontent.com' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Restore immutable parity fixtures for full Android unit tests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REFERENCE_REPOSITORY_ID: 1401373206
+          SOURCE_SHA: de24b55946de9d904f002441e0d24923ef91f2c6
+        run: |
+          set -euo pipefail
+          REFERENCE_URL="$(gh api "/repositories/$REFERENCE_REPOSITORY_ID" --jq '.clone_url')"
+          test -n "$REFERENCE_URL"
+          git clone --depth=1 --branch v13.2.0 --single-branch \
+            "$REFERENCE_URL" "$RUNNER_TEMP/alke-reference-v13.2.0"
+          test "$(git -C "$RUNNER_TEMP/alke-reference-v13.2.0" rev-parse HEAD)" = "$SOURCE_SHA"
+          for dir in Strand StrandTests StrandiOS; do
+            rsync -a "$RUNNER_TEMP/alke-reference-v13.2.0/$dir/" "$GITHUB_WORKSPACE/$dir/"
+          done
+          mkdir -p "$GITHUB_WORKSPACE/Tools/parity_cases"
+          cp "$RUNNER_TEMP/alke-reference-v13.2.0/Tools/parity_cases/device_raw_sources.json" \
+            "$GITHUB_WORKSPACE/Tools/parity_cases/device_raw_sources.json"
+      - name: Report Google OAuth setup status
+        shell: bash
+        run: |
+          if [[ -z "${ALKE_GOOGLE_WEB_CLIENT_ID}" ]]; then
+            echo "### Google login configuration: MISSING" >> "$GITHUB_STEP_SUMMARY"
+            echo "Compile/test will run. Sign-in on this APK needs local Web client ID setup or a rebuild with ALKE_GOOGLE_WEB_CLIENT_ID." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${ALKE_GOOGLE_WEB_CLIENT_ID}" =~ ^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$ ]]; then
+            echo "### Google login configuration: Web OAuth ID present" >> "$GITHUB_STEP_SUMMARY"
+            echo "Android OAuth clients still need the exact package + installed signing SHA-1 in Google Cloud." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::ALKE_GOOGLE_WEB_CLIENT_ID has an invalid format (expected a Web OAuth Client ID)."
+            exit 1
+          fi
+      - name: Build unsigned ALKE Personal APK only
+        working-directory: android
+        run: |
+          set -euo pipefail
+          grep -q 'versionCode = 582' app/build.gradle.kts
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:assemblePersonalDebug
+
+      - name: Validate personal APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+          test -s "$apk"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          "$aapt" dump badging "$apk" | grep -q "package: name='com.otidotid.alke.personal.debug' versionCode='582'"
+          unzip -t "$apk" | tail -1
+          ! unzip -Z1 "$apk" | grep -Eq '(alke-private-backup|noop-backup|\\.alkebak|\\.noopbak|\\.p12|\\.keystore)'
+          mkdir -p personal-base
+          cp "$apk" personal-base/ALKE-v1.0.0-alpha.19-v582-PERSONAL-BASE.apk
+          sha256sum "$apk"
+
+      - name: Upload unsigned personal base for original-certificate offline signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha19-v582-PERSONAL-BASE-for-offline-signing
+          path: personal-base/ALKE-v1.0.0-alpha.19-v582-PERSONAL-BASE.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Run ALKE Personal unit tests
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon :app:testPersonalDebugUnitTest

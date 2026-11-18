@@ -1,4 +1,4 @@
-name: ALKE - Alpha 18 Personal Signature Rebuild
+name: ALKE - Alpha 18 Personal Base Build
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: alke-alpha18-personal-sign-${{ github.ref }}
@@ -63,22 +63,10 @@ jobs:
             echo "::error::ALKE_GOOGLE_WEB_CLIENT_ID has an invalid format (expected a Web OAuth Client ID)."
             exit 1
           fi
-      - name: Restore original signing key and verify fingerprint
-        env:
-          KEYSTORE_B64: ${{ secrets.ALKE_FORK_DEBUG_KEYSTORE_BASE64 }}
-        run: |
-          set -euo pipefail
-          if [ -z "$KEYSTORE_B64" ]; then
-            echo "::error::Original signing keystore unavailable in Actions secret ALKE_FORK_DEBUG_KEYSTORE_BASE64; refusing incompatible APK."
-            exit 1
-          fi
-          printf '%s' "$KEYSTORE_B64" | base64 -d > android/fork-debug.keystore
-          chmod 600 android/fork-debug.keystore
-          keytool -list -v -keystore android/fork-debug.keystore -storepass android -alias androiddebugkey | grep -F 'SHA256: 45:11:D9:03:75:13:F5:82:E5:2A:82:AC:03:D8:F9:28:65:5D:29:E8:6A:21:24:5D:CE:59:A1:33:A2:FE:E3:AB'
-
-      - name: Build APK variants without any personal data
+      - name: Build APK variants without any personal data (runner key, offline re-sign required)
         working-directory: android
         run: |
+          grep -q 'versionCode = 579' app/build.gradle.kts
           chmod +x gradlew
           ./gradlew --no-daemon :app:assembleFullDebug :app:assemblePersonalDebug
       - name: Test Google OAuth and whole-app JVM suite
@@ -105,13 +93,7 @@ jobs:
           done
           mkdir -p release-apk personal-base
           cp "${full[0]}" release-apk/ALKE-v1.0.0-alpha.18-debug.apk
-          cp "${personal[0]}" personal-base/ALKE-v1.0.0-alpha.18-personal-original-signature.apk
-      - name: Verify signed personal APK fingerprint
-        run: |
-          set -euo pipefail
-          apk=android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk" | grep -i '4511d9037513f582e52a82ac03d8f928655d29e86a21245dce59a133a2fee3ab'
-
+          cp "${personal[0]}" personal-base/ALKE-v1.0.0-alpha.18-personal-BASE-REQUIRES-OFFLINE-RESIGN.apk
       - name: Upload public APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -122,7 +104,7 @@ jobs:
       - name: Upload clean personal-base APK artifact for local re-signing only
         uses: actions/upload-artifact@v4
         with:
-          name: ALKE-alpha18-personal-ORIGINAL-SIGNATURE
-          path: personal-base/ALKE-v1.0.0-alpha.18-personal-UNSIGNED-FOR-OWNER.apk
+          name: ALKE-alpha18-personal-BASE-REQUIRES-OFFLINE-RESIGN
+          path: personal-base/ALKE-v1.0.0-alpha.18-personal-BASE-REQUIRES-OFFLINE-RESIGN.apk
           if-no-files-found: error
           retention-days: 7

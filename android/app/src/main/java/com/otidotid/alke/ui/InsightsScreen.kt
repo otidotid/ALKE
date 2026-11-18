@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.otidotid.alke.data.DailyMetric
 import com.otidotid.alke.data.JournalEntry
 import com.otidotid.alke.data.WorkoutRow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -402,12 +404,18 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
         relationships = relationshipsEvidence,
         patternEvidence = hubInsightsEvidence(hubState) +
             ranked.take(7).map { "Journal behaviour effect: " + effectSentence(it, outcome) },
-        activityEvidence = activityCosts.take(7).map { it.sentence() },
+        activityEvidence = emptyList(),
     )
-    val aiSummary by produceState<String?>(
-        initialValue = null, key1 = evidence,
+    // Keep a meaningful, evidence-grounded summary visible immediately.
+    // Cloud AI refines it when consent, connectivity and the endpoint permit.
+    var insightAiRetry by remember { mutableStateOf(0) }
+    val aiSummary by produceState<InsightAiResult>(
+        initialValue = AlkeInsightsAi.localSummary(evidence),
+        key1 = evidence, key2 = insightAiRetry,
     ) {
-        value = AlkeInsightsAi.generate(ctx, evidence)
+        value = AlkeInsightsAi.localSummary(evidence)
+        delay(650) // let mood/journal/hub hydration settle before a cloud request
+        value = AlkeInsightsAi.generateDetailed(ctx, evidence)
     }
 
     // PERF (#707): migrate to the lazy scaffold so only on-screen sections compose + get
@@ -601,48 +609,9 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
 
         item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
 
-        // --- Behaviour effects -------------------------------------------------
-        // (Always emits one of three branches → one unconditional item, never empty.)
-        item {
-        if (!journalLoaded) {
-            AlkeCard {
-                Text(
-                    uiString(R.string.l10n_insights_screen_reading_your_journal_and_outcomes_4a59af69),
-                    style = AlkeType.subhead,
-                    color = Palette.textTertiary,
-                )
-            }
-        } else if (behaviours.isEmpty()) {
-            // No journal yet, explain, without dead-ending on a paid export.
-            DataPendingNote(
-                title = uiString(R.string.l10n_insights_screen_insights_read_your_journal_and_outcomes_6ec8aaf9),
-                body = "Log behaviours above. After a few days of answers, ALKE ranks how each " +
-                    "one moves your recovery, HRV and sleep. Importing a WHOOP export (which " +
-                    "includes its journal) backfills history instantly.",
-            )
-        } else {
-            BehaviourSection(
-                outcome = outcome,
-                onOutcome = { outcome = it },
-                ranked = ranked,
-            )
-        }
-        }
-
-        item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
-
-        // --- Activity Cost (what each activity costs your recovery) ------------
-        item { ActivityCostSection(activityCosts) }
-
-        item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
-
-        // Embedded live What Moves You analysis, not a navigation link to
-        // another Insights module. Keeps EffectRanker and DoseResponseEngine.
-        item { InsightsHubEmbeddedSection(hubState) }
-
         // 8. Your Insight Summary — AI sees ALL eight Insight sections above,
         //    including the mood, caffeine and n-of-1 evidence, never other modules.
-        item { ConsolidatedInsightAiSummary(ctx, evidence, aiSummary) }
+        item { ConsolidatedInsightAiSummary(aiSummary, onRetry = { insightAiRetry++ }) }
     }
 }
 
@@ -679,33 +648,48 @@ private fun ConsolidatedInsightSignals(day: DailyMetric?) {
                 it.isFinite() && com.otidotid.alke.analytics.VitalBands.isAbsoluteSkinTemp(it)
             }
         val signals = listOf(
-            "Recovery" to day?.recovery?.let { String.format(Locale.US, "%.0f%%", it) },
-            "HRV" to day?.avgHrv?.let { String.format(Locale.US, "%.1f ms", it) },
-            "Resting HR" to day?.restingHr?.let { "$it bpm" },
-            "Sleep performance" to day?.efficiency?.let {
+            "Recovery" to day?.recovery?.takeIf { it.isFinite() }?.let {
+                String.format(Locale.US, "%.0f%%", it) },
+            "HRV" to day?.avgHrv?.takeIf { it.isFinite() }?.let {
+                String.format(Locale.US, "%.1f ms", it) },
+            "Resting HR" to day?.restingHr?.takeIf { it > 0 }?.let { "$it bpm" },
+            "Sleep performance" to day?.efficiency?.takeIf { it.isFinite() }?.let {
                 String.format(Locale.US, "%.0f%%", it) },
             "Skin Temperature" to skin?.let { String.format(Locale.US, "%.1f C", it) },
         )
+        // IMPORTANT: AlkeCard's content is a Box, not a Column.
+        // Direct siblings overlap. Nest all signals inside one vertical Column.
         AlkeCard {
-            signals.forEachIndexed { index, (name, value) ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text(name, style = AlkeType.subhead, color = Palette.textSecondary,
-                        modifier = Modifier.weight(1f))
-                    Text(value ?: "Awaiting data", style = AlkeType.subhead,
-                        color = if (value == null) Palette.textTertiary else Palette.textPrimary)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                signals.forEachIndexed { index, (name, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            name, style = AlkeType.subhead, color = Palette.textSecondary,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            value ?: "Awaiting data", style = AlkeType.subhead,
+                            color = if (value == null) Palette.textTertiary else Palette.textPrimary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (index < signals.lastIndex) HorizontalDivider(color = Palette.hairline)
                 }
-                if (index < signals.lastIndex) HorizontalDivider(color = Palette.hairline)
             }
         }
     }
 }
-
 @Composable
 private fun ConsolidatedInsightAiSummary(
-    context: Context,
-    evidence: AlkeInsightsEvidence,
-    summary: String?,
+    summary: InsightAiResult,
+    onRetry: () -> Unit,
 ) {
     AlkeCard(tint = Palette.accent) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -719,23 +703,26 @@ private fun ConsolidatedInsightAiSummary(
                         color = Palette.textPrimary)
                 }
             }
+            Text(summary.text, style = AlkeType.subhead, color = Palette.textPrimary)
             Text(
-                summary ?: when {
-                    !evidence.hasEvidence() -> "Record Insight signals and journal entries to generate an evidence-based summary."
-                    !com.otidotid.alke.ai.AiKeyStore.readConsent(context) ||
-                        !AlkePrefs.coachEnabled(context) ||
-                        !AlkePrefs.coachSignals(context) ->
-                        "Enable AI and health-evidence consent in Me settings to summarize these Insights."
-                    else -> "Insights-only AI summary is unavailable. All recorded evidence remains visible above."
-                },
-                style = AlkeType.subhead, color = Palette.textPrimary,
+                if (summary.isCloudAi) "AI interpretation · based on Insight data only"
+                else "Local evidence summary · AI interpretation adds detail when available",
+                style = AlkeType.footnote, color = Palette.textSecondary,
             )
+            if (!summary.isCloudAi && !summary.canRetryCloud) {
+                Text("AI interpretation needs AI enabled and health-data consent in Me settings.",
+                    style = AlkeType.footnote, color = Palette.textTertiary)
+            }
+            if (!summary.isCloudAi && summary.canRetryCloud) {
+                OutlinedButton(onClick = onRetry) {
+                    Text("Refresh with AI")
+                }
+            }
             Text("Based exclusively on evidence in this Insight module · association is not causation",
                 style = AlkeType.footnote, color = Palette.textTertiary)
         }
     }
 }
-
 // MARK: - "What moves you" deep-link
 //
 // A single AlkeCard row into the v5 Insights Hub, the ranked, lag-aware "which of your habits actually

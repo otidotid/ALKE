@@ -66,6 +66,12 @@ internal data class AlkeInsightsEvidence(
  * Uses an ephemeral server identity so the Coach's other-module memory cannot be
  * retrieved. No direct repository or Labs access; Today Synthesis remains unchanged.
  */
+/** Always render a truthful summary; cloud AI can refine it with richer evidence. */
+internal data class InsightAiResult(
+    val text: String,
+    val isCloudAi: Boolean,
+    val canRetryCloud: Boolean,
+)
 internal object AlkeInsightsAi {
     private const val PREFS = "alke_insights_ai"
     private const val KEY_EVIDENCE = "evidence"
@@ -119,5 +125,69 @@ internal object AlkeInsightsAi {
             ?: return null
         prefs.edit().putString(KEY_EVIDENCE, allowed).putString(KEY_SUMMARY, cleaned).apply()
         return cleaned
+    }
+
+    /** A fast, on-device reading of the Insight evidence. No network, fabricated effects or consent bypass. */
+    fun localSummary(evidence: AlkeInsightsEvidence): InsightAiResult {
+        val readings = buildList {
+            evidence.recovery?.takeIf { it.isFinite() }?.let {
+                add(String.format(Locale.US, "recovery %.0f%%", it))
+            }
+            evidence.hrvMs?.takeIf { it.isFinite() }?.let {
+                add(String.format(Locale.US, "HRV %.1f ms", it))
+            }
+            evidence.restingHrBpm?.takeIf { it > 0 }?.let { add("resting HR $it bpm") }
+            evidence.sleepPerformance?.takeIf { it.isFinite() }?.let {
+                add(String.format(Locale.US, "sleep performance %.0f%%", it))
+            }
+            evidence.skinAbsoluteC?.takeIf { it.isFinite() }?.let {
+                add(String.format(Locale.US, "skin temperature %.1f C", it))
+            }
+            evidence.skinDeviationC?.takeIf { it.isFinite() }?.let {
+                add(String.format(Locale.US, "skin temperature deviation %+.1f C", it))
+            }
+        }
+        val messages = mutableListOf<String>()
+        if (readings.isNotEmpty()) {
+            messages += "Current recorded signals: ${readings.joinToString(", ")}."
+        } else {
+            messages += "There are not yet enough recorded body signals for a numerical snapshot."
+        }
+        val loggedJournal = evidence.journalEntries.count { entry ->
+            entry.contains(':') && !entry.startsWith("Journal date:") &&
+                !entry.startsWith("Journal data not loaded") &&
+                !entry.startsWith("No yes/no journal entries")
+        }
+        val evidenceCounts = buildList {
+            if (loggedJournal > 0) add("$loggedJournal journal answers")
+            if (evidence.caffeineEvidence.isNotEmpty()) {
+                add("${evidence.caffeineEvidence.size} caffeine entries")
+            }
+            if (evidence.moodEvidence.isNotEmpty()) add("mood observations")
+            if (evidence.relationships.isNotEmpty()) add("metric relationships")
+            if (evidence.activityEvidence.isNotEmpty()) add("activity patterns")
+            if (evidence.experimentEvidence.any {
+                    it.startsWith("Testing ") || it.startsWith("Observed baseline")
+                }) add("personal experiment observations")
+        }
+        if (evidenceCounts.isNotEmpty()) {
+            messages += "Additional Insight evidence includes ${evidenceCounts.joinToString(", ")}."
+        } else {
+            messages += "Log mood, caffeine and journal answers to add context to future summaries."
+        }
+        messages += "These observations alone do not establish what caused a change; " +
+            "more days with paired readings and logs will make the interpretation more specific."
+        return InsightAiResult(messages.joinToString(" "), isCloudAi = false, canRetryCloud = true)
+    }
+
+    /** Fail open to a meaningful LOCAL summary, never to an empty/unavailable card. */
+    suspend fun generateDetailed(context: Context, evidence: AlkeInsightsEvidence): InsightAiResult {
+        val local = localSummary(evidence)
+        val consented = AiKeyStore.readConsent(context) &&
+            AlkePrefs.coachEnabled(context) && AlkePrefs.coachSignals(context)
+        if (!consented) return local.copy(canRetryCloud = false)
+        val cloudText = generate(context, evidence)?.takeIf { it.isNotBlank() }
+            ?: return local
+        return InsightAiResult(cloudText, isCloudAi = true, canRetryCloud = false)
     }
 }

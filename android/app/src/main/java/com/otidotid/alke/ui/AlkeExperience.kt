@@ -1506,13 +1506,82 @@ fun AlkeProgressExperience(
 }
 
 @Composable
+private fun AlkeInsightsReadinessHero(recovery: Double?) {
+    // Same instrument vocabulary as Fitness Age: a 270-degree arc, living cyan-gold
+    // aurora and continuous ambient sweep; the measured Recovery value never changes.
+    val valid = recovery?.takeIf { it.isFinite() && it >= 0.0 }
+    val fraction = ((valid ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f)
+    val reduceMotion = rememberPoseStill()
+    val displayed by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = if (reduceMotion) tween(0)
+            else tween(940, easing = FastOutSlowInEasing),
+        label = "insights_readiness_reveal",
+    )
+    val ambient = if (reduceMotion || valid == null) 0f else
+        rememberInfiniteTransition(label = "insights_readiness_ambient").animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(3800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "insights_readiness_breathe",
+        ).value
+    val orbit = if (reduceMotion || valid == null) 0f else
+        rememberInfiniteTransition(label = "insights_readiness_orbit").animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing)),
+            label = "insights_readiness_sweep",
+        ).value
+
+    AlkePanel(Modifier.fillMaxWidth()) {
+        Text("BODY READINESS", color = A.cyan,
+            fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
+        Box(Modifier.fillMaxWidth().height(204.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(190.dp), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val width = 10.dp.toPx()
+                    val inset = width / 2 + 9.dp.toPx()
+                    val arcSize = Size(size.width - inset * 2f, size.height - inset * 2f)
+                    val origin = Offset(inset, inset)
+                    val span = size.minDimension
+                    drawCircle(
+                        brush = Brush.radialGradient(listOf(
+                            A.cyan.copy(alpha = 0.14f + 0.20f * ambient), Color.Transparent),
+                            center = Offset(center.x + (orbit - .5f) * span * .16f,
+                                center.y - span * .1f),
+                            radius = span * .44f,
+                        ),
+                        radius = span * .44f,
+                    )
+                    drawArc(A.stroke.copy(alpha = .72f), 135f, 270f, false,
+                        origin, arcSize, style = Stroke(width, cap = StrokeCap.Round))
+                    if (valid != null) {
+                        drawArc(Brush.sweepGradient(listOf(A.cyan, A.gold, A.cyan)),
+                            135f, 270f * displayed, false, origin, arcSize,
+                            style = Stroke(width, cap = StrokeCap.Round))
+                    }
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(valid?.roundToInt()?.toString()?.plus("%") ?: "—",
+                        color = A.white, fontWeight = FontWeight.Bold, fontSize = 40.sp)
+                    Text("RECORDED RECOVERY", color = A.muted,
+                        fontSize = 9.sp, letterSpacing = 1.1.sp)
+                }
+            }
+        }
+        Text("Readiness visualized from your recorded Recovery score; no new age or health score is calculated.",
+            color = A.muted, fontSize = 11.sp, lineHeight = 17.sp)
+    }
+}
+
+@Composable
 fun AlkeInsightExperience(
     vm: AppViewModel,
     onNotifications: () -> Unit,
     onDevices: () -> Unit,
     onProfile: () -> Unit,
     unreadCount: Int,
-    onCoach: () -> Unit,
     onIntelligence: () -> Unit,
     onHealth: () -> Unit,
     onSkinTemp: () -> Unit,
@@ -1531,23 +1600,22 @@ fun AlkeInsightExperience(
         deviationSkinC != null -> String.format(Locale.getDefault(), "%+.1f °C Δ", deviationSkinC)
         else -> "—"
     }
+    // Only data rendered by THIS Insights page may enter the AI evidence envelope.
+    val evidence = AlkeInsightsEvidence(
+        dayKey = day?.day,
+        recovery = recovery,
+        hrvMs = day?.avgHrv,
+        restingHrBpm = day?.restingHr,
+        skinAbsoluteC = absoluteSkinC,
+        skinDeviationC = deviationSkinC,
+    )
+    val context = LocalContext.current
+    val aiSummary by produceState<String?>(initialValue = null, key1 = evidence) {
+        value = AlkeInsightsAi.generate(context, evidence)
+    }
     AlkePage {
         AlkeHeading("Insight", "Your data, made meaningful.")
-        AlkePanel(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("THE INTELLIGENCE WITHIN", color = A.gold, letterSpacing = 1.5.sp, fontSize = 9.sp)
-                    Text("Your daily perspective", color = A.white, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(readinessText(recovery), color = A.white, fontSize = 15.sp, lineHeight = 23.sp)
-            Text(
-                if (day == null) "No metrics have been recorded yet; no conclusions are generated."
-                else "Based on the recovery metrics recorded for your selected day.",
-                color = A.muted, fontSize = 11.sp,
-            )
-        }
+        AlkeInsightsReadinessHero(recovery)
         AlkeSectionTitle("Your signals")
         listOf(
             Triple("Recovery", recovery?.let { "${it.roundToInt()}%" } ?: "—", A.gold),
@@ -1579,8 +1647,35 @@ fun AlkeInsightExperience(
             }
         }
         AlkeLinkRow("Intelligence details", "How Charge, Effort and Rest are calculated", Icons.Filled.Insights, onIntelligence)
-        AlkeLinkRow("Ask ALKE Coach", "Optional AI assistant with your configured provider", Icons.Filled.AutoAwesome, onCoach, A.gold)
-        AlkeLinkRow("Explore evidence", "Read the underlying health metrics", Icons.Filled.MonitorHeart, onHealth)
+        AlkeLinkRow("Explore Evidence", "Read the underlying health metrics", Icons.Filled.MonitorHeart, onHealth)
+        AlkePanel(Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(42.dp).clip(CircleShape)
+                    .background(A.gold.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = "AI",
+                        tint = A.gold, modifier = Modifier.size(22.dp))
+                }
+                Column {
+                    Text("YOUR INSIGHT SUMMARY", color = A.gold,
+                        fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 1.4.sp)
+                    Text("Your Insight Summary", color = A.white,
+                        fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                }
+            }
+            Text(
+                aiSummary ?: when {
+                    !evidence.hasEvidence() -> "No Insights evidence recorded yet. No conclusions are generated."
+                    !com.otidotid.alke.ai.AiKeyStore.readConsent(context) ||
+                        !AlkePrefs.coachEnabled(context) || !AlkePrefs.coachSignals(context) ->
+                        "AI summary requires your enabled AI and health-evidence consent in Me settings."
+                    else -> "Insights-only AI summary unavailable. Your recorded evidence remains visible above."
+                },
+                color = A.white, fontSize = 14.sp, lineHeight = 21.sp,
+            )
+            Text("Based only on the evidence displayed in Insights · AI interpretation, not a score",
+                color = A.muted, fontSize = 11.sp)
+        }
     }
 }
 

@@ -8,6 +8,13 @@ import com.otidotid.alke.analytics.SleepMark
 import com.otidotid.alke.analytics.SleepMarkType
 import com.otidotid.alke.analytics.SleepWindowReclip
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,9 +69,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -1267,7 +1277,7 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
                         fraction = (score / 100.0).coerceIn(0.0, 1.0),
                         value = score,
                         tint = Palette.restColor,
-                        diameter = 184.dp,
+                        diameter = 194.dp,
                     )
                     Text(sleepScoreWord(score), style = AlkeType.subhead, color = Palette.textSecondary)
                 } else {
@@ -1304,41 +1314,113 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
  */
 @Composable
 private fun SleepHeroVessel(fraction: Double, value: Double, tint: Color, diameter: Dp) {
-    // A legible, static sleep score: no liquid motion or decorative glow.
-    // The measured value and Rest score calculation are unchanged.
-    val displayedFraction = fraction.coerceIn(0.0, 1.0).toFloat()
-    Column(
-        modifier = Modifier.size(diameter),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = value.roundToInt().toString(),
-            style = AlkeType.number(
-                (diameter.value * 0.30f).coerceIn(30f, 58f),
-                weight = FontWeight.Bold,
-            ),
-            color = Palette.textPrimary,
-        )
-        Text("REST SCORE", style = AlkeType.caption, color = Palette.textSecondary)
-        Spacer(modifier = Modifier.height(18.dp))
-        Canvas(modifier = Modifier.width(diameter * 0.72f).height(6.dp)) {
-            val mid = size.height / 2f
-            val strokeWidth = 4.dp.toPx()
-            drawLine(
-                color = Palette.hairlineStrong,
-                start = Offset(0f, mid),
-                end = Offset(size.width, mid),
-                strokeWidth = strokeWidth,
+    // ALKE premium Fitness Age visual contract: identical 270-degree instrument
+    // geometry, cyan/gold aurora, orbiting white marker, breathing numeral and
+    // constant motion. The *sleep* score stays exactly as recorded; this is UI only.
+    val poseStill = rememberPoseStill()
+    val progress by animateFloatAsState(
+        targetValue = fraction.toFloat().coerceIn(0f, 1f),
+        animationSpec = if (poseStill) tween(0)
+            else tween(940, easing = FastOutSlowInEasing),
+        label = "sleep_performance_age_style_reveal",
+    )
+    val ambient = if (poseStill) 0f else {
+        val motion = rememberInfiniteTransition(label = "sleep_performance_ambient")
+        motion.animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(3800, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+            label = "sleep_performance_breathe",
+        ).value
+    }
+    val orbit = if (poseStill) 0f else {
+        val motion = rememberInfiniteTransition(label = "sleep_performance_orbit")
+        motion.animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing)),
+            label = "sleep_performance_sweep",
+        ).value
+    }
+
+    Box(Modifier.size(diameter), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxWidth().height(diameter)) {
+            val width = 10.dp.toPx()
+            val inset = width / 2f + 10.dp.toPx()
+            val circleSize = Size(size.width - 2f * inset, size.height - 2f * inset)
+            val top = Offset(inset, inset)
+            val radius = circleSize.width / 2f
+            val span = size.minDimension
+            val cyanCenter = Offset(
+                center.x + (orbit - .5f) * span * .38f,
+                center.y - span * .10f + ambient * span * .07f,
             )
-            if (displayedFraction > 0f) {
-                drawLine(
-                    color = tint,
-                    start = Offset(0f, mid),
-                    end = Offset(size.width * displayedFraction, mid),
-                    strokeWidth = strokeWidth,
+            val goldCenter = Offset(
+                center.x - (orbit - .5f) * span * .30f,
+                center.y + span * .22f - ambient * span * .08f,
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(Color(0xFF26DEEB).copy(alpha = .24f + .26f * ambient),
+                        Color.Transparent), center = cyanCenter, radius = span * .43f),
+                radius = span * .43f, center = cyanCenter,
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(Color(0xFFF0BF60).copy(alpha = .16f + .22f * ambient),
+                        Color.Transparent), center = goldCenter, radius = span * .37f),
+                radius = span * .37f, center = goldCenter,
+            )
+            drawArc(Palette.hairlineStrong.copy(alpha = .72f), 135f, 270f, false,
+                top, circleSize, style = Stroke(width, cap = StrokeCap.Round))
+            drawArc(
+                brush = Brush.sweepGradient(listOf(Color(0xFF26DEEB), Color(0xFFF0BF60),
+                    Color(0xFF26DEEB))), startAngle = 135f,
+                sweepAngle = 270f * progress, useCenter = false, topLeft = top,
+                size = circleSize, style = Stroke(width, cap = StrokeCap.Round),
+            )
+            val pointerAngle = Math.toRadians((135f + 270f * progress).toDouble())
+            val pointer = Offset(center.x + kotlin.math.cos(pointerAngle).toFloat() * radius,
+                center.y + kotlin.math.sin(pointerAngle).toFloat() * radius)
+            drawCircle(Color(0xFF26DEEB).copy(alpha = .11f + ambient * .22f),
+                radius = (8f + 4f * ambient).dp.toPx(), center = pointer)
+            drawCircle(Color.White, radius = (3.4f + .45f * ambient).dp.toPx(), center = pointer)
+            if (!poseStill) {
+                val orbitAngle = Math.toRadians((135f + 270f * orbit).toDouble())
+                val orbitDot = Offset(center.x + kotlin.math.cos(orbitAngle).toFloat() * radius,
+                    center.y + kotlin.math.sin(orbitAngle).toFloat() * radius)
+                drawCircle(Color(0xFFF0BF60).copy(alpha = .18f),
+                    radius = 12.dp.toPx(), center = orbitDot)
+                drawCircle(Color.White.copy(alpha = .9f), radius = 3.dp.toPx(),
+                    center = orbitDot)
+            }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    value.roundToInt().toString(),
+                    style = AlkeType.number(48f, weight = FontWeight.Bold),
+                    color = Color(0xFF26DEEB).copy(alpha = .08f + ambient * .32f),
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = 1.04f + ambient * .14f
+                        scaleY = 1.04f + ambient * .14f
+                        translationY = -ambient * 2.dp.toPx()
+                    },
+                )
+                Text(
+                    value.roundToInt().toString(),
+                    style = AlkeType.number(48f, weight = FontWeight.Bold),
+                    color = androidx.compose.ui.graphics.lerp(
+                        Palette.textPrimary, Color(0xFFF0BF60), ambient * .58f),
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = 1f + ambient * .082f
+                        scaleY = 1f + ambient * .082f
+                        translationY = -ambient * 3.dp.toPx()
+                    },
                 )
             }
+            Text("SLEEP PERFORMANCE", style = AlkeType.caption,
+                color = Palette.textSecondary)
         }
     }
 }

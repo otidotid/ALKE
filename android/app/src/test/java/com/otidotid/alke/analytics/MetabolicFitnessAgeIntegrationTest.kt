@@ -237,11 +237,11 @@ class MetabolicFitnessAgeIntegrationTest {
         assertEquals(setOf("fitness_age", "vo2max_est"), noLabs.map { it.key }.toSet())
         val localLabs = labs(originals(elevatedBody = false))
         val local = score(localLabs)
-        val localMetabolic = requireNotNull(FitnessAgeEngine.compute(
+        val localMetabolic = requireNotNull(requireNotNull(FitnessAgeEngine.compute(
             profile.age, profile.sex, 65.0,
             FitnessAgeEngine.physicalActivityIndexFromStrain(7, 60.0),
             waistCm = 90.0, weightKg = 81.0, heightCm = 180.0,
-            bodyFatPct = 20.0)).metabolicDeltaYears
+            bodyFatPct = 20.0)).metabolicDeltaYears)
         val glucose = localLabs.customGlycemic?.result?.ageDeltaYears ?: 0.0
         assertEquals(AlkeWeightedFitnessAge.combine(core, vitality.bodyAge,
             profile.age + localMetabolic + glucose).fitnessAge,

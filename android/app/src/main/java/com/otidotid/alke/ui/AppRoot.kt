@@ -260,9 +260,6 @@ internal val drawerGroups: List<DrawerGroup> = listOf(
         Destination.Workouts, Destination.Live, Destination.Intervals,
         Destination.Breathe, Destination.Hydration,
     ), defaultExpanded = false),
-    DrawerGroup("Nutrition & Coach", R.string.more_group_insights, listOf(
-        Destination.Coach,
-    ), defaultExpanded = false),
     DrawerGroup("Data", R.string.more_group_data, listOf(
         Destination.FusedRecord, Destination.DataSources,
         Destination.BackupSync, Destination.Devices, Destination.AlkeLimitations,
@@ -947,7 +944,6 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onDevices = { nav.navigate(Destination.Devices.route) },
                         onProfile = { nav.navigate(Destination.Profile.route) },
                         unreadCount = updateStore.unreadCount,
-                        onCoach = { nav.navigate(Destination.Coach.route) },
                         onIntelligence = { nav.navigate(Destination.AlkeIntelligenceDetails.route) },
                         onHealth = { nav.navigate(Destination.Health.route) },
                         onSkinTemp = { nav.navigate("vital_detail/skin") },
@@ -974,7 +970,6 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onVo2 = { nav.navigate("vital_detail/vo2max_est") },
                         onRestingHr = { nav.navigate("vital_detail/rhr") },
                         onTrain = { nav.navigateTopLevel(Destination.Workouts.route) },
-                        onBodyAge = { nav.navigate("vital_detail/vitality") },
                         onTrends = { nav.navigate(Destination.AlkeTrendHistory.route) },
                         onSteps = { nav.navigate("vital_detail/steps_est") },
                     )

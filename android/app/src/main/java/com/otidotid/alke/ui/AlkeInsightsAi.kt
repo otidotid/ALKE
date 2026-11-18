@@ -24,7 +24,6 @@ internal data class AlkeInsightsEvidence(
     val experimentEvidence: List<String> = emptyList(),
     val relationships: List<String> = emptyList(),
     val patternEvidence: List<String> = emptyList(),
-    val activityEvidence: List<String> = emptyList(),
 ) {
     private fun valid(value: Double?): Double? = value?.takeIf { it.isFinite() }
 
@@ -32,7 +31,7 @@ internal data class AlkeInsightsEvidence(
         listOf(recovery, hrvMs, restingHrBpm?.toDouble(), skinAbsoluteC,
             skinDeviationC, sleepPerformance).any { valid(it) != null } ||
         listOf(journalEntries, moodEvidence, caffeineEvidence, experimentEvidence,
-            relationships, patternEvidence, activityEvidence).any { it.isNotEmpty() }
+            relationships, patternEvidence).any { it.isNotEmpty() }
 
     /** Whitelist of Insights-visible metrics. Used as the ONLY cloud healthContext. */
     fun context(): String = buildList {
@@ -56,8 +55,7 @@ internal data class AlkeInsightsEvidence(
         section("Log Caffeine", caffeineEvidence)
         section("Personal Experiment", experimentEvidence)
         section("Pearson-r Metric Relationships", relationships)
-        section("What Moves You and dose-response", patternEvidence)
-        section("Activity and recovery patterns", activityEvidence)
+        section("Journal behaviour effects", patternEvidence)
     }.joinToString("\n")
 }
 
@@ -129,56 +127,111 @@ internal object AlkeInsightsAi {
 
     /** A fast, on-device reading of the Insight evidence. No network, fabricated effects or consent bypass. */
     fun localSummary(evidence: AlkeInsightsEvidence): InsightAiResult {
-        val readings = buildList {
+        val bodySignals = listOfNotNull(
             evidence.recovery?.takeIf { it.isFinite() }?.let {
-                add(String.format(Locale.US, "recovery %.0f%%", it))
-            }
+                String.format(Locale.US, "recovery %.0f%%", it)
+            },
             evidence.hrvMs?.takeIf { it.isFinite() }?.let {
-                add(String.format(Locale.US, "HRV %.1f ms", it))
-            }
-            evidence.restingHrBpm?.takeIf { it > 0 }?.let { add("resting HR $it bpm") }
+                String.format(Locale.US, "HRV %.1f ms", it)
+            },
+            evidence.restingHrBpm?.takeIf { it > 0 }?.let {
+                "resting HR $it bpm"
+            },
             evidence.sleepPerformance?.takeIf { it.isFinite() }?.let {
-                add(String.format(Locale.US, "sleep performance %.0f%%", it))
-            }
-            evidence.skinAbsoluteC?.takeIf { it.isFinite() }?.let {
-                add(String.format(Locale.US, "skin temperature %.1f C", it))
-            }
-            evidence.skinDeviationC?.takeIf { it.isFinite() }?.let {
-                add(String.format(Locale.US, "skin temperature deviation %+.1f C", it))
-            }
-        }
-        val messages = mutableListOf<String>()
-        if (readings.isNotEmpty()) {
-            messages += "Current recorded signals: ${readings.joinToString(", ")}."
+                String.format(Locale.US, "sleep performance %.0f%%", it)
+            },
+        )
+
+        val whatChanged = if (bodySignals.isEmpty()) {
+            "Not enough synchronized body signals are available for a reliable change summary."
         } else {
-            messages += "There are not yet enough recorded body signals for a numerical snapshot."
+            "The latest available snapshot shows ${bodySignals.joinToString(", ")}."
         }
-        val loggedJournal = evidence.journalEntries.count { entry ->
-            entry.contains(':') && !entry.startsWith("Journal date:") &&
-                !entry.startsWith("Journal data not loaded") &&
-                !entry.startsWith("No yes/no journal entries")
-        }
-        val evidenceCounts = buildList {
-            if (loggedJournal > 0) add("$loggedJournal journal answers")
-            if (evidence.caffeineEvidence.isNotEmpty()) {
-                add("${evidence.caffeineEvidence.size} caffeine entries")
+
+        val likelyContributor = when {
+            evidence.experimentEvidence.any {
+                it.startsWith("Observed baseline")
+            } -> {
+                "Your personal experiment contains an early paired association. " +
+                    "It does not establish causation."
             }
-            if (evidence.moodEvidence.isNotEmpty()) add("mood observations")
-            if (evidence.relationships.isNotEmpty()) add("metric relationships")
-            if (evidence.activityEvidence.isNotEmpty()) add("activity patterns")
-            if (evidence.experimentEvidence.any {
-                    it.startsWith("Testing ") || it.startsWith("Observed baseline")
-                }) add("personal experiment observations")
+
+            evidence.relationships.isNotEmpty() -> {
+                "Recorded metric relationships provide context, but no single cause is confirmed."
+            }
+
+            evidence.journalEntries.size > 2 ||
+                evidence.caffeineEvidence.isNotEmpty() ||
+                evidence.moodEvidence.isNotEmpty() -> {
+                "Journal, mood, or caffeine logs may add context after more paired days are recorded."
+            }
+
+            else -> {
+                "No contributor is supported strongly enough by the visible evidence yet."
+            }
         }
-        if (evidenceCounts.isNotEmpty()) {
-            messages += "Additional Insight evidence includes ${evidenceCounts.joinToString(", ")}."
+
+        val actionToday = if (bodySignals.isEmpty()) {
+            "Allow synchronization to finish and reassess after the next completed sleep period."
         } else {
-            messages += "Log mood, caffeine and journal answers to add context to future summaries."
+            "Use the current signals as context, keep today's plan conservative, " +
+                "and reassess after new sleep data."
         }
-        messages += "These observations alone do not establish what caused a change; " +
-            "more days with paired readings and logs will make the interpretation more specific."
-        return InsightAiResult(messages.joinToString(" "), isCloudAi = false, canRetryCloud = true)
+
+        val confidence = when {
+            evidence.relationships.size >= 2 && bodySignals.size >= 3 -> "Moderate"
+            bodySignals.size >= 2 -> "Low to moderate"
+            else -> "Low"
+        }
+
+        val summaryText = buildString {
+            appendLine("WHAT CHANGED")
+            appendLine(whatChanged)
+            appendLine()
+            appendLine("LIKELY CONTRIBUTOR")
+            appendLine(likelyContributor)
+            appendLine()
+            appendLine("WHAT TO DO TODAY")
+            appendLine(actionToday)
+            appendLine()
+            appendLine("CONFIDENCE")
+            append(confidence)
+        }
+
+        return InsightAiResult(
+            text = summaryText,
+            isCloudAi = false,
+            canRetryCloud = true,
+        )
     }
+
+    private fun structureCloudSummary(raw: String): String {
+        val alreadyStructured =
+            raw.contains("WHAT CHANGED", ignoreCase = true) &&
+                raw.contains("WHAT TO DO TODAY", ignoreCase = true) &&
+                raw.contains("CONFIDENCE", ignoreCase = true)
+
+        if (alreadyStructured) return raw
+
+        return buildString {
+            appendLine("WHAT CHANGED")
+            appendLine(raw.trim())
+            appendLine()
+            appendLine("LIKELY CONTRIBUTOR")
+            appendLine(
+                "No single contributor is confirmed beyond the visible Insight evidence."
+            )
+            appendLine()
+            appendLine("WHAT TO DO TODAY")
+            appendLine(
+                "Use the interpretation conservatively and reassess after new sleep data."
+            )
+            appendLine()
+            appendLine("CONFIDENCE")
+            append("Moderate")
+        }
+    }
+
 
     /** Fail open to a meaningful LOCAL summary, never to an empty/unavailable card. */
     suspend fun generateDetailed(context: Context, evidence: AlkeInsightsEvidence): InsightAiResult {
@@ -188,6 +241,6 @@ internal object AlkeInsightsAi {
         if (!consented) return local.copy(canRetryCloud = false)
         val cloudText = generate(context, evidence)?.takeIf { it.isNotBlank() }
             ?: return local
-        return InsightAiResult(cloudText, isCloudAi = true, canRetryCloud = false)
+        return InsightAiResult(structureCloudSummary(cloudText), isCloudAi = true, canRetryCloud = false)
     }
 }

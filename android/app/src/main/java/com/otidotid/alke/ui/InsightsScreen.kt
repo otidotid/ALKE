@@ -172,7 +172,7 @@ private data class InsightModel(
  * numbers, matching the macOS data-display contract.
  */
 @Composable
-fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
+fun InsightsScreen(vm: AppViewModel) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val day by vm.today.collectAsStateWithLifecycle()
     var journalExpanded by rememberSaveable { mutableStateOf(true) }
@@ -306,15 +306,7 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
     val ranked = remember(model, outcome) { rankEffects(model, outcome) }
     // Curated relationships (independent of the selected outcome).
     val relationships = remember(model) { computeRelationships(model) }
-
-    // --- Activity Cost (#439): the engine is pure + unit-tested; shape its inputs HERE. ---
-    // Load the sessions (ALL sources, dismissed-filtered) the same way the Workouts screen does, then
-    // build [sport: Set<localDayKey>] + [localDayKey: Charge] and rank the per-sport recovery cost.
-    val workouts by vm.workouts.collectAsStateWithLifecycle()
-    androidx.compose.runtime.LaunchedEffect(Unit) { vm.loadWorkouts() }
-    val activityCosts = remember(workouts, days) { computeActivityCosts(workouts, days) }
-
-    // Unified Insights: one source of truth for the premium hero, journal, Mood,
+// Unified Insights: one source of truth for the premium hero, journal, Mood,
     // Caffeine, n-of-1 experiment, Pearson r, and the previously separate v5 hub.
     val insightDay = day ?: days.lastOrNull()
     val absoluteSkin = insightDay?.skinTempC?.takeIf { it.isFinite() }
@@ -338,15 +330,7 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
                     ?: "amount not entered")
         }
     }
-    val hub = remember { InsightsHubViewModel() }
-    val hubState by hub.state.collectAsStateWithLifecycle()
-    androidx.compose.runtime.LaunchedEffect(days, journalSeq, journalLoaded) {
-        // Pre-filled yesterday answers also update the ranked effects after the
-        // journal finishes loading, even before the user logs another item.
-        hub.load(vm, days)
-    }
-
-    val expCandidates = experimentCandidates(
+val expCandidates = experimentCandidates(
         behaviours, importedQuestions,
         catalogItems.filter { it.hidden }.map { it.canonical }, experimentBehaviour)
     val expOutcome = Outcome.entries.firstOrNull {
@@ -402,9 +386,9 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
         caffeineEvidence = caffeineEvidence,
         experimentEvidence = experimentEvidence,
         relationships = relationshipsEvidence,
-        patternEvidence = hubInsightsEvidence(hubState) +
-            ranked.take(7).map { "Journal behaviour effect: " + effectSentence(it, outcome) },
-        activityEvidence = emptyList(),
+        patternEvidence = ranked.take(7).map {
+            "Journal behaviour effect: " + effectSentence(it, outcome)
+        },
     )
     // Keep a meaningful, evidence-grounded summary visible immediately.
     // Cloud AI refines it when consent, connectivity and the endpoint permit.
@@ -648,32 +632,39 @@ private fun ConsolidatedInsightSignals(day: DailyMetric?) {
                 it.isFinite() && com.otidotid.alke.analytics.VitalBands.isAbsoluteSkinTemp(it)
             }
         val signals = listOf(
-            "Recovery" to day?.recovery?.takeIf { it.isFinite() }?.let {
-                String.format(Locale.US, "%.0f%%", it) },
-            "HRV" to day?.avgHrv?.takeIf { it.isFinite() }?.let {
-                String.format(Locale.US, "%.1f ms", it) },
-            "Resting HR" to day?.restingHr?.takeIf { it > 0 }?.let { "$it bpm" },
-            "Sleep performance" to day?.efficiency?.takeIf { it.isFinite() }?.let {
-                String.format(Locale.US, "%.0f%%", it) },
-            "Skin Temperature" to skin?.let { String.format(Locale.US, "%.1f C", it) },
+            Triple("Recovery", "CALCULATED", day?.recovery?.takeIf { it.isFinite() }?.let {
+                String.format(Locale.US, "%.0f%%", it) }),
+            Triple("HRV", "RECORDED", day?.avgHrv?.takeIf { it.isFinite() }?.let {
+                String.format(Locale.US, "%.1f ms", it) }),
+            Triple("Resting HR", "RECORDED", day?.restingHr?.takeIf { it > 0 }?.let { "$it bpm" }),
+            Triple("Sleep performance", "CALCULATED", day?.efficiency?.takeIf { it.isFinite() }?.let {
+                String.format(Locale.US, "%.0f%%", it) }),
+            Triple("Skin Temperature", "RECORDED", skin?.let { String.format(Locale.US, "%.1f C", it) }),
         )
         // IMPORTANT: AlkeCard's content is a Box, not a Column.
         // Direct siblings overlap. Nest all signals inside one vertical Column.
         AlkeCard {
             Column(modifier = Modifier.fillMaxWidth()) {
-                signals.forEachIndexed { index, (name, value) ->
+                signals.forEachIndexed { index, (name, provenance, value) ->
                     Row(
                         modifier = Modifier.fillMaxWidth()
-                            .heightIn(min = 48.dp)
+                            .heightIn(min = 56.dp)
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Text(
-                            name, style = AlkeType.subhead, color = Palette.textSecondary,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                name, style = AlkeType.subhead, color = Palette.textSecondary,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                if (value == null) "PENDING DATA" else provenance,
+                                style = AlkeType.caption,
+                                color = Palette.textTertiary,
+                                maxLines = 1,
+                            )
+                        }
                         Text(
                             value ?: "Awaiting data", style = AlkeType.subhead,
                             color = if (value == null) Palette.textTertiary else Palette.textPrimary,

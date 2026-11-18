@@ -552,6 +552,7 @@ fun SettingsScreen(
     onOpenSelfHostedPush: () -> Unit = {},
     onOpenStepsCalibration: () -> Unit = {},
     meHeader: @Composable () -> Unit = {},
+    showSettingsBody: Boolean = true,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -967,6 +968,10 @@ fun SettingsScreen(
         // The Me shortcuts sit inside this SAME scrolling column; don't nest
         // verticalScroll / ScreenScaffold or Compose will receive infinite height.
         meHeader()
+
+        // One premium collapsible Personal & App Settings disclosure in Me. Keep all
+        // existing settings, data and callbacks mounted when expanded; no migration.
+        if (showSettingsBody) {
 
         // --- Profile photo (optional, on-device) ---
         // Split into its own section ahead of the body-numbers Profile card, mirroring the iOS
@@ -3481,6 +3486,7 @@ fun SettingsScreen(
                 }
             }
         }
+        } // Personal & App Settings expanded
     }
 }
 

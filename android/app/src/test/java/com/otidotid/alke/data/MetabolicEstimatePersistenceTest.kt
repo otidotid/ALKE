@@ -8,6 +8,9 @@ import com.otidotid.alke.ai.MetabolicEstimate
 import com.otidotid.alke.ai.MetabolicReviewService
 import com.otidotid.alke.analytics.IntelligenceEngine
 import com.otidotid.alke.analytics.MetabolicFitnessAge
+import com.otidotid.alke.analytics.AlkeWeightedFitnessAge
+import com.otidotid.alke.analytics.FitnessAgeEngine
+import com.otidotid.alke.analytics.VitalityEngine
 import com.otidotid.alke.analytics.UserProfile
 import com.otidotid.alke.ui.ProfileStore
 import kotlinx.coroutines.runBlocking
@@ -102,6 +105,22 @@ class MetabolicEstimatePersistenceTest {
 
     @After fun closeDatabase() { db.close() }
 
+    // Independent expected composite for the seven-day deterministic test fixture.
+    // Body measurements here produce a zero local delta; the AI estimate replaces
+    // that local domain rather than changing the existing cardio/Vitality engines.
+    private fun expectedAge(metabolicDelta: Double): Double {
+        val fitness = FitnessAgeEngine.fitnessAge(
+            profile.age, profile.sex, 65.0,
+            FitnessAgeEngine.physicalActivityIndexFromStrain(7, 60.0))
+        val vitality = requireNotNull(VitalityEngine.compute(VitalityEngine.Inputs(
+            chronoAge = profile.age, restingHR = 65.0, sleepHours = 7.5,
+            sleepConsistency = 1.0, rmssd = 33.0,
+            rmssdNorm = VitalityEngine.rmssdNorm(profile.age),
+            steps = 7000.0))).bodyAge
+        return AlkeWeightedFitnessAge.combine(
+            fitness, vitality, profile.age + metabolicDelta).fitnessAge
+    }
+
     private suspend fun score(): Double = db.whoopDao().metricSeries(computed, "fitness_age", day, day).single().value
     private suspend fun recompute(): Double {
         assertTrue(IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile, source))
@@ -121,14 +140,14 @@ class MetabolicEstimatePersistenceTest {
 
     @Test fun validatedAiScalarReachesSavedProductionScoreWithOriginalEvidenceAndPriorOutputAudit() = runBlocking {
         val baseline = recompute()
-        assertEquals(36.94594594594595, baseline, 1e-10)
+        assertEquals(expectedAge(0.0), baseline, 1e-10)
         val estimate = accepted()
         assertTrue(activate(estimate))
-        assertEquals(37.34594594594594, recompute(), 1e-10)
-        assertEquals(0.4, score() - baseline, 1e-10)
+        assertEquals(expectedAge(2.0), recompute(), 1e-10)
+        assertEquals(0.15 * 2.0, score() - baseline, 1e-10)
         assertEquals(2.0, db.whoopDao().metricSeries(computed, "fitness_factor_metabolic_delta", day, day).single().value, 0.0)
         val provenance = db.whoopDao().scoreInputDetails(computed, day, "fitness_age")!!
-        assertEquals(MetabolicFitnessAge.ALGORITHM_VERSION, provenance.algorithmVersion)
+        assertEquals(AlkeWeightedFitnessAge.AI_ALGORITHM_VERSION, provenance.algorithmVersion)
         assertTrue(provenance.observedInputs!!.contains(estimate.requestId))
         assertTrue(provenance.observedInputs!!.contains(MetabolicEstimate.MODEL))
         assertTrue(provenance.observedInputs!!.contains(MetabolicEstimate.PROMPT_VERSION))
@@ -152,7 +171,7 @@ class MetabolicEstimatePersistenceTest {
         store.setEnabled(false)
         assertNull(store.current(repo, source, day, profile))
         assertEquals(baseline, recompute(), 0.0)
-        assertEquals(com.otidotid.alke.analytics.FitnessAgeEngine.ALGORITHM_VERSION,
+        assertEquals(AlkeWeightedFitnessAge.ALGORITHM_VERSION,
             db.whoopDao().scoreInputDetails(computed, day, "fitness_age")!!.algorithmVersion)
         assertArrayEquals(audit, records().single().readBytes())
         assertOriginalRowsUnchanged()
@@ -194,7 +213,7 @@ class MetabolicEstimatePersistenceTest {
         assertFalse(store.save(accepted(3.0), source, emptyList(), emptyList()))
         assertArrayEquals(audit, records().single().readBytes())
         assertEquals(2.0, store.current(repo, source, day, profile)!!.deltaYears, 0.0)
-        assertEquals(37.34594594594594, recompute(), 1e-10)
+        assertEquals(expectedAge(2.0), recompute(), 1e-10)
         assertOriginalRowsUnchanged()
     }
 
@@ -218,7 +237,7 @@ class MetabolicEstimatePersistenceTest {
         assertTrue(result.saved)
         assertTrue(result.message.contains("recalculated from current local inputs"))
         assertEquals(baseline, score(), 1e-10)
-        assertEquals(com.otidotid.alke.analytics.FitnessAgeEngine.ALGORITHM_VERSION,
+        assertEquals(AlkeWeightedFitnessAge.ALGORITHM_VERSION,
             db.whoopDao().scoreInputDetails(computed, day, "fitness_age")!!.algorithmVersion)
         assertArrayEquals(audit, records().single().readBytes())
         assertOriginalRowsUnchanged()
@@ -239,7 +258,7 @@ class MetabolicEstimatePersistenceTest {
         assertTrue(result.message.contains("No replacement Fitness Age was saved"))
         assertTrue(result.message.contains("Existing saved scores remain"))
         assertEquals(previousAiScore, score(), 0.0)
-        assertEquals(MetabolicFitnessAge.ALGORITHM_VERSION,
+        assertEquals(AlkeWeightedFitnessAge.AI_ALGORITHM_VERSION,
             db.whoopDao().scoreInputDetails(computed, day, "fitness_age")!!.algorithmVersion)
         assertArrayEquals(audit, records().single().readBytes())
         assertOriginalRowsUnchanged()

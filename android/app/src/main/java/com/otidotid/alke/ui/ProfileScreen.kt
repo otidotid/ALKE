@@ -41,46 +41,44 @@ internal fun ProfileScreen(onOpenSettings: () -> Unit) {
 
     ScreenScaffold(
         title = uiString(R.string.l10n_settings_screen_profile_ff4fc027),
-        subtitle = "Your profile, profile photo, and Google account.",
+        subtitle = "One profile for your details, photo and Google account.",
     ) {
         SettingsCard(
             icon = Icons.Filled.AccountCircle,
             title = uiString(R.string.l10n_settings_screen_profile_ff4fc027),
-            blurb = "Used only for ALKE's on-device calculations.",
-        collapsible = true,
+            blurb = "One profile for your photo, health calculations and account.",
+            collapsible = true,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    ProfileAvatar(size = 64.dp, contentDescription = "Profile photo")
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        AlkeButton(
+                            text = if (ProfileAvatarStore.hasAvatar) "Change photo" else "Choose photo",
+                            kind = AlkeButtonKind.Secondary,
+                            onClick = {
+                                picker.launch(PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            },
+                        )
+                        if (ProfileAvatarStore.hasAvatar) {
+                            AlkeButton(
+                                text = "Remove photo",
+                                kind = AlkeButtonKind.Secondary,
+                                onClick = { ProfileAvatarStore.clearAvatar(context) },
+                            )
+                        }
+                    }
+                }
                 ProfileNumberField("Age", profile.age.toString()) { value ->
                     value.toIntOrNull()?.let { profile.setAge(it); revision++ }
-                }
-            }
-        }
-
-        SettingsCard(
-            icon = Icons.Filled.AccountCircle,
-            title = uiString(R.string.l10n_settings_screen_profile_photo_33f385bb),
-            blurb = "Optional and stored only on this phone.",
-        collapsible = true,
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                ProfileAvatar(size = 64.dp, contentDescription = "Profile photo")
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AlkeButton(
-                        text = if (ProfileAvatarStore.hasAvatar) "Change photo" else "Choose photo",
-                        kind = AlkeButtonKind.Secondary,
-                        onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                    )
-                    if (ProfileAvatarStore.hasAvatar) {
-                        AlkeButton(
-                            text = "Remove photo",
-                            kind = AlkeButtonKind.Secondary,
-                            onClick = { ProfileAvatarStore.clearAvatar(context) },
-                        )
-                    }
                 }
             }
         }

@@ -61,6 +61,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.LaunchedEffect
@@ -199,16 +200,35 @@ private fun AlkeHeader(
     val ringBattery by vm.ouraBatteryPct.collectAsStateWithLifecycle()
     val activeName by vm.activeDeviceName.collectAsStateWithLifecycle()
     val syncing = live.backfilling || live.analyzingHistory
+    // Shared ProfileStore is the sole age source; the avatar is already snapshot-backed.
+    val context = LocalContext.current
+    val profilePrefs = remember(context) {
+        context.getSharedPreferences(ProfileStore.PREFS, android.content.Context.MODE_PRIVATE)
+    }
+    var profileRevision by remember { mutableIntStateOf(0) }
+    DisposableEffect(profilePrefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "date_of_birth" || key == "age") profileRevision++
+        }
+        profilePrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { profilePrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    val profileAge = remember(profileRevision) { ProfileStore.from(context.applicationContext).age }
+    val batteryPulse by rememberInfiniteTransition(label = "alke-header-battery").animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse),
+        label = "persistent-battery-breathe",
+    )
     val hasSyncError = !syncing && !live.lastSyncError.isNullOrBlank()
     val battery = if (live.connected) {
         if (activeIsOura) ringBattery?.takeIf { it in 0..100 }
         else live.batteryPct?.takeIf { it.isFinite() && it in 0.0..100.0 }?.roundToInt()
     } else null
     var showSyncHub by remember { mutableStateOf(false) }
-    // Battery saver, system reduced motion and the in-app quiet-motion option all
-    // keep the logo posed still. Only create a continuous frame loop during a real sync.
-    val poseStill = rememberPoseStill()
-    val spin = if (syncing && !poseStill) {
+    // Header belongs to the parent Scaffold (outside NavHost): live sync motion never
+    // restarts when switching modules. Never pause an active sync merely for navigation.
+    val spin = if (syncing) {
         val rotation by rememberInfiniteTransition(label = "alke-sync-halo").animateFloat(
             initialValue = 0f,
             targetValue = 360f,
@@ -251,14 +271,18 @@ private fun AlkeHeader(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(
                 modifier = Modifier.clip(RoundedCornerShape(15.dp))
-                    .clickable(onClick = onDevices).padding(horizontal = 3.dp, vertical = 7.dp),
+                    .padding(horizontal = 3.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     if (live.charging == true) Icons.Filled.BatteryChargingFull else Icons.Filled.BatteryFull,
                     contentDescription = "Wearable battery and connection",
                     tint = if (battery != null && battery <= 20) A.gold else A.cyan,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(22.dp).graphicsLayer {
+                        alpha = 0.82f + 0.18f * batteryPulse
+                        scaleX = 0.94f + 0.06f * batteryPulse
+                        scaleY = 0.94f + 0.06f * batteryPulse
+                    },
                 )
                 Spacer(Modifier.width(3.dp))
                 Text(
@@ -268,12 +292,14 @@ private fun AlkeHeader(
                     fontSize = 12.sp,
                 )
             }
-            Box(
-                Modifier.size(40.dp).clip(CircleShape).background(A.card)
-                    .border(1.dp, A.stroke, CircleShape).clickable(onClick = onProfile),
-                contentAlignment = Alignment.Center,
+            Row(
+                modifier = Modifier.clip(RoundedCornerShape(20.dp)).clickable(onClick = onProfile),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Icon(Icons.Filled.AccountCircle, contentDescription = "My profile", tint = A.white)
+                Text("$profileAge y", color = A.white, fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold)
+                ProfileAvatar(size = 40.dp, contentDescription = "My profile")
             }
         }
     }
@@ -1297,7 +1323,6 @@ fun AlkeProgressExperience(
     onVo2: () -> Unit,
     onRestingHr: () -> Unit,
     onTrain: () -> Unit,
-    onBodyAge: () -> Unit,
     onTrends: () -> Unit,
     onSteps: () -> Unit,
 ) {
@@ -1430,16 +1455,6 @@ fun AlkeProgressExperience(
             color = A.muted, fontSize = 11.sp, lineHeight = 17.sp,
             modifier = Modifier.staggeredAppear(5),
         )
-        AlkePanel(Modifier.fillMaxWidth().staggeredAppear(6), onClick = onBodyAge) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("ALKE BODY AGE", color = A.gold, letterSpacing = 2.sp, fontSize = 10.sp)
-                    Text("Your biological trends", color = A.white, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Methodology, factors and confidence", color = A.muted, fontSize = 11.sp)
-                }
-            }
-            Text("Explore Body Age factors", color = A.gold, fontSize = 12.sp)
-        }
         AlkePanel(Modifier.fillMaxWidth().staggeredAppear(7), onClick = onSteps) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -1483,8 +1498,8 @@ fun AlkeProgressExperience(
             AlkeMiniBars(days.takeLast(7).map { it.day.takeLast(5) to it.recovery }, A.cyan)
         }
         Column(Modifier.staggeredAppear(9)) {
-            AlkeLinkRow("Fitness Age details", "Health metrics and evidence",
-                Icons.Filled.MonitorHeart, onHealth)
+            AlkeLinkRow("Fitness Age Details", "Validated factors and recorded history",
+                Icons.Filled.MonitorHeart, onFitnessAge)
         }
         if (day == null) Text("Your progress screen will populate as measurements arrive.", color = A.muted, fontSize = 12.sp)
     }
@@ -1712,7 +1727,8 @@ fun AlkeAllModulesExperience(onNavigate: (String) -> Unit) {
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(group.header, color = A.white, fontSize = 16.sp,
+                    Text(if (group.header == "Settings") "Others" else group.header,
+                        color = A.white, fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Text("${group.items.size}", color = A.muted, fontSize = 12.sp)
                     Spacer(Modifier.width(8.dp))
@@ -1750,6 +1766,7 @@ fun AlkeMeExperience(
     onOpenStepsCalibration: () -> Unit,
 ) {
     var showDockEditor by remember { mutableStateOf(false) }
+    var personalSettingsExpanded by rememberSaveable { mutableStateOf(false) }
 
     // Me is the only home of settings. Reuse the COMPLETE existing SettingsScreen
     // body rather than duplicating hundreds of controls or reimplementing settings
@@ -1760,6 +1777,7 @@ fun AlkeMeExperience(
         onOpenBackupSync = onBackupRestore,
         onOpenSelfHostedPush = onOpenSelfHostedPush,
         onOpenStepsCalibration = onOpenStepsCalibration,
+        showSettingsBody = personalSettingsExpanded,
         meHeader = {
             AlkeSectionTitle("Quick access")
             AlkeLinkRow("Devices", "Connect and manage wearable sensors", Icons.Filled.Sensors, onDevices)
@@ -1769,7 +1787,27 @@ fun AlkeMeExperience(
             AlkeLinkRow("Backup & Restore", "Import your ALKE or legacy backup", Icons.Filled.Storage,
                 onBackupRestore, A.blue)
             AlkeLinkRow("All modules", "Explore the complete ALKE toolkit", Icons.Filled.Tune, onModules, A.gold)
-            AlkeSectionTitle("Personal & app settings")
+            AlkePanel(Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { personalSettingsExpanded = !personalSettingsExpanded }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Settings, contentDescription = null, tint = A.cyan,
+                        modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("Personal & App Settings", color = A.white,
+                        fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
+                        modifier = Modifier.weight(1f))
+                    Icon(Icons.Filled.ChevronRight,
+                        contentDescription = if (personalSettingsExpanded) "Collapse settings" else "Expand settings",
+                        tint = A.cyan,
+                        modifier = Modifier.size(20.dp)
+                            .graphicsLayer { rotationZ = if (personalSettingsExpanded) 90f else 0f })
+                }
+            }
         },
     )
     if (showDockEditor) AlkeDockEditorDialog(onDismiss = { showDockEditor = false })

@@ -36,6 +36,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.draw.rotate
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -169,6 +172,11 @@ private data class InsightModel(
 @Composable
 fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
+    val day by vm.today.collectAsStateWithLifecycle()
+    var journalExpanded by rememberSaveable { mutableStateOf(false) }
+    var caffeineExpanded by rememberSaveable { mutableStateOf(false) }
+    var experimentExpanded by rememberSaveable { mutableStateOf(false) }
+    var insightEvidenceRevision by remember { mutableStateOf(0) }
 
     // Journal answers (all history): imported "my-whoop" rows UNIONED with native "alke-journal"
     // rows (native wins per (day, question)). Keyed on journalSeq so the logging card's saves and
@@ -299,6 +307,100 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
     val workouts by vm.workouts.collectAsStateWithLifecycle()
     androidx.compose.runtime.LaunchedEffect(Unit) { vm.loadWorkouts() }
     val activityCosts = remember(workouts, days) { computeActivityCosts(workouts, days) }
+
+    // Unified Insights: one source of truth for the premium hero, journal, Mood,
+    // Caffeine, n-of-1 experiment, Pearson r, and the previously separate v5 hub.
+    val insightDay = day ?: days.lastOrNull()
+    val absoluteSkin = insightDay?.skinTempC?.takeIf { it.isFinite() }
+        ?: insightDay?.skinTempDevC?.takeIf { it.isFinite() &&
+            com.otidotid.alke.analytics.VitalBands.isAbsoluteSkinTemp(it) }
+    val deviationSkin = insightDay?.skinTempDevC?.takeIf {
+        it.isFinite() && !com.otidotid.alke.analytics.VitalBands.isAbsoluteSkinTemp(it)
+    }
+    val moodSeries by produceState<List<Pair<String, Double>>>(
+        initialValue = emptyList(), key1 = insightEvidenceRevision, key2 = days,
+    ) {
+        value = runCatching { com.otidotid.alke.data.MoodStore(vm.repo).moodSeries() }
+            .getOrDefault(emptyList())
+    }
+    val caffeineEvidence = remember(ctx, insightEvidenceRevision) {
+        loadCaffeineIntakes(ctx).take(16).map { intake ->
+            val localTime = java.time.Instant.ofEpochSecond(intake.atEpochSec)
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+            "Logged ${localTime}: " +
+                (intake.mg?.let { String.format(Locale.US, "%.0f mg", it) }
+                    ?: "amount not entered")
+        }
+    }
+    val hub = remember { InsightsHubViewModel() }
+    val hubState by hub.state.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(days, journalSeq) { hub.load(vm, days) }
+
+    val expCandidates = experimentCandidates(
+        behaviours, importedQuestions,
+        catalogItems.filter { it.hidden }.map { it.canonical }, experimentBehaviour)
+    val expOutcome = Outcome.entries.firstOrNull {
+        it.outcomeName == experimentOutcomeName
+    } ?: Outcome.Recovery
+    val resolvedExpBehaviour = resolveExperimentBehaviour(expCandidates, experimentBehaviour)
+    val expSnapshot = remember(model, behaviours, experimentStartedDay,
+        experimentOutcomeName, experimentDurationDays, experimentBaselineDays,
+        experimentSeq, resolvedExpBehaviour) {
+        buildExperimentSnapshot(model, behaviours, experimentStartedDay, expOutcome,
+            resolvedExpBehaviour, experimentDurationDays, experimentBaselineDays)
+    }
+    val experimentEvidence = buildList {
+        val exp = expSnapshot
+        if (exp == null) {
+            if (experimentStartedDay.isBlank()) add("Experiment not started")
+            else add("Experiment awaiting baseline and intervention observations")
+        } else {
+            add("Testing ${exp.behavior} against ${exp.outcome.outcomeName}, " +
+                "day ${exp.daysElapsed} of ${exp.durationDays}")
+            add("Logged adherence: ${exp.compliance}%")
+            if (exp.delta != null) {
+                add(String.format(Locale.US,
+                    "Observed baseline vs logged-day association: delta=%+.2f, baseline n=%d, intervention n=%d",
+                    exp.delta, exp.baselineCount, exp.interventionCount))
+            } else add("Experimental effect not estimable from paired data yet")
+        }
+    }
+    val journalEvidence = buildList {
+        add("Journal date: " + journalDayKey(dayOffset))
+        dayAnswers.entries.sortedBy { it.key }.forEach { (name, yes) ->
+            add("${name}: " + if (yes) "yes" else "no")
+        }
+        dayNumeric.entries.sortedBy { it.key }.forEach { (name, amount) ->
+            add("${name}: " + String.format(Locale.US, "%.1f", amount))
+        }
+        if (!journalLoaded) add("Journal data not loaded")
+        else if (dayAnswers.isEmpty()) add("No yes/no journal entries for selected date")
+    }
+    val relationshipsEvidence = relationships.map { relation ->
+        String.format(Locale.US,
+            "%s: Pearson r=%+.2f, n=%d paired days, %s",
+            relation.title, relation.r, relation.n,
+            if (relation.significant) "passes internal threshold" else "not statistically significant")
+    }
+    val evidence = AlkeInsightsEvidence(
+        dayKey = insightDay?.day, recovery = insightDay?.recovery,
+        hrvMs = insightDay?.avgHrv, restingHrBpm = insightDay?.restingHr,
+        skinAbsoluteC = absoluteSkin, skinDeviationC = deviationSkin,
+        sleepPerformance = insightDay?.efficiency,
+        journalEntries = journalEvidence.take(32),
+        moodEvidence = moodInsightsEvidence(days, moodSeries),
+        caffeineEvidence = caffeineEvidence,
+        experimentEvidence = experimentEvidence,
+        relationships = relationshipsEvidence,
+        patternEvidence = hubInsightsEvidence(hubState) +
+            ranked.take(7).map { "Journal behaviour effect: " + effectSentence(it, outcome) },
+        activityEvidence = activityCosts.take(7).map { it.sentence() },
+    )
+    val aiSummary by produceState<String?>(
+        initialValue = null, key1 = evidence,
+    ) {
+        value = AlkeInsightsAi.generate(ctx, evidence)
+    }
 
     // PERF (#707): migrate to the lazy scaffold so only on-screen sections compose + get
     // accessibility-walked. Each eager child becomes its own `item { }`, INCLUDING the standalone

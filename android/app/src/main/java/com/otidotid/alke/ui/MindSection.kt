@@ -74,7 +74,7 @@ private const val MIND_FOOTNOTE =
  * behaviour-effects half.
  */
 @Composable
-fun MindSection(vm: AppViewModel) {
+fun MindSection(vm: AppViewModel, onChanged: () -> Unit = {}) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val store = remember { MoodStore(vm.repo) }
@@ -130,6 +130,7 @@ fun MindSection(vm: AppViewModel) {
                                     scope.launch {
                                         store.setMood(todayKey, face.value)
                                         moodSeq++
+                                        onChanged()
                                     }
                                 },
                             )
@@ -347,5 +348,29 @@ private object MindCorrelationEngine {
         if (r > 1.0) r = 1.0
         if (r < -1.0) r = -1.0
         return MindCorrelation(r = r, n = n)
+    }
+}
+
+/**
+ * Evidence consumed by the isolated Insights AI, derived from exactly the
+ * recorded Mood Check-in and correlation rows shown within Insights.
+ * Pearson r is association, never a causal effect or clinical claim.
+ */
+internal fun moodInsightsEvidence(
+    days: List<DailyMetric>,
+    moodSeries: List<Pair<String, Double>>,
+): List<String> = buildList {
+    val today = MoodStore.todayKey()
+    moodSeries.lastOrNull { it.first == today }?.second?.let {
+        add(String.format(Locale.US, "Mood check-in today: %.0f of 5", it))
+    }
+    add("Mood check-in history: ${moodSeries.size} recorded days")
+    if (moodSeries.size >= MIND_GATE_DAYS) {
+        buildMindCorrelations(days, moodSeries).forEach { line ->
+            add(String.format(Locale.US, "%s: Pearson r=%+.2f with n=%d paired days (association only)",
+                line.title, line.r, line.n))
+        }
+    } else {
+        add("Mood-outcome correlations: fewer than 7 check-in days; unavailable")
     }
 }

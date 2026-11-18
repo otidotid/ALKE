@@ -173,7 +173,7 @@ private data class InsightModel(
 fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val day by vm.today.collectAsStateWithLifecycle()
-    var journalExpanded by rememberSaveable { mutableStateOf(false) }
+    var journalExpanded by rememberSaveable { mutableStateOf(true) }
     var caffeineExpanded by rememberSaveable { mutableStateOf(false) }
     var experimentExpanded by rememberSaveable { mutableStateOf(false) }
     var insightEvidenceRevision by remember { mutableStateOf(0) }
@@ -194,7 +194,11 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
     // day). Consumed once on arrival, then cleared so it doesn't re-apply on the next recomposition.
     val pendingJournalDay by vm.pendingJournalDayOffset.collectAsStateWithLifecycle()
     androidx.compose.runtime.LaunchedEffect(pendingJournalDay) {
-        pendingJournalDay?.let { dayOffset = it; vm.requestJournalDay(null) }
+        pendingJournalDay?.let {
+            dayOffset = it
+            journalExpanded = true // Today journal shortcut must reveal the logger
+            vm.requestJournalDay(null)
+        }
     }
     var importedQuestions by remember { mutableStateOf<List<String>>(emptyList()) }
     var dayAnswers by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
@@ -334,7 +338,11 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
     }
     val hub = remember { InsightsHubViewModel() }
     val hubState by hub.state.collectAsStateWithLifecycle()
-    androidx.compose.runtime.LaunchedEffect(days, journalSeq) { hub.load(vm, days) }
+    androidx.compose.runtime.LaunchedEffect(days, journalSeq, journalLoaded) {
+        // Pre-filled yesterday answers also update the ranked effects after the
+        // journal finishes loading, even before the user logs another item.
+        hub.load(vm, days)
+    }
 
     val expCandidates = experimentCandidates(
         behaviours, importedQuestions,

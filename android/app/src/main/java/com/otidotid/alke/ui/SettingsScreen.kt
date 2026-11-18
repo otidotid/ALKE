@@ -1008,59 +1008,48 @@ fun SettingsScreen(
             }
         }
 
-        SettingsCard(
-            collapsible = true,
-            icon = Icons.Outlined.AccountCircle,
-            title = uiString(R.string.l10n_settings_screen_profile_photo_33f385bb),
-            blurb = "Optional. Add a photo for the avatar in the top-left. Stored only on this phone. ALKE is offline, so it's never uploaded.",
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                ProfileAvatar(
-                    size = 64.dp,
-                    contentDescription = uiString(R.string.l10n_settings_screen_profile_photo_33f385bb)
-                )
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        AlkeButton(
-                            text = if (ProfileAvatarStore.hasAvatar) "Change photo" else "Choose photo",
-                            kind = AlkeButtonKind.Secondary,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                avatarPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                                )
-                            },
-                        )
-                        if (ProfileAvatarStore.hasAvatar) {
-                            AlkeButton(
-                                text = uiString(R.string.l10n_settings_screen_remove_photo_c8f5eda8),
-                                kind = AlkeButtonKind.Tertiary,
-                                modifier = Modifier.weight(1f),
-                                onClick = { ProfileAvatarStore.clearAvatar(context) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
         // --- Profile ---
         SettingsCard(
             collapsible = true,
             icon = Icons.Outlined.Person,
             title = uiString(R.string.l10n_settings_screen_profile_ff4fc027),
-            blurb = "These power your heart-rate zones, calorie estimates and recovery baselines. Keep them accurate.",
+            blurb = "Profile photo, body profile and heart-rate settings in one place.",
         ) {
             Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    ProfileAvatar(size = 64.dp, contentDescription = "My profile photo")
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            AlkeButton(
+                                text = if (ProfileAvatarStore.hasAvatar) "Change photo" else "Choose photo",
+                                kind = AlkeButtonKind.Secondary,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    avatarPickerLauncher.launch(PickVisualMediaRequest(
+                                        ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                },
+                            )
+                            if (ProfileAvatarStore.hasAvatar) {
+                                AlkeButton(
+                                    text = "Remove photo",
+                                    kind = AlkeButtonKind.Tertiary,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { ProfileAvatarStore.clearAvatar(context) },
+                                )
+                            }
+                        }
+                        Text("Photo is kept on this phone only.",
+                            style = AlkeType.footnote, color = Palette.textSecondary)
+                    }
+                }
+                SettingsRowDivider()
                 SettingsFormRow(label = uiString(R.string.l10n_settings_screen_age_ff9f1ff3)) {
                     StepperField(
                         value = profile.age.toString(),
@@ -1165,7 +1154,7 @@ fun SettingsScreen(
                     }
                 }
                 SettingsRowDivider()
-                // Step calibration (#139/#132): daily steps = @57 counter ticks Ã· this divisor.
+                // Step calibration (#139/#132): daily steps = @57 counter ticks / this divisor.
                 // 1.0 = raw pass-through until the true 5/MG tick rate is known. The divisor goes
                 // up to 30 because a 5/MG motion counter can overcount by ~24×; the stepper uses a
                 // variable increment (fine near 1.0, coarse up top) so high values stay reachable.
@@ -1328,7 +1317,7 @@ fun SettingsScreen(
                 }
                 SettingsRowDivider()
                 SettingsFormRow(label = uiString(R.string.l10n_settings_screen_temperature_0a9062a9)) {
-                    // Three-way: the default follows body measurements; °C / Â°F pin it explicitly.
+                    // Three-way: the default follows body measurements; °C / °F pin it explicitly.
                     SegmentedPillControl(
                         items = listOf(
                             "",
@@ -1339,7 +1328,7 @@ fun SettingsScreen(
                         label = {
                             when (it) {
                                 TemperatureUnit.CELSIUS.raw -> "°C"
-                                TemperatureUnit.FAHRENHEIT.raw -> "Â°F"
+                                TemperatureUnit.FAHRENHEIT.raw -> "°F"
                                 else -> uiString(R.string.units_follow_body)
                             }
                         },
@@ -1557,7 +1546,7 @@ fun SettingsScreen(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     AlkeButton(
-                        text = if (live.scanning) "Searchingâ€¦" else "Re-scan",
+                        text = if (live.scanning) "Searching..." else "Re-scan",
                         leadingIcon = Icons.Filled.Refresh,
                         kind = AlkeButtonKind.Primary,
                         enabled = !live.scanning,
@@ -2975,7 +2964,7 @@ fun SettingsScreen(
                 SettingsRowDivider()
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_rhythm_experimental_12d357da),
-                    detail = "An experimental picture of your beat-to-beat timing: a PoincarÃ© scatter and plain regularity stats from quiet resting windows. Not an ECG and not a diagnosis; you'll read a short disclaimer and accept before it turns on.",
+                    detail = "An experimental picture of your beat-to-beat timing: a Poincaré scatter and plain regularity stats from quiet resting windows. Not an ECG and not a diagnosis; you'll read a short disclaimer and accept before it turns on.",
                     checked = rhythmEnabled,
                     onCheckedChange = {
                         // Enabling here just un-gates the experimental item; the screen itself still shows
@@ -3627,7 +3616,7 @@ private fun AccentCustomPicker(hex: String, onHexChange: (String) -> Unit) {
                     .border(2.dp, Color.White, CircleShape),
             )
         }
-        // Hue rail (0..360Â°).
+        // Hue rail (0..360°).
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()

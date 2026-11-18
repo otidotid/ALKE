@@ -139,7 +139,7 @@ internal fun isIntakePastCutoff(intake: CaffeineIntake, bedtimeMinutes: Int): Bo
  * claim. Twin of macOS CaffeineLogCard.
  */
 @Composable
-fun CaffeineLogCard() {
+fun CaffeineLogCard(onChanged: () -> Unit = {}) {
     val context = LocalContext.current
     var intakes by remember { mutableStateOf(loadCaffeineIntakes(context)) }
     var mgDraft by remember { mutableStateOf("") }
@@ -250,6 +250,7 @@ fun CaffeineLogCard() {
                         CaffeineChip(if (h == 0) "Now" else "${h}h ago") {
                             val at = (System.currentTimeMillis() / 1000L) - h * 3600L
                             intakes = addCaffeineIntake(context, at, mgDraft)
+                            onChanged()
                             mgDraft = ""
                             Toast.makeText(context, "Caffeine logged.", Toast.LENGTH_SHORT).show()
                         }
@@ -279,6 +280,7 @@ fun CaffeineLogCard() {
                             }
                             CaffeineRemoveButton {
                                 intakes = removeCaffeineIntake(context, intake.id)
+                                onChanged()
                             }
                         }
                     }

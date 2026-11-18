@@ -17,6 +17,7 @@ package com.otidotid.alke.analytics
  */
 object AlkeWeightedFitnessAge {
     const val ALGORITHM_VERSION = "alke-fitness-age-weighted-v1"
+    const val AI_ALGORITHM_VERSION = "alke-fitness-age-weighted-ai-metabolic-v1"
     const val CORE_WEIGHT = 0.60
     const val VITALITY_WEIGHT = 0.25
     const val METABOLIC_WEIGHT = 0.15

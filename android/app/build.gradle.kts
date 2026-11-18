@@ -43,7 +43,7 @@ android {
         minSdk = 26
         targetSdk = 34
         // ALKE Alpha 1: user-test build; no production signing or data migration changes.
-        versionCode = 579
+        versionCode = 581
         versionName = "1.0.0-alpha.18"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

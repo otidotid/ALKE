@@ -229,9 +229,8 @@ fun HealthScreen(
                     captionMode = VitalCaptionMode.AS_OF,
                 )
             }
-            // Keep the separate, original Vitality / Body Age component below the
-            // Fitness Age hero and physiological readings; do not merge algorithms.
-            item { VitalitySection(vm = vm, days = days, profile = profile) }
+            // VitalityEngine and its historical body_age data stay intact for future
+            // validated Fitness Age integration, but no separate Body Age UI is shown.
             // SKIN TEMPERATURE (v5 pillar) — Cycle awareness (opt-in), Body clock + an illness heads-up,
             // each from a pure engine RESULT the ViewModel publishes. A section of Health, never its own
             // destination (umbrella §2.4). Non-clinical observations about your own numbers.

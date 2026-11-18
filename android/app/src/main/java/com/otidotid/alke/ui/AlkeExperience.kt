@@ -199,12 +199,17 @@ private fun AlkeHeader(
     val ringBattery by vm.ouraBatteryPct.collectAsStateWithLifecycle()
     val activeName by vm.activeDeviceName.collectAsStateWithLifecycle()
     val syncing = live.backfilling || live.analyzingHistory
-    val batteryPulse by rememberInfiniteTransition(label = "alke-header-battery").animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse),
-        label = "persistent-battery-breathe",
-    )
+    // Avoid infinite idle frame loops in battery-saver / Remove animations mode.
+    // Active device sync is a progress indicator, not idle decoration.
+    val poseStill = rememberPoseStill()
+    val batteryPulse = if (!poseStill) {
+        rememberInfiniteTransition(label = "alke-header-battery").animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse),
+            label = "persistent-battery-breathe",
+        ).value
+    } else 0f
     val hasSyncError = !syncing && !live.lastSyncError.isNullOrBlank()
     val battery = if (live.connected) {
         if (activeIsOura) ringBattery?.takeIf { it in 0..100 }
@@ -213,18 +218,25 @@ private fun AlkeHeader(
     var showSyncHub by remember { mutableStateOf(false) }
     // Header belongs to the parent Scaffold (outside NavHost): live sync motion never
     // restarts when switching modules. Never pause an active sync merely for navigation.
-    val syncMotion = rememberInfiniteTransition(label = "alke-global-sync")
-    val spin by syncMotion.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
-        label = "sync-rotation",
-    )
-    val syncPulse by syncMotion.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse),
-        label = "sync-aurora-pulse",
-    )
+    val syncValues = if (syncing) {
+        // Keep this transition active for the entire true sync lifecycle; it is
+        // owned by the global header, never by a module that navigation can dispose.
+        val syncMotion = rememberInfiniteTransition(label = "alke-global-sync")
+        val spin by syncMotion.animateFloat(
+            initialValue = 0f, targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
+            label = "sync-rotation",
+        )
+        val pulse by syncMotion.animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse),
+            label = "sync-aurora-pulse",
+        )
+        spin to pulse
+    } else 0f to 0f
+    val spin = syncValues.first
+    val syncPulse = syncValues.second
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -396,25 +408,27 @@ private fun AlkeGauge(
     colors: List<Color> = listOf(A.cyan, A.blue, A.gold),
     animateContinuously: Boolean = false,
 ) {
+    val poseStill = rememberPoseStill()
+    val showMotion = animateContinuously && !poseStill
     val progress by animateFloatAsState(
         targetValue = fraction.coerceIn(0f, 1f),
-        animationSpec = tween(1100, easing = FastOutSlowInEasing),
+        animationSpec = if (poseStill) tween(0) else tween(1100, easing = FastOutSlowInEasing),
         label = "readiness-fill",
     )
-    // A persistent, visible living aura and orbit, not a one-shot entry animation.
-    // This is presentation-only: displayed Recovery values remain unchanged.
-    val motion = rememberInfiniteTransition(label = "today-body-readiness")
-    val orbit by motion.animateFloat(
+    // Today and Insights share this visible living aura + orbit, but no idle
+    // frame loop runs when battery saver or the motion preference disables motion.
+    val motion = if (showMotion) rememberInfiniteTransition(label = "today-body-readiness") else null
+    val orbit = motion?.animateFloat(
         initialValue = 0f, targetValue = 360f,
         animationSpec = infiniteRepeatable(tween(3200, easing = LinearEasing)),
         label = "readiness-orbit",
-    )
-    val breathe by motion.animateFloat(
+    )?.value ?: 0f
+    val breathe = motion?.animateFloat(
         initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(1900, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse),
         label = "readiness-glow",
-    )
+    )?.value ?: 0f
     Box(Modifier.size(diameter), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val width = 15.dp.toPx()
@@ -426,7 +440,7 @@ private fun AlkeGauge(
                 sweepAngle = 270f, useCenter = false, topLeft = top, size = arc,
                 style = Stroke(width = width, cap = StrokeCap.Round),
             )
-            if (animateContinuously) {
+            if (showMotion) {
                 drawCircle(
                     brush = Brush.radialGradient(
                         listOf(A.cyan.copy(alpha = 0.12f + 0.15f * breathe), Color.Transparent),
@@ -446,7 +460,7 @@ private fun AlkeGauge(
                     style = Stroke(width = width, cap = StrokeCap.Round),
                 )
             }
-            if (animateContinuously) {
+            if (showMotion) {
                 // Bright, double-color moving highlight. Clearly readable during
                 // smoke tests, including when a static Recovery number is displayed.
                 drawArc(

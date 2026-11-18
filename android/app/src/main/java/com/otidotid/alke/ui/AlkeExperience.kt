@@ -1597,7 +1597,7 @@ fun AlkeProgressExperience(
 }
 
 @Composable
-private fun AlkeInsightsReadinessHero(recovery: Double?) {
+internal fun AlkeInsightsReadinessHero(recovery: Double?) {
     // IMPORTANT: Insights and Today intentionally share the EXACT same living
     // Body Readiness dial. A second renderer drifted and had barely visible motion.
     // The only data source remains the recorded Recovery reading.

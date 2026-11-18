@@ -9,4 +9,5 @@ internal fun hasAiMetabolicProvenance(
     scoreDay: String,
 ): Boolean = provenance != null &&
     provenance.deviceId == scoreSource && provenance.day == scoreDay &&
-    provenance.key == "fitness_age" && provenance.algorithmVersion == "fitness-age-ai-metabolic-v1"
+    provenance.key == "fitness_age" && provenance.algorithmVersion in setOf(
+        "fitness-age-ai-metabolic-v1", "alke-fitness-age-weighted-ai-metabolic-v1")

@@ -99,7 +99,7 @@ fun MindSection(vm: AppViewModel, onChanged: () -> Unit = {}) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        SectionHeader("Mind", overline = "Mood check-in")
+        SectionHeader("Mood Check-In", overline = "How you feel and how metrics move")
 
         AlkeCard {
             Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {

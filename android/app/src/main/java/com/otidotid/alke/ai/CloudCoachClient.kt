@@ -161,13 +161,21 @@ class CloudCoachClient(
         healthContext: String,
         systemPrompt: String,
         labRequest: LabInterpretation.Request? = null,
+        isolatedContext: Boolean = false,
     ): Reply = withContext(Dispatchers.IO) {
+        // Insight Summary must never reuse a Coach user identity, conversation memory,
+        // earlier messages or other modules' health context.
+        if (isolatedContext) {
+            require(conversationId == null && recentMessages.isEmpty() && labRequest == null) {
+                "Insights summary requires a fresh isolated conversation"
+            }
+        }
         check(configured) {
             "ALKE Cloud Coach belum dikonfigurasi. Isi ALKE_CLOUD_COACH_URL di android/local.properties lalu build ulang."
         }
         val id = conversationId?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString()
         val payload = JSONObject()
-            .put("userId", CloudCoachIdentity.id(context))
+            .put("userId", if (isolatedContext) "insights-${UUID.randomUUID()}" else CloudCoachIdentity.id(context))
             .put("conversationId", id)
             .put("question", question)
             .put("localHour", java.time.LocalTime.now().hour)

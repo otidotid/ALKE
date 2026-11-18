@@ -70,7 +70,7 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(nav.contains("composable(Destination.Workouts.route)"))
         val original = source("src/main/java/com/otidotid/alke/ui/WorkoutsScreen.kt")
         assertTrue(original.contains("fun AlkeTrainHistorySections("))
-        assertTrue(original.contains("BreakdownSection(groups = sportGroups(allRows), rows = allRows)"))
+        assertTrue(original.contains("BreakdownSection(groups = sportGroups(allRows), rows = allRows, collapsible = true)"))
         assertTrue(original.contains("SessionsSection("))
         assertTrue(original.contains("WorkoutDetailSheet("))
         for (operation in listOf("vm.mergeWorkouts(", "vm.bulkDeleteWorkouts(", "vm.relabelDetected(",
@@ -237,9 +237,38 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(insight.contains("absoluteSkinC"))
         assertTrue(insight.contains("deviationSkinC"))
         val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
-        assertTrue(nav.contains("onSkinTemp = { nav.navigate(\"vital_detail/skin\") }"))
+        assertTrue(nav.contains("composable(Destination.Intelligence.route) { InsightsScreen(viewModel) }"))
+        val consolidated = source("src/main/java/com/otidotid/alke/ui/InsightsScreen.kt")
+        assertTrue(consolidated.contains("Skin Temperature"))
         val health = source("src/main/java/com/otidotid/alke/ui/HealthScreen.kt")
         assertTrue(health.contains("SkinTempSuiteSection("))
+    }
+
+    @Test fun oneInsightModuleRetainsAllEightSectionsAndJournalDeepLinks() {
+        val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
+        assertTrue(nav.contains("composable(Destination.Intelligence.route) { InsightsScreen(viewModel) }"))
+        assertTrue(nav.contains("composable(Destination.InsightsHub.route) { InsightsScreen(viewModel) }"))
+        assertFalse(nav.contains("Destination.Intelligence, Destination.Insights"))
+        val ui = source("src/main/java/com/otidotid/alke/ui/InsightsScreen.kt")
+        val sections = listOf(
+            "AlkeInsightsReadinessHero(insightDay?.recovery)",
+            "ConsolidatedInsightSignals(insightDay)",
+            "InsightDisclosure(\"Log Journal\"",
+            "MindSection(vm, onChanged",
+            "InsightDisclosure(\"Log Caffeine\"",
+            "InsightDisclosure(\"Personal Experiment\"",
+            "RelationshipsSection(relationships)",
+            "ConsolidatedInsightAiSummary(ctx, evidence, aiSummary)",
+        )
+        val positions = sections.map { ui.indexOf(it) }
+        assertTrue("Unified Insight sections missing or out of order: $positions",
+            positions.zipWithNext().all { (a, b) -> a >= 0 && b > a })
+        assertTrue(ui.contains("InsightsHubEmbeddedSection(hubState)"))
+        val ai = source("src/main/java/com/otidotid/alke/ui/AlkeInsightsAi.kt")
+        for (signal in listOf("journalEntries", "moodEvidence", "caffeineEvidence",
+                "experimentEvidence", "relationships", "patternEvidence")) {
+            assertTrue("AI must read $signal only from Insights", ai.contains(signal))
+        }
     }
 
     @Test fun calendarCombinesImportedCaloriesAndOriginalHeatmapCore() {
@@ -252,7 +281,7 @@ class AlkeAlpha5ExperienceContractTest {
 
     @Test fun fullAndDemoStaySeparateWithExistingSyntheticData() {
         val build = source("build.gradle.kts")
-        assertTrue(build.contains("versionName = \"1.0.0-alpha.19.1\""))
+        assertTrue(build.contains("versionName = \"1.0.0-alpha.20\""))
         assertTrue(build.contains("applicationIdSuffix = \".demo\""))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"false\")"))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"true\")"))

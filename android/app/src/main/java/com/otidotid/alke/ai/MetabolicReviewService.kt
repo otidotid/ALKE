@@ -100,7 +100,9 @@ class MetabolicReviewService(
         val saved = IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile(), sourceId)
         if (!saved) return Outcome("$reason No replacement Fitness Age was saved: more resting-heart-rate history is needed. Existing saved scores remain.")
         val trace = repo.scoreInputDetails(sourceId + "-alke", scoreDay(), "fitness_age")
-        return if (trace?.algorithmVersion == com.otidotid.alke.analytics.MetabolicFitnessAge.ALGORITHM_VERSION)
+        return if (trace?.algorithmVersion in setOf(
+            com.otidotid.alke.analytics.MetabolicFitnessAge.ALGORITHM_VERSION,
+            com.otidotid.alke.analytics.AlkeWeightedFitnessAge.AI_ALGORITHM_VERSION))
             Outcome("$reason A previously saved AI estimate remains in use; no new estimate was activated.", true)
         else Outcome("$reason Fitness Age was recalculated from current local inputs.", true)
     }
@@ -113,7 +115,9 @@ class MetabolicReviewService(
     private suspend fun savedOutcome(saved: Boolean, day: String, requestId: String): Outcome {
         if (!saved) return Outcome("AI metabolic estimate saved, but no replacement Fitness Age was saved: more resting-heart-rate history is needed. Existing saved scores remain.")
         val trace = repo.scoreInputDetails(sourceId + "-alke", day, "fitness_age")
-        return if (trace?.algorithmVersion == com.otidotid.alke.analytics.MetabolicFitnessAge.ALGORITHM_VERSION &&
+        return if (trace?.algorithmVersion in setOf(
+            com.otidotid.alke.analytics.MetabolicFitnessAge.ALGORITHM_VERSION,
+            com.otidotid.alke.analytics.AlkeWeightedFitnessAge.AI_ALGORITHM_VERSION) &&
             trace.observedInputs?.contains("request=$requestId;") == true)
             Outcome("Fitness Age updated using the saved AI metabolic estimate and ALKE’s fixed 20% blend.", true)
         else if (trace?.algorithmVersion == com.otidotid.alke.analytics.FitnessAgeEngine.ALGORITHM_VERSION)

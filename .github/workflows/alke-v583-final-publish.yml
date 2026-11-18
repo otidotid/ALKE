@@ -1,0 +1,120 @@
+name: ALKE Alpha 19.1 Personal v583 - publish verified signed APK
+
+on:
+  push:
+    branches:
+      - alke/alpha19-v583-final-release
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: alke-v583-final-publish
+  cancel-in-progress: false
+
+jobs:
+  publish-verified-personal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFIED_RUN_ID: '44249736377'
+      VERIFIED_SOURCE_SHA: c975ff9571522518bcc69c201fd1ee2a6d88607d
+      RELEASE_TAG: v1.0.0-alpha.19.1-personal.583
+      APK_NAME: ALKE-v1.0.0-alpha.19.1-PERSONAL-v583-signed.apk
+      APK_SHA256: c9ebb77178905f1a7cb49a77b4c610ab90134bbccfea3fb42029fba646b85d3b
+      CERT_SHA256: f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert pinned Android CI build and unit tests succeeded
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_RUN_ID")"
+          test "$(echo "$RUN" | jq -r .conclusion)" = success
+          test "$(echo "$RUN" | jq -r .status)" = completed
+          test "$(echo "$RUN" | jq -r .head_sha)" = "$VERIFIED_SOURCE_SHA"
+          echo "Source: $VERIFIED_SOURCE_SHA, successful CI run: $VERIFIED_RUN_ID"
+
+      - name: Download EXACT passing v583 Personal base artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p base
+          gh run download "$VERIFIED_RUN_ID" -R "$GITHUB_REPOSITORY" \
+            --name ALKE-smoke-v583-PERSONAL-BASE-for-offline-signing \
+            --dir base
+          APK_COUNT="$(find base -type f -name '*.apk' | wc -l)"
+          test "$APK_COUNT" -eq 1
+          UNSIGNED_APK="$(find base -type f -name '*.apk' -print -quit)"
+          test -s "$UNSIGNED_APK"
+          echo "UNSIGNED_APK=$UNSIGNED_APK" >> "$GITHUB_ENV"
+
+      - name: Reconstruct exact signed v583 APK without using or exposing a private key
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/release/reconstruct_v583.py \
+            "$UNSIGNED_APK" \
+            .github/release/v583-public-signature-block.zb64 \
+            "final/$APK_NAME"
+          echo "$APK_SHA256  final/$APK_NAME" | sha256sum --check --status
+
+      - name: Verify official Android APK v2 and v3 signature and package identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="final/$APK_NAME"
+          APKSIGNER_JAR="$(find "$ANDROID_HOME/build-tools" -maxdepth 3 -path '*/lib/apksigner.jar' -type f | sort -V | tail -1)"
+          test -s "$APKSIGNER_JAR"
+          java -jar "$APKSIGNER_JAR" verify --verbose --print-certs "$APK" | tee apk-verification.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' apk-verification.txt
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' apk-verification.txt
+          grep -Fqi "certificate SHA-256 digest: $CERT_SHA256" apk-verification.txt
+          AAPT_BIN="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          test -x "$AAPT_BIN"
+          "$AAPT_BIN" dump badging "$APK" |
+            grep -Fq "package: name='com.otidotid.alke.personal.debug' versionCode='583' versionName='1.0.0-alpha.19.1'"
+          unzip -t "$APK" | tail -1
+          if unzip -Z1 "$APK" | grep -Eiq '(^|/)(.*\.p12|.*\.keystore|.*\.jks|.*\.alkebak|.*\.noopbak)$'; then
+            echo "::error::APK unexpectedly contains a private key or backup"; exit 1
+          fi
+
+      - name: Publish FINAL GitHub Release with verified signed Personal APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="final/$APK_NAME"
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists: updating verified APK asset only."
+            gh release upload "$RELEASE_TAG" "$APK" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --draft=false --prerelease=false --latest
+          else
+            gh release create "$RELEASE_TAG" "$APK" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$VERIFIED_SOURCE_SHA" \
+              --title "ALKE Alpha 19.1 Personal v583 — Final Release" \
+              --notes-file .github/release/v583-notes.md \
+              --latest
+          fi
+          RELEASE_URL="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url)"
+          echo "### Published ALKE v583 Personal" >> "$GITHUB_STEP_SUMMARY"
+          echo "$RELEASE_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "SHA-256: $APK_SHA256" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Confirm GitHub Release is public and contains the signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG")"
+          test "$(echo "$RELEASE" | jq -r .draft)" = false
+          test "$(echo "$RELEASE" | jq -r .prerelease)" = false
+          test "$(echo "$RELEASE" | jq -r --arg n "$APK_NAME" '.assets | map(select(.name == $n)) | length')" = 1
+          test "$(echo "$RELEASE" | jq -r --arg n "$APK_NAME" '.assets[] | select(.name == $n) | .size')" -gt 34000000
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = "$RELEASE_TAG"
+          echo "FINAL RELEASE VERIFIED: $RELEASE_TAG, signed asset included"

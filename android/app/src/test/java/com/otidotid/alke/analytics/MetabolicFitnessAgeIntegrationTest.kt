@@ -101,8 +101,15 @@ class MetabolicFitnessAgeIntegrationTest {
         val aiLabs = labs(rows, estimate)
         val ai = score(aiLabs)
 
-        // This golden is independent of the implementation helper: fixed 80% fitness + 20% (40 + 3).
-        assertEquals(37.54594594594595, ai.value("fitness_age"), 1e-12)
+        // Core FitnessAgeEngine, VitalityEngine and eligible metabolic age are
+        // combined in their own age-unit domains; AI is not a direct age score.
+        val expected = AlkeWeightedFitnessAge.combine(
+            FitnessAgeEngine.fitnessAge(40.0, "male", 65.0,
+                FitnessAgeEngine.physicalActivityIndexFromStrain(7, 60.0)),
+            IntelligenceEngine.vitalityResult(week, profile)!!.bodyAge,
+            43.0, // 40 + accepted 3-year metabolic delta
+        )
+        assertEquals(expected.fitnessAge, ai.value("fitness_age"), 1e-12)
         assertEquals(3.0, ai.value("fitness_factor_metabolic_delta"), 0.0)
         assertTrue(localLabs.customGlycemic!!.result.ageDeltaYears > 0.0)
         assertTrue(local.value("fitness_factor_metabolic_delta") > 0.0)
@@ -130,12 +137,15 @@ class MetabolicFitnessAgeIntegrationTest {
         assertTrue(rows.all { it.deviceId == computedId && it.day == day })
         for (trace in provenance) {
             val aiKey = trace.key in setOf("fitness_age", "fitness_factor_metabolic_delta")
-            assertEquals(trace.key, if (aiKey) MetabolicFitnessAge.ALGORITHM_VERSION else FitnessAgeEngine.ALGORITHM_VERSION,
-                trace.algorithmVersion)
+            assertEquals(trace.key, when (trace.key) {
+                "fitness_age" -> AlkeWeightedFitnessAge.AI_ALGORITHM_VERSION
+                "fitness_factor_metabolic_delta" -> MetabolicFitnessAge.ALGORITHM_VERSION
+                else -> FitnessAgeEngine.ALGORITHM_VERSION
+            }, trace.algorithmVersion)
             assertEquals(if (trace.key == "vo2max_est") "nes" else computedId, trace.sourceId)
         }
         val evidence = provenance.single { it.key == "fitness_age" }.observedInputs!!
-        for (text in listOf("delta=3.0 years", "fixed blend=20%", "request=" + estimate.requestId,
+        for (text in listOf("delta=3.0 years", "weighted metabolic domain=15%", "request=" + estimate.requestId,
             "model=" + MetabolicEstimate.MODEL, "prompt=" + MetabolicEstimate.PROMPT_VERSION,
             "schema=" + MetabolicEstimate.VERSION, "snapshotDay=" + day,
             "replaces local body metabolic component and custom glycaemic addition", "not clinical validation"))
@@ -155,8 +165,8 @@ class MetabolicFitnessAgeIntegrationTest {
         val minusTwo = score(labs(originals, accepted(originals, -2.0)))
         val zero = score(labs(originals, accepted(originals, 0.0)))
         val four = score(labs(originals, accepted(originals, 4.0)))
-        assertEquals(0.8, four.value("fitness_age") - zero.value("fitness_age"), 1e-12)
-        assertEquals(-0.4, minusTwo.value("fitness_age") - zero.value("fitness_age"), 1e-12)
+        assertEquals(0.6, four.value("fitness_age") - zero.value("fitness_age"), 1e-12)
+        assertEquals(-0.3, minusTwo.value("fitness_age") - zero.value("fitness_age"), 1e-12)
         assertEquals(-2.0, minusTwo.value("fitness_factor_metabolic_delta"), 0.0)
         assertEquals(0.0, zero.value("fitness_factor_metabolic_delta"), 0.0)
         assertEquals(4.0, four.value("fitness_factor_metabolic_delta"), 0.0)
@@ -218,14 +228,30 @@ class MetabolicFitnessAgeIntegrationTest {
     @Test fun optionalAiPreservesNoAiGoldensAndCannotBypassWearReadiness() {
         val empty = IntelligenceEngine.WeeklyLabInputs()
         val noLabs = score(empty)
-        assertEquals(36.182432432432435, noLabs.value("fitness_age"), 1e-12)
+        val core = FitnessAgeEngine.fitnessAge(profile.age, profile.sex, 65.0,
+            FitnessAgeEngine.physicalActivityIndexFromStrain(7, 60.0))
+        val vitality = requireNotNull(IntelligenceEngine.vitalityResult(week, profile))
+        assertEquals(AlkeWeightedFitnessAge.combine(core, vitality.bodyAge, null).fitnessAge,
+            noLabs.value("fitness_age"), 1e-12)
         assertEquals(42.36923076923077, noLabs.value("vo2max_est"), 1e-12)
         assertEquals(setOf("fitness_age", "vo2max_est"), noLabs.map { it.key }.toSet())
         val localLabs = labs(originals(elevatedBody = false))
         val local = score(localLabs)
-        assertEquals(37.062612612612616, local.value("fitness_age"), 1e-12)
+        val localMetabolic = requireNotNull(FitnessAgeEngine.compute(
+            profile.age, profile.sex, 65.0,
+            FitnessAgeEngine.physicalActivityIndexFromStrain(7, 60.0),
+            waistCm = 90.0, weightKg = 81.0, heightCm = 180.0,
+            bodyFatPct = 20.0)).metabolicDeltaYears
+        val glucose = localLabs.customGlycemic?.result?.ageDeltaYears ?: 0.0
+        assertEquals(AlkeWeightedFitnessAge.combine(core, vitality.bodyAge,
+            profile.age + localMetabolic + glucose).fitnessAge,
+            local.value("fitness_age"), 1e-12)
         assertEquals(47.405, local.value("vo2max_est"), 1e-12)
-        assertTrue(IntelligenceEngine.weeklyScoreProvenance(localLabs, local, computedId, week, profile)
+        val localProvenance = IntelligenceEngine.weeklyScoreProvenance(
+            localLabs, local, computedId, week, profile)
+        assertEquals(AlkeWeightedFitnessAge.ALGORITHM_VERSION,
+            localProvenance.single { it.key == "fitness_age" }.algorithmVersion)
+        assertTrue(localProvenance.filterNot { it.key == "fitness_age" }
             .all { it.algorithmVersion == FitnessAgeEngine.ALGORITHM_VERSION })
 
         val originals = originals()

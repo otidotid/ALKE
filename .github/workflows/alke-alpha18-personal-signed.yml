@@ -1,0 +1,128 @@
+name: ALKE - Alpha 18 Personal Signature Rebuild
+
+on:
+  push:
+    branches:
+      - alke/alpha18-me-encoding-repair
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: alke-alpha18-personal-sign-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  google-login-build-and-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      # Google Web client IDs are public identifiers; keep configurable in the build.
+      # IMPORTANT: A Web ID alone is not sufficient. Google Cloud must register the
+      # Android OAuth package + signing SHA-1 for EACH installed app variant.
+      # Web OAuth Client ID is a public identifier (not a client secret).
+      # An Actions secret can override this project default if configuration changes.
+      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID || '542598370283-1gr0qq8ad4ga691k3lvrotma140hcu5r.apps.googleusercontent.com' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Restore immutable parity fixtures for full Android unit tests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REFERENCE_REPOSITORY_ID: 1401373206
+          SOURCE_SHA: de24b55946de9d904f002441e0d24923ef91f2c6
+        run: |
+          set -euo pipefail
+          REFERENCE_URL="$(gh api "/repositories/$REFERENCE_REPOSITORY_ID" --jq '.clone_url')"
+          test -n "$REFERENCE_URL"
+          git clone --depth=1 --branch v13.2.0 --single-branch \
+            "$REFERENCE_URL" "$RUNNER_TEMP/alke-reference-v13.2.0"
+          test "$(git -C "$RUNNER_TEMP/alke-reference-v13.2.0" rev-parse HEAD)" = "$SOURCE_SHA"
+          for dir in Strand StrandTests StrandiOS; do
+            rsync -a "$RUNNER_TEMP/alke-reference-v13.2.0/$dir/" "$GITHUB_WORKSPACE/$dir/"
+          done
+          mkdir -p "$GITHUB_WORKSPACE/Tools/parity_cases"
+          cp "$RUNNER_TEMP/alke-reference-v13.2.0/Tools/parity_cases/device_raw_sources.json" \
+            "$GITHUB_WORKSPACE/Tools/parity_cases/device_raw_sources.json"
+      - name: Report Google OAuth setup status
+        shell: bash
+        run: |
+          if [[ -z "${ALKE_GOOGLE_WEB_CLIENT_ID}" ]]; then
+            echo "### Google login configuration: MISSING" >> "$GITHUB_STEP_SUMMARY"
+            echo "Compile/test will run. Sign-in on this APK needs local Web client ID setup or a rebuild with ALKE_GOOGLE_WEB_CLIENT_ID." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${ALKE_GOOGLE_WEB_CLIENT_ID}" =~ ^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$ ]]; then
+            echo "### Google login configuration: Web OAuth ID present" >> "$GITHUB_STEP_SUMMARY"
+            echo "Android OAuth clients still need the exact package + installed signing SHA-1 in Google Cloud." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::ALKE_GOOGLE_WEB_CLIENT_ID has an invalid format (expected a Web OAuth Client ID)."
+            exit 1
+          fi
+      - name: Restore original signing key and verify fingerprint
+        env:
+          KEYSTORE_B64: ${{ secrets.ALKE_FORK_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Original signing keystore unavailable in Actions secret ALKE_FORK_DEBUG_KEYSTORE_BASE64; refusing incompatible APK."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 -d > android/fork-debug.keystore
+          chmod 600 android/fork-debug.keystore
+          keytool -list -v -keystore android/fork-debug.keystore -storepass android -alias androiddebugkey | grep -F 'SHA256: 45:11:D9:03:75:13:F5:82:E5:2A:82:AC:03:D8:F9:28:65:5D:29:E8:6A:21:24:5D:CE:59:A1:33:A2:FE:E3:AB'
+
+      - name: Build APK variants without any personal data
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:assembleFullDebug :app:assemblePersonalDebug
+      - name: Test Google OAuth and whole-app JVM suite
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon :app:testFullDebugUnitTest
+      - name: Validate public and private-base APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          full=(android/app/build/outputs/apk/full/debug/*.apk)
+          personal=(android/app/build/outputs/apk/personal/debug/*.apk)
+          test "${#full[@]}" -eq 1
+          test "${#personal[@]}" -eq 1
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          "$aapt" dump badging "${full[0]}" | grep -q "package: name='com.otidotid.alke.debug'"
+          "$aapt" dump badging "${personal[0]}" | grep -q "package: name='com.otidotid.alke.personal.debug'"
+          for apk in "${full[0]}" "${personal[0]}"; do
+            test "$(stat -c '%s' "$apk")" -gt 1000000
+            unzip -t "$apk" | tail -1
+            ! unzip -Z1 "$apk" | grep -Eq '(alke-private-backup|noop-backup|\\.alkebak|\\.noopbak)'
+            sha256sum "$apk"
+          done
+          mkdir -p release-apk personal-base
+          cp "${full[0]}" release-apk/ALKE-v1.0.0-alpha.18-debug.apk
+          cp "${personal[0]}" personal-base/ALKE-v1.0.0-alpha.18-personal-original-signature.apk
+      - name: Verify signed personal APK fingerprint
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk" | grep -i '4511d9037513f582e52a82ac03d8f928655d29e86a21245dce59a133a2fee3ab'
+
+      - name: Upload public APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha18-public-APK-NO-PERSONAL-DATA
+          path: release-apk/ALKE-v1.0.0-alpha.18-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload clean personal-base APK artifact for local re-signing only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-alpha18-personal-ORIGINAL-SIGNATURE
+          path: personal-base/ALKE-v1.0.0-alpha.18-personal-UNSIGNED-FOR-OWNER.apk
+          if-no-files-found: error
+          retention-days: 7

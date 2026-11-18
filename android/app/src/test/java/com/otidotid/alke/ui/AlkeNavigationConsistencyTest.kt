@@ -28,8 +28,12 @@ class AlkeNavigationConsistencyTest {
         // User-facing features have NOT been dropped; the catalog keeps other destinations.
         assertTrue(Destination.Live in allModules)
         assertTrue(Destination.Sleep in allModules)
-        assertTrue(Destination.Insights in allModules)
+        // Legacy Insight routes remain deep-link aliases, not separate catalog modules.
+        assertFalse(Destination.Insights in allModules)
         assertTrue(Destination.Health in allModules)
+        val unpinnedModules = alkeAllModulesGroups(emptyList()).flatMap { it.items }
+        assertTrue(Destination.Intelligence in unpinnedModules)
+        assertFalse(Destination.Insights in unpinnedModules)
     }
 
     @Test fun unpinnedTrainCanBeDiscoveredOnceWithoutSeparateHistoryModule() {

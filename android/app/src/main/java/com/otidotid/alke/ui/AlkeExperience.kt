@@ -61,7 +61,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.LaunchedEffect
@@ -200,20 +199,6 @@ private fun AlkeHeader(
     val ringBattery by vm.ouraBatteryPct.collectAsStateWithLifecycle()
     val activeName by vm.activeDeviceName.collectAsStateWithLifecycle()
     val syncing = live.backfilling || live.analyzingHistory
-    // Shared ProfileStore is the sole age source; the avatar is already snapshot-backed.
-    val context = LocalContext.current
-    val profilePrefs = remember(context) {
-        context.getSharedPreferences(ProfileStore.PREFS, android.content.Context.MODE_PRIVATE)
-    }
-    var profileRevision by remember { mutableIntStateOf(0) }
-    DisposableEffect(profilePrefs) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "date_of_birth" || key == "age") profileRevision++
-        }
-        profilePrefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { profilePrefs.unregisterOnSharedPreferenceChangeListener(listener) }
-    }
-    val profileAge = remember(profileRevision) { ProfileStore.from(context.applicationContext).age }
     val batteryPulse by rememberInfiniteTransition(label = "alke-header-battery").animateFloat(
         initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing),
@@ -228,15 +213,18 @@ private fun AlkeHeader(
     var showSyncHub by remember { mutableStateOf(false) }
     // Header belongs to the parent Scaffold (outside NavHost): live sync motion never
     // restarts when switching modules. Never pause an active sync merely for navigation.
-    val spin = if (syncing) {
-        val rotation by rememberInfiniteTransition(label = "alke-sync-halo").animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(tween(2100, easing = LinearEasing)),
-            label = "sync-rotation",
-        )
-        rotation
-    } else 0f
+    val syncMotion = rememberInfiniteTransition(label = "alke-global-sync")
+    val spin by syncMotion.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
+        label = "sync-rotation",
+    )
+    val syncPulse by syncMotion.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse),
+        label = "sync-aurora-pulse",
+    )
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -247,14 +235,36 @@ private fun AlkeHeader(
                 .padding(end = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(49.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
                 if (syncing) {
-                    Box(
-                        Modifier.size(48.dp).graphicsLayer { rotationZ = spin }
-                            .border(2.dp, Brush.sweepGradient(listOf(A.cyan, A.gold, A.cyan)), CircleShape),
-                    )
+                    // Two luminous, thick rotating arc segments plus a breathing halo.
+                    // The parent header outlives the NavHost, so module changes do not reset sync.
+                    Canvas(Modifier.fillMaxSize().graphicsLayer { rotationZ = spin }) {
+                        val ring = 4.5.dp.toPx()
+                        val inset = ring / 2f + 3.dp.toPx()
+                        val ringSize = Size(size.width - inset * 2f, size.height - inset * 2f)
+                        val top = Offset(inset, inset)
+                        drawCircle(A.cyan.copy(alpha = 0.10f + 0.14f * syncPulse),
+                            radius = size.minDimension * 0.48f)
+                        drawArc(
+                            brush = Brush.sweepGradient(listOf(A.cyan, A.gold, A.white, A.cyan)),
+                            startAngle = 0f, sweepAngle = 215f, useCenter = false,
+                            topLeft = top, size = ringSize,
+                            style = Stroke(width = ring, cap = StrokeCap.Round),
+                        )
+                        drawArc(
+                            color = A.gold.copy(alpha = 0.66f + 0.34f * syncPulse),
+                            startAngle = 250f, sweepAngle = 42f, useCenter = false,
+                            topLeft = top, size = ringSize,
+                            style = Stroke(width = ring, cap = StrokeCap.Round),
+                        )
+                    }
                 }
-                BrandMark(40.dp)
+                Box(Modifier.graphicsLayer {
+                    val sizePulse = if (syncing) 1f + syncPulse * 0.09f else 1f
+                    scaleX = sizePulse
+                    scaleY = sizePulse
+                }) { BrandMark(38.dp) }
                 if (hasSyncError || unreadCount > 0) {
                     Box(
                         Modifier.align(Alignment.TopEnd).size(9.dp).clip(CircleShape)
@@ -265,7 +275,13 @@ private fun AlkeHeader(
             Spacer(Modifier.width(5.dp))
             Column {
                 Text("ALKE", color = A.white, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-                Text("THE INTELLIGENCE WITHIN", color = A.muted, fontSize = 7.sp, letterSpacing = 1.5.sp)
+                Text(
+                    if (syncing) "SYNCING DEVICE" else "THE INTELLIGENCE WITHIN",
+                    color = if (syncing) A.cyan.copy(alpha = 0.70f + 0.30f * syncPulse) else A.muted,
+                    fontSize = if (syncing) 9.sp else 7.sp,
+                    fontWeight = if (syncing) FontWeight.Bold else FontWeight.Normal,
+                    letterSpacing = if (syncing) 1.7.sp else 1.5.sp,
+                )
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -292,14 +308,11 @@ private fun AlkeHeader(
                     fontSize = 12.sp,
                 )
             }
-            Row(
-                modifier = Modifier.clip(RoundedCornerShape(20.dp)).clickable(onClick = onProfile),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            Box(
+                modifier = Modifier.clip(CircleShape).clickable(onClick = onProfile),
+                contentAlignment = Alignment.Center,
             ) {
-                Text("$profileAge y", color = A.white, fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold)
-                ProfileAvatar(size = 40.dp, contentDescription = "My profile")
+                ProfileAvatar(size = 40.dp, contentDescription = "Open my profile")
             }
         }
     }
@@ -381,7 +394,27 @@ private fun AlkeGauge(
     diameter: Dp = 222.dp,
     suffix: String = "",
     colors: List<Color> = listOf(A.cyan, A.blue, A.gold),
+    animateContinuously: Boolean = false,
 ) {
+    val progress by animateFloatAsState(
+        targetValue = fraction.coerceIn(0f, 1f),
+        animationSpec = tween(1100, easing = FastOutSlowInEasing),
+        label = "readiness-fill",
+    )
+    // A persistent, visible living aura and orbit, not a one-shot entry animation.
+    // This is presentation-only: displayed Recovery values remain unchanged.
+    val motion = rememberInfiniteTransition(label = "today-body-readiness")
+    val orbit by motion.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(3200, easing = LinearEasing)),
+        label = "readiness-orbit",
+    )
+    val breathe by motion.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse),
+        label = "readiness-glow",
+    )
     Box(Modifier.size(diameter), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val width = 15.dp.toPx()
@@ -393,13 +426,33 @@ private fun AlkeGauge(
                 sweepAngle = 270f, useCenter = false, topLeft = top, size = arc,
                 style = Stroke(width = width, cap = StrokeCap.Round),
             )
-            if (value != null && fraction > 0.001f) {
+            if (animateContinuously) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        listOf(A.cyan.copy(alpha = 0.12f + 0.15f * breathe), Color.Transparent),
+                        center = Offset(center.x + size.width * 0.12f * kotlin.math.sin(Math.toRadians(orbit.toDouble())).toFloat(),
+                            center.y + size.height * 0.12f * kotlin.math.cos(Math.toRadians(orbit.toDouble())).toFloat()),
+                        radius = size.minDimension * 0.44f,
+                    ),
+                    radius = size.minDimension * 0.44f,
+                )
+            }
+            if (value != null && progress > 0.001f) {
                 drawArc(
                     brush = Brush.sweepGradient(colors + colors.first()),
                     startAngle = 135f,
-                    sweepAngle = 270f * fraction.coerceIn(0f, 1f),
+                    sweepAngle = 270f * progress,
                     useCenter = false, topLeft = top, size = arc,
                     style = Stroke(width = width, cap = StrokeCap.Round),
+                )
+            }
+            if (animateContinuously) {
+                drawArc(
+                    color = A.cyan.copy(alpha = 0.55f + 0.45f * breathe),
+                    startAngle = 135f + orbit,
+                    sweepAngle = 29f,
+                    useCenter = false, topLeft = top, size = arc,
+                    style = Stroke(width = width * 0.58f, cap = StrokeCap.Round),
                 )
             }
         }
@@ -614,7 +667,11 @@ fun AlkeTodayExperience(
                 AlkePill(readinessLabel, A.gold)
             }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                AlkeGauge(label = "Recovery", value = recovery, fraction = ((recovery ?: 0.0) / 100.0).toFloat(), suffix = "%")
+                AlkeGauge(
+                    label = "Recovery", value = recovery,
+                    fraction = ((recovery ?: 0.0) / 100.0).toFloat(),
+                    suffix = "%", animateContinuously = true,
+                )
             }
             Text(
                 if (recovery == null) "No recovery score yet" else

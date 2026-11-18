@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
+      # Public Cloud Coach endpoint, not a private key. Pin for CI and allow override.
+      ALKE_CLOUD_COACH_URL: ${{ vars.ALKE_CLOUD_COACH_URL || 'https://alke-cloud-coach.anandhito-prakoso.workers.dev' }}
       # Google Web client IDs are public identifiers; keep configurable in the build.
       # IMPORTANT: A Web ID alone is not sufficient. Google Cloud must register the
       # Android OAuth package + signing SHA-1 for EACH installed app variant.
@@ -63,6 +65,12 @@ jobs:
             echo "::error::ALKE_GOOGLE_WEB_CLIENT_ID has an invalid format (expected a Web OAuth Client ID)."
             exit 1
           fi
+      - name: Verify managed Cloud Coach build configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${ALKE_CLOUD_COACH_URL}" == https://* ]]
+          echo "Managed Cloud Coach is configured for this build."
       - name: Build unsigned ALKE Personal APK only
         working-directory: android
         run: |

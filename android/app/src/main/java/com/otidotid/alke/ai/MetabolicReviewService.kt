@@ -118,9 +118,11 @@ class MetabolicReviewService(
         return if (trace?.algorithmVersion in setOf(
             com.otidotid.alke.analytics.MetabolicFitnessAge.ALGORITHM_VERSION,
             com.otidotid.alke.analytics.AlkeWeightedFitnessAge.AI_ALGORITHM_VERSION) &&
-            trace.observedInputs?.contains("request=$requestId;") == true)
-            Outcome("Fitness Age updated using the saved AI metabolic estimate and ALKE’s fixed 20% blend.", true)
-        else if (trace?.algorithmVersion == com.otidotid.alke.analytics.FitnessAgeEngine.ALGORITHM_VERSION)
+            trace?.observedInputs?.contains("request=$requestId;") == true)
+            Outcome("Fitness Age updated using the saved AI metabolic estimate and ALKE's weighted metabolic component.", true)
+        else if (trace?.algorithmVersion in setOf(
+            com.otidotid.alke.analytics.FitnessAgeEngine.ALGORITHM_VERSION,
+            com.otidotid.alke.analytics.AlkeWeightedFitnessAge.ALGORITHM_VERSION))
             Outcome("The estimate no longer matches the current inputs. Fitness Age was recalculated from current local inputs.", true)
         else Outcome("Fitness Age was saved, but it did not use this review’s estimate.", true)
     }

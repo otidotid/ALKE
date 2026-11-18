@@ -22,12 +22,14 @@ val localProps = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
-// ALKE-first public configuration; legacy ALKE keys remain valid for existing setups.
+// ALKE managed Cloud Coach is the default; only the public HTTPS endpoint is embedded.
+// API keys and provider bindings stay on Cloudflare. A missing local.properties or CI env
+// must never regress the Personal APK into the legacy "Connect a provider" experience.
 val cloudCoachBaseUrl = (localProps.getProperty("ALKE_CLOUD_COACH_URL")
     ?: System.getenv("ALKE_CLOUD_COACH_URL")
     ?: localProps.getProperty("ALKE_CLOUD_COACH_URL")
     ?: System.getenv("ALKE_CLOUD_COACH_URL")
-    ?: "").trim().trimEnd('/')
+    ?: "https://alke-cloud-coach.anandhito-prakoso.workers.dev").trim().trimEnd('/')
 val googleWebClientId = (localProps.getProperty("ALKE_GOOGLE_WEB_CLIENT_ID")
     ?: System.getenv("ALKE_GOOGLE_WEB_CLIENT_ID")
     ?: localProps.getProperty("ALKE_GOOGLE_WEB_CLIENT_ID")

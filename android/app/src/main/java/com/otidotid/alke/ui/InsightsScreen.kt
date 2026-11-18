@@ -432,15 +432,19 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
         fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
 
-        // --- "What moves you" deep-link into the v5 Insights Hub (ranked, lag-aware ranked-effect feed +
-        //     personal alcohol/caffeine dose-response). The honest in-Insights entry point; the hub is its
-        //     own destination too. Mirrors the Swift InsightsView.whatMovesYouLink. ---
-        item { WhatMovesYouLink(onOpen = onOpenInsightsHub) }
+        // 1. Body Readiness — same premium living gauge used in the earlier ALKE
+        //    Insight card; its value is exactly the stored Recovery signal.
+        item { AlkeInsightsReadinessHero(insightDay?.recovery) }
 
-        item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
+        // 2. Your Signals — current readings; unavailable metrics stay unavailable.
+        item { ConsolidatedInsightSignals(insightDay) }
 
-        // --- Native journal logging (always reachable, the account-free way in) ---
-        if (preFilledFromYesterday) {
+        // 3. Log Journal — a premium collapsible disclosure. Existing history,
+        //    custom-question editor, numeric entries and all callbacks stay intact.
+        item { InsightDisclosure("Log Journal", journalExpanded) {
+            journalExpanded = !journalExpanded
+        } }
+        if (journalExpanded && preFilledFromYesterday) {
             item {
             Text(
                 uiString(R.string.l10n_insights_screen_pre_filled_from_last_night_tap_ce81097c),
@@ -450,6 +454,7 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
             )
             }
         }
+        if (journalExpanded) {
         item {
         // Persist a mutated catalog list and refresh state (the pure edit helpers never touch the
         // canonical key, so a rename/regroup/convert keeps history joined; #322).
@@ -496,44 +501,39 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
             onRestoreQuestion = { q -> applyCatalog(restoreJournalItem(catalogItems, q)) },
         )
         }
+        } // Journal disclosure
 
-        item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
-
+        // 4. Mood Check-In, including the existing Pearson mood correlations.
         // --- Mind: daily mood check-in + mood ↔ body correlations (Swift Mind-lane
         //     mirror; storage contract + footnote shared verbatim across platforms) ---
-        item { MindSection(vm) }
+        item { MindSection(vm, onChanged = { insightEvidenceRevision++ }) }
 
         item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
 
-        // --- Caffeine window (#526), log an intake + a rough on-device "still active"
-        //     hint. Self-contained (owns its own SharedPreferences state). Opt-in: shows
-        //     nothing until the user logs one. Twin of macOS CaffeineLogCard. ---
-        item { CaffeineLogCard() }
+        // 5. Log Caffeine — the same existing on-device log and decay model.
+        item { InsightDisclosure("Log Caffeine", caffeineExpanded) {
+            caffeineExpanded = !caffeineExpanded
+        } }
+        if (caffeineExpanded) {
+            item { CaffeineLogCard(onChanged = { insightEvidenceRevision++ }) }
+        }
 
         item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
 
-        // --- Personal experiment (LOCAL ONLY n-of-1 protocol) ------------------
+        // 6. Personal Experiment — the same local n-of-1 engine and history.
+        item { InsightDisclosure("Personal Experiment", experimentExpanded) {
+            experimentExpanded = !experimentExpanded
+        } }
+        if (experimentExpanded) {
         item {
         run {
             // Candidates are gated to behaviours the user actually has data for, 
             // logged journal questions ∪ imported wording, minus hidden, NOT the
             // starter catalog (triage fix a/b). Empty → real empty-state guard.
             // Hidden canonicals come from the v2 catalog now (#322), same triage-fix semantics.
-            val hiddenQuestions = catalogItems.filter { it.hidden }.map { it.canonical }
-            val candidates = experimentCandidates(behaviours, importedQuestions, hiddenQuestions, experimentBehaviour)
-            val expOutcome = Outcome.entries.firstOrNull { it.outcomeName == experimentOutcomeName } ?: Outcome.Recovery
-            val resolvedBehaviour = resolveExperimentBehaviour(candidates, experimentBehaviour)
-            val snapshot = remember(model, behaviours, experimentStartedDay, experimentOutcomeName, experimentDurationDays, experimentBaselineDays, experimentSeq) {
-                buildExperimentSnapshot(
-                    model = model,
-                    behaviours = behaviours,
-                    startedDay = experimentStartedDay,
-                    outcome = expOutcome,
-                    behaviour = resolvedBehaviour,
-                    durationDays = experimentDurationDays,
-                    baselineDays = experimentBaselineDays,
-                )
-            }
+            val candidates = expCandidates
+            val resolvedBehaviour = resolvedExpBehaviour
+            val snapshot = expSnapshot
 
             ExperimentSection(
                 snapshot = snapshot,
@@ -584,6 +584,12 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
             )
         }
         }
+        } // Personal Experiment disclosure
+
+        // 7. Pearson r — Metric Relationship. All prior behaviour, activity
+        //    cost, lag-aware What Moves You and dose-response evidence is now
+        //    nested under this analysis area, not a second Insight module.
+        item { RelationshipsSection(relationships) }
 
         item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
 
@@ -622,8 +628,103 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
 
         item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
 
-        // --- Metric relationships ---------------------------------------------
-        item { RelationshipsSection(relationships) }
+        // Embedded live What Moves You analysis, not a navigation link to
+        // another Insights module. Keeps EffectRanker and DoseResponseEngine.
+        item { InsightsHubEmbeddedSection(hubState) }
+
+        // 8. Your Insight Summary — AI sees ALL eight Insight sections above,
+        //    including the mood, caffeine and n-of-1 evidence, never other modules.
+        item { ConsolidatedInsightAiSummary(ctx, evidence, aiSummary) }
+    }
+}
+
+@Composable
+private fun InsightDisclosure(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    AlkeCard(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onToggle),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(title, style = AlkeType.title2, color = Palette.textPrimary,
+                modifier = Modifier.weight(1f))
+            Text(if (expanded) "Collapse" else "Expand",
+                style = AlkeType.caption, color = Palette.accent)
+            Icon(Icons.Filled.ChevronRight, contentDescription =
+                if (expanded) "Collapse $title" else "Expand $title",
+                tint = Palette.accent,
+                modifier = Modifier.rotate(if (expanded) 90f else 0f))
+        }
+    }
+}
+
+@Composable
+private fun ConsolidatedInsightSignals(day: DailyMetric?) {
+    Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+        SectionHeader("Your Signals", overline = "Recorded physiology")
+        val skin = day?.skinTempC?.takeIf { it.isFinite() }
+            ?: day?.skinTempDevC?.takeIf {
+                it.isFinite() && com.otidotid.alke.analytics.VitalBands.isAbsoluteSkinTemp(it)
+            }
+        val signals = listOf(
+            "Recovery" to day?.recovery?.let { String.format(Locale.US, "%.0f%%", it) },
+            "HRV" to day?.avgHrv?.let { String.format(Locale.US, "%.1f ms", it) },
+            "Resting HR" to day?.restingHr?.let { "$it bpm" },
+            "Sleep performance" to day?.efficiency?.let {
+                String.format(Locale.US, "%.0f%%", it) },
+            "Skin Temperature" to skin?.let { String.format(Locale.US, "%.1f C", it) },
+        )
+        AlkeCard {
+            signals.forEachIndexed { index, (name, value) ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(name, style = AlkeType.subhead, color = Palette.textSecondary,
+                        modifier = Modifier.weight(1f))
+                    Text(value ?: "Awaiting data", style = AlkeType.subhead,
+                        color = if (value == null) Palette.textTertiary else Palette.textPrimary)
+                }
+                if (index < signals.lastIndex) HorizontalDivider(color = Palette.hairline)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConsolidatedInsightAiSummary(
+    context: Context,
+    evidence: AlkeInsightsEvidence,
+    summary: String?,
+) {
+    AlkeCard(tint = Palette.accent) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = "ALKE AI",
+                    tint = Palette.accent, modifier = Modifier.size(28.dp))
+                Column {
+                    Overline("AI · INSIGHTS-ONLY EVIDENCE")
+                    Text("Your Insight Summary", style = AlkeType.title2,
+                        color = Palette.textPrimary)
+                }
+            }
+            Text(
+                summary ?: when {
+                    !evidence.hasEvidence() -> "Record Insight signals and journal entries to generate an evidence-based summary."
+                    !com.otidotid.alke.ai.AiKeyStore.readConsent(context) ||
+                        !AlkePrefs.coachEnabled(context) ||
+                        !AlkePrefs.coachSignals(context) ->
+                        "Enable AI and health-evidence consent in Me settings to summarize these Insights."
+                    else -> "Insights-only AI summary is unavailable. All recorded evidence remains visible above."
+                },
+                style = AlkeType.subhead, color = Palette.textPrimary,
+            )
+            Text("Based exclusively on evidence in this Insight module · association is not causation",
+                style = AlkeType.footnote, color = Palette.textTertiary)
+        }
     }
 }
 

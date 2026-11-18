@@ -400,7 +400,8 @@ fun WorkoutsScreen(vm: AppViewModel) {
 internal fun AlkeTrainHistorySections(vm: AppViewModel) {
     val allRows by vm.workouts.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
-    var range by remember { mutableStateOf(WorkoutRange.All) }
+    // Train displays the complete session history; no redundant 7D/30D/90D selector.
+    val range = WorkoutRange.All
     var sportFilter by remember { mutableStateOf<String?>(null) }
     var sourceFilter by remember { mutableStateOf<WorkoutSource?>(null) }
     var searchText by remember { mutableStateOf("") }
@@ -433,17 +434,12 @@ internal fun AlkeTrainHistorySections(vm: AppViewModel) {
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Activity Breakdown follows Train's existing Active Calories calendar.
-        BreakdownSection(groups = sportGroups(allRows), rows = allRows)
+        BreakdownSection(groups = sportGroups(allRows), rows = allRows, collapsible = true)
         if (allRows.isEmpty()) {
             Text("Recorded activities will appear here when workouts are available.",
                 style = AlkeType.footnote, color = Palette.textTertiary)
         } else {
-            // Preserve range and source/sport search without opening a second screen.
-            RangeBar(
-                range = range, effectiveRange = resolved, rowCount = windowRows.size,
-                fellBack = resolved != range, filterActive = filter.isActive,
-                onSelect = { range = it },
-            )
+            // Preserve sport/source/text filtering without another time-range selector.
             FilterBar(
                 filter = filter, availableSports = availableSports,
                 onSport = { sportFilter = it }, onSource = { sourceFilter = it },
@@ -1144,15 +1140,28 @@ private fun SummarySection(
 // MARK: - Activity breakdown (per-sport AlkeCards, identical layout)
 
 @Composable
-private fun BreakdownSection(groups: List<SportGroup>, rows: List<WorkoutRow>) {
+private fun BreakdownSection(
+    groups: List<SportGroup>,
+    rows: List<WorkoutRow>,
+    collapsible: Boolean = false,
+) {
+    var expanded by rememberSaveable { mutableStateOf(!collapsible) }
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        SectionHeader(
-            title = uiString(R.string.l10n_workouts_screen_activity_breakdown_214431d6),
-            overline = "By sport",
-            trailing = "${groups.size} sport${if (groups.size == 1) "" else "s"}",
-        )
-        // This sport's own sessions, so each card can carry an HR-zone mini-bar.
-        groups.forEach { g -> SportCard(g, zones = zoneSummary(rows.filter { it.sport == g.sport })) }
+        Box(
+            modifier = if (collapsible) Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .clickable { expanded = !expanded } else Modifier.fillMaxWidth(),
+        ) {
+            SectionHeader(
+                title = uiString(R.string.l10n_workouts_screen_activity_breakdown_214431d6),
+                overline = "By sport",
+                trailing = if (collapsible) if (expanded) "Collapse" else "Expand" else null,
+            )
+        }
+        if (!collapsible || expanded) {
+            groups.forEach { g ->
+                SportCard(g, zones = zoneSummary(rows.filter { it.sport == g.sport }))
+            }
+        }
     }
 }
 
@@ -2329,21 +2338,54 @@ internal fun SportPickerField(value: String, onChange: (String) -> Unit) {
         ) { Text(value, style = AlkeType.body, color = Palette.textPrimary) }
     }
     if (open) {
-        val sportScroll = rememberScrollState()
+        var query by remember(open) { mutableStateOf("") }
+        val options = remember(query) {
+            WorkoutSport.all.filter {
+                it.name.contains(query.trim(), ignoreCase = true)
+            }
+        }
         AlertDialog(
             onDismissRequest = { open = false },
             title = { Text("Workout type") },
             text = {
-                Column(Modifier.heightIn(max = 360.dp).verticalScroll(sportScroll)) {
-                    WorkoutSport.all.forEach { sport ->
-                        TextButton(
-                            onClick = { onChange(sport.name); open = false },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text(sport.name, modifier = Modifier.fillMaxWidth()) }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it.take(70) },
+                        label = { Text("Search workout type") },
+                        placeholder = { Text("Running, cycling, gym...") },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = workoutFieldColors(),
+                    )
+                    Column(Modifier.heightIn(max = 310.dp).verticalScroll(rememberScrollState())) {
+                        if (options.isEmpty()) {
+                            Text("No matching workout types.", color = Palette.textTertiary)
+                        }
+                        options.forEach { option ->
+                            TextButton(
+                                onClick = { onChange(option.name); open = false },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(option.name, modifier = Modifier.fillMaxWidth())
+                            }
+                        }
+                        if (query.isNotBlank() && options.none {
+                            it.name.equals(query.trim(), ignoreCase = true)
+                        }) {
+                            TextButton(
+                                onClick = { onChange(query.trim()); open = false },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("Use custom type: \"${query.trim()}\"")
+                            }
+                        }
                     }
                 }
             },
             confirmButton = {},
+            dismissButton = { TextButton(onClick = { open = false }) { Text("Cancel") } },
         )
     }
 }

@@ -447,12 +447,32 @@ private fun AlkeGauge(
                 )
             }
             if (animateContinuously) {
+                // Bright, double-color moving highlight. Clearly readable during
+                // smoke tests, including when a static Recovery number is displayed.
                 drawArc(
-                    color = A.cyan.copy(alpha = 0.55f + 0.45f * breathe),
+                    color = A.cyan.copy(alpha = 0.75f + 0.25f * breathe),
                     startAngle = 135f + orbit,
-                    sweepAngle = 29f,
+                    sweepAngle = 43f,
                     useCenter = false, topLeft = top, size = arc,
-                    style = Stroke(width = width * 0.58f, cap = StrokeCap.Round),
+                    style = Stroke(width = width * 0.80f, cap = StrokeCap.Round),
+                )
+                drawArc(
+                    color = A.gold.copy(alpha = 0.72f + 0.28f * breathe),
+                    startAngle = 170f + orbit,
+                    sweepAngle = 23f,
+                    useCenter = false, topLeft = top, size = arc,
+                    style = Stroke(width = width * 0.70f, cap = StrokeCap.Round),
+                )
+                val angle = Math.toRadians((135f + orbit + 42f).toDouble())
+                val radius = (arc.width * .5f).coerceAtLeast(0f)
+                val movingCenter = Offset(
+                    center.x + radius * kotlin.math.cos(angle).toFloat(),
+                    center.y + radius * kotlin.math.sin(angle).toFloat(),
+                )
+                drawCircle(
+                    color = A.white.copy(alpha = 0.75f + 0.25f * breathe),
+                    radius = width * 0.40f + 1.dp.toPx() * breathe,
+                    center = movingCenter,
                 )
             }
         }
@@ -1564,71 +1584,27 @@ fun AlkeProgressExperience(
 
 @Composable
 private fun AlkeInsightsReadinessHero(recovery: Double?) {
-    // Same instrument vocabulary as Fitness Age: a 270-degree arc, living cyan-gold
-    // aurora and continuous ambient sweep; the measured Recovery value never changes.
-    val valid = recovery?.takeIf { it.isFinite() && it >= 0.0 }
-    val fraction = ((valid ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f)
-    val reduceMotion = rememberPoseStill()
-    val displayed by animateFloatAsState(
-        targetValue = fraction,
-        animationSpec = if (reduceMotion) tween(0)
-            else tween(940, easing = FastOutSlowInEasing),
-        label = "insights_readiness_reveal",
-    )
-    val ambient = if (reduceMotion || valid == null) 0f else
-        rememberInfiniteTransition(label = "insights_readiness_ambient").animateFloat(
-            initialValue = 0f, targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                tween(3800, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "insights_readiness_breathe",
-        ).value
-    val orbit = if (reduceMotion || valid == null) 0f else
-        rememberInfiniteTransition(label = "insights_readiness_orbit").animateFloat(
-            initialValue = 0f, targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing)),
-            label = "insights_readiness_sweep",
-        ).value
-
+    // IMPORTANT: Insights and Today intentionally share the EXACT same living
+    // Body Readiness dial. A second renderer drifted and had barely visible motion.
+    // The only data source remains the recorded Recovery reading.
+    val valid = recovery?.takeIf { it.isFinite() && it >= 0.0 && it <= 100.0 }
     AlkePanel(Modifier.fillMaxWidth()) {
         Text("BODY READINESS", color = A.cyan,
             fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp)
-        Box(Modifier.fillMaxWidth().height(204.dp), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(190.dp), contentAlignment = Alignment.Center) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val width = 10.dp.toPx()
-                    val inset = width / 2 + 9.dp.toPx()
-                    val arcSize = Size(size.width - inset * 2f, size.height - inset * 2f)
-                    val origin = Offset(inset, inset)
-                    val span = size.minDimension
-                    drawCircle(
-                        brush = Brush.radialGradient(listOf(
-                            A.cyan.copy(alpha = 0.14f + 0.20f * ambient), Color.Transparent),
-                            center = Offset(center.x + (orbit - .5f) * span * .16f,
-                                center.y - span * .1f),
-                            radius = span * .44f,
-                        ),
-                        radius = span * .44f,
-                    )
-                    drawArc(A.stroke.copy(alpha = .72f), 135f, 270f, false,
-                        origin, arcSize, style = Stroke(width, cap = StrokeCap.Round))
-                    if (valid != null) {
-                        drawArc(Brush.sweepGradient(listOf(A.cyan, A.gold, A.cyan)),
-                            135f, 270f * displayed, false, origin, arcSize,
-                            style = Stroke(width, cap = StrokeCap.Round))
-                    }
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(valid?.roundToInt()?.toString()?.plus("%") ?: "—",
-                        color = A.white, fontWeight = FontWeight.Bold, fontSize = 40.sp)
-                    Text("RECORDED RECOVERY", color = A.muted,
-                        fontSize = 9.sp, letterSpacing = 1.1.sp)
-                }
-            }
+        Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
+            AlkeGauge(
+                label = "Recovery",
+                value = valid,
+                fraction = ((valid ?: 0.0) / 100.0).toFloat(),
+                diameter = 222.dp,
+                suffix = "%",
+                animateContinuously = true,
+            )
         }
-        Text("Readiness visualized from your recorded Recovery score; no new age or health score is calculated.",
-            color = A.muted, fontSize = 11.sp, lineHeight = 17.sp)
+        Text(
+            "Readiness from your recorded Recovery score. The animation is visual only; no extra score is calculated.",
+            color = A.muted, fontSize = 11.sp, lineHeight = 17.sp,
+        )
     }
 }
 

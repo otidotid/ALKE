@@ -81,7 +81,7 @@ jobs:
           "$AAPT_BIN" dump badging "$APK" > apk-badging.txt
           head -n 1 apk-badging.txt
           grep -Fq "package: name='com.otidotid.alke.personal.debug' versionCode='583'" apk-badging.txt
-          grep -Fq "versionName='1.0.0-alpha.19.1'" apk-badging.txt
+          grep -Fq "versionName='1.0.0-alpha.19.1-personal-debug'" apk-badging.txt
           unzip -t "$APK" | tail -1
           if unzip -Z1 "$APK" | grep -Eiq '(^|/)(.*\.p12|.*\.keystore|.*\.jks|.*\.alkebak|.*\.noopbak)$'; then
             echo "::error::APK unexpectedly contains a private key or backup"; exit 1

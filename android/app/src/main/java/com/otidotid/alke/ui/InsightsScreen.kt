@@ -432,11 +432,9 @@ val expCandidates = experimentCandidates(
         fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
 
-        // 1. Body Readiness — same premium living gauge used in the earlier ALKE
-        //    Insight card; its value is exactly the stored Recovery signal.
-        item { AlkeInsightsReadinessHero(insightDay?.recovery) }
+                // 2. Your Signals — current readings; unavailable metrics stay unavailable.
+        item { ConsolidatedInsightAiSummary(aiSummary, onRetry = { insightAiRetry++ }) }
 
-        // 2. Your Signals — current readings; unavailable metrics stay unavailable.
         item { ConsolidatedInsightSignals(insightDay) }
 
         // 3. Log Journal — a premium collapsible disclosure. Existing history,
@@ -595,7 +593,6 @@ val expCandidates = experimentCandidates(
 
         // 8. Your Insight Summary — AI sees ALL eight Insight sections above,
         //    including the mood, caffeine and n-of-1 evidence, never other modules.
-        item { ConsolidatedInsightAiSummary(aiSummary, onRetry = { insightAiRetry++ }) }
     }
 }
 

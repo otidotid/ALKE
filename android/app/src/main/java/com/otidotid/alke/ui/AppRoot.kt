@@ -251,8 +251,8 @@ internal data class DrawerGroup(
 // Window, Notifications, Devices) are slotted into the matching iOS group.
 internal val drawerGroups: List<DrawerGroup> = listOf(
     DrawerGroup("Insights", R.string.more_group_insights, listOf(
-        Destination.Sleep, Destination.Trends, Destination.InsightsHub,
-        Destination.Intelligence, Destination.Insights, Destination.Explore,
+        Destination.Sleep, Destination.Trends,
+        Destination.Intelligence, Destination.Explore,
         Destination.Compare, Destination.Health, Destination.VitalSigns,
         Destination.LabBook, Destination.Rhythm,
     ), defaultExpanded = false),
@@ -297,9 +297,7 @@ internal val configurableBottomBarDestinations: List<Destination> = listOf(
     Destination.Workouts,
     Destination.Health,
     Destination.Live,
-    Destination.InsightsHub,
     Destination.Intelligence,
-    Destination.Insights,
     Destination.Explore,
     Destination.Compare,
     Destination.LabBook,
@@ -340,6 +338,12 @@ internal object BottomBarModuleStore {
     }
 
     fun normalize(items: List<Destination>): List<Destination> = items
+        .map {
+            // Migrate legacy saved pinned Insight/Insights Hub routes without losing
+            // the user's actual Insight slot when consolidating the modules.
+            if (it == Destination.Insights || it == Destination.InsightsHub)
+                Destination.Intelligence else it
+        }
         .filter { it in configurableBottomBarDestinations }.distinct().take(MAX_PINNED)
 
     fun encode(items: List<Destination>): String = normalize(items).joinToString(",") { it.route }
@@ -872,7 +876,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onOpenDevices = { nav.navigateTopLevel(Destination.Devices.route) },
                         // #627: the journal-reminder card opens the journal (hosted in Insights), same
                         // destination the Sleep screen's morning sheet uses.
-                        onOpenJournal = { nav.navigateTopLevel(Destination.Insights.route) },
+                        onOpenJournal = { nav.navigateTopLevel(Destination.Intelligence.route) },
                     )
                 }
                 composable(Destination.Live.route) {
@@ -895,7 +899,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.Sleep.route) {
                     SleepScreen(
                         vm = viewModel,
-                        onOpenJournal = { nav.navigateTopLevel(Destination.Insights.route) },
+                        onOpenJournal = { nav.navigateTopLevel(Destination.Intelligence.route) },
                         onOpenAlarms = { nav.navigate(Destination.SmartAlarm.route) },
                     )
                 }
@@ -937,18 +941,9 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         unreadCount = updateStore.unreadCount,
                     )
                 }
-                composable(Destination.Intelligence.route) {
-                    AlkeInsightExperience(
-                        vm = viewModel,
-                        onNotifications = { showUpdatesInbox = true },
-                        onDevices = { nav.navigate(Destination.Devices.route) },
-                        onProfile = { nav.navigate(Destination.Profile.route) },
-                        unreadCount = updateStore.unreadCount,
-                        onIntelligence = { nav.navigate(Destination.AlkeIntelligenceDetails.route) },
-                        onHealth = { nav.navigate(Destination.Health.route) },
-                        onSkinTemp = { nav.navigate("vital_detail/skin") },
-                    )
-                }
+                // One canonical Insight experience. Earlier two Insights routes
+                // below remain compatibility aliases, not separate modules.
+                composable(Destination.Intelligence.route) { InsightsScreen(viewModel) }
                 composable(Destination.AlkeIntelligenceDetails.route) { IntelligenceScreen(viewModel) }
 
                 // --- Placeholder routes (later waves fill these in) ---
@@ -975,7 +970,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                     )
                 }
                 composable(Destination.AlkeTrendHistory.route) { TrendsScreen(viewModel) }
-                composable(Destination.Insights.route) { InsightsScreen(viewModel, onOpenInsightsHub = { nav.navigateTopLevel(Destination.InsightsHub.route) }) }
+                composable(Destination.Insights.route) { InsightsScreen(viewModel) }
                 composable(Destination.Compare.route) { CompareScreen(viewModel) }
                 composable(Destination.Health.route) {
                     HealthScreen(
@@ -1000,7 +995,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                     )
                 }
                 // --- v5 pillar screens (Wave 3 wiring) ---
-                composable(Destination.InsightsHub.route) { InsightsHubScreen(viewModel) }
+                composable(Destination.InsightsHub.route) { InsightsScreen(viewModel) }
                 composable(Destination.LabBook.route) { LabBookScreen(viewModel) }
                 composable(Destination.Rhythm.route) {
                     RhythmRoute(viewModel)
@@ -1536,7 +1531,7 @@ private data class QuickAction(@StringRes val titleRes: Int, val icon: ImageVect
  *  — it moved off the bottom bar (so the FAB no longer overlaps a tab) but stays one tap away here. */
 private val quickActions: List<QuickAction> = listOf(
     QuickAction(R.string.action_live_hr, Destination.Live.icon, Destination.Live.route),
-    QuickAction(R.string.action_log_journal, Icons.Filled.Edit, Destination.Insights.route),
+    QuickAction(R.string.action_log_journal, Icons.Filled.Edit, Destination.Intelligence.route),
     QuickAction(R.string.action_breathe, Icons.Filled.Air, Destination.Breathe.route),
 )
 

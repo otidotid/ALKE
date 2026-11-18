@@ -1,0 +1,29 @@
+name: ALKE - Export Android APK signing tools (no private keys)
+on:
+  push:
+    branches:
+      - alke/alpha19-signing-tools
+permissions:
+  contents: read
+jobs:
+  package-official-android-sdk-tool:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Collect installed Android SDK apksigner and zipalign
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          test -f "$SDK_TOOLS/lib/apksigner.jar"
+          test -f "$SDK_TOOLS/zipalign"
+          mkdir -p signing-tools
+          cp "$SDK_TOOLS/lib/apksigner.jar" signing-tools/apksigner.jar
+          cp "$SDK_TOOLS/zipalign" signing-tools/zipalign
+          echo "Android SDK path: $SDK_TOOLS"
+          sha256sum signing-tools/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-official-android-signing-utilities
+          path: signing-tools/
+          if-no-files-found: error
+          retention-days: 1

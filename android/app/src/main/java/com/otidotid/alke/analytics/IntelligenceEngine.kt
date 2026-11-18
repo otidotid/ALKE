@@ -2713,8 +2713,16 @@ object IntelligenceEngine {
             age = profile.age, sex = profile.sex,
             restingHR = medianOfDoubles(rhrs),
             paIndex = FitnessAgeEngine.physicalActivityIndexFromStrain(strains.size, meanStrain),
-            waistCm = waist) ?: return emptyList()
-        val rows = mutableListOf(MetricSeriesRow(deviceId = computedId, day = satKey, key = "fitness_age", value = res.fitnessAge))
+            waistCm = waist, weightKg = profile.weightKg.takeIf { it > 0.0 },
+            heightCm = profile.heightCm.takeIf { it > 0.0 }) ?: return emptyList()
+        val core = FitnessAgeEngine.fitnessAge(profile.age, profile.sex,
+            medianOfDoubles(rhrs), FitnessAgeEngine.physicalActivityIndexFromStrain(strains.size, meanStrain))
+        val combined = AlkeWeightedFitnessAge.combine(
+            coreAge = core,
+            vitalityAge = vitalityResult(gateDays, profile)?.bodyAge,
+            metabolicAge = AlkeWeightedFitnessAge.metabolicAge(profile.age, res.metabolicDeltaYears),
+        )
+        val rows = mutableListOf(MetricSeriesRow(deviceId = computedId, day = satKey, key = "fitness_age", value = combined.fitnessAge))
         // #1391: offer a VOâ‚‚max even without a waist. res.vo2max is the Nes 2011 waist-based estimate (null
         // when no waist is set). Fall back to the Uth 2004 HR-ratio estimate (15.3Â·HRmax/RHR â€” waist-free,
         // the SAME formula the calorie path already uses), so any user past the age+RHR fitness-age gate gets
@@ -2782,14 +2790,30 @@ object IntelligenceEngine {
             restingHR = medianOfDoubles(rhrs),
             paIndex = FitnessAgeEngine.physicalActivityIndexFromStrain(strains.size, meanStrain),
             waistCm = waist, weightKg = labWeight, heightCm = labHeight, bodyFatPct = labBodyFat) ?: return emptyList()
-        // One metabolic contribution only: accepted AI replaces the body blend and custom glucose addition.
-        // Without a current, source-validated estimate, this path is byte-identical to the local calculation.
-        val res = labs.metabolicEstimate?.let { estimate ->
-            MetabolicFitnessAge.apply(localResult, FitnessAgeEngine.fitnessAge(profile.age, profile.sex,
-                medianOfDoubles(rhrs), FitnessAgeEngine.physicalActivityIndexFromStrain(strains.size, meanStrain)),
-                estimate.deltaYears)
-        } ?: localResult
-        val rows = mutableListOf(MetricSeriesRow(deviceId = computedId, day = satKey, key = "fitness_age", value = res.fitnessAge + customGlycemicDelta))
+        // v1 weighted headline: all eligible components are transformed to age-equivalent
+        // YEARS by their own existing engines BEFORE mixing. No raw scores or AI prose enter.
+        // The accepted, separately opted-in AI metabolic scalar (when present) REPLACES
+        // local body/custom metabolic penalties; never stack them.
+        val core = FitnessAgeEngine.fitnessAge(profile.age, profile.sex,
+            medianOfDoubles(rhrs), FitnessAgeEngine.physicalActivityIndexFromStrain(strains.size, meanStrain))
+        val vitalityAge = vitalityResult(gateDays, profile)?.bodyAge
+        val metabolicDelta = labs.metabolicEstimate?.deltaYears ?: localResult.metabolicDeltaYears
+        val qualifiedMetabolicDelta = when {
+            metabolicDelta != null -> metabolicDelta + customGlycemicDelta
+            customGlycemicDelta != 0.0 -> customGlycemicDelta
+            else -> null
+        }
+        val combined = AlkeWeightedFitnessAge.combine(
+            coreAge = core,
+            vitalityAge = vitalityAge,
+            metabolicAge = AlkeWeightedFitnessAge.metabolicAge(profile.age, qualifiedMetabolicDelta),
+        )
+        val res = localResult.copy(
+            fitnessAge = combined.fitnessAge,
+            deltaYears = profile.age - combined.fitnessAge,
+            metabolicDeltaYears = metabolicDelta,
+        )
+        val rows = mutableListOf(MetricSeriesRow(deviceId = computedId, day = satKey, key = "fitness_age", value = res.fitnessAge))
         res.bmi?.let { rows += MetricSeriesRow(computedId, satKey, "fitness_factor_bmi", it) }
         res.waistToHeightRatio?.let { rows += MetricSeriesRow(computedId, satKey, "fitness_factor_whtr", it) }
         res.bodyFatPct?.let { rows += MetricSeriesRow(computedId, satKey, "fitness_factor_body_fat", it) }
@@ -2808,16 +2832,14 @@ object IntelligenceEngine {
         return rows
     }
 
-    /** Vitality + Body Age rows for one seven-day window, using the production formula. */
-    internal fun vitalityRows(
-        gateDays: List<DailyMetric>, profile: UserProfile, computedId: String, satKey: String,
-    ): List<MetricSeriesRow> {
+    /** A single VitalityEngine input resolver shared by hidden legacy history and weighted Fitness Age. */
+    internal fun vitalityResult(gateDays: List<DailyMetric>, profile: UserProfile): VitalityEngine.Result? {
         val ordered = gateDays.sortedBy { it.day }.takeLast(7)
         val rhrs = ordered.mapNotNull { it.restingHr }.map { it.toDouble() }
         val nights = ordered.mapNotNull { it.totalSleepMin }.map { it / 60.0 }.filter { it > 0 }
         val hrvs = ordered.mapNotNull { it.avgHrv }
         val steps = ordered.mapNotNull { it.steps }.map { it.toDouble() }
-        val result = VitalityEngine.compute(VitalityEngine.Inputs(
+        return VitalityEngine.compute(VitalityEngine.Inputs(
             chronoAge = profile.age,
             restingHR = if (rhrs.isEmpty()) null else medianOfDoubles(rhrs),
             sleepHours = if (nights.isEmpty()) null else nights.average(),
@@ -2825,7 +2847,15 @@ object IntelligenceEngine {
             rmssd = if (hrvs.isEmpty()) null else medianOfDoubles(hrvs),
             rmssdNorm = VitalityEngine.rmssdNorm(profile.age),
             steps = if (steps.isEmpty()) null else steps.average(),
-        )) ?: return emptyList()
+        ))
+    }
+
+    /** Preserve legacy Vitality/Body Age rows in storage for migrations and continuity.
+     * They are no longer presented as an independent UI age metric. */
+    internal fun vitalityRows(
+        gateDays: List<DailyMetric>, profile: UserProfile, computedId: String, satKey: String,
+    ): List<MetricSeriesRow> {
+        val result = vitalityResult(gateDays, profile) ?: return emptyList()
         return listOf(
             MetricSeriesRow(computedId, satKey, "vitality", result.vitality),
             MetricSeriesRow(computedId, satKey, "body_age", result.bodyAge),
@@ -2943,7 +2973,7 @@ object IntelligenceEngine {
         val custom = labs.customGlycemic.takeIf { labs.metabolicEstimate == null && labs.primaryGlycemicPresence.isEmpty() }
         if (labs.metabolicEstimate != null) {
             val estimate = labs.metabolicEstimate
-            parts += "Experimental AI metabolic estimate: delta=" + estimate.deltaYears + " years; fixed blend=20%; " +
+            parts += "Experimental AI metabolic estimate: delta=" + estimate.deltaYears + " years; weighted metabolic domain=15% when all domains available; " +
                 "replaces local body metabolic component and custom glycaemic addition; request=" + estimate.requestId +
                 "; model=" + estimate.model + "; prompt=" + estimate.promptVersion + "; schema=" + com.otidotid.alke.ai.MetabolicEstimate.VERSION +
                 "; snapshotDay=" + estimate.day + "; confidence=HIGH (model-reported, not clinical validation)"
@@ -2967,6 +2997,20 @@ object IntelligenceEngine {
         } else {
             parts += "Custom glycaemic policy: no eligible original reading"
         }
+        if (rows.any { it.key == "fitness_age" }) {
+            // Exact evidence-dependent weights: 60% core, 25% Vitality, 15% metabolic,
+            // renormalized when optional eligible inputs are missing.
+            val hasVitality = vitalityResult(gateDays, profile) != null
+            val hasMetabolic = labs.metabolicEstimate != null ||
+                labs.body.isNotEmpty() ||
+                (labs.customGlycemic?.result?.ageDeltaYears ?: 0.0) != 0.0
+            val weight = 0.60 + (if (hasVitality) 0.25 else 0.0) +
+                (if (hasMetabolic) 0.15 else 0.0)
+            parts += "ALKE Fitness Age weighted v1: core=" + (0.60 / weight) +
+                "; Vitality=" + (if (hasVitality) 0.25 / weight else 0.0) +
+                "; metabolic=" + (if (hasMetabolic) 0.15 / weight else 0.0) +
+                "; product heuristic, not a clinically validated conversion"
+        }
         val weeklyInputs = "Captured weekly input context (formula uses applicable inputs): " + parts.joinToString("; ")
         val hasNes = waist != null && waist > 0.0
         return rows.mapNotNull { row ->
@@ -2977,9 +3021,14 @@ object IntelligenceEngine {
                     weeklyInputs + if (hasNes) "; Estimator: Nes waist variant" else
                         "; Estimator: Uth HRmax/RHR, HRmax age-predicted"
                 )
-                "fitness_age", "fitness_factor_bmi", "fitness_factor_whtr",
+                "fitness_age" -> Triple(
+                    if (labs.metabolicEstimate != null)
+                        AlkeWeightedFitnessAge.AI_ALGORITHM_VERSION else AlkeWeightedFitnessAge.ALGORITHM_VERSION,
+                    computedId, weeklyInputs
+                )
+                "fitness_factor_bmi", "fitness_factor_whtr",
                 "fitness_factor_body_fat", "fitness_factor_metabolic_delta" -> Triple(
-                    if (labs.metabolicEstimate != null && row.key in setOf("fitness_age", "fitness_factor_metabolic_delta"))
+                    if (labs.metabolicEstimate != null && row.key == "fitness_factor_metabolic_delta")
                         MetabolicFitnessAge.ALGORITHM_VERSION else FitnessAgeEngine.ALGORITHM_VERSION,
                     computedId, weeklyInputs
                 )

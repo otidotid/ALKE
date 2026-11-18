@@ -135,6 +135,47 @@ fun InsightsHubScreen(vm: AppViewModel) {
     }
 }
 
+/**
+ * What Moves You and dose response now LIVE INSIDE the one consolidated Insight
+ * module. The original ViewModel, EffectRanker and dose-response algorithms stay
+ * unchanged; only their destination/placement is consolidated.
+ */
+@Composable
+internal fun InsightsHubEmbeddedSection(state: InsightsHubViewModel.Snapshot) {
+    var outcome by remember { mutableStateOf(InsightsOutcome.Recovery) }
+    val ranker = remember { InsightsHubViewModel() }
+    val ranked = remember(state, outcome) { ranker.rankFor(state, outcome) }
+    Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+        if (!state.loaded) {
+            AlkeCard {
+                Text("Reading journal-linked patterns...", color = Palette.textTertiary)
+            }
+        } else {
+            MoversSection(outcome, onOutcome = { outcome = it }, ranked = ranked)
+            DoseSection(state.doseCards)
+        }
+    }
+}
+
+/** Values handed to Insights AI are ONLY the journal-linked patterns actually
+ * computed and displayed by the embedded What Moves You surface. */
+internal fun hubInsightsEvidence(state: InsightsHubViewModel.Snapshot): List<String> {
+    if (!state.loaded) return listOf("What moves you: analysis not loaded")
+    val recovery = state.outcomeByKey["recovery"] ?: emptyMap()
+    val movers = EffectRanker.rank(
+        state.behaviours, state.controls, recovery, "Charge",
+    ).take(7).map { "Journal association: " + it.sentence() }
+    val doses = state.doseCards.take(4).map { card ->
+        String.format(Locale.US,
+            "%s dose-response for %s: %.2f per unit, n=%d user days, %s; association not causation",
+            card.title, card.outcomeName, card.response.perUnit, card.response.nUser,
+            if (card.response.priorDominated) "prior-dominated" else "personal evidence")
+    }
+    return (movers + doses).ifEmpty {
+        listOf("What moves you: insufficient paired journal and outcome days")
+    }
+}
+
 // MARK: - What moves your Charge
 
 @Composable

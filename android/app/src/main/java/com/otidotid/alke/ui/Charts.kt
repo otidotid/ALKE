@@ -350,6 +350,9 @@ fun LineChart(
     modifier: Modifier,
     color: Color = Palette.accent,
     fill: Boolean = true,
+    // Opt-in visual emphasis for ALKE Heart Rate Timeline only.
+    // Default false preserves every other chart's existing styling and geometry.
+    emphasizedStroke: Boolean = false,
     // Default OFF so the long-standing static LineCharts across the app (Today HR, Stress, Apple
     // Health, Trends Explore, the Health HR section) stay static; the screens that want the new
     // tap/swipe-to-inspect interaction opt in explicitly (Sleep, Trends, the Vital Signs detail).
@@ -519,9 +522,10 @@ fun LineChart(
             modifier = Modifier
                 .fillMaxSize()
                 .drawWithCache {
-                    val strokePx = 2.5f
-                    val topPad = strokePx + 4f
-                    val bottomPad = strokePx + 4f
+                    val strokePx = if (emphasizedStroke) 3.5.dp.toPx() else 2.5f
+                    val edgePad = if (emphasizedStroke) strokePx * 1.6f + 4f else strokePx + 4f
+                    val topPad = edgePad
+                    val bottomPad = edgePad
                     val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad, yDomain, cleanTimestamps)
                     // Same bounds as the series, through the same helper, so the rule cannot end up at a
                     // plausible-looking wrong height if either scale ever changes.
@@ -568,7 +572,11 @@ fun LineChart(
                         } else emptyList()
                         val fillBrush = if (fill && cleanPointColors == null) {
                             Brush.verticalGradient(
-                                colors = listOf(
+                                colors = if (emphasizedStroke) listOf(
+                                    color.copy(alpha = 0.25f),
+                                    color.copy(alpha = 0.08f),
+                                    Color.Transparent,
+                                ) else listOf(
                                     color.copy(alpha = StrandAlpha.chartFillStrong),
                                     color.copy(alpha = StrandAlpha.chartFillSoft),
                                     Color.Transparent,
@@ -586,6 +594,11 @@ fun LineChart(
                             }
                         } else emptyList()
                         val lineStroke = Stroke(width = strokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        val softGlowStroke = if (emphasizedStroke) Stroke(
+                            width = strokePx * 2.6f,
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round,
+                        ) else null
                         onDrawBehind {
                             // Under the fill and the line: the rule annotates the series rather than
                             // competing with it.
@@ -598,6 +611,15 @@ fun LineChart(
                             // The line itself. A zone-colored chart assigns each sampled interval the
                             // zone at its starting bucket; gaps still follow the same segment ranges.
                             if (cleanPointColors == null) {
+                                // The glow is deliberately faint and follows precisely the same
+                                // segmented path. Never bridge missing HR samples or invent peaks.
+                                if (softGlowStroke != null) {
+                                    for (path in linePaths) drawPath(
+                                        path = path,
+                                        color = color.copy(alpha = 0.13f),
+                                        style = softGlowStroke,
+                                    )
+                                }
                                 for (path in linePaths) drawPath(path = path, color = color, style = lineStroke)
                             } else {
                                 for (range in segments) {

@@ -1905,7 +1905,6 @@ fun AlkeMeExperience(
     onBackupRestore: () -> Unit,
     onOpenTestCentre: () -> Unit,
     onOpenSelfHostedPush: () -> Unit,
-    onOpenStepsCalibration: () -> Unit,
 ) {
     var showDockEditor by remember { mutableStateOf(false) }
     var personalSettingsExpanded by rememberSaveable { mutableStateOf(false) }
@@ -1918,7 +1917,6 @@ fun AlkeMeExperience(
         onOpenTestCentre = onOpenTestCentre,
         onOpenBackupSync = onBackupRestore,
         onOpenSelfHostedPush = onOpenSelfHostedPush,
-        onOpenStepsCalibration = onOpenStepsCalibration,
         showSettingsBody = personalSettingsExpanded,
         meHeader = {
             AlkeSectionTitle("Quick access")

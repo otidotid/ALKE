@@ -164,7 +164,7 @@ import com.otidotid.alke.analytics.ClockFormatPreference
 //    store in the app, so HealthScreen's age-agnostic HR-max default can later read
 //    from it. Values persist immediately on every change.
 //  - macOS used native +/- Steppers; Compose has no Stepper, so each numeric field
-//    is a tabular value flanked by round −/+ buttons (same intent, same ranges).
+//    is a tabular value flanked by round ΓêÆ/+ buttons (same intent, same ranges).
 //  - The strap "Re-scan / Disconnect" controls map to the ViewModel's connect() /
 //    disconnect() pass-throughs.
 //  - Backup export/import run through SAF (CreateDocument / OpenDocument); the macOS
@@ -256,8 +256,8 @@ class ProfileStore(private val prefs: SharedPreferences) {
             .apply()
 
     /**
-     * Waist circumference in cm; 0 = unset (the Fitness Age VO₂max estimate is hidden until a waist
-     * is entered). Optional — it only unlocks the VO₂max read-out and never moves the headline Fitness
+     * Waist circumference in cm; 0 = unset (the Fitness Age VOΓéémax estimate is hidden until a waist
+     * is entered). Optional — it only unlocks the VOΓéémax read-out and never moves the headline Fitness
      * Age (the engine's body term cancels). No coercion floor (0 has to remain a sentinel for "unset");
      * the upper bound is clamped so a fat-fingered entry can't run away.
      */
@@ -286,7 +286,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
      * The analytics [UserProfile] for this store — the ONE place the mapping lives.
      *
      * Every field matters somewhere and a missing one fails silently rather than loudly. Dropping
-     * [waistCm] does not blank VO₂max, it swaps the estimator: `FitnessAgeEngine.compute` returns a
+     * [waistCm] does not blank VOΓéémax, it swaps the estimator: `FitnessAgeEngine.compute` returns a
      * waist-based Nes value only when a waist is supplied, and `fitnessAgeRows` otherwise falls back to
      * the Uth HR-ratio formula and writes THAT under the same "vo2max_est" key. Two passes built two
      * profiles, one of them lost the waist, and the card alternated between the two estimators with no
@@ -302,7 +302,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
         waistCm = waistCm,
     )
 
-    // ── Steps ESTIMATE calibration (WHOOP 4.0; StepsEstimateEngine) ─────────────────────────────
+    // ΓöÇΓöÇ Steps ESTIMATE calibration (WHOOP 4.0; StepsEstimateEngine) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     // Mirror of the macOS ProfileStore fields: the engine writes the auto-fit each analytics pass and
     // the Settings/Steps screen reads them. [stepsManualCoefficient] is the ONLY user-settable field
     // (0 = auto-fit / null to the engine; > 0 = manual override fed into calibrate()); the other three
@@ -401,7 +401,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
         hrZoneThresholds = current
     }
 
-    // ── Backup settings snapshot/apply (#1000) ──────────────────────────────────────────────────
+    // ΓöÇΓöÇ Backup settings snapshot/apply (#1000) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     // The profile half of a `.alkebak`'s `settings.json`. Canonical key strings mirror
     // `BackupSettingsCodec.WHITELIST` (and the Apple `BackupSettings.whitelist`) exactly — note
     // canonical `profile.hrMax` maps onto this store's `hr_max_override` pref. Lives on ProfileStore
@@ -506,7 +506,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
             else -> 1.0
         }
 
-        // ── #146 age <-> date-of-birth ──────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ #146 age <-> date-of-birth ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
         /** Whole years between the DOB and today (floor — a birthday not yet reached doesn't count).
          *  Uses the device's default zone so the rollover matches the user's local calendar. Mirrors
          *  the Apple `ProfileStore.years(from:to:)`. */
@@ -528,7 +528,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
         /**
          * One increment/decrement of the calibration divisor, snapped to the increment grid and
          * clamped to [STEP_SCALE_MIN]..[STEP_SCALE_MAX]. Decrement uses the increment for the
-         * *target* band so the up/down sequence is symmetric at band boundaries (e.g. 5.0 −1 → 4.0,
+         * *target* band so the up/down sequence is symmetric at band boundaries (e.g. 5.0 ΓêÆ1 → 4.0,
          * 4.0 +0.5 → 4.5). Mirrors macOS `ProfileStore.steppedStepScale`.
          */
         fun steppedStepScale(value: Double, up: Boolean): Double {
@@ -550,7 +550,6 @@ fun SettingsScreen(
     onOpenTestCentre: () -> Unit = {},
     onOpenBackupSync: () -> Unit = {},
     onOpenSelfHostedPush: () -> Unit = {},
-    onOpenStepsCalibration: () -> Unit = {},
     meHeader: @Composable () -> Unit = {},
     showSettingsBody: Boolean = true,
 ) {
@@ -650,10 +649,6 @@ fun SettingsScreen(
     // Fixes a baseline poisoned by a bad first week (worn sick, or early nights that anchored too high).
     var showRecalibrateConfirm by remember { mutableStateOf(false) }
 
-    // Steps-estimate calibration screen (WHOOP 4.0), reached from the Profile card's "Steps estimate"
-    // tap-through. Mirrors the macOS StepsCalibrationSheet: honest explainer + current fit + a recent
-    // estimated-vs-phone table + a manual coefficient override. Full-screen Dialog like the guide above.
-    var showStepsCalibration by remember { mutableStateOf(false) }
     var dayCycleMode by remember { mutableStateOf(AlkePrefs.dayCycleMode(context)) }
 
     // Whether the "Advanced" disclosure (experimental probes, diagnostics, raw-sensor export, Trends
@@ -1154,154 +1149,7 @@ fun SettingsScreen(
                     }
                 }
                 SettingsRowDivider()
-                // Step calibration (#139/#132): daily steps = @57 counter ticks / this divisor.
-                // 1.0 = raw pass-through until the true 5/MG tick rate is known. The divisor goes
-                // up to 30 because a 5/MG motion counter can overcount by ~24×; the stepper uses a
-                // variable increment (fine near 1.0, coarse up top) so high values stay reachable.
-                SettingsFormRow(label = uiString(R.string.l10n_settings_screen_step_calibration_351c09bf)) {
-                    StepperField(
-                        value = "%.1f".format(profile.stepTicksPerStep),
-                        accessibility = "Step calibration, %.1f counter ticks per step"
-                            .format(profile.stepTicksPerStep),
-                        onMinus = {
-                            mutate {
-                                profile.stepTicksPerStep = ProfileStore.steppedStepScale(
-                                    profile.stepTicksPerStep,
-                                    up = false
-                                )
-                            }
-                        },
-                        onPlus = {
-                            mutate {
-                                profile.stepTicksPerStep = ProfileStore.steppedStepScale(
-                                    profile.stepTicksPerStep,
-                                    up = true
-                                )
-                            }
-                        },
-                    )
-                }
-                Text(
-                    uiString(R.string.l10n_settings_screen_counter_ticks_per_step_leave_at_3ce8c1d5),
-                    style = AlkeType.footnote,
-                    color = Palette.textTertiary,
-                )
-                SettingsRowDivider()
-                // Tap-through to the WHOOP 4.0 steps-ESTIMATE calibration (a SEPARATE thing from the 5/MG
-                // @57 counter divisor above): a 4.0 sends no step count, so ALKE estimates steps from
-                // motion and calibrates that to the phone. Opens the explainer + fit + comparison + manual
-                // override screen. Mirrors the macOS Profile "Steps estimate" row.
-                val stepsSummary = when {
-                    profile.stepsManualCoefficient > 0 -> "Manual"
-                    profile.stepsCalibrationCoefficient > 0 ->
-                        "Auto · ${StepsCalibrationFormat.confidenceLabel(profile.stepsCalibrationConfidence)} confidence"
-
-                    else -> "Not calibrated"
-                }
-                val stepsRowInteraction = remember { MutableInteractionSource() }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 44.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .liquidPress(stepsRowInteraction)
-                        .clickable(
-                            interactionSource = stepsRowInteraction,
-                            indication = null,
-                        ) { onOpenStepsCalibration() }
-                        .semantics {
-                            contentDescription =
-                                uiString(
-                                    R.string.l10n_settings_screen_steps_estimate_calibration_stepssummary_opens_the_d6fbf995,
-                                    stepsSummary
-                                )
-                        }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Text(
-                        uiString(R.string.l10n_settings_screen_steps_estimate_ce7a604d),
-                        style = AlkeType.body,
-                        color = Palette.textPrimary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        stepsSummary,
-                        style = AlkeType.footnote,
-                        color = if (profile.stepsManualCoefficient > 0) Palette.accent else Palette.textTertiary,
-                    )
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = Palette.textTertiary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                Text(
-                    uiString(R.string.l10n_settings_screen_for_a_whoop_4_0_which_df865854),
-                    style = AlkeType.footnote,
-                    color = Palette.textTertiary,
-                )
-            }
-        }
-
-        // --- Daily cycle ---
-        SettingsCard(
-            collapsible = true,
-            icon = Icons.Filled.Autorenew,
-            title = uiString(R.string.settings_day_cycle_title),
-            blurb = uiString(R.string.settings_day_cycle_description),
-        ) {
-            Column {
-                SettingsFormRow(label = uiString(R.string.settings_day_cycle_starts)) {
-                    SegmentedPillControl(
-                        items = listOf(DayCycleMode.SLEEP_ONSET, DayCycleMode.MIDNIGHT),
-                        selection = dayCycleMode,
-                        label = {
-                            if (it == DayCycleMode.SLEEP_ONSET) uiString(R.string.settings_day_cycle_sleep)
-                            else uiString(R.string.settings_day_cycle_midnight)
-                        },
-                        onSelect = {
-                            dayCycleMode = it
-                            vm.setDayCycleMode(it)
-                        },
-                    )
-                }
-                Text(
-                    text = if (dayCycleMode == DayCycleMode.SLEEP_ONSET) {
-                        uiString(R.string.settings_day_cycle_sleep_description)
-                    } else {
-                        uiString(R.string.settings_day_cycle_midnight_description)
-                    },
-                    style = AlkeType.footnote,
-                    color = Palette.textTertiary,
-                )
-            }
-        }
-
-        // --- Units ---
-        // Independent body and exercise-distance choices plus temperature/effort overrides. Display-only.
-        SettingsCard(
-            collapsible = true,
-            icon = Icons.Filled.Straighten,
-            title = uiString(R.string.l10n_settings_screen_units_12748281),
-            blurb = uiString(R.string.units_settings_blurb),
-        ) {
-            Column {
-                SettingsFormRow(label = uiString(R.string.units_body_measurements)) {
-                    SegmentedPillControl(
-                        items = listOf(UnitSystem.METRIC, UnitSystem.IMPERIAL),
-                        selection = unitSystem,
-                        label = { if (it == UnitSystem.METRIC) "Metric" else "Imperial" },
-                        onSelect = {
-                            unitSystem = it
-                            AlkePrefs.setUnitSystem(context, it)
-                        },
-                    )
-                }
-                SettingsRowDivider()
-                SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
+SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     SegmentedPillControl(
                         items = listOf(UnitSystem.METRIC, UnitSystem.IMPERIAL),
                         selection = distanceUnitSystem,
@@ -1341,7 +1189,7 @@ fun SettingsScreen(
                 SettingsRowDivider()
                 SettingsFormRow(label = uiString(R.string.l10n_settings_screen_skin_temperature_fc103030)) {
                     // #1846: lead with a temperature ("33.5 °C") or with the move from your own baseline
-                    // ("-0.1 Î”°C"). Only a PREFERENCE — a night that measured just one of the two still
+                    // ("-0.1 ├ÄΓÇ¥°C"). Only a PREFERENCE — a night that measured just one of the two still
                     // shows that one, so the choice can never blank a card.
                     SegmentedPillControl(
                         items = listOf(
@@ -2141,7 +1989,7 @@ fun SettingsScreen(
                                 color = Palette.textSecondary,
                             )
                         }
-                        Text("›", style = AlkeType.title2, color = Palette.accent)
+                        Text("ΓÇ║", style = AlkeType.title2, color = Palette.accent)
                     }
                 }
             }
@@ -2679,7 +2527,7 @@ fun SettingsScreen(
 
                         // --- #103/queue-11a: Blood Oxygen strap estimate — OFF by default. ---
                         // Device-conditional (see IntelligenceEngine.nightlySpo2CeilingMean / .nightlySpo2CandidateMean):
-                        // a WHOOP 5/MG strap computes a nightly SpO₂ candidate at byte @82 of the V18Aux stream
+                        // a WHOOP 5/MG strap computes a nightly SpOΓéé candidate at byte @82 of the V18Aux stream
                         // (cross-device evidence split, corr +0.99 on 8 nights but 2 nights moved opposite); an
                         // Oura ring's own decoded 0x6F SpO2 runs high on the wire, so this instead surfaces the
                         // ceiling@100 mean (each sample capped at 100% before averaging), which has matched the
@@ -2722,7 +2570,7 @@ fun SettingsScreen(
                             )
                         }
                         Text(
-                            "Surfaces your strap's nightly SpO₂ estimate in the Blood Oxygen tile when no " +
+                            "Surfaces your strap's nightly SpOΓéé estimate in the Blood Oxygen tile when no " +
                                     "calibrated percentage is available: a WHOOP 5.0/MG's @82 candidate byte, or an " +
                                     "Oura ring's own reading with each sample capped at 100% first (the ring's raw " +
                                     "reading runs high otherwise). This is an UNVERIFIED strap-computed value — the " +
@@ -2736,7 +2584,7 @@ fun SettingsScreen(
 
                         // --- #463: Personal daytime-stress baseline — OFF by default. ---
                         // Scores today's intraday stress timeline against a PERSONAL cross-day rolling baseline
-                        // (Oura-style) instead of the day's own calm hours. The validated râ‰ˆ0.6 HR-only margin is
+                        // (Oura-style) instead of the day's own calm hours. The validated r├óΓÇ░╦å0.6 HR-only margin is
                         // single-subject so far, so it ships behind a default-off toggle per the derived-biosignal
                         // rule. Display-only: never fed into recovery/illness. Mirrors the iOS toggle.
                         SettingsRowDivider()
@@ -2964,7 +2812,7 @@ fun SettingsScreen(
                 SettingsRowDivider()
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_rhythm_experimental_12d357da),
-                    detail = "An experimental picture of your beat-to-beat timing: a Poincaré scatter and plain regularity stats from quiet resting windows. Not an ECG and not a diagnosis; you'll read a short disclaimer and accept before it turns on.",
+                    detail = "An experimental picture of your beat-to-beat timing: a Poincar├⌐ scatter and plain regularity stats from quiet resting windows. Not an ECG and not a diagnosis; you'll read a short disclaimer and accept before it turns on.",
                     checked = rhythmEnabled,
                     onCheckedChange = {
                         // Enabling here just un-gates the experimental item; the screen itself still shows
@@ -3243,7 +3091,7 @@ fun SettingsScreen(
                         Text("Data sources & provenance", style = AlkeType.headline, color = Palette.textPrimary)
                         Text("Current day: ${latest?.day ?: "No daily row"}", style = AlkeType.footnote, color = Palette.textSecondary)
                         Text("Oxygen: ${if (latest?.spo2Pct != null) "ALKE computed / calibrated" else "No data"}", style = AlkeType.footnote, color = Palette.textSecondary)
-                        Text("Skin temperature: ${if (latest?.skinTempC != null) "${if (skinEstimated) "â‰™ " else ""}${latest.skinTempC} °C · ${skinSource ?: "resolved winner"}" else "No data"}", style = AlkeType.footnote, color = Palette.textSecondary)
+                        Text("Skin temperature: ${if (latest?.skinTempC != null) "${if (skinEstimated) "≈ " else ""}${String.format(java.util.Locale.US, "%.1f", latest.skinTempC)} °C · ${skinSource ?: "resolved winner"}" else "No data"}", style = AlkeType.footnote, color = Palette.textSecondary)
                         Text(
                             "Imported measurements remain authoritative.",
                             style = AlkeType.caption,
@@ -3389,7 +3237,7 @@ fun SettingsScreen(
                                 color = Palette.textSecondary,
                             )
                         }
-                        Text("›", style = AlkeType.title2, color = Palette.accent)
+                        Text("ΓÇ║", style = AlkeType.title2, color = Palette.accent)
                     }
                 }
             }
@@ -3616,7 +3464,7 @@ private fun AccentCustomPicker(hex: String, onHexChange: (String) -> Unit) {
                     .border(2.dp, Color.White, CircleShape),
             )
         }
-        // Hue rail (0..360°).
+        // Hue rail (0..360┬░).
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()

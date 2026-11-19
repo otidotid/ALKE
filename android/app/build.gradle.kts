@@ -1,4 +1,4 @@
-import java.util.Properties
+﻿import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -7,7 +7,7 @@ plugins {
 }
 
 // Optional release signing. Credentials live in `keystore.properties` (git-ignored, never
-// committed); when it's absent â€” clones, CI without secrets â€” release falls back to the debug
+// committed); when it's absent Ã¢â‚¬â€ clones, CI without secrets Ã¢â‚¬â€ release falls back to the debug
 // key so `assembleRelease` always produces an installable APK. See docs/BUILD.md.
 val keystorePropsFile = rootProject.file("keystore.properties")
 val keystoreProps = Properties().apply {
@@ -45,8 +45,8 @@ android {
         minSdk = 26
         targetSdk = 34
         // ALKE Alpha 1: user-test build; no production signing or data migration changes.
-        versionCode = 587
-        versionName = "1.0.0-alpha.20.3-personal"
+        versionCode = 588
+        versionName = "1.0.0-alpha.21-steps-shadow"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_COACH_BASE_URL", "\"${cloudCoachBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
@@ -86,7 +86,7 @@ android {
             // Shipped UNMINIFIED for reliability. R8 minification crashes this app at runtime: full-mode
             // over-strips reflective paths, and even with full-mode OFF + broad keeps (com.otidotid.alke.** +
             // Tink/Worker/ViewModel) a minified build STILL died right after the terms gate on a real
-            // device â€” a library reflective path we couldn't pin without a device to trace. Offline app,
+            // device Ã¢â‚¬â€ a library reflective path we couldn't pin without a device to trace. Offline app,
             // a ~18 MB APK is fine. Re-enabling minify needs the exact crash trace + device verification.
             isMinifyEnabled = false
             isShrinkResources = false
@@ -118,8 +118,8 @@ android {
     }
 
     // Two clearly-distinct apps that install side-by-side:
-    //   â€¢ full â†’ "ALKE"      (com.otidotid.alke.whoop)     â€” the real app, starts empty, pair a strap / import.
-    //   â€¢ demo â†’ "ALKE Demo"  (com.otidotid.alke.whoop.demo) â€” preloaded with 120 days of synthetic data and
+    //   Ã¢â‚¬Â¢ full Ã¢â€ â€™ "ALKE"      (com.otidotid.alke.whoop)     Ã¢â‚¬â€ the real app, starts empty, pair a strap / import.
+    //   Ã¢â‚¬Â¢ demo Ã¢â€ â€™ "ALKE Demo"  (com.otidotid.alke.whoop.demo) Ã¢â‚¬â€ preloaded with 120 days of synthetic data and
     //                          a visible DEMO badge, so anyone can explore every screen with no strap.
     // Build e.g. ./gradlew assembleFullRelease assembleDemoRelease.
     flavorDimensions += "tier"
@@ -176,7 +176,7 @@ android {
     }
 }
 
-// Room schema JSON export â€” the Android half of the Room<->GRDB schema parity oracle (#775).
+// Room schema JSON export Ã¢â‚¬â€ the Android half of the Room<->GRDB schema parity oracle (#775).
 //
 // Room's KSP processor writes one JSON file per @Database version describing the EXACT `CREATE TABLE`
 // it generates: every column in declaration order with its affinity / NOT NULL / default, plus the
@@ -193,7 +193,7 @@ ksp {
     arg("room.schemaLocation", roomSchemaDir.get().asFile.absolutePath)
 }
 // Every KSP round for a Kotlin source set. Both users below start here and then diverge on the
-// UnitTest/AndroidTest rounds â€” in OPPOSITE directions, which is why this half is named rather than
+// UnitTest/AndroidTest rounds Ã¢â‚¬â€ in OPPOSITE directions, which is why this half is named rather than
 // spelled out twice:
 //   - [isMainSourceSetKspTask] EXCLUDES them, so Gradle is not told they output a directory they never
 //     write and then clears it out from under the round that did.
@@ -204,14 +204,14 @@ fun isKspKotlinTask(name: String) = name.startsWith("ksp") && name.endsWith("Kot
 
 // Room writes the export as a SIDE EFFECT of annotation processing, at a path Gradle knows nothing
 // about. Left undeclared, a KSP task that is UP-TO-DATE or restored FROM-CACHE leaves whatever the last
-// real execution wrote â€” so an entity edit that is later reverted keeps the stale export on disk and the
+// real execution wrote Ã¢â‚¬â€ so an entity edit that is later reverted keeps the stale export on disk and the
 // parity test grades the wrong schema. (Observed directly while building this: after reverting four
 // deliberately-broken entities, `kspFullDebugKotlin` reported UP-TO-DATE and `25.json` still described
 // the broken shape.) Declaring the directory as a task output puts it under Gradle's snapshot/restore,
 // so it is rewritten or restored in lockstep with the rest of KSP's output.
 //
 // Every MAIN-source-set variant shares this one directory, which is safe because the schema depends only
-// on the entities â€” not on flavor or build type â€” so two variants in the same build write byte-identical
+// on the entities Ã¢â‚¬â€ not on flavor or build type Ã¢â‚¬â€ so two variants in the same build write byte-identical
 // content and neither invalidates the other's snapshot.
 //
 // The `UnitTest`/`AndroidTest` KSP tasks are excluded deliberately, and the exclusion is load-bearing:
@@ -225,7 +225,7 @@ fun isMainSourceSetKspTask(name: String) =
 tasks.matching { isMainSourceSetKspTask(it.name) }.configureEach {
     outputs.dir(roomSchemaDir).withPropertyName("roomSchemaExport")
     // SELF-HEALING. Declaring the output is not sufficient on its own: the export can still go missing
-    // between builds (Gradle's stale-output cleanup removes it after the task graph is reconfigured â€”
+    // between builds (Gradle's stale-output cleanup removes it after the task graph is reconfigured Ã¢â‚¬â€
     // a rebase that touches this file is enough) while the task's own inputs are unchanged, so it stays
     // UP-TO-DATE and never rewrites it. Observed exactly that: three oracle tests failed with the
     // directory absent, and only `--rerun-tasks` brought it back. Treat an empty or missing export as
@@ -236,7 +236,7 @@ tasks.matching { isMainSourceSetKspTask(it.name) }.configureEach {
 }
 // The tests read a SNAPSHOT of the export, not the export itself. KSP's directory has several writers
 // across variants and source sets, and it is subject to Gradle's stale-output cleanup, so it can be
-// emptied between the KSP round that fills it and the test task that reads it â€” which is exactly what
+// emptied between the KSP round that fills it and the test task that reads it Ã¢â‚¬â€ which is exactly what
 // happened after a rebase touched this file: `kspFullDebugKotlin` executed, yet the oracle tests still
 // found the directory gone. This Sync task is the SOLE writer of its own output directory, so once the
 // copy is made nothing else can remove it, and Gradle snapshots/restores it like any other task output.
@@ -249,12 +249,12 @@ val syncRoomSchemaSnapshot = tasks.register<Sync>("syncRoomSchemaSnapshot") {
     // variant's KSP round writes byte-identical JSON. Depending on all of them would make a single
     // `testFullDebugUnitTest` run four KSP rounds instead of one.
     dependsOn(tasks.matching { it.name == "kspFullDebugKotlin" })
-    // Every KSP round writes `roomSchemaDir` â€” `room.schemaLocation` is set once, outside any variant
-    // block â€” so EVERY one of them is both a producer Sync must not race and a producer Gradle expects
+    // Every KSP round writes `roomSchemaDir` Ã¢â‚¬â€ `room.schemaLocation` is set once, outside any variant
+    // block Ã¢â‚¬â€ so EVERY one of them is both a producer Sync must not race and a producer Gradle expects
     // a declared relationship with. This was scoped to the UnitTest rounds, which covered the observed
     // hazard (unit-test KSP clearing the snapshot after Sync copied it) but left `kspFullReleaseKotlin`
-    // out. It is normally absent from the graph; pull it in â€” `lintVitalFullRelease` in the same
-    // invocation as the debug test tasks does â€” and Gradle fails the build for an undeclared
+    // out. It is normally absent from the graph; pull it in Ã¢â‚¬â€ `lintVitalFullRelease` in the same
+    // invocation as the debug test tasks does Ã¢â‚¬â€ and Gradle fails the build for an undeclared
     // producer/consumer pair, with an error that reads like a Room problem (#1711).
     //
     // Ordering only, so nothing is forced to execute and the one-variant `dependsOn` above keeps its
@@ -298,7 +298,7 @@ dependencies {
 
     // --- Home-screen widget (1.1.x: last line compatible with compileSdk 34) ---
     implementation("androidx.glance:glance-appwidget:1.1.1")
-    // Glance's own POM pins work-runtime 2.7.1 (Oct 2021) â€” pre-Android-14. Pin a current one
+    // Glance's own POM pins work-runtime 2.7.1 (Oct 2021) Ã¢â‚¬â€ pre-Android-14. Pin a current one
     // explicitly so the widget scheduler runs on a WorkManager that's maintained for targetSdk 34.
     // (2.10+ needs compileSdk 35; 2.9.x is the ceiling for this module.)
     implementation("androidx.work:work-runtime-ktx:2.9.0")

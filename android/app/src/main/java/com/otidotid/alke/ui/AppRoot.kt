@@ -210,11 +210,6 @@ internal enum class Destination(
     SelfHostedPush("self_hosted_push", R.string.nav_self_hosted_push, Icons.Filled.CloudSync),
     // Nested Settings destination shared by the Settings row and a blank WHOOP 4.0 Steps tile (#1515).
     // Deliberately absent from [drawerGroups]: it is contextual, not another top-level More item.
-    StepsCalibration(
-        "steps_calibration",
-        R.string.l10n_settings_screen_steps_estimate_ce7a604d,
-        Icons.Filled.Tune,
-    ),
     TestCentre("test_centre", R.string.nav_test_centre, Icons.Filled.BugReport),
     GroundTruthCollector("ground_truth_collector", R.string.ground_truth_title, Icons.Filled.Sensors),
 
@@ -858,7 +853,6 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onOpenMetric = { key -> nav.navigate("vital_detail/$key") },
                         // A blank, uncalibrated WHOOP 4.0 Steps tile opens the same calibration screen as
                         // Settings. A normal push returns Back to Today (#1515).
-                        onOpenStepsCalibration = { nav.navigate(Destination.StepsCalibration.route) },
                         onOpenSleep = { nav.navigateTopLevel(Destination.Sleep.route) },
                         // Optional Coupled view card (task #43): a normal push so back returns to Today.
                         onOpenCoupled = { nav.navigate(Destination.CoupledView.route) },
@@ -1027,19 +1021,6 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         }
                     }
                 }
-                composable(Destination.StepsCalibration.route) {
-                    val profile = remember(context) { ProfileStore.from(context) }
-                    var revision by remember { mutableStateOf(0) }
-                    // ProfileStore wraps SharedPreferences rather than snapshot state. Reading this counter
-                    // makes manual coefficient changes repaint the canonical screen immediately.
-                    @Suppress("UNUSED_VARIABLE") val tick = revision
-                    StepsCalibrationScreen(
-                        vm = viewModel,
-                        profile = profile,
-                        onProfileChanged = { revision++ },
-                        onClose = { nav.popBackStack() },
-                    )
-                }
                 composable(Destination.SelfHostedPush.route) { SelfHostedPushScreen() }
                 composable(Destination.TestCentre.route) {
                     TestCentreScreen(viewModel, onOpenGroundTruthCollector = {
@@ -1061,7 +1042,6 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onBackupRestore = { nav.navigate(Destination.BackupSync.route) },
                         onOpenTestCentre = { nav.navigate(Destination.TestCentre.route) },
                         onOpenSelfHostedPush = { nav.navigate(Destination.SelfHostedPush.route) },
-                        onOpenStepsCalibration = { nav.navigate(Destination.StepsCalibration.route) },
                     )
                 }
                 composable(Destination.AlkeAllModules.route) {

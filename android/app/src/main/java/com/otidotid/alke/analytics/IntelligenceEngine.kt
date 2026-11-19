@@ -413,7 +413,7 @@ object IntelligenceEngine {
         ownerSource: DayOwnerSource? = null,
         // Steps-estimate calibration I/O (kept pure-JVM, mirroring the Effort-rescore flagGet/flagSet):
         // [manualStepCoefficient] is the user's persisted manual override (null/0 = auto-fit), fed into
-        // StepsEstimateEngine.calibrate. [persistStepsCalibration] receives the fitted (or manual) model
+        // StepsFusionProduction.calibrate. [persistStepsCalibration] receives the automatic fitted model
         // each pass so the caller (AppViewModel) can mirror it into ProfileStore for the Settings/Steps
         // screen. Both default to no-op so existing callers / tests are unaffected.
         manualStepCoefficient: Double? = null,
@@ -2240,7 +2240,7 @@ object IntelligenceEngine {
         val calPoints = motionByDay.mapNotNull { (day, motion) ->
             refStepsByDay[day]?.let { StepsEstimateEngine.CalibrationPoint(motion = motion, steps = it) }
         }
-        val stepsCal = StepsEstimateEngine.calibrate(calPoints, manualOverride = manualStepCoefficient)
+        val stepsCal = StepsFusionProduction.calibrate(calPoints)
         if (stepsCal != null) {
             // Estimate + upsert for each recent scored day that has motion but NO real phone step count.
             val estRows = ArrayList<MetricSeriesRow>()

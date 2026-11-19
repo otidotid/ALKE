@@ -1,4 +1,4 @@
-package com.otidotid.alke.ui
+﻿package com.otidotid.alke.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -324,7 +324,6 @@ fun TodayScreen(
     onOpenMetric: (String) -> Unit = { onOpenHealth() },
     // A blank WHOOP 4.0 Steps tile can open calibration directly (#1515). AppRoot binds this to the same
     // nested destination Settings uses; other Steps states continue through [onOpenMetric].
-    onOpenStepsCalibration: () -> Unit = {},
     onOpenSleep: () -> Unit = {},
     // Optional Coupled view card (task #43): a tap-through to the WHOOP-style day screen. Defaulted to a
     // no-op so the call site stays compiling; AppRoot binds it to nav.navigate(CoupledView).
@@ -1892,7 +1891,6 @@ fun TodayScreen(
                                     detailed = keyMetricsDetailed,
                                     windowDays = keyMetricsWindowDays,
                                     onOpenMetric = onOpenMetric,
-                                    onOpenStepsCalibration = onOpenStepsCalibration,
                                 )
                             }
                         }
@@ -6059,14 +6057,8 @@ private fun MetricGrid(
     // night-detail pattern) via [onOpenMetric].
     onOpenMetric: (String) -> Unit = {},
     // Exception for the actionable blank WHOOP 4.0 state: it opens the canonical calibration screen.
-    onOpenStepsCalibration: () -> Unit = {},
 ) {
     val realStepsForDay = d?.steps ?: importedStepsForDay
-    val stepsOpenCalibration = stepsTileShouldOpenCalibration(
-        realSteps = realStepsForDay,
-        estimatedSteps = estimatedStepsForDay,
-        calibrationPrompt = stepsCalibrationPrompt,
-    )
 
     // FIX 3 (iOS `keyMetricsSection` parity): a 3-COLUMN grid of COMPACT liquid tiles, each an iOS `ktile`
     // — a 9sp/+1.2 overline label, a value + small unit, and a thin 8dp LiquidTube fill bar — REPLACING the
@@ -6270,7 +6262,7 @@ private fun MetricGrid(
         KeyMetric.RESTING_HR -> ({ onOpenMetric("rhr") })
         KeyMetric.BLOOD_OXYGEN -> ({ onOpenMetric("spo2") })
         KeyMetric.RESPIRATORY -> ({ onOpenMetric("resp") })
-        KeyMetric.STEPS -> if (stepsOpenCalibration) onOpenStepsCalibration else ({ onOpenMetric("steps_est") })
+        KeyMetric.STEPS -> ({ onOpenMetric("steps_est") })
         KeyMetric.CALORIES -> ({ onOpenMetric("active_kcal") })
         KeyMetric.WEIGHT -> null
         // Same "skin" vital_detail key `dashboardCardMetricKey(DashboardCard.SKIN_TEMP)` already routes

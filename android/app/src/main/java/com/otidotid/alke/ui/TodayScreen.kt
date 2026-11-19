@@ -64,6 +64,9 @@ import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
@@ -6927,19 +6930,19 @@ internal fun HeartRateTrendCard(
             ) {
                 if (alkeStyle) {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        AlkeHeartRateStat(Icons.Filled.KeyboardArrowDown, "MIN", "$min", Color(0xFF9BD1DD))
+                        AlkeHeartRateStat(Icons.Filled.VerticalAlignBottom, "MIN", "$min", Color(0xFF9BD1DD))
                     }
                     Box(Modifier.width(1.dp).height(32.dp).background(Color(0xFF31515E)))
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        AlkeHeartRateStat(Icons.Filled.Functions, "AVG", "$avg", Color(0xFF9BD1DD))
+                        AlkeHeartRateStat(Icons.Filled.RadioButtonChecked, "AVG", "$avg", Color(0xFF9BD1DD))
                     }
                     Box(Modifier.width(1.dp).height(32.dp).background(Color(0xFF31515E)))
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        AlkeHeartRateStat(Icons.Filled.KeyboardArrowUp, "MAX", "$max", Color(0xFF9BD1DD))
+                        AlkeHeartRateStat(Icons.Filled.VerticalAlignTop, "MAX", "$max", Color(0xFF9BD1DD))
                     }
                     Box(Modifier.width(1.dp).height(32.dp).background(Color(0xFF31515E)))
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        AlkeHeartRateStat(Icons.Filled.Favorite, "REST", displayMetric?.restingHr?.toString() ?: "—", Color(0xFF9BD1DD))
+                        AlkeHeartRateStat(Icons.Filled.MonitorHeart, "REST", displayMetric?.restingHr?.toString() ?: "—", Color(0xFF9BD1DD))
                     }
                 } else {
                     HrStatTile(uiString(R.string.today_hr_min), min, Icons.Filled.Favorite, Palette.metricRose, Modifier.weight(1f))

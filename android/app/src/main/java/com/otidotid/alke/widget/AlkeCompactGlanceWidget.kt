@@ -63,11 +63,11 @@ class AlkeCompactGlanceWidget : GlanceAppWidget() {
 }
 
 private fun compactWidgetSurface(dark: Boolean) =
-    ColorProvider(if (dark) Color(0xFF0B1324) else Color(0xFFF3F6FA))
+    ColorProvider(if (dark) Color(0xFF071B2A) else Color(0xFFF1F8FA))
 private fun compactWidgetTextPrimary(dark: Boolean) =
-    ColorProvider(if (dark) Color(0xFFF4F6F8) else Color(0xFF1A2230))
+    ColorProvider(if (dark) Color(0xFFF5FCFF) else Color(0xFF1A2230))
 private fun compactWidgetTextSecondary(dark: Boolean) =
-    ColorProvider(if (dark) Color(0xFFA8B3C3) else Color(0xFF657186))
+    ColorProvider(if (dark) Color(0xFF9BB9C5) else Color(0xFF657186))
 
 private fun compactBandColor(recovery: Int, dark: Boolean): ColorProvider = ColorProvider(
     when {
@@ -78,7 +78,7 @@ private fun compactBandColor(recovery: Int, dark: Boolean): ColorProvider = Colo
 )
 
 private fun compactEffortColor(dark: Boolean): ColorProvider =
-    ColorProvider(if (dark) Color(0xFF4FB6A8) else Color(0xFF2E7D74))
+    ColorProvider(if (dark) Color(0xFF26DEEB) else Color(0xFF087D91))
 
 @Composable
 private fun CompactWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
@@ -89,9 +89,9 @@ private fun CompactWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         modifier = GlanceModifier
             .fillMaxSize()
             .background(surface)
-            .cornerRadius(16.dp)
+            .cornerRadius(20.dp)
             .clickable(actionStartActivity<MainActivity>())
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically,
     ) {

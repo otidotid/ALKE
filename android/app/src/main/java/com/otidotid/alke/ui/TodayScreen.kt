@@ -1,4 +1,4 @@
-﻿package com.otidotid.alke.ui
+package com.otidotid.alke.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -6573,16 +6573,46 @@ private fun HeartRateChartShell(
 }
 
 @Composable
-private fun AlkeHeartRateStat(label: String, value: String, tint: Color) {
+private fun AlkeHeartRateStat(
+    icon: String,
+    label: String,
+    value: String,
+    tint: Color,
+) {
     Column(
-        modifier = Modifier.clip(RoundedCornerShape(13.dp))
-            .background(Color(0xFF123344))
-            .padding(horizontal = 7.dp, vertical = 11.dp),
+        modifier = Modifier.padding(
+            horizontal = 4.dp,
+            vertical = 7.dp,
+        ),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(label, color = Color(0xFF9BB9C5), fontSize = 10.sp, maxLines = 1)
-        Text(value, color = tint, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                icon,
+                color = tint,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            Text(
+                label,
+                color = Color(0xFF9BB9C5),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+            )
+        }
+        Text(
+            value,
+            color = tint,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
     }
 }
 
@@ -6885,15 +6915,23 @@ internal fun HeartRateTrendCard(
                     .background(Palette.hairline),
             )
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(Color(0xFF102F3F))
+                    .padding(
+                        horizontal = 5.dp,
+                        vertical = 2.dp,
+                    ),
+                horizontalArrangement =
+                    Arrangement.spacedBy(0.dp),
             ) {
                 if (alkeStyle) {
-                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("MIN", "$min", Color(0xFF26DEEB)) }
-                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("AVG", "$avg", Color(0xFFF5FCFF)) }
-                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("MAX", "$max", Color(0xFFF0BF60)) }
+                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("↓", "MIN", "$min", Color(0xFF55E8F2)) }
+                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("≈", "AVG", "$avg", Color(0xFFF5FCFF)) }
+                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("↑", "MAX", "$max", Color(0xFFF0BF60)) }
                     Box(Modifier.weight(1f)) {
-                        AlkeHeartRateStat("REST", displayMetric?.restingHr?.toString() ?: "—", Color(0xFF9BB9C5))
+                        AlkeHeartRateStat("♥", "REST", displayMetric?.restingHr?.toString() ?: "—", Color(0xFF8FCAD8))
                     }
                 } else {
                     HrStatTile(uiString(R.string.today_hr_min), min, Icons.Filled.Favorite, Palette.metricRose, Modifier.weight(1f))

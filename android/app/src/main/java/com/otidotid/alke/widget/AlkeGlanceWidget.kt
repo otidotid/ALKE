@@ -78,9 +78,9 @@ class AlkeGlanceWidget : GlanceAppWidget() {
 
 // Per-scheme widget colours (mirror the app palette; deepened gold/amber/orange on light for contrast
 // on the warm-paper card). The widget is a separate surface, so these are local — not Palette reads.
-private fun widgetSurface(dark: Boolean) = ColorProvider(if (dark) Color(0xFF0B1324) else Color(0xFFF3F6FA))
-private fun widgetTextPrimary(dark: Boolean) = ColorProvider(if (dark) Color(0xFFF4F6F8) else Color(0xFF1A2230))
-private fun widgetTextSecondary(dark: Boolean) = ColorProvider(if (dark) Color(0xFFA8B3C3) else Color(0xFF657186))
+private fun widgetSurface(dark: Boolean) = ColorProvider(if (dark) Color(0xFF071B2A) else Color(0xFFF1F8FA))
+private fun widgetTextPrimary(dark: Boolean) = ColorProvider(if (dark) Color(0xFFF5FCFF) else Color(0xFF1A2230))
+private fun widgetTextSecondary(dark: Boolean) = ColorProvider(if (dark) Color(0xFF9BB9C5) else Color(0xFF657186))
 
 /** Recovery-band colour, the app-wide 67 / 34 cuts (RecoveryScorer.band); deepened on light. Charge and
  *  Rest both read on the recovery band in the app, so they share this. */
@@ -95,7 +95,7 @@ private fun bandColor(recovery: Int, dark: Boolean): ColorProvider = ColorProvid
 /** Effort tint — the app's strain colour (Palette.strain066), a distinct teal so Effort doesn't read as
  *  another recovery band. Deepened on light for contrast on the warm-paper card. (#516) */
 private fun effortColor(dark: Boolean): ColorProvider =
-    ColorProvider(if (dark) Color(0xFF4FB6A8) else Color(0xFF2E7D74))
+    ColorProvider(if (dark) Color(0xFF26DEEB) else Color(0xFF087D91))
 
 @Composable
 private fun WidgetContent(snap: WidgetSnapshot, dark: Boolean) {
@@ -106,9 +106,9 @@ private fun WidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         modifier = GlanceModifier
             .fillMaxSize()
             .background(surface)
-            .cornerRadius(16.dp)
+            .cornerRadius(22.dp)
             .clickable(actionStartActivity<MainActivity>())
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 13.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically,
     ) {

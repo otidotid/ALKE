@@ -1,0 +1,84 @@
+﻿name: ALKE Personal Quality Gate
+
+on:
+  pull_request:
+    branches: [alke/alpha20-insight-cleanup]
+  push:
+    branches: [alke/alpha20-insight-cleanup]
+  workflow_dispatch:
+    inputs:
+      run_full_tests:
+        description: Run the complete Personal unit-test suite
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alke-personal-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  personal-quality-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ALKE_CLOUD_COACH_URL: ${{ vars.ALKE_CLOUD_COACH_URL || 'https://alke-cloud-coach.anandhito-prakoso.workers.dev' }}
+      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID || '542598370283-1gr0qq8ad4ga691k3lvrotma140hcu5r.apps.googleusercontent.com' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Validate version and branch contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Eq 'versionCode = [0-9]+' android/app/build.gradle.kts
+          grep -Eq 'versionName = "1\.0\.0-alpha\.[^"]+"' android/app/build.gradle.kts
+          test "${{ github.ref_name }}" = "alke/alpha20-insight-cleanup" || test "${{ github.event_name }}" = "pull_request"
+      - name: Targeted Personal release tests
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest \
+            --tests 'com.otidotid.alke.release.ReleaseContractTest' \
+            --tests 'com.otidotid.alke.ai.StepsAiValidatorClientTest' \
+            --tests 'com.otidotid.alke.analytics.StepsFusionProductionTest' \
+            --tests 'com.otidotid.alke.analytics.StepsEstimateEngineTest' \
+            --tests 'com.otidotid.alke.analytics.StepsCounterTest'
+      - name: Complete Personal tests
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_full_tests }}
+        working-directory: android
+        run: ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest
+      - name: Assemble Personal Debug
+        working-directory: android
+        run: ./gradlew -PstagingRelease --no-daemon :app:assemblePersonalDebug
+      - name: Validate Personal APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+          test -s "$apk"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          package_line="$($aapt dump badging "$apk" | head -1)"
+          echo "$package_line" | grep -q "name='com.otidotid.alke.personal.debug'"
+          version_code="$(grep -Eo 'versionCode = [0-9]+' android/app/build.gradle.kts | head -1 | grep -Eo '[0-9]+')"
+          echo "$package_line" | grep -q "versionCode='$version_code'"
+          unzip -t "$apk" >/dev/null
+          ! unzip -Z1 "$apk" | grep -Eq '(\.p12$|\.jks$|\.keystore$|local\.properties$|\.noopbak$|\.alkebak$)'
+          mkdir -p release-output
+          cp "$apk" "release-output/ALKE-personal-v${version_code}-unsigned.apk"
+          sha256sum "release-output/ALKE-personal-v${version_code}-unsigned.apk" > "release-output/ALKE-personal-v${version_code}-unsigned.apk.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-Personal-Validated-Unsigned
+          path: release-output/*
+          if-no-files-found: error
+          retention-days: 14

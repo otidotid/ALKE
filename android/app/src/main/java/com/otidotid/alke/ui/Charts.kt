@@ -350,9 +350,6 @@ fun LineChart(
     modifier: Modifier,
     color: Color = Palette.accent,
     fill: Boolean = true,
-    // Opt-in visual emphasis for ALKE Heart Rate Timeline only.
-    // Default false preserves every other chart's existing styling and geometry.
-    emphasizedStroke: Boolean = false,
     // Default OFF so the long-standing static LineCharts across the app (Today HR, Stress, Apple
     // Health, Trends Explore, the Health HR section) stay static; the screens that want the new
     // tap/swipe-to-inspect interaction opt in explicitly (Sleep, Trends, the Vital Signs detail).
@@ -406,6 +403,9 @@ fun LineChart(
     // draws nothing, so every existing caller is byte-identical. A value outside the plotted range draws
     // nothing either: `yForValue` returns null rather than clamping a rule to an edge it does not sit on.
     baselineValue: Double? = null,
+    // Opt-in visual emphasis for ALKE Heart Rate Timeline only.
+    // Keeping this LAST preserves all existing positional LineChart callers.
+    emphasizedStroke: Boolean = false,
 ) {
     val cleanValues = remember(values) { values.filter { it.isFinite() } }
     // Timestamps filtered by the SAME finiteness cut as cleanValues so indices stay aligned;

@@ -64,6 +64,9 @@ import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
@@ -6574,43 +6577,41 @@ private fun HeartRateChartShell(
 
 @Composable
 private fun AlkeHeartRateStat(
-    icon: String,
+    icon: ImageVector,
     label: String,
     value: String,
     tint: Color,
 ) {
     Column(
-        modifier = Modifier.padding(
-            horizontal = 4.dp,
-            vertical = 7.dp,
-        ),
+        modifier = Modifier.padding(horizontal = 2.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
+        // Premium compact readout: icon and BPM value occupy one horizontal line.
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                icon,
-                color = tint,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
+            Icon(
+                imageVector = icon,
+                contentDescription = null, // The text label identifies the metric.
+                tint = tint,
+                modifier = Modifier.size(16.dp),
             )
             Text(
-                label,
-                color = Color(0xFF9BB9C5),
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Medium,
+                value,
+                color = Color(0xFFF5FCFF),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
         }
         Text(
-            value,
-            color = tint,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
+            label,
+            color = Color(0xFF9BB9C5),
+            fontSize = 10.sp,
+            letterSpacing = 0.6.sp,
+            fontWeight = FontWeight.Medium,
             maxLines = 1,
         )
     }
@@ -6917,21 +6918,31 @@ internal fun HeartRateTrendCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(Color(0xFF102F3F))
-                    .padding(
-                        horizontal = 5.dp,
-                        vertical = 2.dp,
+                    .then(
+                        if (alkeStyle) Modifier
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(Color(0xFF102F3F))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                        else Modifier,
                     ),
-                horizontalArrangement =
-                    Arrangement.spacedBy(0.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 if (alkeStyle) {
-                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("↓", "MIN", "$min", Color(0xFF55E8F2)) }
-                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("≈", "AVG", "$avg", Color(0xFFF5FCFF)) }
-                    Box(Modifier.weight(1f)) { AlkeHeartRateStat("↑", "MAX", "$max", Color(0xFFF0BF60)) }
-                    Box(Modifier.weight(1f)) {
-                        AlkeHeartRateStat("♥", "REST", displayMetric?.restingHr?.toString() ?: "—", Color(0xFF8FCAD8))
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        AlkeHeartRateStat(Icons.Filled.VerticalAlignBottom, "MIN", "$min", Color(0xFF9BD1DD))
+                    }
+                    Box(Modifier.width(1.dp).height(32.dp).background(Color(0xFF31515E)))
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        AlkeHeartRateStat(Icons.Filled.RadioButtonChecked, "AVG", "$avg", Color(0xFF9BD1DD))
+                    }
+                    Box(Modifier.width(1.dp).height(32.dp).background(Color(0xFF31515E)))
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        AlkeHeartRateStat(Icons.Filled.VerticalAlignTop, "MAX", "$max", Color(0xFF9BD1DD))
+                    }
+                    Box(Modifier.width(1.dp).height(32.dp).background(Color(0xFF31515E)))
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        AlkeHeartRateStat(Icons.Filled.MonitorHeart, "REST", displayMetric?.restingHr?.toString() ?: "—", Color(0xFF9BD1DD))
                     }
                 } else {
                     HrStatTile(uiString(R.string.today_hr_min), min, Icons.Filled.Favorite, Palette.metricRose, Modifier.weight(1f))
@@ -7170,14 +7181,16 @@ private fun OverviewHRChart(
     val n = bpm.size
 
     // Geometry constants copied verbatim from LineChart/pointsFor so overlay positions land on the curve.
-    val strokePx = 2.5f
-    val topPad = strokePx + 4f
-    val bottomPad = strokePx + 4f
+    // Match the LineChart premium stroke geometry exactly; keeps event and endpoint markers aligned.
+    val density = LocalDensity.current
+    val strokePx = if (alkeStyle) with(density) { 3.5.dp.toPx() } else 2.5f
+    val edgePad = if (alkeStyle) strokePx * 1.6f + 4f else strokePx + 4f
+    val topPad = edgePad
+    val bottomPad = edgePad
 
     // Plot pixel size, captured from the Box that wraps both the line and the overlay.
     var plotW by remember { mutableStateOf(0f) }
     var plotH by remember { mutableStateOf(0f) }
-    val density = LocalDensity.current
 
     // ── time → x helpers ──
     // Fractional list index for a wall-clock unix-seconds time, interpolating between bucket
@@ -7297,6 +7310,7 @@ private fun OverviewHRChart(
             modifier = Modifier.fillMaxSize(),
             color = if (alkeStyle) Color(0xFF26DEEB) else Palette.accent,
             fill = true,
+            emphasizedStroke = alkeStyle,
             selectionEnabled = true,
             // Scrub read-out: the timestamps prefix the sample's local clock time and the #463
             // formatter carries the unit — "14:32 · 87 bpm" instead of a bare "87".

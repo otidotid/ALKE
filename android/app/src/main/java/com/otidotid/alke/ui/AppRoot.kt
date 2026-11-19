@@ -164,8 +164,7 @@ internal enum class Destination(
     // Group: Recovery
     Sleep("sleep", R.string.nav_sleep, Icons.Filled.Bedtime),
     Breathe("breathe", R.string.nav_breathe, Icons.Filled.Air),
-    Stress("stress", R.string.nav_stress, Icons.Filled.Spa),
-
+    Stress("stress", R.string.nav_stress, Icons.Filled.Spa), // internal detail route; not a dock module
     // Group: Activity
     Workouts("workouts", R.string.nav_workouts, Icons.Filled.FitnessCenter),
     Trends("trends", R.string.nav_trends, Icons.AutoMirrored.Filled.TrendingUp),
@@ -846,7 +845,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onOpenHydration = { nav.navigate(Destination.Hydration.route) },
                         // #706/#684: the dashboard cards draw a tappable chevron; wire each to its detail,
                         // matching iOS. Stress + the vitals are pushes; Sleep is a top-level tab switch.
-                        onOpenStress = { nav.navigate(Destination.Stress.route) },
+                        onOpenStress = { nav.navigate(Destination.Breathe.route) },
                         onOpenHealth = { nav.navigate(Destination.Health.route) },
                         // Every metric/vital card opens its OWN focused detail trend (vital_detail/<key>),
                         // not the shared Health hub (2026-07-03). Mirrors the iOS liquidCard metricDetail.
@@ -905,7 +904,12 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                     )
                 }
                 composable(Destination.Intervals.route) { IntervalsScreen(viewModel) }
-                composable(Destination.Breathe.route) { BreatheScreen(viewModel) }
+                composable(Destination.Breathe.route) {
+                    BreatheScreen(
+                        viewModel = viewModel,
+                        onOpenStress = { nav.navigate(Destination.Stress.route) },
+                    )
+                }
                 composable(Destination.Coach.route) {
                     // A normal push, so Back returns to the conversation (#2243).
                     CoachScreen(onOpenSettings = { nav.navigate(Destination.CoachSettings.route) })

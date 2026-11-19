@@ -218,7 +218,7 @@ private fun breatheModeLabel(mode: BreatheMode): String = when (mode) {
  * rolling RMSSD show the autonomic response building. Ports BreathingView.swift.
  */
 @Composable
-fun BreatheScreen(viewModel: AppViewModel) {
+fun BreatheScreen(viewModel: AppViewModel, onOpenStress: () -> Unit = {}) {
     val live by viewModel.live.collectAsStateWithLifecycle()
     val bpm by viewModel.bpm.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -780,6 +780,30 @@ fun BreatheScreen(viewModel: AppViewModel) {
         CoherenceCard(rmssd)
 
         if (!live.bonded) HapticHint()
+
+        Spacer(Modifier.height(8.dp))
+        SectionHeader("Physiological Stress", overline = "Stress & Breathe", trailing = "Timeline")
+        AlkeCard(tint = Palette.stressColor) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Review your calculated physiological stress timeline after your breathing tools.",
+                    style = AlkeType.body,
+                    color = Palette.textSecondary,
+                )
+                Text(
+                    "Stress is calculated locally from physiological signals. It is not a measure of psychological stress.",
+                    style = AlkeType.caption,
+                    color = Palette.textTertiary,
+                )
+                AlkeButton(
+                    text = "Open stress timeline",
+                    leadingIcon = Icons.Filled.GraphicEq,
+                    kind = AlkeButtonKind.Secondary,
+                    fullWidth = true,
+                    onClick = onOpenStress,
+                )
+            }
+        }
     }
 }
 

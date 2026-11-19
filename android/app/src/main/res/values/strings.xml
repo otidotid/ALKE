@@ -29,7 +29,7 @@
     <string name="sleep_status_waiting_body">Connect the strap and sync its history. ALKE will calculate the night when the overnight data arrives.</string>
     <string name="sleep_status_not_detected_title">Last night’s sleep wasn’t detected</string>
     <string name="sleep_status_not_detected_body">Sync finished, but ALKE couldn’t confidently identify a sleep window. Keep the strap connected and try Sync again; the older night below is still your latest detected sleep.</string>
-    <string name="nav_breathe">Breathe</string>
+    <string name="nav_breathe">Stress &amp; Breathe</string>
     <string name="nav_stress">Stress</string>
     <string name="nav_workouts">Workouts</string>
     <string name="nav_trends">Trends</string>

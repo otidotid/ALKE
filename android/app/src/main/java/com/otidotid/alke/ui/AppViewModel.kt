@@ -38,6 +38,8 @@ import com.otidotid.alke.ble.WhoopConnectionService
 import com.otidotid.alke.ble.WhoopModel
 import androidx.health.connect.client.HealthConnectClient
 import com.otidotid.alke.data.DailyMetric
+import com.otidotid.alke.data.MetricSeriesRow
+import com.otidotid.alke.ai.StepsAiValidatorClient
 import com.otidotid.alke.data.CycleTrackingStore
 import com.otidotid.alke.data.HrSample
 import com.otidotid.alke.data.WhoopRepository
@@ -76,6 +78,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.TimeZone
 import kotlin.math.roundToInt
+import java.time.LocalDate
+import java.time.ZoneId
+import kotlin.math.min
 import com.otidotid.alke.analytics.PersonalOxygenEngine
 
 /**
@@ -477,6 +482,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  workout union can follow a re-paired strap's fresh "whoop-<id>" instead of stranding its
      *  recordings under a read pinned to the literal "my-whoop" (#814 twin of the Workouts screen). */
     val deviceId = alkeApp.activeDeviceId
+    private val stepsAiValidator = StepsAiValidatorClient()
 
     /** Last (bins, daysObserved) computed on the collector pass. Reused by the cycle-tracking
      *  re-evaluates below so they need no store read of their own — without this, flipping the
@@ -1280,6 +1286,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             profileStore.stepsCalibrationSampleDays = cal.sampleDays
                             profileStore.stepsCalibrationConfidence = cal.confidence
                             profileStore.stepsCalibrationManual = cal.manual
+                            scheduleStepsAiValidation()
                         },
                         // Persisted steps-calibration motion folds. The analytics layer is Context-free, so
                         // the payload is read and written here; without it the sixty-day fold is re-paid in
@@ -1893,6 +1900,84 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _activeWorkout.value = updated
         // Re-snapshot the durable non-GPS session so a process kill keeps the latest accumulated HR (#529).
         persistNonGpsWorkout(updated)
+    }
+
+
+    /**
+     * Optional cloud validation after the local algorithm has completed.
+     * Never changes StepsFusionProduction. Raw steps are archived under steps_ai_raw; only a validated
+     * KEEP/ADJUST/PARTIAL result is written back to the existing steps_est key. Every failure keeps raw.
+     */
+    private fun scheduleStepsAiValidation() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val activeId = activeStrapId
+                val rawRow = repository.latestMetricComputedUnion(activeId, "steps_est") ?: return@runCatching
+                val rawSteps = rawRow.value.roundToInt().coerceIn(0, 100_000)
+                val prefs = AlkePrefs.of(appContext)
+                val stamp = "${rawRow.day}:$rawSteps"
+                if (prefs.getString("alke.steps.ai.lastValidatedStamp", null) == stamp) return@runCatching
+
+                val zone = ZoneId.systemDefault()
+                val day = LocalDate.parse(rawRow.day)
+                val from = day.atStartOfDay(zone).toEpochSecond()
+                val to = day.plusDays(1).atStartOfDay(zone).toEpochSecond() - 1L
+                val samples = repository.stepSamples(activeId, from, to, 20_000)
+                val byMinute = samples.groupBy { it.ts / 60L }
+                val walkMinutes = byMinute.count { (_, rows) -> rows.any { it.activityClass == 1 } }.toDouble()
+                val runMinutes = byMinute.count { (_, rows) -> rows.any { it.activityClass == 2 } }.toDouble()
+                val stillMinutes = byMinute.count { (_, rows) -> rows.any { it.activityClass == 0 } }.toDouble()
+                val coveredMinutes = byMinute.size
+                val sensorCoverage = (coveredMinutes / 1440.0).coerceIn(0.0, 1.0)
+                val motionVolume = samples.zipWithNext().sumOf { (a, b) ->
+                    kotlin.math.abs(b.counter.toLong() - a.counter.toLong()).toDouble()
+                }
+                val dayWorkouts = workouts.value.filter { workout ->
+                    workout.startTs in from..to
+                }
+                val workoutMinutes = dayWorkouts.sumOf { workout ->
+                    ((workout.endTs ?: workout.startTs) - workout.startTs).coerceAtLeast(0L)
+                } / 60.0
+                val workoutType = dayWorkouts.firstOrNull()?.sport.orEmpty()
+                val recentSteps = recentDays.value.mapNotNull { it.steps }.takeLast(14)
+                val algorithmConfidence = ProfileStore.from(appContext)
+                    .stepsCalibrationConfidence.coerceIn(0.0, 1.0)
+
+                val result = stepsAiValidator.validate(
+                    StepsAiValidatorClient.Context(
+                        day = rawRow.day,
+                        rawSteps = rawSteps,
+                        motionVolume = motionVolume,
+                        walkMinutes = walkMinutes,
+                        runMinutes = runMinutes,
+                        stillMinutes = stillMinutes,
+                        workoutType = workoutType,
+                        workoutMinutes = workoutMinutes,
+                        meanHeartRate = null,
+                        sensorCoverage = sensorCoverage,
+                        recentDailySteps = recentSteps,
+                        algorithmConfidence = algorithmConfidence,
+                    )
+                )
+
+                val computedId = repository.computedSourceIds(activeId).first()
+                repository.upsertMetricSeries(
+                    listOf(
+                        MetricSeriesRow(computedId, rawRow.day, "steps_ai_raw", rawSteps.toDouble()),
+                        MetricSeriesRow(computedId, rawRow.day, "steps_est", result.finalSteps.toDouble()),
+                        MetricSeriesRow(computedId, rawRow.day, "steps_ai_factor", result.factor),
+                        MetricSeriesRow(computedId, rawRow.day, "steps_ai_confidence", result.confidence),
+                    )
+                )
+                prefs.edit()
+                    .putString("alke.steps.ai.lastValidatedStamp", stamp)
+                    .putString("alke.steps.ai.lastStatus", result.status.name)
+                    .putString("alke.steps.ai.lastReason", result.reason.take(240))
+                    .apply()
+            }.onFailure {
+                // Fail open by design: local StepsFusionProduction output remains untouched.
+            }
+        }
     }
 
     // MARK: - Workouts screen (load + manual edit · relabel · dismiss · delete) (#107)

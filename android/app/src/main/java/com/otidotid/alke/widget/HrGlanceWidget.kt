@@ -159,8 +159,26 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         // and anyone who cannot perceive the dim, was told a carried-over reading was current. Marked on
         // the LIVE side, exactly as the sibling widget settled it (#1799): a stale value then carries no
         // claim rather than a contradicted one.
+        val staleLabel = if (
+            snap.heartRate != null &&
+            snap.heartRateStale
+        ) {
+            HrLastRecordedLabel.text(
+                lastHrAtMs = snap.heartRateAtMs,
+                nowMs = System.currentTimeMillis(),
+            )
+        } else {
+            null
+        }
+
         val liveSuffix =
-            if (snap.heartRateStale) "" else " " + uiString(R.string.l10n_today_screen_sync_chip_live_98aadb37)
+            if (snap.heartRateStale) {
+                " " + (staleLabel ?: "Last recorded")
+            } else {
+                " " + uiString(
+                    R.string.l10n_today_screen_sync_chip_live_98aadb37
+                )
+            }
         val hrSpoken = snap.heartRate
             ?.let {
                 "$hrLabel " + uiString(R.string.l10n_today_screen_value_bpm_complete_ab58df4e, it.toString(), liveSuffix)
@@ -222,7 +240,11 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
                 horizontalAlignment = Alignment.Horizontal.CenterHorizontally,
             ) {
                 Text(
-                    text = uiString(R.string.l10n_hr_glance_widget_updated_time_1b5feedb, time),
+                    text = staleLabel
+                        ?: uiString(
+                            R.string.l10n_hr_glance_widget_updated_time_1b5feedb,
+                            time,
+                        ),
                     style = TextStyle(color = hrTextSecondary(dark), fontSize = 10.sp),
                 )
             }
@@ -370,5 +392,29 @@ private fun HrTimeAxis(snap: WidgetSnapshot, dark: Boolean, hasScale: Boolean) {
             if (i < ticks.size - 1) Spacer(GlanceModifier.defaultWeight())
         }
         if (hasScale) Spacer(GlanceModifier.width(HR_SCALE_COLUMN_DP.dp))
+    }
+}
+
+
+internal object HrLastRecordedLabel {
+    fun text(lastHrAtMs: Long, nowMs: Long): String {
+        if (lastHrAtMs <= 0L) return "Last recorded"
+
+        val ageMinutes =
+            ((nowMs - lastHrAtMs).coerceAtLeast(0L) / 60_000L)
+
+        return when {
+            ageMinutes < 1L ->
+                "Last recorded · just now"
+
+            ageMinutes < 60L ->
+                "Last recorded · ${ageMinutes}m ago"
+
+            ageMinutes < 24L * 60L ->
+                "Last recorded · ${ageMinutes / 60L}h ago"
+
+            else ->
+                "Last recorded · ${ageMinutes / (24L * 60L)}d ago"
+        }
     }
 }

@@ -88,6 +88,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -958,15 +959,15 @@ fun TodayScreen(
     // day has NEITHER does it fall back to this estimate, shown with an "est." caption so it's never read
     // as a measured count. resolvedSeries reads the computed source for the my-whoop key, exactly like
     // the Explore "steps_est" metric. Null until loaded / no estimate for the day. (#150)
-    var stepsEstForDay by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(days, selectedDayKey) {
-        val byDay = runCatching {
-            viewModel.repo.resolvedSeries("steps_est", "my-whoop", "0000-00-00", "9999-99-99",
-                strapDeviceId = viewModel.activeStrapId)
-                .values.associate { it.first to it.second }
-        }.getOrDefault(emptyMap())
-        stepsEstForDay = byDay[selectedDayKey]?.let { Math.round(it).toInt() }
-    }
+    val stepsEstRows by remember(viewModel.activeStrapId, selectedDayKey) {
+        viewModel.repo.metricSeriesComputedUnionFlow(
+            activeStrapId = viewModel.activeStrapId,
+            key = "steps_est",
+            from = selectedDayKey,
+            to = selectedDayKey,
+        )
+    }.collectAsState(initial = emptyList())
+    val stepsEstForDay = stepsEstRows.lastOrNull()?.value?.let { Math.round(it).toInt() }
 
     // The selected day's representative activity class for the Steps tile icon (#316 / @63). Reads the day's
     // step samples (now carrying `activityClass` after the v13 column) over the local-day window and takes the

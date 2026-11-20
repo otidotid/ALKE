@@ -21,6 +21,7 @@ data class WidgetSnapshot(
     val heartRate: Int? = null,
     /** True when [heartRate] is a carried-over reading rather than a fresh live sample — the widget dims it. */
     val heartRateStale: Boolean = false,
+    val heartRateAtMs: Long = 0L,
     /** Strap battery 0–100, null until the strap reports it. */
     val batteryPct: Int? = null,
     val connected: Boolean = false,
@@ -242,7 +243,11 @@ object WidgetSnapshotStore {
     fun save(context: Context, snap: WidgetSnapshot) {
         val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
         val scoreDay = java.time.LocalDate.now().toEpochDay()
-        val sameScoreDay = prefs.getLong(KEY_SCORE_DAY, Long.MIN_VALUE) == scoreDay
+        val storedScoreDay = prefs.getLong(KEY_SCORE_DAY, Long.MIN_VALUE)
+        val sameScoreDay = WidgetScoreDayPolicy.sameDayForWrite(
+            storedScoreDay = storedScoreDay,
+            todayEpochDay = scoreDay,
+        )
         val e = prefs.edit()
             .putLong(KEY_SCORE_DAY, scoreDay)
             .putInt("battery", snap.batteryPct ?: -1)
@@ -297,6 +302,10 @@ object WidgetSnapshotStore {
         // Resolved ONCE. Asking twice let the two stress fields straddle midnight and disagree, the
         // same inconsistency the Swift twin avoids by deriving both from a single value.
         val today = java.time.LocalDate.now().toEpochDay()
+        val scoreDayMatches = WidgetScoreDayPolicy.visibleOnRead(
+            storedScoreDay = p.getLong(KEY_SCORE_DAY, Long.MIN_VALUE),
+            todayEpochDay = today,
+        )
         val (hr, hrStale) = HrDisplay.resolve(
             lastHr = p.getInt("hr", -1).takeIf { it > 0 },
             lastHrAtMs = p.getLong("hrAt", 0L),
@@ -304,16 +313,17 @@ object WidgetSnapshotStore {
             nowMs = System.currentTimeMillis(),
         )
         return WidgetSnapshot(
-            recoveryPct = p.getInt("recovery", -1).takeIf { it >= 0 },
-            restPct = p.getInt("rest", -1).takeIf { it >= 0 },
-            effortPct = p.getInt("effort", -1).takeIf { it >= 0 },
+            recoveryPct = p.getInt("recovery", -1).takeIf { scoreDayMatches && it >= 0 },
+            restPct = p.getInt("rest", -1).takeIf { scoreDayMatches && it >= 0 },
+            effortPct = p.getInt("effort", -1).takeIf { scoreDayMatches && it >= 0 },
             heartRate = hr,
             heartRateStale = hrStale,
+            heartRateAtMs = p.getLong("hrAt", 0L),
             batteryPct = p.getInt("battery", -1).takeIf { it >= 0 },
             connected = p.getBoolean("connected", false),
             // Pruned on the way OUT as well as on the way in: a widget read hours after the last push
             // would otherwise draw a trace whose newest point is stale, under a header that already
-            // dropped the number for being too old (see [HrDisplay.STALE_CAP_MS]).
+            // marks the number as a stale last-known reading.
             hrSeries = HrTrace.prune(
                 HrTrace.decode(p.getString(KEY_SERIES, null)),
                 nowSec = System.currentTimeMillis() / 1000,
@@ -338,8 +348,21 @@ object WidgetSnapshotStore {
  * Decides what live-HR the widget shows, extracted pure so it's unit-testable (WidgetHrDisplayTest).
  * The last reading is carried over so a brief quiet patch — the 5/MG HR-profile lull at rest, or a
  * reconnect that clears biometrics — doesn't blank the heart. It is DIMMED once it's a carry-over rather
- * than a fresh live sample, and DROPPED entirely once it's too old to stand for the wearer.
+ * than a fresh live sample, and retained as an explicitly stale last-known reading until a newer sample arrives.
  */
+internal object WidgetScoreDayPolicy {
+    const val MISSING_DAY: Long = Long.MIN_VALUE
+
+    // Upgrade migration: no key means "unknown", not "yesterday". Preserve one same-day null push,
+    // then save() writes today's key so all later rollovers are strict.
+    fun sameDayForWrite(storedScoreDay: Long, todayEpochDay: Long): Boolean =
+        storedScoreDay == MISSING_DAY || storedScoreDay == todayEpochDay
+
+    // Read is intentionally strict. A missing/old key must never label yesterday's daily scores as today.
+    fun visibleOnRead(storedScoreDay: Long, todayEpochDay: Long): Boolean =
+        storedScoreDay == todayEpochDay
+}
+
 internal object WidgetScoreRetention {
     fun merge(previous: Int?, incoming: Int?, sameDay: Boolean): Int? = when {
         incoming != null -> incoming.coerceIn(0, 100)
@@ -352,9 +375,6 @@ internal object HrDisplay {
     /** A reading counts as a fresh live sample only if the last live push was within this window; past it
      *  (e.g. the app was killed mid-stream and never flipped `live` off) it's shown dimmed, not as live. */
     const val LIVE_MS = 2 * 60_000L
-
-    /** Beyond this age the reading is dropped (widget shows "-") — too stale to represent HR at all. */
-    const val STALE_CAP_MS = 15 * 60_000L
 
     /** @return (bpm to show or null, stale) — stale = shown but NOT a fresh live sample, so the widget dims it. */
     fun resolve(lastHr: Int?, lastHrAtMs: Long, live: Boolean, nowMs: Long): Pair<Int?, Boolean> {

@@ -257,7 +257,7 @@ class HrTraceTest {
      *  Pinned, because the two drifting apart would be silent. */
     @Test
     fun `the gap threshold matches the stale cap`() {
-        assertEquals(HrDisplay.STALE_CAP_MS / 1_000L, HrTrace.GAP_SEC)
+        assertEquals(15 * 60_000L / 1_000L, HrTrace.GAP_SEC)
     }
 
     /** The common case is unchanged: a trace with no gaps is one run, and draws exactly as before. */

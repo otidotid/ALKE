@@ -1,4 +1,4 @@
-﻿package com.otidotid.alke.analytics
+package com.otidotid.alke.analytics
 
 import com.otidotid.alke.data.MetricSeriesRow
 
@@ -21,7 +21,7 @@ object StepsProductionPublisher {
         MetricSeriesRow(
             deviceId = computedDeviceId,
             day = day,
-            key = "steps_est",
+            key = "steps_ai_raw",
             value = estimate.toDouble(),
         )
     }

@@ -1915,11 +1915,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 val activeId = activeStrapId
-                val rawRow = repository.latestMetricComputedUnion(activeId, "steps_est") ?: return@runCatching
+                val rawRow = repository.latestMetricComputedUnion(activeId, "steps_ai_raw") ?: return@runCatching
                 val rawSteps = rawRow.value.roundToInt().coerceIn(0, 100_000)
                 val prefs = AlkePrefs.of(appContext)
                 val stamp = "${rawRow.day}:$rawSteps"
-                if (prefs.getString("alke.steps.ai.lastValidatedStamp", null) == stamp) return@runCatching
+                val existingFinal = repository.latestMetricComputedUnion(activeId, "steps_est")
+                if (
+                    prefs.getString("alke.steps.ai.lastValidatedStamp", null) == stamp &&
+                    existingFinal?.day == rawRow.day
+                ) return@runCatching
 
                 val zone = ZoneId.systemDefault()
                 val day = LocalDate.parse(rawRow.day)
@@ -1966,7 +1970,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val computedId = repository.computedSourceIds(activeId).first()
                 repository.upsertMetricSeries(
                     listOf(
-                        MetricSeriesRow(computedId, rawRow.day, "steps_ai_raw", rawSteps.toDouble()),
                         MetricSeriesRow(computedId, rawRow.day, "steps_est", result.finalSteps.toDouble()),
                         MetricSeriesRow(computedId, rawRow.day, "steps_ai_factor", result.factor),
                         MetricSeriesRow(computedId, rawRow.day, "steps_ai_confidence", result.confidence),
@@ -1978,7 +1981,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     .putString("alke.steps.ai.lastReason", result.reason.take(240))
                     .apply()
             }.onFailure {
-                // Fail open by design: local StepsFusionProduction output remains untouched.
+                runCatching {
+                    val activeId = activeStrapId
+                    val raw = repository.latestMetricComputedUnion(activeId, "steps_ai_raw")
+                        ?: return@runCatching
+                    val computedId = repository.computedSourceIds(activeId).first()
+                    repository.upsertMetricSeries(
+                        listOf(MetricSeriesRow(computedId, raw.day, "steps_est", raw.value))
+                    )
+                }
             }
         }
     }

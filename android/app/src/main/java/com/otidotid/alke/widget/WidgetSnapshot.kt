@@ -63,6 +63,7 @@ object WidgetSnapshotStore {
     /** Prefs key for the encoded heart-rate trace (#1957). Its own key so an older build, or a wipe of
      *  the trace, leaves every scalar the other widgets read untouched. */
     private const val KEY_SERIES = "hrSeries"
+    private const val KEY_SCORE_DAY = "scoreDay"
 
     /** Prefs keys for the stress curve and the day it belongs to (#2040). Their own keys for the same
      *  reason the trace has one: an older build, or a day with nothing scored, must leave every scalar
@@ -240,13 +241,30 @@ object WidgetSnapshotStore {
 
     fun save(context: Context, snap: WidgetSnapshot) {
         val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        val scoreDay = java.time.LocalDate.now().toEpochDay()
+        val sameScoreDay = prefs.getLong(KEY_SCORE_DAY, Long.MIN_VALUE) == scoreDay
         val e = prefs.edit()
-            .putInt("recovery", snap.recoveryPct ?: -1)
-            .putInt("rest", snap.restPct ?: -1)
-            .putInt("effort", snap.effortPct ?: -1)
+            .putLong(KEY_SCORE_DAY, scoreDay)
             .putInt("battery", snap.batteryPct ?: -1)
             .putBoolean("connected", snap.connected)
             .putLong("updatedAt", snap.updatedAtMs)
+        // Resume/reconnect pushes can temporarily carry null scores while the repository and analytics
+        // reload. Keep the last valid values for the same local day; clear only at an actual day boundary.
+        WidgetScoreRetention.merge(
+            previous = prefs.getInt("recovery", -1).takeIf { it >= 0 },
+            incoming = snap.recoveryPct,
+            sameDay = sameScoreDay,
+        )?.let { e.putInt("recovery", it) } ?: e.remove("recovery")
+        WidgetScoreRetention.merge(
+            previous = prefs.getInt("rest", -1).takeIf { it >= 0 },
+            incoming = snap.restPct,
+            sameDay = sameScoreDay,
+        )?.let { e.putInt("rest", it) } ?: e.remove("rest")
+        WidgetScoreRetention.merge(
+            previous = prefs.getInt("effort", -1).takeIf { it >= 0 },
+            incoming = snap.effortPct,
+            sameDay = sameScoreDay,
+        )?.let { e.putInt("effort", it) } ?: e.remove("effort")
         // Retain the last live HR across a quiet patch: only overwrite `hr`/`hrAt` when this push carries a
         // live sample; a null-HR push (strap quiet / mid-reconnect) leaves the last reading in place, and
         // `hrLive` records that the retained value is now a carry-over so the widget dims it (see HrDisplay).
@@ -322,6 +340,14 @@ object WidgetSnapshotStore {
  * reconnect that clears biometrics — doesn't blank the heart. It is DIMMED once it's a carry-over rather
  * than a fresh live sample, and DROPPED entirely once it's too old to stand for the wearer.
  */
+internal object WidgetScoreRetention {
+    fun merge(previous: Int?, incoming: Int?, sameDay: Boolean): Int? = when {
+        incoming != null -> incoming.coerceIn(0, 100)
+        sameDay -> previous
+        else -> null
+    }
+}
+
 internal object HrDisplay {
     /** A reading counts as a fresh live sample only if the last live push was within this window; past it
      *  (e.g. the app was killed mid-stream and never flipped `live` off) it's shown dimmed, not as live. */
@@ -334,8 +360,7 @@ internal object HrDisplay {
     fun resolve(lastHr: Int?, lastHrAtMs: Long, live: Boolean, nowMs: Long): Pair<Int?, Boolean> {
         if (lastHr == null || lastHr <= 0) return null to false
         val age = nowMs - lastHrAtMs
-        if (age > STALE_CAP_MS) return null to false          // too old regardless of the `live` flag
-        val fresh = live && age <= LIVE_MS                    // a live push AND recent — not a stale carry-over
+        val fresh = live && age in 0..LIVE_MS                    // a live push AND recent — not a stale carry-over
         return lastHr to !fresh
     }
 }

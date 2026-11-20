@@ -1921,27 +1921,6 @@ fun AlkeMeExperience(
         showSettingsBody = personalSettingsExpanded,
         meHeader = {
             profileRevision
-            AlkeSectionTitle("Profile")
-            AlkePanel(Modifier.fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    ProfileAvatar(size = 72.dp, contentDescription = "My profile photo")
-                    Spacer(Modifier.width(16.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { photoPicker.launch("image/*") }) {
-                                Text(if (ProfileAvatarStore.hasAvatar) "Change photo" else "Choose photo", color = A.cyan)
-                            }
-                            if (ProfileAvatarStore.hasAvatar) {
-                                TextButton(onClick = {
-                                    ProfileAvatarStore.clearAvatar(context)
-                                    profileRevision++
-                                }) { Text("Remove", color = A.muted) }
-                            }
-                        }
-                    }
-                }
-            }
-
             AlkeSectionTitle("Devices & Sources")
             AlkeLinkRow("Devices", "Connect and manage wearable sensors", Icons.Filled.Sensors, onDevices)
             AlkeLinkRow("Data Sources", "Imports, Health Connect and provenance", Icons.Filled.Storage, onSources)

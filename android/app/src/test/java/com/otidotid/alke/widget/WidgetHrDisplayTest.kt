@@ -21,9 +21,17 @@ class WidgetHrDisplayTest {
         assertEquals(72 to true, HrDisplay.resolve(lastHr = 72, lastHrAtMs = now - 2 * 60_000L, live = false, nowMs = now))
     }
 
-    @Test fun carryOver_pastCap_dropped() {
-        // 16 min stale — beyond the 15-min cap, too old to represent HR; blank it.
-        assertEquals(null to false, HrDisplay.resolve(lastHr = 72, lastHrAtMs = now - 16 * 60_000L, live = false, nowMs = now))
+    @Test
+    fun carryOver_afterFifteenMinutes_remainsVisibleButStale() {
+        assertEquals(
+            72 to true,
+            HrDisplay.resolve(
+                lastHr = 72,
+                lastHrAtMs = now - 16 * 60_000L,
+                live = false,
+                nowMs = now,
+            ),
+        )
     }
 
     @Test fun noReading_isBlank() {
@@ -37,8 +45,29 @@ class WidgetHrDisplayTest {
         assertEquals(72 to true, HrDisplay.resolve(lastHr = 72, lastHrAtMs = now - 5 * 60_000L, live = true, nowMs = now))
     }
 
-    @Test fun staleLiveFlag_pastCap_isDropped() {
-        // A lingering `live = true` must NOT bypass the cap — an hour-old reading is dropped, not shown live.
-        assertEquals(null to false, HrDisplay.resolve(lastHr = 72, lastHrAtMs = now - 60 * 60_000L, live = true, nowMs = now))
+    @Test
+    fun staleLiveFlag_oneHourOld_remainsVisibleButNeverLive() {
+        assertEquals(
+            72 to true,
+            HrDisplay.resolve(
+                lastHr = 72,
+                lastHrAtMs = now - 60 * 60_000L,
+                live = true,
+                nowMs = now,
+            ),
+        )
+    }
+
+    @Test
+    fun lastKnownReading_remainsVisibleAfterAFullDay() {
+        assertEquals(
+            72 to true,
+            HrDisplay.resolve(
+                lastHr = 72,
+                lastHrAtMs = now - 24 * 60 * 60_000L,
+                live = false,
+                nowMs = now,
+            ),
+        )
     }
 }

@@ -2272,7 +2272,7 @@ object IntelligenceEngine {
                 referenceStepsByDay = refStepsByDay,
                 calibration = stepsCal,
             )
-            if (estRows.isNotEmpty()) repo.upsertMetricSeries(estRows)
+            repo.publishLocalSteps(computedId, estRows)
             // Hand the fit back so the caller mirrors it into ProfileStore for the Settings/Steps screen.
             persistStepsCalibration(stepsCal)
         }

@@ -10,6 +10,33 @@ import java.lang.reflect.Proxy
 class WhoopRepositoryTransactionTest {
 
     @Test
+    fun repeatedMotionKeepsValidatedStepsUntilRawChanges() = runBlocking {
+        val id = "strap-alke"
+        val raw = MetricSeriesRow(id, "2026-11-20", "steps_ai_raw", 1100.0)
+        val adjusted = raw.copy(key = "steps_est", value = 1000.0)
+        val stored = mutableMapOf(raw.key to raw, adjusted.key to adjusted)
+        val dao = Proxy.newProxyInstance(WhoopDao::class.java.classLoader, arrayOf(WhoopDao::class.java)) { _, method, args ->
+            when (method.name) {
+                "metricSeries" -> listOfNotNull(stored[args[1] as String])
+                "upsertMetricSeries" -> {
+                    for (row in (args[0] as List<*>).filterIsInstance<MetricSeriesRow>()) stored[row.key] = row
+                    Unit
+                }
+                else -> error(method.name)
+            }
+        } as WhoopDao
+        val repo = WhoopRepository(dao)
+        fun local(value: Double) = listOf(raw.copy(value = value), adjusted.copy(value = value))
+        repo.publishLocalSteps(id, local(1100.0))
+        assertEquals(adjusted, stored[adjusted.key])
+        repo.publishLocalSteps(id, local(1200.0))
+        assertEquals(1200.0, stored.getValue(adjusted.key).value, 0.0)
+        stored.remove(adjusted.key)
+        repo.publishLocalSteps(id, local(1200.0))
+        assertEquals(1200.0, stored.getValue(adjusted.key).value, 0.0)
+    }
+
+    @Test
     fun emptyBackfillPassPreservesSeededDetectedHistory() = runBlocking {
         val seededDetected = WorkoutRow(
             deviceId = "my-whoop-alke", startTs = 1_000L, endTs = 2_000L,

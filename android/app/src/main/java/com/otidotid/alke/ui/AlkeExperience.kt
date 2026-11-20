@@ -1957,8 +1957,6 @@ fun AlkeMeExperience(
                 { showDockEditor = true }, A.cyan)
             AlkeLinkRow("All Modules", "Explore the complete ALKE toolkit", Icons.Filled.Tune, onModules, A.gold)
             AlkeLinkRow("Notifications", "Updates and notification preferences", Icons.Filled.NotificationsNone, onNotifications)
-            AlkeLinkRow("Appearance", "Display, charts and motion preferences", Icons.Filled.Tune,
-                { personalSettingsExpanded = true })
             AlkePanel(Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth()

@@ -1281,6 +1281,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         // and mirror the fitted/manual model back into ProfileStore so the Settings/Steps
                         // screen can show + adjust it. Mirrors the macOS engine writing into ProfileStore.
                         manualStepCoefficient = profileStore.stepsManualOverride,
+                        persistedStepCoefficient = profileStore.stepsCalibrationCoefficient,
+                        persistedStepSampleDays = profileStore.stepsCalibrationSampleDays,
+                        persistedStepConfidence = profileStore.stepsCalibrationConfidence,
                         persistStepsCalibration = { cal ->
                             profileStore.stepsCalibrationCoefficient = cal.coefficient
                             profileStore.stepsCalibrationSampleDays = cal.sampleDays
@@ -2124,6 +2127,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     .takeIf { it > 0 }?.toDouble(),
                 ownerSource = RegistryDayOwnerSource(alkeApp.deviceRegistry),
                 manualStepCoefficient = profileStore.stepsManualOverride,
+                        persistedStepCoefficient = profileStore.stepsCalibrationCoefficient,
+                        persistedStepSampleDays = profileStore.stepsCalibrationSampleDays,
+                        persistedStepConfidence = profileStore.stepsCalibrationConfidence,
                 persistStepsCalibration = { cal ->
                     profileStore.stepsCalibrationCoefficient = cal.coefficient
                     profileStore.stepsCalibrationSampleDays = cal.sampleDays

@@ -125,6 +125,10 @@ object IntelligenceEngine {
      *  config signature. Pruned to the calibration window each pass so it cannot grow without bound. */
     private var stepsMotionCache = HashMap<String, Pair<String, Double>>()
 
+    // Accessed only inside analyzeGate. Wrapper-owned so analyzeRecentOnCpu gains no parameter and stays
+    // below its guarded JVM method-size ceiling.
+    private var activePersistedStepsFallback: StepsEstimateEngine.Calibration? = null
+
     // Guarded by analyzeGate; kept as state to avoid another parameter on the bytecode-budgeted pass.
     private var preserveUnscoredHistoryForRun = false
 
@@ -417,6 +421,9 @@ object IntelligenceEngine {
         // each pass so the caller (AppViewModel) can mirror it into ProfileStore for the Settings/Steps
         // screen. Both default to no-op so existing callers / tests are unaffected.
         manualStepCoefficient: Double? = null,
+        persistedStepCoefficient: Double? = null,
+        persistedStepSampleDays: Int = 0,
+        persistedStepConfidence: Double = 0.0,
         persistStepsCalibration: (StepsEstimateEngine.Calibration) -> Unit = {},
         // Manual "Recalibrate baseline" anchor (alke.hrvBaselineEpoch, epoch SECONDS; 0 = none). The
         // analytics layer is Context-free, so the caller reads it from SharedPreferences and passes it
@@ -514,6 +521,12 @@ object IntelligenceEngine {
         // [analyzeGate]). The heavy scoring already ran off the caller's thread via withContext above; the
         // lock is held only for this engine's own passes, never across an unrelated suspension.
         val scored = analyzeGate.withLock {
+            val persistedStepsFallback = StepsPersistedCalibration.validOrNull(
+                coefficient = persistedStepCoefficient,
+                sampleDays = persistedStepSampleDays,
+                confidence = persistedStepConfidence,
+            )
+            activePersistedStepsFallback = persistedStepsFallback
             // Seed the fold cache from storage on the first pass of the process. Without this the sixty-day
             // fold is re-paid in full after every relaunch — the cache's whole win is a repeat, and a
             // relaunch is a repeat the process boundary hid. Nothing pass-global feeds the fold, so a
@@ -2241,15 +2254,24 @@ object IntelligenceEngine {
             refStepsByDay[day]?.let { StepsEstimateEngine.CalibrationPoint(motion = motion, steps = it) }
         }
         val stepsCal = StepsFusionProduction.calibrate(calPoints)
-        if (stepsCal != null) {
-            // Estimate + upsert for each recent scored day that has motion but NO real phone step count.
-            val estRows = ArrayList<MetricSeriesRow>()
-            for (dm in dailies) {
-                if (refStepsByDay.containsKey(dm.day)) continue
-                val motion = motionByDay[dm.day] ?: continue
-                val est = StepsEstimateEngine.estimate(motion, stepsCal) ?: continue
-                estRows.add(MetricSeriesRow(deviceId = computedId, day = dm.day, key = "steps_est", value = est.toDouble()))
+            ?: manualStepCoefficient?.takeIf { it.isFinite() && it > 0.0 }?.let {
+                StepsEstimateEngine.Calibration(
+                    coefficient = it,
+                    sampleDays = 1,
+                    confidence = 1.0,
+                    manual = true,
+                )
             }
+            ?: activePersistedStepsFallback
+        if (stepsCal != null) {
+            // Publish for every day with WHOOP motion, including the current day before DailyMetric exists.
+            // The (deviceId, day, key) upsert refreshes the same steps_est row as motion accumulates.
+            val estRows = StepsProductionPublisher.rows(
+                computedDeviceId = computedId,
+                motionByDay = motionByDay,
+                referenceStepsByDay = refStepsByDay,
+                calibration = stepsCal,
+            )
             if (estRows.isNotEmpty()) repo.upsertMetricSeries(estRows)
             // Hand the fit back so the caller mirrors it into ProfileStore for the Settings/Steps screen.
             persistStepsCalibration(stepsCal)
@@ -3746,4 +3768,3 @@ object IntelligenceEngine {
     internal fun healDeviceIds(computedId: String, registeredIds: List<String>): List<String> =
         (listOf(computedId) + registeredIds).toSortedSet().toList()
 }
-

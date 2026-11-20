@@ -3264,6 +3264,9 @@ class WhoopBleClient(
                         // Steps-estimate calibration: honor the user's manual override and persist the fit
                         // after a backfill too, so the Settings/Steps screen reflects the latest data.
                         manualStepCoefficient = profileStore.stepsManualOverride,
+                        persistedStepCoefficient = profileStore.stepsCalibrationCoefficient,
+                        persistedStepSampleDays = profileStore.stepsCalibrationSampleDays,
+                        persistedStepConfidence = profileStore.stepsCalibrationConfidence,
                         persistStepsCalibration = { cal ->
                             profileStore.stepsCalibrationCoefficient = cal.coefficient
                             profileStore.stepsCalibrationSampleDays = cal.sampleDays

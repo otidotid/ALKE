@@ -1455,6 +1455,7 @@ private fun GlassBottomBar(
                         icon = icon,
                         label = label,
                         active = current == dest,
+                        useProfileAvatar = dest == Destination.More,
                         modifier = Modifier.weight(1f),
                         onClick = { onTabSelected(dest) },
                     )
@@ -1470,6 +1471,7 @@ private fun BarSlot(
     icon: ImageVector,
     label: String,
     active: Boolean,
+    useProfileAvatar: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -1488,8 +1490,19 @@ private fun BarSlot(
     ) {
         // Icon and label scale together with the padding above, so the slot grows as one piece rather
         // than a bigger box around the same small glyph.
-        Icon(icon, contentDescription = null, tint = tint,
-             modifier = Modifier.size(21.dp))
+        if (useProfileAvatar) {
+            ProfileAvatar(
+                size = 25.dp,
+                contentDescription = label,
+            )
+        } else {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(21.dp),
+            )
+        }
         Text(
             label,
             style = AlkeType.footnote.copy(

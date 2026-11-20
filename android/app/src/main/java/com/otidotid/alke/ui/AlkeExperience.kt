@@ -57,6 +57,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -319,12 +321,6 @@ private fun AlkeHeader(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 12.sp,
                 )
-            }
-            Box(
-                modifier = Modifier.clip(CircleShape).clickable(onClick = onProfile),
-                contentAlignment = Alignment.Center,
-            ) {
-                ProfileAvatar(size = 40.dp, contentDescription = "Open my profile")
             }
         }
     }
@@ -1906,6 +1902,11 @@ fun AlkeMeExperience(
     onOpenTestCentre: () -> Unit,
     onOpenSelfHostedPush: () -> Unit,
 ) {
+    val context = LocalContext.current
+    var profileRevision by remember { mutableIntStateOf(0) }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null && ProfileAvatarStore.setAvatarFromUri(context, uri)) profileRevision++
+    }
     var showDockEditor by remember { mutableStateOf(false) }
     var personalSettingsExpanded by rememberSaveable { mutableStateOf(false) }
 
@@ -1919,14 +1920,45 @@ fun AlkeMeExperience(
         onOpenSelfHostedPush = onOpenSelfHostedPush,
         showSettingsBody = personalSettingsExpanded,
         meHeader = {
-            AlkeSectionTitle("Quick access")
+            profileRevision
+            AlkeSectionTitle("Profile")
+            AlkePanel(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ProfileAvatar(size = 72.dp, contentDescription = "My profile photo")
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("My profile", color = A.white, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                        Text("Photo, age, sex, body profile and heart-rate settings", color = A.muted, fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { photoPicker.launch("image/*") }) {
+                                Text(if (ProfileAvatarStore.hasAvatar) "Change photo" else "Choose photo", color = A.cyan)
+                            }
+                            if (ProfileAvatarStore.hasAvatar) {
+                                TextButton(onClick = {
+                                    ProfileAvatarStore.clearAvatar(context)
+                                    profileRevision++
+                                }) { Text("Remove", color = A.muted) }
+                            }
+                        }
+                    }
+                }
+            }
+
+            AlkeSectionTitle("Devices & Sources")
             AlkeLinkRow("Devices", "Connect and manage wearable sensors", Icons.Filled.Sensors, onDevices)
-            AlkeLinkRow("Data sources", "Imports, Health Connect and provenance", Icons.Filled.Storage, onSources)
+            AlkeLinkRow("Data Sources", "Imports, Health Connect and provenance", Icons.Filled.Storage, onSources)
+
+            AlkeSectionTitle("Data & Backup")
+            AlkeLinkRow("Google Drive / Local Folder", "Backup, restore and verified archived history", Icons.Filled.Storage,
+                onBackupRestore, A.blue)
+
+            AlkeSectionTitle("App")
             AlkeLinkRow("Customize Dock", "Choose and reorder your quick navigation", Icons.Filled.Tune,
                 { showDockEditor = true }, A.cyan)
-            AlkeLinkRow("Backup & Restore", "Import your ALKE or legacy backup", Icons.Filled.Storage,
-                onBackupRestore, A.blue)
-            AlkeLinkRow("All modules", "Explore the complete ALKE toolkit", Icons.Filled.Tune, onModules, A.gold)
+            AlkeLinkRow("All Modules", "Explore the complete ALKE toolkit", Icons.Filled.Tune, onModules, A.gold)
+            AlkeLinkRow("Notifications", "Updates and notification preferences", Icons.Filled.NotificationsNone, onNotifications)
+            AlkeLinkRow("Appearance", "Display, charts and motion preferences", Icons.Filled.Tune,
+                { personalSettingsExpanded = true })
             AlkePanel(Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth()
@@ -1938,7 +1970,7 @@ fun AlkeMeExperience(
                     Icon(Icons.Filled.Settings, contentDescription = null, tint = A.cyan,
                         modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text("Personal & App Settings", color = A.white,
+                    Text("Settings", color = A.white,
                         fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
                         modifier = Modifier.weight(1f))
                     Icon(Icons.Filled.ChevronRight,

@@ -26,7 +26,9 @@ class MeSettingsConsolidationTest {
         assertTrue(segment.contains("onOpenBackupSync = onBackupRestore"))
         assertTrue(segment.contains("onOpenTestCentre = onOpenTestCentre"))
         assertTrue(segment.contains("onOpenSelfHostedPush = onOpenSelfHostedPush"))
-        assertTrue(segment.contains("onOpenStepsCalibration = onOpenStepsCalibration"))
+        // SettingsScreen owns Steps controls internally; there is no separate
+        // onOpenStepsCalibration callback in the production API.
+        assertTrue(segment.contains("showSettingsBody = personalSettingsExpanded"))
         assertFalse(segment.contains("AlkeLinkRow(\"My profile\""))
         assertFalse(segment.contains("AlkeLinkRow(\"Settings\""))
         assertTrue(segment.contains("AlkeLinkRow(\"Customize Dock\""))

@@ -76,6 +76,7 @@ object ProfileAvatarStore {
     val hasAvatar: Boolean get() = bitmap != null
 
     /** Decode the persisted avatar (if any) into [bitmap]. Safe to call before first composition. */
+    @Synchronized
     fun load(ctx: Context) {
         val file = avatarFile(ctx)
         bitmap = if (prefs(ctx).getBoolean(KEY_HAS_AVATAR, false) && file.exists()) {
@@ -91,6 +92,7 @@ object ProfileAvatarStore {
      * success. All decode/IO is wrapped — a bad pick just returns false and leaves the current avatar.
      * Call off the main thread for a large source image (it does bitmap decode + file IO).
      */
+    @Synchronized
     fun setAvatarFromUri(ctx: Context, uri: Uri): Boolean {
         val app = ctx.applicationContext
         val scaled = runCatching { decodeDownscaled(app, uri) }.getOrNull() ?: return false
@@ -104,10 +106,7 @@ object ProfileAvatarStore {
             val verified = BitmapFactory.decodeFile(temp.absolutePath)
                 ?: error("Encoded avatar could not be decoded")
             verified.recycle()
-            if (!temp.renameTo(file)) {
-                temp.copyTo(file, overwrite = true)
-                temp.delete()
-            }
+            android.system.Os.rename(temp.absolutePath, file.absolutePath)
             true
         }.getOrDefault(false)
         if (!wrote) {
@@ -121,6 +120,7 @@ object ProfileAvatarStore {
     }
 
     /** Remove the photo: delete the file, clear the flag, and drop the live [bitmap] back to null. */
+    @Synchronized
     fun clearAvatar(ctx: Context) {
         val app = ctx.applicationContext
         runCatching { avatarFile(app).delete() }

@@ -136,10 +136,12 @@ class AlkeApplication : Application() {
     /** Process-wide BLE client. Owns the GATT connection and outlives any single Activity/ViewModel. */
     val ble: WhoopBleClient by lazy {
         val startupId = whoopStartupDeviceId()
+        val widgetFeed = com.otidotid.alke.widget.LiveHrWidgetFeed(applicationContext)
         WhoopBleClient(
             applicationContext,
             repository = repository,
             deviceId = startupId,
+            liveWidgetSample = widgetFeed::offer,
             successfulOffloadSink = {
                 SelfHostedPushScheduler.enqueueAfterSuccessfulOffload(applicationContext)
             },

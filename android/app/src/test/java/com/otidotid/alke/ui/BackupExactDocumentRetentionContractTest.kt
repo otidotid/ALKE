@@ -1,7 +1,15 @@
 package com.otidotid.alke.ui
-import org.junit.Assert.assertTrue
+
+import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.io.File
+
 class BackupExactDocumentRetentionContractTest {
- @Test fun pruneUsesExactDocumentRows() { val s=File("src/main/java/com/otidotid/alke/ui/BackupSync.kt").readText(); assertTrue(s.contains("children.drop(keep.coerceAtLeast(0))")); assertTrue(!s.contains("snapshotsToPrune(children.map { it.name }, keep).toSet()")) }
+    @Test fun retainManualFilesAndDeleteOnlyTheOlderDuplicate() {
+        data class Doc(val name: String, val id: Int)
+        val first = Doc("alke-backup-20261120-090000.alkebak", 1)
+        val duplicate = Doc(first.name, 2)
+        val manual = Doc("alke-backup-20261120-090000-copy.alkebak", 3)
+
+        assertEquals(listOf(duplicate), BackupSync.pruneCandidates(listOf(manual, first, duplicate), 1, Doc::name))
+    }
 }

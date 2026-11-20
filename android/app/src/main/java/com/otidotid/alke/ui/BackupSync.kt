@@ -72,6 +72,8 @@ object BackupSync {
 
     // ── Pure helpers (unit-tested; mirror the Apple BackupSync) ─────────────────
 
+    private val SNAPSHOT_STAMP = Regex("[0-9]{8}-[0-9]{6}")
+
     private fun fmt() = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
         isLenient = false
@@ -84,6 +86,7 @@ object BackupSync {
     fun snapshotTimeMs(name: String): Long? {
         if (!name.startsWith(PREFIX) || !name.endsWith(SUFFIX)) return null
         val stamp = name.substring(PREFIX.length, name.length - SUFFIX.length)
+        if (!SNAPSHOT_STAMP.matches(stamp)) return null
         return runCatching { fmt().parse(stamp)?.time }.getOrNull()
     }
 
@@ -220,11 +223,14 @@ object BackupSync {
     }
 
     /** Best-effort retention: delete snapshots beyond keepCount. Listing failures are ignored. */
+    internal fun <T> pruneCandidates(newestFirst: List<T>, keep: Int, name: (T) -> String): List<T> =
+        newestFirst.filter { isSnapshot(name(it)) }.drop(keep.coerceAtLeast(0))
+
     private fun prune(context: Context, treeUri: Uri) {
         val keep = BackupSyncPrefs.keepCount(context)
         val children = runCatching { listSnapshotDocs(context, treeUri) }.getOrDefault(emptyList())
         // Delete exact document identities, never all rows sharing a display name.
-        for (doc in children.drop(keep.coerceAtLeast(0))) {
+        for (doc in pruneCandidates(children, keep, SnapshotDoc::name)) {
             runCatching { DocumentsContract.deleteDocument(context.contentResolver, doc.uri) }
         }
     }

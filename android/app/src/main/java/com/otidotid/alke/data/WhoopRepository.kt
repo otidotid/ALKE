@@ -1206,6 +1206,23 @@ class WhoopRepository(
     suspend fun sessionSleepState(deviceId: String, sessionStart: Long): List<Int>? =
         dao.sessionSleepStateJson(deviceId, sessionStart)?.let { decodeIntArray(it) }
 
+    internal suspend fun <T> withStepsTransaction(block: suspend () -> T): T = transactor.run(block)
+
+    internal suspend fun publishLocalSteps(id: String, rows: List<MetricSeriesRow>) {
+        if (rows.isEmpty()) return
+        withStepsTransaction {
+            val first = rows.minOf { it.day }
+            val last = rows.maxOf { it.day }
+            val previousRaw = dao.metricSeries(id, "steps_ai_raw", first, last).associateBy { it.day }
+            val previousFinal = dao.metricSeries(id, "steps_est", first, last).associateBy { it.day }
+            val changed = rows.filter { row ->
+                previousRaw[row.day]?.value != row.value ||
+                    (row.key == "steps_est" && row.day !in previousFinal)
+            }
+            if (changed.isNotEmpty()) dao.upsertMetricSeries(changed)
+        }
+    }
+
     suspend fun upsertMetricSeries(rows: List<MetricSeriesRow>) = dao.upsertMetricSeries(rows)
     suspend fun deleteMetricSeriesPoint(deviceId: String, day: String, key: String) =
         dao.deleteMetricSeriesPoint(deviceId, day, key)

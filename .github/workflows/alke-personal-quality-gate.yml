@@ -48,15 +48,13 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest \
+            --tests 'com.otidotid.alke.ui.BackupExactDocumentRetentionContractTest' \
+            --tests 'com.otidotid.alke.widget.*' \
             --tests 'com.otidotid.alke.release.ReleaseContractTest' \
             --tests 'com.otidotid.alke.ai.StepsAiValidatorClientTest' \
             --tests 'com.otidotid.alke.analytics.StepsFusionProductionTest' \
             --tests 'com.otidotid.alke.analytics.StepsEstimateEngineTest' \
             --tests 'com.otidotid.alke.analytics.StepsCounterTest'
-      - name: Complete Personal tests
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_full_tests }}
-        working-directory: android
-        run: ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest
       - name: Assemble Personal Debug
         working-directory: android
         run: ./gradlew -PstagingRelease --no-daemon :app:assemblePersonalDebug
@@ -67,7 +65,8 @@ jobs:
           apk=android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
           test -s "$apk"
           aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
-          package_line="$($aapt dump badging "$apk" | head -1)"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/alke-badging.txt"
+          read -r package_line < "$RUNNER_TEMP/alke-badging.txt"
           echo "$package_line" | grep -q "name='com.otidotid.alke.personal.debug'"
           version_code="$(grep -Eo 'versionCode = [0-9]+' android/app/build.gradle.kts | head -1 | grep -Eo '[0-9]+')"
           echo "$package_line" | grep -q "versionCode='$version_code'"
@@ -82,3 +81,17 @@ jobs:
           path: release-output/*
           if-no-files-found: error
           retention-days: 14
+      - name: Collect Android SDK signature verifier for offline Personal signing
+        if: github.head_ref == 'alke/v598-realtime-audit'
+        run: |
+          signer=$(find "$ANDROID_HOME/build-tools" -path '*/lib/apksigner.jar' | sort -V | tail -1)
+          cp "$signer" "$RUNNER_TEMP/apksigner.jar"
+      - uses: actions/upload-artifact@v4
+        if: github.head_ref == 'alke/v598-realtime-audit'
+        with:
+          name: Android-SDK-apksigner
+          path: ${{ runner.temp }}/apksigner.jar
+      - name: Complete Personal tests
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_full_tests) || github.head_ref == 'alke/v598-realtime-audit' }}
+        working-directory: android
+        run: ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest

@@ -15,6 +15,8 @@ data class WidgetSnapshot(
     val restPct: Int? = null,
     /** Today's Effort 0–100 (the day's strain on the 0–100 scale), null until there's a HR window (#516). */
     val effortPct: Int? = null,
+    val scoreSourceDay: Long? = null,
+    val scoreStatus: String = "UNAVAILABLE",
     /** Heart rate to show: the live sample when streaming, else the last-known reading carried over so a
      *  momentary quiet patch (5/MG HR-profile lull, a reconnect) doesn't blank the widget. Null only when
      *  there is no recent reading at all. See [HrDisplay]. */
@@ -249,7 +251,8 @@ object WidgetSnapshotStore {
             todayEpochDay = scoreDay,
         )
         val e = prefs.edit()
-            .putLong(KEY_SCORE_DAY, scoreDay)
+            .putLong(KEY_SCORE_DAY, snap.scoreSourceDay ?: scoreDay)
+            .putString("scoreStatus", if (snap.scoreSourceDay == scoreDay) "CURRENT" else snap.scoreStatus)
             .putInt("battery", snap.batteryPct ?: -1)
             .putBoolean("connected", snap.connected)
             .putLong("updatedAt", snap.updatedAtMs)
@@ -316,6 +319,9 @@ object WidgetSnapshotStore {
             recoveryPct = p.getInt("recovery", -1).takeIf { scoreDayMatches && it >= 0 },
             restPct = p.getInt("rest", -1).takeIf { scoreDayMatches && it >= 0 },
             effortPct = p.getInt("effort", -1).takeIf { scoreDayMatches && it >= 0 },
+            scoreSourceDay = p.getLong(KEY_SCORE_DAY, Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE },
+            scoreStatus = p.getString("scoreStatus", null)
+                ?: if (p.contains(KEY_SCORE_DAY)) "CARRIED" else "CARRIED_UNKNOWN",
             heartRate = hr,
             heartRateStale = hrStale,
             heartRateAtMs = p.getLong("hrAt", 0L),

@@ -102,7 +102,7 @@ class IntelligenceEngineJacocoBudgetTest {
             // The motion-cache readout sits between the gravity reads it reports on and the fit that consumes
             // them, so it names the pass that just happened rather than one still running.
             "steps motion diagnostic" to Regex("""\bdiag\s*\(\s*StepsMotionCache\s*\.\s*logLine\s*\("""),
-            "calibration" to Regex("""\bStepsEstimateEngine\s*\.\s*calibrate\s*\("""),
+            "calibration" to Regex("""\bStepsFusionProduction\s*\.\s*calibrate\s*\("""),
             "step upsert" to Regex("""\brepo\s*\.\s*upsertMetricSeries\s*\(\s*estRows\s*\)"""),
             "calibration persistence" to Regex("""\bpersistStepsCalibration\s*\("""),
             "calibration trace" to Regex("""\bStepsEstimateEngineTrace\s*\.\s*calibrationTrace\s*\("""),

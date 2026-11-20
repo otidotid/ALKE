@@ -164,7 +164,7 @@ class AlkeAlpha5ExperienceContractTest {
         assertFalse(module.contains("SectionHeader(\"Fitness Age\""))
         // Fitness Age's detail route must also start at trend; stored History follows.
         val detail = health.substring(health.indexOf("private fun FitnessAgeDetailExperience("),
-            health.indexOf("@Composable\nprivate fun FitnessAgeDetailFactor("))
+            health.indexOf("private fun FitnessAgeDetailFactor("))
         assertTrue(detail.contains("SectionHeader(\"Trend View\""))
         assertTrue(detail.indexOf("SectionHeader(\"Trend View\"") <
             detail.indexOf("SectionHeader(\"History\""))
@@ -244,26 +244,27 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(health.contains("SkinTempSuiteSection("))
     }
 
-    @Test fun oneInsightModuleRetainsAllEightSectionsAndJournalDeepLinks() {
+    @Test fun oneInsightModuleRetainsSevenConsolidatedSectionsAndJournalDeepLinks() {
         val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
         assertTrue(nav.contains("composable(Destination.Intelligence.route) { InsightsScreen(viewModel) }"))
         assertTrue(nav.contains("composable(Destination.InsightsHub.route) { InsightsScreen(viewModel) }"))
         assertFalse(nav.contains("Destination.Intelligence, Destination.Insights"))
         val ui = source("src/main/java/com/otidotid/alke/ui/InsightsScreen.kt")
         val sections = listOf(
-            "AlkeInsightsReadinessHero(insightDay?.recovery)",
-            "ConsolidatedInsightSignals(insightDay)",
-            "InsightDisclosure(\"Log Journal\"",
-            "MindSection(vm, onChanged",
-            "InsightDisclosure(\"Log Caffeine\"",
-            "InsightDisclosure(\"Personal Experiment\"",
-            "RelationshipsSection(relationships)",
-            "ConsolidatedInsightAiSummary(ctx, evidence, aiSummary)",
+            """item\s*\{\s*ConsolidatedInsightAiSummary\s*\(""",
+            """item\s*\{\s*ConsolidatedInsightSignals\s*\(""",
+            """item\s*\{\s*InsightDisclosure\s*\(\s*"Log Journal"""",
+            """item\s*\{\s*MindSection\s*\(""",
+            """item\s*\{\s*InsightDisclosure\s*\(\s*"Log Caffeine"""",
+            """item\s*\{\s*InsightDisclosure\s*\(\s*"Personal Experiment"""",
+            """item\s*\{\s*RelationshipsSection\s*\(""",
         )
-        val positions = sections.map { ui.indexOf(it) }
+        val positions = sections.map { pattern ->
+            Regex(pattern).find(ui)?.range?.first ?: -1
+        }
         assertTrue("Unified Insight sections missing or out of order: $positions",
             positions.zipWithNext().all { (a, b) -> a >= 0 && b > a })
-        assertTrue(ui.contains("InsightsHubEmbeddedSection(hubState)"))
+        assertFalse(ui.contains("InsightsHubEmbeddedSection(hubState)"))
         val ai = source("src/main/java/com/otidotid/alke/ui/AlkeInsightsAi.kt")
         for (signal in listOf("journalEntries", "moodEvidence", "caffeineEvidence",
                 "experimentEvidence", "relationships", "patternEvidence")) {
@@ -281,7 +282,10 @@ class AlkeAlpha5ExperienceContractTest {
 
     @Test fun fullAndDemoStaySeparateWithExistingSyntheticData() {
         val build = source("build.gradle.kts")
-        assertTrue(build.contains("versionName = \"1.0.0-alpha.20\""))
+        assertTrue(
+            "Personal build must retain an explicit ALKE versionName",
+            Regex("""versionName\s*=\s*"[^"]+"""").containsMatchIn(build),
+        )
         assertTrue(build.contains("applicationIdSuffix = \".demo\""))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"false\")"))
         assertTrue(build.contains("buildConfigField(\"boolean\", \"ENABLE_DEMO\", \"true\")"))

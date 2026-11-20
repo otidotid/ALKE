@@ -223,11 +223,9 @@ object BackupSync {
     private fun prune(context: Context, treeUri: Uri) {
         val keep = BackupSyncPrefs.keepCount(context)
         val children = runCatching { listSnapshotDocs(context, treeUri) }.getOrDefault(emptyList())
-        val toDelete = snapshotsToPrune(children.map { it.name }, keep).toSet()
-        for (doc in children) {
-            if (doc.name in toDelete) {
-                runCatching { DocumentsContract.deleteDocument(context.contentResolver, doc.uri) }
-            }
+        // Delete exact document identities, never all rows sharing a display name.
+        for (doc in children.drop(keep.coerceAtLeast(0))) {
+            runCatching { DocumentsContract.deleteDocument(context.contentResolver, doc.uri) }
         }
     }
 

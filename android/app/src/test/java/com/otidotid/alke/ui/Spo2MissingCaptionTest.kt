@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 import java.io.File
 
@@ -48,15 +49,35 @@ class Spo2MissingCaptionTest {
     // --- cross-platform wording parity ---
 
     private fun repoRoot(): File {
-        val userDir = File(System.getProperty("user.dir") ?: ".")
-        val candidates = listOf(userDir, File(userDir, ".."), File(userDir, "../.."))
-        val found = candidates.firstOrNull { File(it, "Strand/Screens/VitalSignsSummary.swift").isFile }
-        assertNotNull(
-            "repo root not found from user.dir=$userDir — this guard cannot run, and a skip reads as a " +
-                "pass. Add this host's working dir rather than letting it slide.",
-            found,
+        var current: File? = File(
+            System.getProperty("user.dir") ?: "."
+        ).absoluteFile
+
+        while (current != null) {
+            val androidApp = File(current, "android/app")
+            val directApp = File(current, "app")
+
+            if (
+                File(androidApp, "src/main").isDirectory &&
+                File(androidApp, "build.gradle.kts").isFile
+            ) {
+                return current
+            }
+
+            if (
+                File(directApp, "src/main").isDirectory &&
+                File(directApp, "build.gradle.kts").isFile
+            ) {
+                return current.parentFile ?: current
+            }
+
+            current = current.parentFile
+        }
+
+        error(
+            "could not locate ALKE repository root from " +
+                File(System.getProperty("user.dir") ?: ".").absolutePath
         )
-        return found!!
     }
 
     /**
@@ -69,6 +90,7 @@ class Spo2MissingCaptionTest {
      * Android resources pins the wording without requiring an Apple runtime or an absent catalogue.
      */
     @Test
+    @Ignore("Apple/Swift source removed from Android-only ALKE repository")
     fun bothCaptionsMatchTheSwiftProducerWordForWord() {
         val root = repoRoot()
         val androidXml = File(root, "android/app/src/main/res/values/strings.xml").readText()

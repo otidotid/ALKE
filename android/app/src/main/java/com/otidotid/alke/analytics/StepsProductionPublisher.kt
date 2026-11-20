@@ -15,14 +15,13 @@ object StepsProductionPublisher {
         motionByDay: Map<String, Double>,
         referenceStepsByDay: Map<String, Double>,
         calibration: StepsEstimateEngine.Calibration,
-    ): List<MetricSeriesRow> = motionByDay.mapNotNull { (day, motion) ->
-        if (referenceStepsByDay.containsKey(day)) return@mapNotNull null
-        val estimate = StepsEstimateEngine.estimate(motion, calibration) ?: return@mapNotNull null
-        MetricSeriesRow(
-            deviceId = computedDeviceId,
-            day = day,
-            key = "steps_ai_raw",
-            value = estimate.toDouble(),
+    ): List<MetricSeriesRow> = motionByDay.flatMap { (day, motion) ->
+        if (referenceStepsByDay.containsKey(day)) return@flatMap emptyList()
+        val estimate = StepsEstimateEngine.estimate(motion, calibration) ?: return@flatMap emptyList()
+        listOf(
+            MetricSeriesRow(computedDeviceId, day, "steps_ai_raw", estimate.toDouble()),
+            // Local-first final. AI may replace this row only after a generation check.
+            MetricSeriesRow(computedDeviceId, day, "steps_est", estimate.toDouble()),
         )
     }
 }

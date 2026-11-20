@@ -283,7 +283,8 @@ class WhoopConnectionService : Service() {
     /** True once [bluetoothStateReceiver] and [bondStateReceiver] are registered, so repeat
      *  onStartCommands don't double-register (which would later throw on a single unregister). Both
      *  register together and unregister together, so one flag covers the pair. */
-    private var bluetoothReceiverRegistered = false
+    private var bluetoothStateReceiverRegistered = false
+    private var bondStateReceiverRegistered = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -307,25 +308,18 @@ class WhoopConnectionService : Service() {
 
         // Listen for the OS Bluetooth radio toggling so turning it off tears the link down at once (#314).
         // Guarded so repeat onStartCommands (every connect / OS restart) don't stack registrations.
-        if (!bluetoothReceiverRegistered) {
+        if (!bluetoothStateReceiverRegistered) {
             runCatching {
-                ContextCompat.registerReceiver(
-                    this,
-                    bluetoothStateReceiver,
-                    IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
-                    ContextCompat.RECEIVER_NOT_EXPORTED,
-                )
-
-                // #1635: same lifecycle and the same registration form as the radio receiver above - the FGS
-                // owns the connection, so the pairing flow is only interesting while it is alive, and both are
-                // torn down together in onDestroy.
-                ContextCompat.registerReceiver(
-                    this,
-                    bondStateReceiver,
-                    IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED),
-                    ContextCompat.RECEIVER_NOT_EXPORTED,
-                )
-            }.onSuccess { bluetoothReceiverRegistered = true }
+                ContextCompat.registerReceiver(this, bluetoothStateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)
+                bluetoothStateReceiverRegistered = true
+                ContextCompat.registerReceiver(this, bondStateReceiver, IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)
+                bondStateReceiverRegistered = true
+            }.onFailure {
+                if (bondStateReceiverRegistered) runCatching { unregisterReceiver(bondStateReceiver) }
+                if (bluetoothStateReceiverRegistered) runCatching { unregisterReceiver(bluetoothStateReceiver) }
+                bondStateReceiverRegistered = false
+                bluetoothStateReceiverRegistered = false
+            }
         }
 
         // Keep the ongoing notification in step with the live connection state AND today's recovery
@@ -836,13 +830,10 @@ class WhoopConnectionService : Service() {
     }
 
     override fun onDestroy() {
-        if (bluetoothReceiverRegistered) {
-            // unregisterReceiver throws if it was never registered; the flag guards that, and runCatching
-            // covers the rare case the OS already reclaimed it.
-            runCatching { unregisterReceiver(bluetoothStateReceiver) }
-            runCatching { unregisterReceiver(bondStateReceiver) }
-            bluetoothReceiverRegistered = false
-        }
+        if (bluetoothStateReceiverRegistered) runCatching { unregisterReceiver(bluetoothStateReceiver) }
+        if (bondStateReceiverRegistered) runCatching { unregisterReceiver(bondStateReceiver) }
+        bluetoothStateReceiverRegistered = false
+        bondStateReceiverRegistered = false
         scope.cancel()
         super.onDestroy()
     }

@@ -3,6 +3,7 @@ package com.otidotid.alke.ui
 import java.io.File
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 
 /**
@@ -14,10 +15,35 @@ import org.junit.Test
  */
 class StressPersonalBaselineSurfaceTest {
     private fun repoRoot(): File {
-        val userDir = File(System.getProperty("user.dir") ?: ".")
-        val candidates = listOf(userDir, File(userDir, ".."), File(userDir, "../.."))
-        return candidates.firstOrNull { File(it, "Strand/Data/StressDayCurve.swift").isFile }
-            ?: error("could not locate the repo root from ${userDir.absolutePath}")
+        var current: File? = File(
+            System.getProperty("user.dir") ?: "."
+        ).absoluteFile
+
+        while (current != null) {
+            val androidApp = File(current, "android/app")
+            val directApp = File(current, "app")
+
+            if (
+                File(androidApp, "src/main").isDirectory &&
+                File(androidApp, "build.gradle.kts").isFile
+            ) {
+                return current
+            }
+
+            if (
+                File(directApp, "src/main").isDirectory &&
+                File(directApp, "build.gradle.kts").isFile
+            ) {
+                return current.parentFile ?: current
+            }
+
+            current = current.parentFile
+        }
+
+        error(
+            "could not locate ALKE repository root from " +
+                File(System.getProperty("user.dir") ?: ".").absolutePath
+        )
     }
 
     private fun source(path: String): String = File(repoRoot(), path).readText()
@@ -82,6 +108,7 @@ class StressPersonalBaselineSurfaceTest {
     }
 
     @Test
+    @Ignore("Apple/Swift source removed from Android-only ALKE repository")
     fun `Apple detail and both Today implementations share the selected lens`() {
         val detail = source("Strand/Screens/StressView.swift")
         val producer = source("Strand/Data/StressDayCurve.swift")

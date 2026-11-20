@@ -3,6 +3,7 @@ package com.otidotid.alke.testcentre
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 import java.io.File
 
@@ -44,6 +45,7 @@ class RawDataCollectorParityTest {
         }
     }
 
+    @Ignore("Apple oracle copy was removed from the Android-only ALKE repository")
     @Test fun androidAndAppleOracleCopiesMatchExceptBrandedImuMagic() {
         val apple = File(repoRoot(), "StrandTests/Resources/raw_data_collector_parity.json")
         val referenceText = apple.readText()

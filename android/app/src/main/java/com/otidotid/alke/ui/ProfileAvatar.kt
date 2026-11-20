@@ -95,12 +95,23 @@ object ProfileAvatarStore {
         val app = ctx.applicationContext
         val scaled = runCatching { decodeDownscaled(app, uri) }.getOrNull() ?: return false
         val file = avatarFile(app)
+        val temp = File(file.parentFile, "${file.name}.tmp")
         val wrote = runCatching {
-            file.outputStream().use { out ->
-                scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
+            temp.outputStream().use { out ->
+                check(scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out))
+                out.flush()
             }
-        }.isSuccess
+            val verified = BitmapFactory.decodeFile(temp.absolutePath)
+                ?: error("Encoded avatar could not be decoded")
+            verified.recycle()
+            if (!temp.renameTo(file)) {
+                temp.copyTo(file, overwrite = true)
+                temp.delete()
+            }
+            true
+        }.getOrDefault(false)
         if (!wrote) {
+            temp.delete()
             scaled.recycle()
             return false
         }

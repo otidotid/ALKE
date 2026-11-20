@@ -1918,10 +1918,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val rawRow = repository.latestMetricComputedUnion(activeId, "steps_ai_raw") ?: return@runCatching
                 val rawSteps = rawRow.value.roundToInt().coerceIn(0, 100_000)
                 val prefs = AlkePrefs.of(appContext)
-                val stamp = "${rawRow.day}:$rawSteps"
+                val rawGeneration = "${activeId}:${rawRow.day}:$rawSteps:${rawRow.value.toBits()}"
+                val stampKey = "alke.steps.ai.lastValidatedStamp.$activeId.${rawRow.day}"
                 val existingFinal = repository.latestMetricComputedUnion(activeId, "steps_est")
                 if (
-                    prefs.getString("alke.steps.ai.lastValidatedStamp", null) == stamp &&
+                    prefs.getString(stampKey, null) == rawGeneration &&
                     existingFinal?.day == rawRow.day
                 ) return@runCatching
 
@@ -1967,6 +1968,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 )
 
+                val latestRaw = repository.latestMetricComputedUnion(activeId, "steps_ai_raw")
+                val latestGeneration = latestRaw?.let { "${activeId}:${it.day}:${it.value.roundToInt().coerceIn(0, 100_000)}:${it.value.toBits()}" }
+                if (latestGeneration != rawGeneration) return@runCatching
                 val computedId = repository.computedSourceIds(activeId).first()
                 repository.upsertMetricSeries(
                     listOf(
@@ -1976,7 +1980,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 )
                 prefs.edit()
-                    .putString("alke.steps.ai.lastValidatedStamp", stamp)
+                    .putString(stampKey, rawGeneration)
                     .putString("alke.steps.ai.lastStatus", result.status.name)
                     .putString("alke.steps.ai.lastReason", result.reason.take(240))
                     .apply()
@@ -1985,10 +1989,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     val activeId = activeStrapId
                     val raw = repository.latestMetricComputedUnion(activeId, "steps_ai_raw")
                         ?: return@runCatching
-                    val computedId = repository.computedSourceIds(activeId).first()
-                    repository.upsertMetricSeries(
-                        listOf(MetricSeriesRow(computedId, raw.day, "steps_est", raw.value))
-                    )
+                    // The publisher already materializes local final. Never let an old failed request
+                    // overwrite a newer AI success.
+                    val final = repository.latestMetricComputedUnion(activeId, "steps_est")
+                    if (final?.day != raw.day) {
+                        val computedId = repository.computedSourceIds(activeId).first()
+                        repository.upsertMetricSeries(
+                            listOf(MetricSeriesRow(computedId, raw.day, "steps_est", raw.value))
+                        )
+                    }
                 }
             }
         }

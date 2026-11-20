@@ -429,13 +429,18 @@ internal class GoogleDriveArchiveManager(
 
     private fun checkpointAndCopy(destination: File) {
         val room = WhoopDatabase.get(appContext)
-        room.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").close()
+        val db = room.openHelper.writableDatabase
+        db.query("PRAGMA wal_checkpoint(FULL)").close()
         val source = appContext.getDatabasePath(WhoopDatabase.DB_NAME)
         check(source.isFile)
         check(StatFs(appContext.filesDir.absolutePath).availableBytes >= source.length() * 3L) {
             "Not enough storage to build and verify a ALKE monthly archive."
         }
-        source.copyTo(destination, overwrite = true)
+        destination.delete()
+        val escaped = destination.absolutePath.replace("'", "''")
+        // VACUUM INTO creates one consistent SQLite snapshot while Room remains open.
+        db.execSQL("VACUUM INTO '$escaped'")
+        check(destination.isFile && destination.length() > 0L)
     }
 
     private fun filterToMonth(file: File, month: YearMonth, endExclusive: LocalDate) {

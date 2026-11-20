@@ -2,6 +2,7 @@ package com.otidotid.alke.ui
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 import java.io.File
 
@@ -19,10 +20,35 @@ import java.io.File
 class TodayWorkoutTapTest {
 
     private fun repoRoot(): File {
-        val userDir = File(System.getProperty("user.dir") ?: ".")
-        val candidates = listOf(userDir, File(userDir, ".."), File(userDir, "../.."))
-        return candidates.firstOrNull { File(it, "Strand/Screens/TodayView.swift").isFile }
-            ?: error("could not locate the repo root from ${userDir.absolutePath}")
+        var current: File? = File(
+            System.getProperty("user.dir") ?: "."
+        ).absoluteFile
+
+        while (current != null) {
+            val androidApp = File(current, "android/app")
+            val directApp = File(current, "app")
+
+            if (
+                File(androidApp, "src/main").isDirectory &&
+                File(androidApp, "build.gradle.kts").isFile
+            ) {
+                return current
+            }
+
+            if (
+                File(directApp, "src/main").isDirectory &&
+                File(directApp, "build.gradle.kts").isFile
+            ) {
+                return current.parentFile ?: current
+            }
+
+            current = current.parentFile
+        }
+
+        error(
+            "could not locate ALKE repository root from " +
+                File(System.getProperty("user.dir") ?: ".").absolutePath
+        )
     }
 
     private fun todayScreenKt() = File(repoRoot(), "android/app/src/main/java/com/otidotid/alke/ui/TodayScreen.kt").readText()
@@ -66,6 +92,7 @@ class TodayWorkoutTapTest {
 
     /** Parity: iOS reaches the same read-only detail from the same feed, and presents it at screen level. */
     @Test
+    @Ignore("Apple/Swift source removed from Android-only ALKE repository")
     fun iosTodayOpensTheSameDetailComponent() {
         val swift = File(repoRoot(), "Strand/Screens/TodayView.swift").readText()
         assertTrue("iOS tiles must open a detail", swift.contains("workoutDetail = WorkoutDetailTarget(row: w)"))
@@ -87,6 +114,7 @@ class TodayWorkoutTapTest {
      * look correct, and silently shrink two unrelated numbers on the same screen.
      */
     @Test
+    @Ignore("Apple/Swift source removed from Android-only ALKE repository")
     fun bothPlatformsWindowTheFeedToTheSameFourteenDays() {
         val kotlin = File(repoRoot(), "android/app/src/main/java/com/otidotid/alke/ui/TodayMetricsLogic.kt").readText()
         assertTrue(

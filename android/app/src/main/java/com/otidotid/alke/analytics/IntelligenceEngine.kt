@@ -2908,6 +2908,8 @@ object IntelligenceEngine {
             .filter { it < currentSaturday }.distinct().sorted().toList()
         val rows = ArrayList<MetricSeriesRow>()
         for (anchorDay in anchors) {
+            val primaryWeeklyKeys = setOf("fitness_age", "vo2max_est", "vitality", "body_age")
+            if (primaryWeeklyKeys.all { key -> (anchorDay to key) in existing }) continue
             val anchor = runCatching { java.time.LocalDate.parse(anchorDay) }.getOrNull() ?: continue
             val from = anchor.minusDays(6).toString()
             val week = byDay.values.filter { it.day in from..anchorDay }.sortedBy { it.day }
@@ -2928,6 +2930,8 @@ object IntelligenceEngine {
             .filter { it < currentSaturday }.distinct().sorted().toList()
         val rows = ArrayList<MetricSeriesRow>()
         for (anchorDay in anchors) {
+            val primaryWeeklyKeys = setOf("fitness_age", "vo2max_est", "vitality", "body_age")
+            if (primaryWeeklyKeys.all { key -> (anchorDay to key) in existing }) continue
             val anchor = runCatching { java.time.LocalDate.parse(anchorDay) }.getOrNull() ?: continue
             val from = anchor.minusDays(6).toString()
             val week = byDay.values.filter { it.day in from..anchorDay }.sortedBy { it.day }

@@ -1,0 +1,44 @@
+name: Publish ALKE Personal v598
+on:
+  push:
+    branches: [alke/publish-signed-v598]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ALKE-Personal-Validated-Unsigned
+          run-id: '44759225342'
+          github-token: ${{ github.token }}
+          path: incoming
+      - name: Verify signed Personal APK and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v1.0.0-alpha.22.8-live-hr-audit.598
+          SOURCE: fcca17b0d7cf6e11a01706056863c95e5498508d
+          RUN_ID: '44759225342'
+          APK: ALKE-v1.0.0-alpha.22.8-PERSONAL-v598-signed.apk
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .head_sha)" = "$SOURCE"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .conclusion)" = success
+          mkdir -p "$RUNNER_TEMP/apk"
+          cp incoming/ALKE-personal-v598-unsigned.apk "$RUNNER_TEMP/apk/app.apk"
+          cd "$RUNNER_TEMP/apk"
+          echo '2e805af9ae289cd938cdb67ccfaa4cb4963965e89a5875132aa91e2e66ed81f1  app.apk' | sha256sum -c -
+          git init -q
+          git apply "$GITHUB_WORKSPACE/.github/release/v598-signature.patch"
+          mv app.apk "$APK"
+          echo "92c03418ac10efc454b0e72b5d3065bc710262ba2d76d4da2f0b7b31a48f49af  $APK" > "$APK.sha256"
+          sha256sum -c "$APK.sha256"
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          "$signer" verify --verbose --print-certs "$APK" > verified.txt
+          grep -Fq 'f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877' verified.txt
+          grep -Eq 'v2 scheme.*true' verified.txt
+          grep -Eq 'v3 scheme.*true' verified.txt
+          gh release create "$TAG" "$APK" "$APK.sha256" --repo "$GITHUB_REPOSITORY" --target "$SOURCE" --title 'ALKE Alpha 22.8 Personal v598' --notes-file "$GITHUB_WORKSPACE/.github/release/v598-notes.md"

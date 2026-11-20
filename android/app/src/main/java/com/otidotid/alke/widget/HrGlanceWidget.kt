@@ -6,6 +6,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.Preferences
+import androidx.glance.currentState
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
@@ -62,7 +64,24 @@ class HrGlanceWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val snap = runCatching { WidgetSnapshotStore.load(context) }.getOrDefault(WidgetSnapshot())
         val dark = WidgetTheme.isDark(context)
-        provideContent { HrWidgetContent(snap, dark) }
+        provideContent {
+            val prefs = currentState<Preferences>()
+            val bpm = prefs[LiveHrWidgetFeed.bpm]
+            val at = prefs[LiveHrWidgetFeed.at] ?: 0L
+            val now = System.currentTimeMillis()
+            val display = if (bpm == null) {
+                snap.copy(heartRateStale = snap.heartRate != null)
+            } else {
+                snap.copy(
+                    heartRate = bpm,
+                    heartRateAtMs = at,
+                    updatedAtMs = at,
+                    heartRateStale = prefs[LiveHrWidgetFeed.live] != true || now - at !in 0..HrDisplay.LIVE_MS,
+                    hrSeries = HrTrace.append(snap.hrSeries, at / 1000, bpm, now / 1000),
+                )
+            }
+            HrWidgetContent(display, dark)
+        }
     }
 
     /** Same defence as [AlkeGlanceWidget.onCompositionError]: swap Glance's built-in error layout for

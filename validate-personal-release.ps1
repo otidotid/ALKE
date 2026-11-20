@@ -53,6 +53,8 @@ $verify = & $apksigner verify --verbose --print-certs $Apk 2>&1
 if ($LASTEXITCODE -ne 0) { throw "APK signature verification failed." }
 $verifyText = ($verify -join "`n").ToLowerInvariant()
 if ($verifyText -notmatch 'verified using v2 scheme.*true' -or $verifyText -notmatch 'verified using v3 scheme.*true') { throw "APK must verify with v2 and v3." }
+$expectedSigner = 'f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877'
+if ($verifyText -notmatch "(?m)^signer #1 certificate sha-256 digest:\s*$expectedSigner\s*$") { throw "APK certificate differs from ALKE Personal v597." }
 $hash = (Get-FileHash $Apk -Algorithm SHA256).Hash
 $checksum = "$Apk.sha256"
 "$hash  $([IO.Path]::GetFileName($Apk))" | Set-Content $checksum -Encoding ASCII

@@ -539,6 +539,7 @@ class WhoopBleClient(
     private val gattOpsFactory: (BluetoothGatt) -> GattOps = ::RealGattOps,
     /** Fire-and-forget notification after a true HISTORY_COMPLETE only. The sink must only enqueue. */
     private val successfulOffloadSink: () -> Unit = {},
+    private val liveWidgetSample: (Int) -> Unit = {},
 ) {
 
     companion object {
@@ -2308,6 +2309,7 @@ class WhoopBleClient(
             // the equal state anyway, so this only avoids the throwaway LiveState allocation. The guard still
             // fires whenever ANY of the three isn't at its target, so the connected/streamingLiveHR
             // transitions are never missed (matches the WHOOP live-HR paths).
+            liveWidgetSample(hr)
             val s = _state.value
             if (s.heartRate != hr || !s.connected || !s.streamingLiveHR) {
                 _state.update { it.copy(heartRate = hr, connected = true, streamingLiveHR = true) }
@@ -8666,14 +8668,17 @@ class WhoopBleClient(
                     // gates on it for exactly that reason), so counting them would let a history sync mask
                     // a dead realtime stream — which is the very shape of the bug this recovers from:
                     // healthy-looking traffic hiding the absence of HR.
-                    if (hr in 30..220 && !replayedOffload) noteLiveHr()
-                    if (hr in 30..220 && _state.value.heartRate != hr) _state.update { it.copy(heartRate = hr) }
+                    if (hr in 30..220 && !replayedOffload) {
+                        noteLiveHr()
+                        liveWidgetSample(hr)
+                        if (_state.value.heartRate != hr) _state.update { it.copy(heartRate = hr) }
+                    }
                 }
                 // The realtime stream usually reports rr_count=0; only update R-R when this frame
                 // actually carries intervals, so we don't wipe R-R sourced from the 0x2A37 profile.
                 // withRRIntervals also feeds the Live console's rolling rrRecent buffer.
                 intArrayValue(parsed.parsed["rr_intervals"])?.let { rr ->
-                    if (rr.isNotEmpty()) _state.update { it.withRRIntervals(rr) }
+                    if (!replayedOffload && rr.isNotEmpty()) _state.update { it.withRRIntervals(rr) }
                 }
             }
 
@@ -9204,6 +9209,7 @@ class WhoopBleClient(
             // this only avoids the per-frame throwaway LiveState allocation (matches FrameRouter). The bonded
             // transition below stays UNCONDITIONAL: it must still fire once even while HR sits steady.
             noteLiveHr()
+            liveWidgetSample(hr)
             if (_state.value.heartRate != hr) _state.update { it.copy(heartRate = hr) }
             // EXPERIMENTAL WHOOP 5.0/MG: there is no confirmed-write bond for a 5/MG strap, so once
             // live HR actually streams over the standard profile we treat the link as established —

@@ -62,10 +62,10 @@ import java.util.Date
 class HrGlanceWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val snap = runCatching { WidgetSnapshotStore.load(context) }.getOrDefault(WidgetSnapshot())
         val dark = WidgetTheme.isDark(context)
         provideContent {
             val prefs = currentState<Preferences>()
+            val snap = runCatching { WidgetSnapshotStore.load(context) }.getOrDefault(WidgetSnapshot())
             val bpm = prefs[LiveHrWidgetFeed.bpm]
             val at = prefs[LiveHrWidgetFeed.at] ?: 0L
             val now = System.currentTimeMillis()

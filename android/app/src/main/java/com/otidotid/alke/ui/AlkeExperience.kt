@@ -1927,8 +1927,6 @@ fun AlkeMeExperience(
                     ProfileAvatar(size = 72.dp, contentDescription = "My profile photo")
                     Spacer(Modifier.width(16.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("My profile", color = A.white, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                        Text("Photo, age, sex, body profile and heart-rate settings", color = A.muted, fontSize = 12.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { photoPicker.launch("image/*") }) {
                                 Text(if (ProfileAvatarStore.hasAvatar) "Change photo" else "Choose photo", color = A.cyan)
@@ -1957,27 +1955,12 @@ fun AlkeMeExperience(
                 { showDockEditor = true }, A.cyan)
             AlkeLinkRow("All Modules", "Explore the complete ALKE toolkit", Icons.Filled.Tune, onModules, A.gold)
             AlkeLinkRow("Notifications", "Updates and notification preferences", Icons.Filled.NotificationsNone, onNotifications)
-            AlkePanel(Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { personalSettingsExpanded = !personalSettingsExpanded }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.Settings, contentDescription = null, tint = A.cyan,
-                        modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text("Settings", color = A.white,
-                        fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
-                        modifier = Modifier.weight(1f))
-                    Icon(Icons.Filled.ChevronRight,
-                        contentDescription = if (personalSettingsExpanded) "Collapse settings" else "Expand settings",
-                        tint = A.cyan,
-                        modifier = Modifier.size(20.dp)
-                            .graphicsLayer { rotationZ = if (personalSettingsExpanded) 90f else 0f })
-                }
-            }
+            AlkeLinkRow(
+                "Settings",
+                "Profile, display and app preferences",
+                Icons.Filled.Settings,
+                { personalSettingsExpanded = !personalSettingsExpanded },
+            )
         },
     )
     if (showDockEditor) AlkeDockEditorDialog(onDismiss = { showDockEditor = false })

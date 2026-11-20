@@ -40,7 +40,10 @@ class MeSettingsConsolidationTest {
         assertTrue(settings.contains("meHeader()"))
         assertTrue(settings.contains("SettingsCard("))
         assertTrue(settings.contains("onClick = onOpenTestCentre"))
-        assertTrue(settings.contains("onClick = onOpenBackupSync"))
+        // Backup & History has one visible home in Me:
+        // Google Drive / Local Folder. The callback remains wired there.
+        assertFalse(settings.contains("title = \"Backup & History\""))
+        assertFalse(settings.contains("text = \"Open Backup & History\""))
     }
 
     @Test fun settingsModuleIsRetiredButLegacyRouteStillResolves() {

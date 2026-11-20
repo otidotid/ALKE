@@ -3057,22 +3057,6 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
             )
         }
 
-        // --- Unified Backup & History ---
-        SettingsCard(
-            collapsible = true,
-            icon = Icons.Filled.CloudSync,
-            title = "Backup & History",
-            blurb = "Google Drive and Local Folder now live together. Create complete backups, restore everything, and browse verified history read-only.",
-        ) {
-            AlkeButton(
-                text = "Open Backup & History",
-                leadingIcon = Icons.Filled.CloudSync,
-                kind = AlkeButtonKind.Primary,
-                fullWidth = true,
-                onClick = onOpenBackupSync,
-            )
-        }
-
         // --- About ---
         SettingsCard(
             collapsible = true,

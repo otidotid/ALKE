@@ -22,12 +22,15 @@ object AlkeWeightedFitnessAge {
     const val VITALITY_WEIGHT = 0.25
     const val METABOLIC_WEIGHT = 0.15
 
+    enum class Confidence { HIGH, MODERATE, LOW }
+
     data class Component(val name: String, val ageYears: Double, val weight: Double)
     data class Result(
         val fitnessAge: Double,
         val components: List<Component>,
         val availableWeight: Double,
         val componentCount: Int,
+        val confidence: Confidence,
     ) {
         fun effectiveWeight(name: String): Double =
             components.firstOrNull { it.name == name }?.weight?.div(availableWeight) ?: 0.0
@@ -37,6 +40,7 @@ object AlkeWeightedFitnessAge {
         coreAge: Double,
         vitalityAge: Double?,
         metabolicAge: Double?,
+        coreConfidence: FitnessAgeConfidence = FitnessAgeConfidence.ESTIMATE,
     ): Result {
         require(coreAge.isFinite() && coreAge > 0.0) { "A computed fitness core is mandatory" }
         fun valid(age: Double?): Double? = age?.takeIf { it.isFinite() && it > 0.0 }
@@ -47,15 +51,27 @@ object AlkeWeightedFitnessAge {
         }
         val total = parts.sumOf { it.weight }
         val years = parts.sumOf { it.ageYears * it.weight } / total
+        val confidence = when {
+            coreConfidence == FitnessAgeConfidence.READY && parts.size == 3 -> Confidence.HIGH
+            coreConfidence != FitnessAgeConfidence.NOT_READY && parts.size >= 2 -> Confidence.MODERATE
+            else -> Confidence.LOW
+        }
         return Result(
             fitnessAge = years.coerceIn(FitnessAgeEngine.minAge, FitnessAgeEngine.maxAge),
             components = parts,
             availableWeight = total,
             componentCount = parts.size,
+            confidence = confidence,
         )
     }
 
     /** Not an AI-produced age: only validated/local policy deltas may enter. */
     fun metabolicAge(chronologicalAge: Double, deltaYears: Double?): Double? =
-        deltaYears?.takeIf { it.isFinite() }?.let { chronologicalAge + it }
+        deltaYears
+            ?.takeIf {
+                chronologicalAge.isFinite() &&
+                    it.isFinite() &&
+                    it in MetabolicFitnessAge.MIN_DELTA_YEARS..MetabolicFitnessAge.MAX_DELTA_YEARS
+            }
+            ?.let { chronologicalAge + it }
 }

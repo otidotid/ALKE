@@ -51,4 +51,39 @@ class AlkeWeightedFitnessAgeTest {
         assertTrue(AlkeWeightedFitnessAge.AI_ALGORITHM_VERSION !=
             AlkeWeightedFitnessAge.ALGORITHM_VERSION)
     }
+
+    @Test fun metabolicDeltaMustStayInsideProductPolicy() {
+        assertEquals(38.0, AlkeWeightedFitnessAge.metabolicAge(40.0, -2.0)!!, 0.0)
+        assertEquals(44.0, AlkeWeightedFitnessAge.metabolicAge(40.0, 4.0)!!, 0.0)
+        assertEquals(null, AlkeWeightedFitnessAge.metabolicAge(40.0, -2.01))
+        assertEquals(null, AlkeWeightedFitnessAge.metabolicAge(40.0, 4.01))
+        assertEquals(null, AlkeWeightedFitnessAge.metabolicAge(Double.NaN, 0.0))
+    }
+
+    @Test fun weightedConfidenceReflectsAvailableDomainsAndCoreReadiness() {
+        val high = AlkeWeightedFitnessAge.combine(
+            coreAge = 40.0,
+            vitalityAge = 39.0,
+            metabolicAge = 41.0,
+            coreConfidence = FitnessAgeConfidence.READY,
+        )
+        assertEquals(AlkeWeightedFitnessAge.Confidence.HIGH, high.confidence)
+
+        val moderate = AlkeWeightedFitnessAge.combine(
+            coreAge = 40.0,
+            vitalityAge = 39.0,
+            metabolicAge = null,
+            coreConfidence = FitnessAgeConfidence.ESTIMATE,
+        )
+        assertEquals(AlkeWeightedFitnessAge.Confidence.MODERATE, moderate.confidence)
+
+        val low = AlkeWeightedFitnessAge.combine(
+            coreAge = 40.0,
+            vitalityAge = null,
+            metabolicAge = null,
+            coreConfidence = FitnessAgeConfidence.ESTIMATE,
+        )
+        assertEquals(AlkeWeightedFitnessAge.Confidence.LOW, low.confidence)
+    }
+
 }

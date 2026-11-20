@@ -2744,7 +2744,19 @@ object IntelligenceEngine {
             vitalityAge = vitalityResult(gateDays, profile)?.bodyAge,
             metabolicAge = AlkeWeightedFitnessAge.metabolicAge(profile.age, res.metabolicDeltaYears),
         )
-        val rows = mutableListOf(MetricSeriesRow(deviceId = computedId, day = satKey, key = "fitness_age", value = combined.fitnessAge))
+        val rows = mutableListOf(
+            MetricSeriesRow(deviceId = computedId, day = satKey, key = "fitness_age", value = combined.fitnessAge),
+            MetricSeriesRow(
+                deviceId = computedId,
+                day = satKey,
+                key = "fitness_age_confidence",
+                value = when (combined.confidence) {
+                    AlkeWeightedFitnessAge.Confidence.HIGH -> 2.0
+                    AlkeWeightedFitnessAge.Confidence.MODERATE -> 1.0
+                    AlkeWeightedFitnessAge.Confidence.LOW -> 0.0
+                },
+            ),
+        )
         // #1391: offer a VOâ‚‚max even without a waist. res.vo2max is the Nes 2011 waist-based estimate (null
         // when no waist is set). Fall back to the Uth 2004 HR-ratio estimate (15.3Â·HRmax/RHR â€” waist-free,
         // the SAME formula the calorie path already uses), so any user past the age+RHR fitness-age gate gets
@@ -2829,6 +2841,7 @@ object IntelligenceEngine {
             coreAge = core,
             vitalityAge = vitalityAge,
             metabolicAge = AlkeWeightedFitnessAge.metabolicAge(profile.age, qualifiedMetabolicDelta),
+            coreConfidence = ready.confidence,
         )
         val res = localResult.copy(
             fitnessAge = combined.fitnessAge,

@@ -17,9 +17,9 @@ class StepCycleIntegrationPolicyTest {
         stagesJSON = "[{\"start\":$start,\"end\":$end,\"stage\":\"light\"}]",
     )
 
-    @Test fun calendarFallbackExistsOnlyBeforeTheFirstConfirmedCycle() {
+    @Test fun calendarFallbackIsKeptWhenConfirmedCycleHasNoStepEstimate() {
         assertEquals(410, DayCycleIntelligenceIntegration.integratedStepValue(410, false, null))
-        assertNull(DayCycleIntelligenceIntegration.integratedStepValue(410, true, null))
+        assertEquals(410, DayCycleIntelligenceIntegration.integratedStepValue(410, true, null))
         assertEquals(37, DayCycleIntelligenceIntegration.integratedStepValue(410, true, 37))
     }
 

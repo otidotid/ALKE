@@ -856,6 +856,11 @@ interface WhoopDao : DeviceRegistryDao {
     )
     suspend fun gravitySamples(deviceId: String, from: Long, to: Long, limit: Int): List<GravitySample>
 
+    /** Exact per-minute motion coverage for WHOOP 4.0, which has gravity but no step counter. */
+    @Query("SELECT DISTINCT (ts / 60) FROM gravitySample WHERE deviceId = :deviceId " +
+        "AND ts >= :from AND ts <= :to")
+    suspend fun gravityCoveredMinutes(deviceId: String, from: Long, to: Long): List<Long>
+
     /**
      * Which raw streams a device has ANY rows for in a window — the strap-capability question, answered
      * without counting.

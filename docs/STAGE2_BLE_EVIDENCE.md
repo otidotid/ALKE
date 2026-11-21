@@ -32,3 +32,28 @@
 - Required before a final release: signed APK matches v603 update certificate, and on-device BLE smoke test confirms healthy sync, interruption and reconnect. Unit tests alone cannot prove over-the-air transfer safety.
 - Measure before further throughput optimization: peak queued frames, transfer frame rate, actual database-write latency, mean and worst transfer duration, peak memory and battery draw. Establish baseline and compare to a candidate using the *same* device, firmware and backlog.
 - **No scoring algorithm edits** in this change. Subsequent Fase C is out of scope until numeric parity is proven.
+
+## Stage 2 C/D — snapshot and background audit (added 22 Nov 2026)
+
+The v604 quality-gate baseline is green (GitHub Actions run 44953017300). Further source inspection
+shows that ALKE already has day-scoped scored-result caches, 64-day cache retention,
+54-hour overlapping-window reuse, WorkManager periodic refresh, and read-only
+7-day local snapshots. Replacing these without measurements risks scoring drift.
+
+**Confirmed SQL inefficiency:** the Tier 2 snapshot builder filtered 12 health
+tables with `WHERE date(ts,'unixepoch','localtime') >= ?`, forcing expression
+evaluation over entire raw histories rather than constraining eligible indexed
+timestamp columns. The Stage 2 C fix applies native timestamp bounds while
+retaining the original local-day SELECT/GROUP BY and all original Room rows.
+
+**Android battery constraints:** snapshot and encrypted archive background
+requests now defer during low-battery/low-storage conditions; network transport
+still uses existing CONNECTED policy (user-controlled Google backup settings
+remain unchanged). WorkManager may defer requests; time-of-day completion
+is not guaranteed. No retention deletion, scoring formula, Room migration,
+cloud endpoint, or secret handling changed.
+
+**Verification:** 23h/25h DST boundaries, local Asia/Jakarta bound,
+parent-session timestamp join, DAY_TEXT lexical filter, full Personal test
+gate. Hardware transfer, memory/battery profiling and numerical score-parity
+remain release gates before claiming full Stage 2 end-to-end performance.

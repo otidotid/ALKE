@@ -12,7 +12,25 @@ import java.util.ArrayDeque
  * [reset] advances the generation. A coroutine from the previous connection can then neither poll
  * frames from the new connection nor release its owner, even if its `finally` block runs late.
  */
-internal class BackfillDrainGate<T> {
+internal class BackfillDrainGate<T>(
+    private val maxPendingFrames: Int = DEFAULT_MAX_PENDING_FRAMES,
+) {
+    init { require(maxPendingFrames > 0) { "maxPendingFrames must be positive" } }
+
+    companion object {
+        // ~one to a few MiB for ordinary historical frames. The cap is on QUEUED
+        // frames, not already-polled frames; an overwhelmed decoder fails the
+        // current offload safely instead of growing RAM without bound.
+        const val DEFAULT_MAX_PENDING_FRAMES = 8_192
+    }
+
+    sealed interface Offer {
+        data class Start(val lease: Lease) : Offer
+        data object Queued : Offer
+        data object Overflow : Offer
+        data object Closed : Offer
+    }
+
     internal data class Lease internal constructor(
         internal val generation: Long,
         internal val ownerId: Long,
@@ -23,12 +41,34 @@ internal class BackfillDrainGate<T> {
     private var generation = 0L
     private var nextOwnerId = 0L
     private var owner: Lease? = null
+    private var closed = false
 
-    /** Enqueue [item], returning a lease only when the caller must start the serial drain. */
-    fun enqueue(item: T): Lease? = synchronized(lock) {
+    /**
+     * Enqueue a frame without blocking the BLE callback. On overload, close the
+     * session, discard UNPROCESSED frames and invalidate the drain lease. The
+     * client must end this offload WITHOUT claiming HISTORY_COMPLETE, so unacked
+     * records can be re-offloaded on the next attempt.
+     */
+    fun offer(item: T): Offer = synchronized(lock) {
+        if (closed) return@synchronized Offer.Closed
+        if (pending.size >= maxPendingFrames) {
+            closeLocked()
+            return@synchronized Offer.Overflow
+        }
         pending.addLast(item)
-        if (owner != null) return@synchronized null
-        Lease(generation, ++nextOwnerId).also { owner = it }
+        if (owner != null) return@synchronized Offer.Queued
+        val lease = Lease(generation, ++nextOwnerId).also { owner = it }
+        Offer.Start(lease)
+    }
+
+    /** Poison the current offload after a decoder/persistence exception. */
+    fun failClosed() = synchronized(lock) { closeLocked() }
+
+    private fun closeLocked() {
+        closed = true
+        generation += 1
+        owner = null
+        pending.clear()
     }
 
     /**
@@ -57,6 +97,7 @@ internal class BackfillDrainGate<T> {
 
     /** Begin a new connection generation and invalidate every lease and frame from the old one. */
     fun reset() = synchronized(lock) {
+        closed = false
         generation += 1
         owner = null
         pending.clear()

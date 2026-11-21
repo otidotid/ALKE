@@ -1911,8 +1911,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * Never changes StepsFusionProduction. Raw steps are archived under steps_ai_raw; only a validated
      * KEEP/ADJUST/PARTIAL result is written back to the existing steps_est key. Every failure keeps raw.
      */
+    private val stepsAiValidationInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
+
     private fun scheduleStepsAiValidation() {
+        // Calibrations can publish repeatedly while a network request is still running.
+        // Never run two validators against the same day / stamp concurrently.
+        if (!stepsAiValidationInFlight.compareAndSet(false, true)) return
         viewModelScope.launch(Dispatchers.IO) {
+            try {
             val activeId = activeStrapId
             val prefs = AlkePrefs.of(appContext)
             val rawRows = runCatching {
@@ -1923,7 +1929,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
             // Durable per-day queue: any row without the current fingerprint stamp remains pending
             // across process death and is retried on every calibration publication.
-            for (rawRow in rawRows.sortedBy { it.day }) {
+            var requestsAttempted = 0
+            // Recent days must not wait behind months of historical replay.
+            for (rawRow in rawRows.sortedByDescending { it.day }) {
                 if (!isActive) return@launch
                 val rawSteps = rawRow.value.roundToInt().coerceIn(0, 100_000)
                 val zone = ZoneId.systemDefault()
@@ -1964,6 +1972,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     activeId, "steps_est", rawRow.day, rawRow.day,
                 ).lastOrNull()
                 if (prefs.getString(stampKey, null) == rawGeneration && finalForDay != null) continue
+                if (requestsAttempted++ >= 8) break // Retry the rest on the next calibration publication.
 
                 val result = stepsAiValidator.validate(
                     StepsAiValidatorClient.Context(
@@ -1976,7 +1985,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 )
                 // Network, HTTP, schema and confidence failures are LOCAL_FALLBACK, not validated KEEP.
                 // Leave the queue pending and never write success metadata for them.
-                if (!result.remoteAccepted) continue
+                if (!result.remoteAccepted) break // Do not hammer cloud during outage/disabled AI.
 
                 val committed = repository.withStepsTransaction {
                     val latestRaw = repository.metricSeriesComputedUnion(
@@ -1999,6 +2008,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         .putString("alke.steps.ai.lastReason", result.reason.take(240))
                         .apply()
                 }
+            }
+            } finally {
+                stepsAiValidationInFlight.set(false)
             }
         }
     }

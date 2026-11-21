@@ -48,6 +48,9 @@ class AlkeApplication : Application() {
         // Install before any app-owned startup work so even an early failure is preserved for the
         // recovery screen on the next launch.
         CrashCapture.install(this)
+        // Recover a running GPS workout before the BLE service/UI observe its session state.
+        // Only app-private files are read; no Room database or network access on startup.
+        runCatching { com.otidotid.alke.location.GpsSession.initialize(this) }
         // #1008: pin the pre-change Overnight-only default for existing installs before anything
         // reads it. Idempotent; a no-op on fresh installs and on every launch after the first.
         com.otidotid.alke.ui.AlkePrefs.migrateContinuousHrvOvernightDefault(this)

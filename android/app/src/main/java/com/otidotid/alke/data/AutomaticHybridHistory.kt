@@ -128,6 +128,9 @@ internal object AutomaticHybridHistoryScheduler {
     fun ensureScheduled(context: Context) {
         val app = context.applicationContext
         val manager = WorkManager.getInstance(app)
+        // UPDATE preserves the original periodic timing while migrating WorkManager
+        // constraints on existing installations; KEEP would silently retain old,
+        // unconstrained work from the previous ALKE version.
         // Snapshot aggregation can touch sizable databases. Postpone nonurgent
         // work while Android reports low battery or storage; never delete data
         // or prevent the foreground app from reading its full local history.
@@ -135,7 +138,7 @@ internal object AutomaticHybridHistoryScheduler {
             .setRequiresBatteryNotLow(true)
             .setRequiresStorageNotLow(true)
             .build()
-        manager.enqueueUniquePeriodicWork(SNAPSHOT_PERIODIC, ExistingPeriodicWorkPolicy.KEEP,
+        manager.enqueueUniquePeriodicWork(SNAPSHOT_PERIODIC, ExistingPeriodicWorkPolicy.UPDATE,
             PeriodicWorkRequestBuilder<RollingSnapshotWorker>(1, TimeUnit.DAYS)
                 .setConstraints(snapshotConstraints)
                 .build())
@@ -162,7 +165,7 @@ internal object AutomaticHybridHistoryScheduler {
             .setRequiresBatteryNotLow(true)
             .setRequiresStorageNotLow(true)
             .build()
-        manager.enqueueUniquePeriodicWork(ARCHIVE_PERIODIC, ExistingPeriodicWorkPolicy.KEEP,
+        manager.enqueueUniquePeriodicWork(ARCHIVE_PERIODIC, ExistingPeriodicWorkPolicy.UPDATE,
             PeriodicWorkRequestBuilder<RollingArchiveWorker>(1, TimeUnit.DAYS)
                 .setConstraints(constraints)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.MINUTES)

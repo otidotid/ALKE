@@ -1836,6 +1836,15 @@ class WhoopRepository(
     suspend fun gravitySamplesForDevice(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =
         dao.gravitySamples(deviceId, from, to, limit)
 
+    /** Distinct minutes are unioned across current + canonical WHOOP ids, never double-counted. */
+    suspend fun gravityCoveredMinutesUnion(activeDeviceId: String, from: Long, to: Long): Int {
+        val unique = HashSet<Long>()
+        for (id in rawWhoopSourceIds(activeDeviceId)) {
+            unique.addAll(dao.gravityCoveredMinutes(id, from, to))
+        }
+        return unique.size
+    }
+
     /** Which raw streams this device has any rows for — see [WhoopDao.streamPresence]. Presence, not
      *  counts, so it is four index seeks that stop at the first row. Diagnostics-export only. */
     suspend fun streamPresence(deviceId: String, from: Long, to: Long) =

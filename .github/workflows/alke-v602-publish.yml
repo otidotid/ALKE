@@ -101,3 +101,17 @@ jobs:
             gh release create "$RELEASE_TAG"               "$RUNNER_TEMP/v602/ALKE-v602-signed.apk"               "$RUNNER_TEMP/v602/ALKE-v602-signed.apk.sha256"               --repo "$GITHUB_REPOSITORY" --target "$SOURCE_COMMIT"               --title 'ALKE Alpha 22.12 v602 — Verified Total Audit Fixes'               --notes-file "$RUNNER_TEMP/v602/RELEASE_NOTES.md" --prerelease
           fi
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets,tagName,url             --jq '{tag:.tagName, url:.url, files:[.assets[].name]}'
+      - name: Mark misplaced v599 as historical (preserve tag and APKs)
+        shell: bash
+        run: |
+          set -euo pipefail
+          old_tag=v1.0.0-alpha.22.9-premium-widgets.599
+          old_json="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$old_tag")"
+          old_id="$(jq -r .id <<< "$old_json")"
+          old_body="$(jq -r '.body // ""' <<< "$old_json")"
+          if [[ "$old_body" != *"Superseded by ALKE v602"* ]]; then
+            notice='> **Historical v599 — Superseded by ALKE v602.** GitHub may display this older release first due to a sorting issue. For the newest verified signed APK, use [ALKE v602](https://github.com/otidotid/ALKE/releases/tag/v1.0.0-alpha.22.12-total-audit-fixes.602). See [releases in numeric order](https://github.com/otidotid/ALKE/blob/alke/alpha20-insight-cleanup/docs/RELEASE_ORDER.md).'
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$old_id" -f name='ALKE v599 Premium Realtime Widgets (Historical)' -f body="$notice
+
+$old_body" --jq '{tag:.tag_name,title:.name,assets:[.assets[].name]}'
+          fi

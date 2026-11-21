@@ -42,6 +42,10 @@ import com.otidotid.alke.data.CloudBackupSchedule
 import com.otidotid.alke.data.GoogleCloudBackupPreferences
 import com.otidotid.alke.data.GoogleCloudBackupScheduler
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import android.content.Intent
 import java.text.DateFormat
 import java.util.Date
 import java.time.YearMonth
@@ -133,6 +137,23 @@ internal fun GoogleAccountCard() {
     }
     var restartRequired by remember {
         mutableStateOf(false)
+    }
+
+    // A restore swaps Room databases. Never let the old process keep using closed DAOs.
+    // NonCancellable preserves the restart even if Compose disposes this screen.
+    fun restartAfterSuccessfulRestore() {
+        restartRequired = true
+        pendingRestore = null
+        scope.launch {
+            withContext(NonCancellable) {
+                delay(650L)
+                val app = context.applicationContext
+                app.packageManager.getLaunchIntentForPackage(app.packageName)
+                    ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    ?.let(app::startActivity)
+                Runtime.getRuntime().exit(0)
+            }
+        }
     }
     var postLoginBackups by remember {
         mutableStateOf<List<GoogleDriveBackupClient.RemoteBackup>>(emptyList())
@@ -624,9 +645,8 @@ internal fun GoogleAccountCard() {
                                         val outcome = backupCoordinator.restoreBackup(token, remote, password)
                                         when (val result = outcome.result) {
                                             DataBackup.ImportResult.NeedsRestart -> {
-                                                restartRequired = true
-                                                backupStatus = "Restore completed. Restart ALKE. A safety backup was kept locally."
-                                                pendingRestore = null
+                                                backupStatus = "Restore completed. Restarting ALKE safely; safety backup retained."
+                                                restartAfterSuccessfulRestore()
                                             }
                                             is DataBackup.ImportResult.Failed -> errorMessage = result.message
                                             is DataBackup.ImportResult.TooLarge -> errorMessage = result.message
@@ -681,9 +701,8 @@ internal fun GoogleAccountCard() {
                                 .onSuccess { outcome ->
                                     when (val result = outcome.result) {
                                         DataBackup.ImportResult.NeedsRestart -> {
-                                            restartRequired = true
-                                            backupStatus = "Restore completed. Safety snapshot kept locally."
-                                            pendingRestore = null
+                                            backupStatus = "Restore completed. Restarting ALKE safely; safety backup retained."
+                                            restartAfterSuccessfulRestore()
                                         }
                                         is DataBackup.ImportResult.Failed -> errorMessage = result.message
                                         is DataBackup.ImportResult.TooLarge -> errorMessage = result.message
@@ -1169,9 +1188,9 @@ internal fun GoogleAccountCard() {
                     },
                 )
                 Text(
-                    "Scheduled backups currently use the legacy unencrypted format. " +
-                        "Use Encrypted full backup now for password-protected recovery. " +
-                        "Account sign-in and hardware pairing need to be repeated on a new phone.",
+                    "Scheduled backups require encrypted-history recovery setup in Backup & History. " +
+                        "They use client-side encryption and fail safely without a saved passphrase. " +
+                        "Existing legacy unencrypted backups remain readable. Account sign-in and device pairing must be repeated on a new phone.",
                     style = AlkeType.footnote,
                     color = Palette.textSecondary,
                 )

@@ -1,4 +1,4 @@
-package com.otidotid.alke.analytics
+﻿package com.otidotid.alke.analytics
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -82,19 +82,14 @@ class StepsSourceSeparationContractTest {
         )
 
         assertTrue(
-            src.contains(
-                "latestMetricComputedUnion(" +
-                    "activeId, \"steps_ai_raw\")"
-            )
+            src.contains("metricSeriesComputedUnion(") && src.contains("steps_ai_raw")
         )
 
         assertTrue(src.contains("rawGeneration"))
-        assertTrue(src.contains("latestGeneration"))
+        assertTrue(src.contains("rawGeneration"))
 
         assertTrue(
-            src.contains(
-                "latestGeneration != rawGeneration"
-            )
+            src.contains("latestRaw?.value?.toBits() != rawRow.value.toBits()")
         )
 
         assertTrue(
@@ -104,21 +99,36 @@ class StepsSourceSeparationContractTest {
 
     @Test
     fun failedRequestCannotBlindlyOverwriteExistingFinal() {
-        val src = compact(
-            source(
-                "app/src/main/java/com/otidotid/alke/" +
-                    "ui/AppViewModel.kt"
+        val src = source(
+            "app/src/main/java/com/otidotid/alke/" +
+                "ui/AppViewModel.kt"
+        )
+
+        // Failed remote validation remains pending.
+        assertTrue(
+            src.contains(
+                "if (!result.remoteAccepted) continue"
+            )
+        )
+
+        // Success metadata is written only after the transactional
+        // result has actually been committed.
+        assertTrue(
+            src.contains(
+                "if (committed)"
             )
         )
 
         assertTrue(
             src.contains(
-                "if (final?.day != raw.day)"
+                ".putString(stampKey, rawGeneration)"
             )
         )
 
+        // The old failure path must not replace an existing local
+        // final with the unvalidated raw input.
         assertTrue(
-            src.contains(
+            !src.contains(
                 "MetricSeriesRow(computedId, raw.day, " +
                     "\"steps_est\", raw.value)"
             )

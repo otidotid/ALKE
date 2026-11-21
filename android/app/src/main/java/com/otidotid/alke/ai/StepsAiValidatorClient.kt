@@ -49,6 +49,7 @@ class StepsAiValidatorClient(
         val confidence: Double,
         val reason: String,
         val model: String,
+        val remoteAccepted: Boolean,
     ) {
         companion object {
             fun keep(rawSteps: Int, reason: String, model: String = "local-fallback") = Result(
@@ -59,6 +60,7 @@ class StepsAiValidatorClient(
                 confidence = 0.0,
                 reason = reason,
                 model = model,
+                remoteAccepted = false,
             )
         }
     }
@@ -121,7 +123,7 @@ class StepsAiValidatorClient(
                 val expectedFinal = kotlin.math.round(expectedRawSteps * factor).toInt().coerceAtLeast(0)
                 if (finalSteps != expectedFinal) return null
             }
-            return Result(expectedRawSteps, finalSteps, status, factor, confidence, reason, model)
+            return Result(expectedRawSteps, finalSteps, status, factor, confidence, reason, model, remoteAccepted = true)
         }
     }
 }

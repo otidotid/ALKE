@@ -1,4 +1,4 @@
-package com.otidotid.alke.ui
+﻿package com.otidotid.alke.ui
 
 import android.app.Application
 import android.content.Context
@@ -1913,97 +1913,91 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun scheduleStepsAiValidation() {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
-                val activeId = activeStrapId
-                val rawRow = repository.latestMetricComputedUnion(activeId, "steps_ai_raw") ?: return@runCatching
-                val rawSteps = rawRow.value.roundToInt().coerceIn(0, 100_000)
-                val prefs = AlkePrefs.of(appContext)
-                val rawGeneration = "${activeId}:${rawRow.day}:$rawSteps:${rawRow.value.toBits()}"
-                val stampKey = "alke.steps.ai.lastValidatedStamp.$activeId.${rawRow.day}"
-                val existingFinal = repository.latestMetricComputedUnion(activeId, "steps_est")
-                if (
-                    prefs.getString(stampKey, null) == rawGeneration &&
-                    existingFinal?.day == rawRow.day
-                ) return@runCatching
+            val activeId = activeStrapId
+            val prefs = AlkePrefs.of(appContext)
+            val rawRows = runCatching {
+                repository.metricSeriesComputedUnion(
+                    activeId, "steps_ai_raw", "0000-01-01", "9999-12-31",
+                )
+            }.getOrElse { return@launch }
 
+            // Durable per-day queue: any row without the current fingerprint stamp remains pending
+            // across process death and is retried on every calibration publication.
+            for (rawRow in rawRows.sortedBy { it.day }) {
+                if (!isActive) return@launch
+                val rawSteps = rawRow.value.roundToInt().coerceIn(0, 100_000)
                 val zone = ZoneId.systemDefault()
-                val day = LocalDate.parse(rawRow.day)
+                val day = runCatching { LocalDate.parse(rawRow.day) }.getOrNull() ?: continue
                 val from = day.atStartOfDay(zone).toEpochSecond()
                 val to = day.plusDays(1).atStartOfDay(zone).toEpochSecond() - 1L
-                val samples = repository.stepSamples(activeId, from, to, 20_000)
+                val samples = runCatching { repository.stepSamples(activeId, from, to, 20_000) }
+                    .getOrNull() ?: continue
                 val byMinute = samples.groupBy { it.ts / 60L }
                 val walkMinutes = byMinute.count { (_, rows) -> rows.any { it.activityClass == 1 } }.toDouble()
                 val runMinutes = byMinute.count { (_, rows) -> rows.any { it.activityClass == 2 } }.toDouble()
                 val stillMinutes = byMinute.count { (_, rows) -> rows.any { it.activityClass == 0 } }.toDouble()
-                val coveredMinutes = byMinute.size
-                val sensorCoverage = (coveredMinutes / 1440.0).coerceIn(0.0, 1.0)
+                val sensorCoverage = (byMinute.size / 1440.0).coerceIn(0.0, 1.0)
                 val motionVolume = samples.zipWithNext().sumOf { (a, b) ->
                     kotlin.math.abs(b.counter.toLong() - a.counter.toLong()).toDouble()
                 }
-                val dayWorkouts = workouts.value.filter { workout ->
-                    workout.startTs in from..to
-                }
-                val workoutMinutes = dayWorkouts.sumOf { workout ->
-                    ((workout.endTs ?: workout.startTs) - workout.startTs).coerceAtLeast(0L)
+                val dayWorkouts = workouts.value.filter { it.startTs in from..to }
+                val workoutMinutes = dayWorkouts.sumOf {
+                    ((it.endTs ?: it.startTs) - it.startTs).coerceAtLeast(0L)
                 } / 60.0
                 val workoutType = dayWorkouts.firstOrNull()?.sport.orEmpty()
-                val recentSteps = recentDays.value.mapNotNull { it.steps }.takeLast(14)
-                val algorithmConfidence = ProfileStore.from(appContext)
-                    .stepsCalibrationConfidence.coerceIn(0.0, 1.0)
+                val recentSteps = recentDays.value.filter { it.day <= rawRow.day }
+                    .mapNotNull { it.steps }.takeLast(14)
+                val algorithmConfidence = profileStore.stepsCalibrationConfidence.coerceIn(0.0, 1.0)
+                val fingerprintInput = listOf(
+                    "steps-ai-v2", activeId, rawRow.day, rawSteps.toString(),
+                    rawRow.value.toBits().toString(), motionVolume.toBits().toString(),
+                    walkMinutes.toBits().toString(), runMinutes.toBits().toString(),
+                    stillMinutes.toBits().toString(), workoutType,
+                    workoutMinutes.toBits().toString(), sensorCoverage.toBits().toString(),
+                    recentSteps.joinToString(","), algorithmConfidence.toBits().toString(),
+                ).joinToString("|")
+                val rawGeneration = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(fingerprintInput.toByteArray(Charsets.UTF_8))
+                    .joinToString("") { "%02x".format(it) }
+                val stampKey = "alke.steps.ai.lastValidatedStamp.$activeId.${rawRow.day}"
+                val finalForDay = repository.metricSeriesComputedUnion(
+                    activeId, "steps_est", rawRow.day, rawRow.day,
+                ).lastOrNull()
+                if (prefs.getString(stampKey, null) == rawGeneration && finalForDay != null) continue
 
                 val result = stepsAiValidator.validate(
                     StepsAiValidatorClient.Context(
-                        day = rawRow.day,
-                        rawSteps = rawSteps,
-                        motionVolume = motionVolume,
-                        walkMinutes = walkMinutes,
-                        runMinutes = runMinutes,
-                        stillMinutes = stillMinutes,
-                        workoutType = workoutType,
-                        workoutMinutes = workoutMinutes,
-                        meanHeartRate = null,
-                        sensorCoverage = sensorCoverage,
-                        recentDailySteps = recentSteps,
+                        day = rawRow.day, rawSteps = rawSteps, motionVolume = motionVolume,
+                        walkMinutes = walkMinutes, runMinutes = runMinutes, stillMinutes = stillMinutes,
+                        workoutType = workoutType, workoutMinutes = workoutMinutes, meanHeartRate = null,
+                        sensorCoverage = sensorCoverage, recentDailySteps = recentSteps,
                         algorithmConfidence = algorithmConfidence,
                     )
                 )
+                // Network, HTTP, schema and confidence failures are LOCAL_FALLBACK, not validated KEEP.
+                // Leave the queue pending and never write success metadata for them.
+                if (!result.remoteAccepted) continue
 
                 val committed = repository.withStepsTransaction {
-                    val latestRaw = repository.latestMetricComputedUnion(activeId, "steps_ai_raw")
-                    val latestGeneration = latestRaw?.let { "${activeId}:${it.day}:${it.value.roundToInt().coerceIn(0, 100_000)}:${it.value.toBits()}" }
-                    if (latestGeneration != rawGeneration) return@withStepsTransaction false
-                    val computedId = rawRow.deviceId
+                    val latestRaw = repository.metricSeriesComputedUnion(
+                        activeId, "steps_ai_raw", rawRow.day, rawRow.day,
+                    ).lastOrNull()
+                    if (latestRaw?.value?.toBits() != rawRow.value.toBits()) return@withStepsTransaction false
                     repository.upsertMetricSeries(
                         listOf(
-                            MetricSeriesRow(computedId, rawRow.day, "steps_est", result.finalSteps.toDouble()),
-                            MetricSeriesRow(computedId, rawRow.day, "steps_ai_factor", result.factor),
-                            MetricSeriesRow(computedId, rawRow.day, "steps_ai_confidence", result.confidence),
+                            MetricSeriesRow(rawRow.deviceId, rawRow.day, "steps_est", result.finalSteps.toDouble()),
+                            MetricSeriesRow(rawRow.deviceId, rawRow.day, "steps_ai_factor", result.factor),
+                            MetricSeriesRow(rawRow.deviceId, rawRow.day, "steps_ai_confidence", result.confidence),
                         )
                     )
                     true
                 }
-                if (!committed) return@runCatching
-                prefs.edit()
-                    .putString(stampKey, rawGeneration)
-                    .putString("alke.steps.ai.lastStatus", result.status.name)
-                    .putString("alke.steps.ai.lastReason", result.reason.take(240))
-                    .apply()
-            }.onFailure {
-                runCatching {
-                    val activeId = activeStrapId
-                    repository.withStepsTransaction {
-                        val raw = repository.latestMetricComputedUnion(activeId, "steps_ai_raw")
-                            ?: return@withStepsTransaction
-                        // The publisher already materializes local final. Never let an old failed request
-                        // overwrite a newer AI success.
-                        val final = repository.latestMetricComputedUnion(activeId, "steps_est")
-                        if (final?.day != raw.day) {
-                            val computedId = raw.deviceId
-                            repository.upsertMetricSeries(
-                                listOf(MetricSeriesRow(computedId, raw.day, "steps_est", raw.value))
-                            )
-                        }
-                    }
+                if (committed) {
+                    prefs.edit()
+                        .putString(stampKey, rawGeneration)
+                        .putString("alke.steps.ai.lastStatus", result.status.name)
+                        .putString("alke.steps.ai.lastReason", result.reason.take(240))
+                        .apply()
                 }
             }
         }

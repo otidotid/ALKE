@@ -3,6 +3,7 @@ package com.otidotid.alke.data
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.os.StatFs
+import android.os.Build
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -437,9 +438,16 @@ internal class GoogleDriveArchiveManager(
             "Not enough storage to build and verify a ALKE monthly archive."
         }
         destination.delete()
-        val escaped = destination.absolutePath.replace("'", "''")
-        // VACUUM INTO creates one consistent SQLite snapshot while Room remains open.
-        db.execSQL("VACUUM INTO '$escaped'")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val escaped = destination.absolutePath.replace("'", "''")
+            // VACUUM INTO is guaranteed only with the SQLite generation shipped from API 30.
+            db.execSQL("VACUUM INTO '$escaped'")
+        } else {
+            // API 26-29: FULL checkpoint above makes the main database self-contained. Copy the
+            // checkpointed file instead of executing unsupported VACUUM INTO syntax. Filtering and
+            // integrity verification still happen on this private copy before upload or pruning.
+            source.copyTo(destination, overwrite = true)
+        }
         check(destination.isFile && destination.length() > 0L)
     }
 

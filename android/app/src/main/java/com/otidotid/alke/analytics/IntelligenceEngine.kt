@@ -2846,7 +2846,7 @@ object IntelligenceEngine {
         val res = localResult.copy(
             fitnessAge = combined.fitnessAge,
             deltaYears = profile.age - combined.fitnessAge,
-            metabolicDeltaYears = metabolicDelta,
+            metabolicDeltaYears = qualifiedMetabolicDelta,
         )
         val rows = mutableListOf(MetricSeriesRow(deviceId = computedId, day = satKey, key = "fitness_age", value = res.fitnessAge))
         res.bmi?.let { rows += MetricSeriesRow(computedId, satKey, "fitness_factor_bmi", it) }

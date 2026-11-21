@@ -26,4 +26,13 @@ class StepsAiValidatorClientTest {
         val json = """{"stepsValidation":{"schemaVersion":"steps-validator-v1","day":"2026-11-19","rawSteps":9000,"status":"KEEP","factor":1.0,"finalSteps":9000,"confidence":0.9,"reason":"Consistent","model":"openai/gpt-oss-20b"}}"""
         assertNull(StepsAiValidatorClient.parse(json, 8000))
     }
+
+    @Test fun parsedResponseIsRemoteAccepted() {
+        val json = """{"stepsValidation":{"schemaVersion":"steps-validator-v1","day":"2026-11-19","rawSteps":8000,"status":"KEEP","factor":1.0,"finalSteps":8000,"confidence":0.92,"reason":"Consistent","model":"openai/gpt-oss-20b"}}"""
+        assertEquals(true, StepsAiValidatorClient.parse(json, 8000)!!.remoteAccepted)
+    }
+
+    @Test fun localFallbackIsNotRemoteAccepted() {
+        assertEquals(false, StepsAiValidatorClient.Result.keep(8000, "offline").remoteAccepted)
+    }
 }

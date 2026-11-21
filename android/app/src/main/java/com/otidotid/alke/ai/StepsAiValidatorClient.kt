@@ -123,7 +123,10 @@ class StepsAiValidatorClient(
                 val expectedFinal = kotlin.math.round(expectedRawSteps * factor).toInt().coerceAtLeast(0)
                 if (finalSteps != expectedFinal) return null
             }
-            return Result(expectedRawSteps, finalSteps, status, factor, confidence, reason, model, remoteAccepted = true)
+            // Cloudflare can return a valid KEEP/PARTIAL envelope without ever calling the AI model.
+            // Such responses must remain retryable after AI is enabled or an outage resolves.
+            val validatedByAi = model == "openai/gpt-oss-20b"
+            return Result(expectedRawSteps, finalSteps, status, factor, confidence, reason, model, remoteAccepted = validatedByAi)
         }
     }
 }

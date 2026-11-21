@@ -17,7 +17,7 @@ internal object DayCycleIntelligenceIntegration {
     )
 
     fun integratedStepValue(calendarSteps: Int?, established: Boolean, cycleSteps: Int?): Int? =
-        if (established) cycleSteps else calendarSteps
+        if (established) cycleSteps ?: calendarSteps else calendarSteps
 
     fun markerRewriteSourceIds(
         currentComputedSources: List<String>,

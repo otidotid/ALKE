@@ -1944,8 +1944,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val walkMinutes = byMinute.count { (_, rows) -> rows.any { it.activityClass == 1 } }.toDouble()
                 val runMinutes = byMinute.count { (_, rows) -> rows.any { it.activityClass == 2 } }.toDouble()
                 val stillMinutes = byMinute.count { (_, rows) -> rows.any { it.activityClass == 0 } }.toDouble()
-                val sensorCoverage = (byMinute.size / 1440.0).coerceIn(0.0, 1.0)
-                val motionVolume = samples.zipWithNext().sumOf { (a, b) ->
+                // WHOOP 4.0 estimates steps from gravity rather than stepSample counters.
+                // A counter-only coverage calculation incorrectly marked all WHOOP 4.0 days PARTIAL.
+                // Count DISTINCT gravity minutes via the indexed database, never an arbitrary row limit.
+                val gravityBased = samples.isEmpty() && rawSteps > 0
+                val observedMinutes = if (gravityBased) {
+                    repository.gravityCoveredMinutesUnion(activeId, from, to)
+                } else byMinute.size
+                val sensorCoverage = (observedMinutes / 1440.0).coerceIn(0.0, 1.0)
+                val motionVolume = if (gravityBased) {
+                    val coefficient = profileStore.stepsCalibrationCoefficient
+                    if (coefficient > 0.0 && coefficient.isFinite()) rawSteps / coefficient else 0.0
+                } else samples.zipWithNext().sumOf { (a, b) ->
                     kotlin.math.abs(b.counter.toLong() - a.counter.toLong()).toDouble()
                 }
                 val dayWorkouts = workouts.value.filter { it.startTs in from..to }

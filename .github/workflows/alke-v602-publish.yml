@@ -1,0 +1,101 @@
+name: Publish ALKE v602 verified signed APK
+
+on:
+  push:
+    branches: [alke/alpha20-insight-cleanup]
+    paths:
+      - .github/workflows/alke-v602-publish.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: alke-v602-signed-release
+  cancel-in-progress: false
+
+jobs:
+  publish-v602:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v1.0.0-alpha.22.12-total-audit-fixes.602
+      SOURCE_COMMIT: e3648c72f12fe70a0f62a07711ba1d5144cf0910
+      VALIDATED_RUN: "44900025818"
+      VALIDATED_SOURCE_SHA: 587be922758fc4f1cc669dd5c3fd2594d437bc52
+      UNSIGNED_SHA256: 117689ee33604100688b9f7526b340c8b4e32e9b60a87c0c34c29a24b777786e
+      PATCH_SHA256: a90879b31879688c36f72eed6b1304dd62bcfa9e43fb9ba9a83292f04b4a0bb4
+      SIGNED_SHA256: 79afe444dcb2d256db4f0eafb82bd05de5d8297c54d1563223d469fe5d00c814
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify validated source and retrieve the original CI artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)" = "$VALIDATED_SOURCE_SHA"
+          mkdir -p "$RUNNER_TEMP/v602"
+          gh run download "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY"             --name ALKE-Personal-Validated-Unsigned --dir "$RUNNER_TEMP/v602"
+          echo "$UNSIGNED_SHA256  $RUNNER_TEMP/v602/ALKE-personal-v602-unsigned.apk" | sha256sum -c -
+          echo "$PATCH_SHA256  release-assets/v602-signed.zstpatch" | sha256sum -c -
+      - name: Reconstruct the already signed APK without storing private keys in GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v zstd
+          zstd -q -d             --patch-from="$RUNNER_TEMP/v602/ALKE-personal-v602-unsigned.apk"             release-assets/v602-signed.zstpatch             -o "$RUNNER_TEMP/v602/ALKE-v602-signed.apk"
+          echo "$SIGNED_SHA256  $RUNNER_TEMP/v602/ALKE-v602-signed.apk" | sha256sum -c -
+          echo "$SIGNED_SHA256  ALKE-v602-signed.apk" > "$RUNNER_TEMP/v602/ALKE-v602-signed.apk.sha256"
+      - name: Verify version, APK signature, and same certificate as v601
+        shell: bash
+        run: |
+          set -euo pipefail
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          test -x "$signer" && test -x "$aapt"
+          "$signer" verify --verbose --print-certs "$RUNNER_TEMP/v602/ALKE-v602-signed.apk" > "$RUNNER_TEMP/v602/apk-verify.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/v602/apk-verify.txt"
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$RUNNER_TEMP/v602/apk-verify.txt"
+          "$aapt" dump badging "$RUNNER_TEMP/v602/ALKE-v602-signed.apk" | head -1 | tee "$RUNNER_TEMP/v602/apk-version.txt"
+          grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v602/apk-version.txt"
+          grep -Fq "versionCode='602'" "$RUNNER_TEMP/v602/apk-version.txt"
+          mkdir -p "$RUNNER_TEMP/v602/old"
+          gh release download v1.0.0-alpha.22.11-fitness-age-weekly.601             --repo "$GITHUB_REPOSITORY" --pattern 'ALKE-v601-fitness-age-weekly-personal.apk'             --dir "$RUNNER_TEMP/v602/old"
+          "$signer" verify --print-certs "$RUNNER_TEMP/v602/old/ALKE-v601-fitness-age-weekly-personal.apk" > "$RUNNER_TEMP/v602/v601-cert.txt"
+          old_cert="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/v602/v601-cert.txt" | head -1)"
+          new_cert="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/v602/apk-verify.txt" | head -1)"
+          test -n "$old_cert" && test "$old_cert" = "$new_cert"
+      - name: Publish GitHub prerelease with the VERIFIED signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/v602/RELEASE_NOTES.md" <<'NOTES'
+          # ALKE Alpha 22.12 — v602 (verified)
+          
+          Signed update APK for existing ALKE installations. Do not uninstall v601 before updating.
+          
+          Fixes: Steps daily-cycle fallback and calibration controls; Steps AI validation
+          provenance, concurrency, and WHOOP 4.0 gravity coverage; encrypted scheduled cloud
+          backups and restart-safe Google Drive restore; persistent workout GPS track;
+          legacy database archive safety; Settings text encoding; source version consistency;
+          full-release CI testing.
+          
+          Validation: GitHub Actions full test suite passed (run 44900025818).
+          Owner confirms targeted smoke tests passed on-device.
+          APK SHA-256: 79afe444dcb2d256db4f0eafb82bd05de5d8297c54d1563223d469fe5d00c814.
+          APK signature v2/v3 validated and the signing certificate matches v601.
+          
+          Release order and historical versions: [ALKE Release Index](https://github.com/otidotid/ALKE/blob/alke/alpha20-insight-cleanup/docs/RELEASE_ORDER.md).
+          NOTES
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release exists: verifying/updating its signed assets."
+            gh release upload "$RELEASE_TAG"               "$RUNNER_TEMP/v602/ALKE-v602-signed.apk"               "$RUNNER_TEMP/v602/ALKE-v602-signed.apk.sha256"               --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"               --title 'ALKE Alpha 22.12 v602 — Verified Total Audit Fixes'               --notes-file "$RUNNER_TEMP/v602/RELEASE_NOTES.md" --prerelease
+          else
+            gh release create "$RELEASE_TAG"               "$RUNNER_TEMP/v602/ALKE-v602-signed.apk"               "$RUNNER_TEMP/v602/ALKE-v602-signed.apk.sha256"               --repo "$GITHUB_REPOSITORY" --target "$SOURCE_COMMIT"               --title 'ALKE Alpha 22.12 v602 — Verified Total Audit Fixes'               --notes-file "$RUNNER_TEMP/v602/RELEASE_NOTES.md" --prerelease
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets,tagName,url             --jq '{tag:.tagName, url:.url, files:[.assets[].name]}'

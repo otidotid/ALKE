@@ -10890,6 +10890,10 @@ class WhoopBleClient(
         // #42/#364: consecutiveAutoContinues > 0 means this offload is re-kicked after an EARLIER session
         // in the same burst banked rows — tell the backfiller so its no-cursor END reads as "caught up",
         // not "no banked history / charge to 100%". A fresh offload (count 0) keeps the honest guidance.
+        // Start a fresh history-drain generation only when a NEW offload starts.
+        // A failed/overloaded previous session stays closed until this point, so
+        // its queued frames cannot leak into the next session.
+        backfillDrain.reset()
         backfiller.begin(connectedFamily, continuedAfterRows = consecutiveAutoContinues > 0)   // family drives the +4 puffin offset for 5/MG (#78)
         acquireHistoricalWakeLock()
         backfilling = true
@@ -11041,13 +11045,23 @@ class WhoopBleClient(
      * synchronously (callback order) and drained sequentially by a single coroutine, so START/data/
      * END chunk assembly is never reordered. Port of `routeBackfillFrame` + the serial drain task.
      */
+    /**
+     * The BLE callback never waits for Room. It submits one ordered frame to the
+     * bounded drain. If decoding/persistence throws or the queue overloads,
+     * terminate THIS offload rather than continuing past an unprocessed record.
+     * Already-ACKed chunks were durably stored; the unacked tail stays on strap.
+     */
     private fun routeBackfillFrame(frame: ByteArray) {
-        val lease = backfillDrain.enqueue(frame) ?: return
+        val lease = when (val offered = backfillDrain.offer(frame)) {
+            is BackfillDrainGate.Offer.Start -> offered.lease
+            BackfillDrainGate.Offer.Queued, BackfillDrainGate.Offer.Closed -> return
+            BackfillDrainGate.Offer.Overflow -> {
+                failHistoryDrain("queued history exceeds ${BackfillDrainGate.DEFAULT_MAX_PENDING_FRAMES} frames")
+                return
+            }
+        }
         ioScope.launch {
             var ownsDrain = true
-            // A throw from ingest() must NEVER leave the drain stuck owned (that would wedge the
-            // offload — every later frame returns early and the queue never drains). finally guarantees
-            // the lease is released even if a chunk handler throws. (#77/#91 hardening.)
             try {
                 while (true) {
                     val f = backfillDrain.pollOrRelease(lease)
@@ -11057,16 +11071,38 @@ class WhoopBleClient(
                     }
                     try {
                         backfiller.ingest(f)
+                    } catch (cancel: kotlinx.coroutines.CancellationException) {
+                        backfillDrain.failClosed()
+                        throw cancel
                     } catch (t: Throwable) {
-                        log("Backfill: drain error (${t.message}) — skipping frame, offload continues")
+                        // A swallowed error allowed a later HISTORY_END to ACK a trim
+                        // beyond a skipped frame. Never consume another frame here.
+                        backfillDrain.failClosed()
+                        failHistoryDrain("frame processing failed (${t.javaClass.simpleName})")
+                        break
                     }
-                    // If the Backfiller consumed all historical data, exit the session cleanly.
+                    // Complete only after every preceding frame was ingested.
                     if (backfilling && !backfiller.isBackfilling) {
-                        handler.post { exitBackfilling("HISTORY_COMPLETE") }
+                        handler.post { if (backfilling) exitBackfilling("HISTORY_COMPLETE") }
                     }
                 }
             } finally {
                 if (ownsDrain) backfillDrain.release(lease)
+            }
+        }
+    }
+
+    private fun failHistoryDrain(reason: String) {
+        log("Backfill: $reason — stopping offload without ACK for unprocessed frames")
+        handler.post {
+            if (!backfilling) return@post
+            // The same safe abort as the timeout, but not recorded as a clean
+            // complete or productive idle timeout. Next sync re-offloads the tail.
+            backfiller.timeoutFired()
+            exitBackfilling("processing_error")
+            _state.update {
+                it.copy(lastSyncError =
+                    "History sync interrupted. Unacknowledged data will be retried on the next sync.")
             }
         }
     }

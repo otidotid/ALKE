@@ -730,6 +730,7 @@ fun SettingsScreen(
     // the engines pick up on the next analytics pass / offload. All opt-in / safe-default per spec.
     var illnessWatch by remember { mutableStateOf(AlkePrefs.illnessWatch(context)) }
     var cycleTracking by remember { mutableStateOf(AlkePrefs.cycleTracking(context)) }
+    var stepsDayCycleMode by remember { mutableStateOf(AlkePrefs.dayCycleMode(context)) }
     var cycleHidden by remember { mutableStateOf(AlkePrefs.cycleAwarenessHidden(context)) }
     var hydrationTracking by remember { mutableStateOf(AlkePrefs.hydrationTracking(context)) }
     var stressCheckIn by remember { mutableStateOf(BiofeedbackPrefs.checkInEnabled(context)) }
@@ -1268,6 +1269,67 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     color = Palette.textTertiary,
                 )
             }
+        }
+
+        // Steps calibration was persisted but inaccessible after the v588 UI rework.
+        SettingsCard(
+            collapsible = true,
+            icon = Icons.Filled.Sensors,
+            title = "Steps & Daily Cycle",
+            blurb = "Adjust step counting and when an activity day begins.",
+        ) {
+            SettingsFormRow(label = "WHOOP 5/MG counter divisor") {
+                StepperField(
+                    value = String.format(java.util.Locale.US, "%.1f", profile.stepTicksPerStep),
+                    accessibility = "Counter ticks per step",
+                    onMinus = {
+                        mutate { profile.stepTicksPerStep = ProfileStore.steppedStepScale(profile.stepTicksPerStep, false) }
+                        vm.recalibrateStepsAfterSettingsChange()
+                    },
+                    onPlus = {
+                        mutate { profile.stepTicksPerStep = ProfileStore.steppedStepScale(profile.stepTicksPerStep, true) }
+                        vm.recalibrateStepsAfterSettingsChange()
+                    },
+                )
+            }
+            Text("Default 1.0. Increase only if your WHOOP 5/MG counter consistently overcounts.",
+                style = AlkeType.caption, color = Palette.textTertiary)
+            SettingsRowDivider()
+            SettingsFormRow(label = "WHOOP 4.0 motion coefficient") {
+                StepperField(
+                    value = if (profile.stepsManualCoefficient <= 0.0) "Auto" else
+                        String.format(java.util.Locale.US, "%.1f", profile.stepsManualCoefficient),
+                    accessibility = "Manual steps per unit of motion; zero uses automatic calibration",
+                    onMinus = {
+                        mutate { profile.stepsManualCoefficient = (profile.stepsManualCoefficient - 0.5).coerceAtLeast(0.0) }
+                        vm.recalibrateStepsAfterSettingsChange()
+                    },
+                    onPlus = {
+                        mutate { profile.stepsManualCoefficient = profile.stepsManualCoefficient.coerceAtLeast(0.0) + 0.5 }
+                        vm.recalibrateStepsAfterSettingsChange()
+                    },
+                )
+            }
+            Text(
+                "Auto-fit: ${profile.stepsCalibrationSampleDays} reference days; " +
+                    "confidence ${String.format(java.util.Locale.US, "%.0f%%", profile.stepsCalibrationConfidence * 100)}. " +
+                    "Set manual to Auto (0) to resume automatic calibration.",
+                style = AlkeType.caption, color = Palette.textTertiary,
+            )
+            SettingsRowDivider()
+            SettingsFormRow(label = "Activity-day boundary") {
+                SegmentedPillControl(
+                    items = DayCycleMode.entries,
+                    selection = stepsDayCycleMode,
+                    label = { if (it == DayCycleMode.SLEEP_ONSET) "Sleep onset" else "Midnight" },
+                    onSelect = { selected ->
+                        stepsDayCycleMode = selected
+                        vm.setDayCycleMode(selected)
+                    },
+                )
+            }
+            Text("Changing the boundary re-scores daily Steps, effort and calories without deleting raw data.",
+                style = AlkeType.caption, color = Palette.textTertiary)
         }
 
         // ALKE DESIGN LOCK: Appearance controls intentionally removed from user-facing

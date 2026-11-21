@@ -1,0 +1,114 @@
+name: Publish ALKE v604 signed Stage 2 efficiency review
+
+on:
+  push:
+    branches: [alke/v604-stage2-sync-performance]
+    paths:
+      - .github/workflows/alke-v604-publish.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: alke-v604-signed-review-release
+  cancel-in-progress: false
+
+jobs:
+  publish-v604:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v1.0.0-alpha.22.14-stage2-efficiency.604
+      SOURCE_COMMIT: 69428e579590a6ef5dbc41258be44a22563e98db
+      VALIDATED_RUN: "44954481172"
+      VALIDATED_SOURCE_SHA: 69428e579590a6ef5dbc41258be44a22563e98db
+      UNSIGNED_SHA256: 290e5b14059122fdcad916068c84f80b05afcad728e72e22033610bb9b7ba523
+      PATCH_SHA256: dc7b9b48b925a67e714814f5811fd14f0b9ce574ed939ca80adc183b915f0496
+      SIGNED_SHA256: 39d0e2c6ddb7f15e8cfc4f6cc1d46b44831cd1d797412425f7b563f880a4c710
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify identical tested source and successful Personal quality gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$SOURCE_COMMIT" HEAD
+          git diff --quiet "$SOURCE_COMMIT" HEAD -- android cloud-coach
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)" = "$VALIDATED_SOURCE_SHA"
+
+      - name: Fetch the validated Personal APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v604"
+          gh run download "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --name ALKE-Personal-Validated-Unsigned --dir "$RUNNER_TEMP/v604"
+          echo "$UNSIGNED_SHA256  $RUNNER_TEMP/v604/ALKE-personal-v604-unsigned.apk" | sha256sum -c -
+
+      - name: Reconstruct independently signed APK from public binary delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d release-assets/v604-signed.zstpatch.zlib.b64 |
+            python3 -c 'import zlib,sys; sys.stdout.buffer.write(zlib.decompress(sys.stdin.buffer.read()))' > "$RUNNER_TEMP/v604/signed.zstpatch"
+          echo "$PATCH_SHA256  $RUNNER_TEMP/v604/signed.zstpatch" | sha256sum -c -
+          zstd -q -d --patch-from="$RUNNER_TEMP/v604/ALKE-personal-v604-unsigned.apk" "$RUNNER_TEMP/v604/signed.zstpatch" -o "$RUNNER_TEMP/v604/ALKE-v604-stage2-efficiency-signed.apk"
+          echo "$SIGNED_SHA256  $RUNNER_TEMP/v604/ALKE-v604-stage2-efficiency-signed.apk" | sha256sum -c -
+          echo "$SIGNED_SHA256  ALKE-v604-stage2-efficiency-signed.apk" > "$RUNNER_TEMP/v604/ALKE-v604-stage2-efficiency-signed.apk.sha256"
+
+      - name: Verify package, version, signatures, and exact v603 Personal certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="$RUNNER_TEMP/v604/ALKE-v604-stage2-efficiency-signed.apk"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          test -x "$signer" && test -x "$aapt"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" > "$RUNNER_TEMP/v604/signature.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/v604/signature.txt"
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$RUNNER_TEMP/v604/signature.txt"
+          "$aapt" dump badging "$apk" | head -1 | tee "$RUNNER_TEMP/v604/badging.txt"
+          grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v604/badging.txt"
+          grep -Fq "versionCode='604'" "$RUNNER_TEMP/v604/badging.txt"
+          mkdir -p "$RUNNER_TEMP/v604/old"
+          gh release download v1.0.0-alpha.22.13-stage1-ui-refinement.603 --repo "$GITHUB_REPOSITORY" --pattern ALKE-v603-stage1-signed.apk --dir "$RUNNER_TEMP/v604/old"
+          "$signer" verify --min-sdk-version 26 --print-certs "$RUNNER_TEMP/v604/old/ALKE-v603-stage1-signed.apk" > "$RUNNER_TEMP/v604/v603-cert.txt"
+          old_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v604/v603-cert.txt" | head -1)"
+          new_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v604/signature.txt" | head -1)"
+          test -n "$old_cert" && test "$old_cert" = "$new_cert"
+          test "$new_cert" = "f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877"
+
+      - name: Publish signed prerelease for owner smoke testing
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/v604/RELEASE_NOTES.md" <<'NOTES'
+          # ALKE v604 — Stage 2 Efficiency (signed review prerelease)
+
+          **Signed Personal APK** for in-place updates over v603. Do not uninstall ALKE or clear storage.
+
+          - BLE history ingestion stops safely on failed frames; stale sessions cannot acknowledge new history.
+          - FIFO queue is measured, not interrupted at an arbitrary frame cap; 20k-frame JVM tests are included.
+          - Daily compact snapshot queries use index-eligible day/epoch bounds, preserving local-day grouping, including DST.
+          - Background snapshot and encrypted archive jobs respect low battery/storage and update old WorkManager schedules.
+          - Existing analytics cache, scores, Room schema, private history, backup provider and premium UI are preserved.
+
+          Quality: full Personal CI passed (run 44954481172, commit 69428e5).
+          Original Personal signing certificate verified against v603; APK Signature v2/v3 verified.
+          Signed APK SHA-256: 39d0e2c6ddb7f15e8cfc4f6cc1d46b44831cd1d797412425f7b563f880a4c710.
+
+          **Review limitation:** on-device WHOOP deep-sync/reconnect, steps rollover, Android performance and battery measurements have NOT been independently confirmed by CI. This prerelease is for owner smoke testing; the associated PR remains draft pending physical validation.
+          NOTES
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/v604/ALKE-v604-stage2-efficiency-signed.apk" "$RUNNER_TEMP/v604/ALKE-v604-stage2-efficiency-signed.apk.sha256" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title 'ALKE Alpha 22.14 v604 — Stage 2 Efficiency Signed Review' --notes-file "$RUNNER_TEMP/v604/RELEASE_NOTES.md" --prerelease
+          else
+            gh release create "$RELEASE_TAG" "$RUNNER_TEMP/v604/ALKE-v604-stage2-efficiency-signed.apk" "$RUNNER_TEMP/v604/ALKE-v604-stage2-efficiency-signed.apk.sha256" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_COMMIT" --title 'ALKE Alpha 22.14 v604 — Stage 2 Efficiency Signed Review' --notes-file "$RUNNER_TEMP/v604/RELEASE_NOTES.md" --prerelease
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

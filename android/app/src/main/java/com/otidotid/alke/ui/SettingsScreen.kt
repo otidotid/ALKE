@@ -1989,7 +1989,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                                 color = Palette.textSecondary,
                             )
                         }
-                        Text("ΓÇ║", style = AlkeType.title2, color = Palette.accent)
+                        Text("›", style = AlkeType.title2, color = Palette.accent)
                     }
                 }
             }
@@ -2527,7 +2527,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
 
                         // --- #103/queue-11a: Blood Oxygen strap estimate — OFF by default. ---
                         // Device-conditional (see IntelligenceEngine.nightlySpo2CeilingMean / .nightlySpo2CandidateMean):
-                        // a WHOOP 5/MG strap computes a nightly SpOΓéé candidate at byte @82 of the V18Aux stream
+                        // a WHOOP 5/MG strap computes a nightly SpO₂ candidate at byte @82 of the V18Aux stream
                         // (cross-device evidence split, corr +0.99 on 8 nights but 2 nights moved opposite); an
                         // Oura ring's own decoded 0x6F SpO2 runs high on the wire, so this instead surfaces the
                         // ceiling@100 mean (each sample capped at 100% before averaging), which has matched the
@@ -2570,7 +2570,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                             )
                         }
                         Text(
-                            "Surfaces your strap's nightly SpOΓéé estimate in the Blood Oxygen tile when no " +
+                            "Surfaces your strap's nightly SpO₂ estimate in the Blood Oxygen tile when no " +
                                     "calibrated percentage is available: a WHOOP 5.0/MG's @82 candidate byte, or an " +
                                     "Oura ring's own reading with each sample capped at 100% first (the ring's raw " +
                                     "reading runs high otherwise). This is an UNVERIFIED strap-computed value — the " +
@@ -2812,7 +2812,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                 SettingsRowDivider()
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_rhythm_experimental_12d357da),
-                    detail = "An experimental picture of your beat-to-beat timing: a Poincar├⌐ scatter and plain regularity stats from quiet resting windows. Not an ECG and not a diagnosis; you'll read a short disclaimer and accept before it turns on.",
+                    detail = "An experimental picture of your beat-to-beat timing: a Poincaré scatter and plain regularity stats from quiet resting windows. Not an ECG and not a diagnosis; you'll read a short disclaimer and accept before it turns on.",
                     checked = rhythmEnabled,
                     onCheckedChange = {
                         // Enabling here just un-gates the experimental item; the screen itself still shows
@@ -3221,7 +3221,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                                 color = Palette.textSecondary,
                             )
                         }
-                        Text("ΓÇ║", style = AlkeType.title2, color = Palette.accent)
+                        Text("›", style = AlkeType.title2, color = Palette.accent)
                     }
                 }
             }

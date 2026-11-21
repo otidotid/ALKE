@@ -2,10 +2,11 @@
 
 This is the **canonical numeric release index** for ALKE's signed Android builds. GitHub's native Releases screen and REST listing sometimes display older releases out of sequence (for example, v599 before v601). That platform ordering cannot be manually overridden. Use the version number here to identify the newest build.
 
-> Current tested build: **ALKE v602**. Its GitHub prerelease uses the existing Personal update certificate. Confirm the asset name `ALKE-v602-signed.apk` and SHA-256 `79afe444dcb2d256db4f0eafb82bd05de5d8297c54d1563223d469fe5d00c814`.
+> Current signed release: **ALKE v603**. Source and APK passed CI; on-device v603 smoke-testing has not been independently confirmed. Asset `ALKE-v603-stage1-signed.apk`, SHA-256 `a02af876f7410e42cdbc02c6be76c0b347236dca1b4f7e81b3f8e85001e25682`.
 
 | Version | GitHub Release | Date (UTC) |
 | ---: | --- | --- |
+| **v603** | [Stage 1 UI refinement](https://github.com/otidotid/ALKE/releases/tag/v1.0.0-alpha.22.13-stage1-ui-refinement.603) | 2026-11-21 |
 | **v602** | [Verified total audit fixes](https://github.com/otidotid/ALKE/releases/tag/v1.0.0-alpha.22.12-total-audit-fixes.602) | 2026-11-21 |
 | **v601** | [Weekly Fitness Age publication](https://github.com/otidotid/ALKE/releases/tag/v1.0.0-alpha.22.11-fitness-age-weekly.601) | 2026-11-21 |
 | **v600** | [Correctness and data safety](https://github.com/otidotid/ALKE/releases/tag/v1.0.0-alpha.22.10-correctness.600) | 2026-11-21 |

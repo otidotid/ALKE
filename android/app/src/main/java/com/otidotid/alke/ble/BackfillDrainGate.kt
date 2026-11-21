@@ -69,6 +69,11 @@ internal class BackfillDrainGate<T> {
         generation == lease.generation && !closed
     }
 
+    /** Only the exact generation that faulted may trigger its deferred teardown. */
+    fun isFailureFor(lease: Lease): Boolean = synchronized(lock) {
+        closed && generation == lease.generation + 1L
+    }
+
     /** Diagnostic snapshot, with no per-frame logging or scoring side effects. */
     fun peakQueuedFrames(): Int = synchronized(lock) { peakQueuedFrames }
 

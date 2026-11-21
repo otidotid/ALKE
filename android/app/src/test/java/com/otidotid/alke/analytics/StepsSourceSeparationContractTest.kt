@@ -105,10 +105,11 @@ class StepsSourceSeparationContractTest {
         )
 
         // Failed remote validation remains pending.
+        // A failed or disabled cloud response must never be committed. A run may
+        // skip the current row or stop the batch to avoid retrying an unavailable endpoint.
         assertTrue(
-            src.contains(
-                "if (!result.remoteAccepted) continue"
-            )
+            src.contains("if (!result.remoteAccepted) continue") ||
+                src.contains("if (!result.remoteAccepted) break")
         )
 
         // Success metadata is written only after the transactional

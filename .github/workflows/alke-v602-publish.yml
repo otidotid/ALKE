@@ -66,8 +66,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/v602/old"
           gh release download v1.0.0-alpha.22.11-fitness-age-weekly.601             --repo "$GITHUB_REPOSITORY" --pattern 'ALKE-v601-fitness-age-weekly-personal.apk'             --dir "$RUNNER_TEMP/v602/old"
           "$signer" verify --print-certs "$RUNNER_TEMP/v602/old/ALKE-v601-fitness-age-weekly-personal.apk" > "$RUNNER_TEMP/v602/v601-cert.txt"
-          old_cert="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/v602/v601-cert.txt" | head -1)"
-          new_cert="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/v602/apk-verify.txt" | head -1)"
+          old_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v602/v601-cert.txt" | head -1)"
+          new_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v602/apk-verify.txt" | head -1)"
+          echo "v601 certificate SHA-256: $old_cert"
+          echo "v602 certificate SHA-256: $new_cert"
           test -n "$old_cert" && test "$old_cert" = "$new_cert"
       - name: Publish GitHub prerelease with the VERIFIED signed APK
         shell: bash

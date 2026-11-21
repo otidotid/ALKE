@@ -3,38 +3,29 @@ package com.otidotid.alke.ble
 import java.util.ArrayDeque
 
 /**
- * Serial ownership gate and queue for historical frames.
+ * Ordered offload frame drain, with one owner per connection generation.
  *
- * Enqueueing and the empty-queue ownership handoff share one monitor. A producer therefore either
- * leaves work for the current drain or receives a lease and starts the replacement drain; it can
- * never enqueue into the gap between an empty poll and ownership release.
+ * BLE notifications cannot be paused by Android's GATT callback alone. The WHOOP
+ * wire protocol's supported sender-side flow control is not established here:
+ * never turn an arbitrary queue threshold into dropped records or a routine
+ * disconnect. The high-water counter gives us field measurements before a
+ * capacity policy is chosen.
  *
- * [reset] advances the generation. A coroutine from the previous connection can then neither poll
- * frames from the new connection nor release its owner, even if its `finally` block runs late.
+ * On a processing exception, close the current generation and discard only
+ * UNPROCESSED local frames. The strap must keep every unacknowledged record for
+ * a later offload; WhoopBleClient must end this offload without a success stamp.
  */
-internal class BackfillDrainGate<T>(
-    private val maxPendingFrames: Int = DEFAULT_MAX_PENDING_FRAMES,
-) {
-    init { require(maxPendingFrames > 0) { "maxPendingFrames must be positive" } }
-
-    companion object {
-        // ~one to a few MiB for ordinary historical frames. The cap is on QUEUED
-        // frames, not already-polled frames; an overwhelmed decoder fails the
-        // current offload safely instead of growing RAM without bound.
-        const val DEFAULT_MAX_PENDING_FRAMES = 8_192
-    }
-
-    sealed interface Offer {
-        data class Start(val lease: Lease) : Offer
-        data object Queued : Offer
-        data object Overflow : Offer
-        data object Closed : Offer
-    }
-
+internal class BackfillDrainGate<T> {
     internal data class Lease internal constructor(
         internal val generation: Long,
         internal val ownerId: Long,
     )
+
+    sealed interface Offer {
+        data class Start(val lease: Lease) : Offer
+        data object Queued : Offer
+        data object Closed : Offer
+    }
 
     private val lock = Any()
     private val pending = ArrayDeque<T>()
@@ -42,41 +33,20 @@ internal class BackfillDrainGate<T>(
     private var nextOwnerId = 0L
     private var owner: Lease? = null
     private var closed = false
+    private var peakQueuedFrames = 0
 
-    /**
-     * Enqueue a frame without blocking the BLE callback. On overload, close the
-     * session, discard UNPROCESSED frames and invalidate the drain lease. The
-     * client must end this offload WITHOUT claiming HISTORY_COMPLETE, so unacked
-     * records can be re-offloaded on the next attempt.
-     */
+    /** Nonblocking for BLE callbacks. A current owner consumes the queued frame. */
     fun offer(item: T): Offer = synchronized(lock) {
         if (closed) return@synchronized Offer.Closed
-        if (pending.size >= maxPendingFrames) {
-            closeLocked()
-            return@synchronized Offer.Overflow
-        }
         pending.addLast(item)
+        if (pending.size > peakQueuedFrames) peakQueuedFrames = pending.size
         if (owner != null) return@synchronized Offer.Queued
-        val lease = Lease(generation, ++nextOwnerId).also { owner = it }
-        Offer.Start(lease)
+        Offer.Start(Lease(generation, ++nextOwnerId).also { owner = it })
     }
 
-    /** Poison the current offload after a decoder/persistence exception. */
-    fun failClosed() = synchronized(lock) { closeLocked() }
-
-    private fun closeLocked() {
-        closed = true
-        generation += 1
-        owner = null
-        pending.clear()
-    }
-
-    /**
-     * Return the next item for [lease]. An empty queue releases ownership atomically; a stale lease
-     * returns null without touching the current connection's owner or queue.
-     */
+    /** Consume frames in their original arrival order. Stale leases cannot drain. */
     fun pollOrRelease(lease: Lease): T? = synchronized(lock) {
-        if (owner != lease) return@synchronized null
+        if (closed || owner != lease) return@synchronized null
         if (pending.isEmpty()) {
             owner = null
             null
@@ -85,19 +55,42 @@ internal class BackfillDrainGate<T>(
         }
     }
 
-    /** Release [lease] after an exceptional drain exit. Stale releases are intentionally no-ops. */
+    /** Close ONLY the generation where the exception happened. */
+    fun failClosed(lease: Lease): Boolean = synchronized(lock) {
+        if (closed || generation != lease.generation || owner != lease) {
+            return@synchronized false
+        }
+        closeLocked()
+        true
+    }
+
+    /** Confirm that a scheduled completion belongs to this healthy generation. */
+    fun isActive(lease: Lease): Boolean = synchronized(lock) {
+        generation == lease.generation && !closed
+    }
+
+    /** Diagnostic snapshot, with no per-frame logging or scoring side effects. */
+    fun peakQueuedFrames(): Int = synchronized(lock) { peakQueuedFrames }
+
+    /** Retire the current offload and invalidate pending frames/leases. */
+    fun clear() = synchronized(lock) { closeLocked() }
+
+    /** Called on reconnect and at the beginning of a genuinely new offload. */
+    fun reset() = synchronized(lock) {
+        closed = false
+        generation += 1
+        owner = null
+        pending.clear()
+        peakQueuedFrames = 0
+    }
+
+    /** A stale release can never steal a replacement drain's ownership. */
     fun release(lease: Lease) = synchronized(lock) {
         if (owner == lease) owner = null
     }
 
-    /** Drop queued frames without invalidating the current connection's drain owner. */
-    fun clear() = synchronized(lock) {
-        pending.clear()
-    }
-
-    /** Begin a new connection generation and invalidate every lease and frame from the old one. */
-    fun reset() = synchronized(lock) {
-        closed = false
+    private fun closeLocked() {
+        closed = true
         generation += 1
         owner = null
         pending.clear()

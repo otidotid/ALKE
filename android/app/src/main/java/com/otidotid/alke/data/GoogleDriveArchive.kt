@@ -431,7 +431,13 @@ internal class GoogleDriveArchiveManager(
     private fun checkpointAndCopy(destination: File) {
         val room = WhoopDatabase.get(appContext)
         val db = room.openHelper.writableDatabase
-        db.query("PRAGMA wal_checkpoint(FULL)").close()
+        // A FULL checkpoint can return BUSY without throwing. Copying the main file after
+        // a partial checkpoint could omit WAL records, so verify SQLite's busy result.
+        db.query("PRAGMA wal_checkpoint(FULL)").use { c ->
+            check(c.moveToFirst() && c.getInt(0) == 0) {
+                "Could not checkpoint the active database for archiving. Retry later."
+            }
+        }
         val source = appContext.getDatabasePath(WhoopDatabase.DB_NAME)
         check(source.isFile)
         check(StatFs(appContext.filesDir.absolutePath).availableBytes >= source.length() * 3L) {
@@ -446,7 +452,11 @@ internal class GoogleDriveArchiveManager(
             // API 26-29: FULL checkpoint above makes the main database self-contained. Copy the
             // checkpointed file instead of executing unsupported VACUUM INTO syntax. Filtering and
             // integrity verification still happen on this private copy before upload or pruning.
-            source.copyTo(destination, overwrite = true)
+            // API 26-29 lack VACUUM INTO. Keep Room's writer transaction occupied while
+            // copying the checkpointed main file, preventing a concurrent checkpoint/write.
+            room.runInTransaction {
+                source.copyTo(destination, overwrite = true)
+            }
         }
         check(destination.isFile && destination.length() > 0L)
     }

@@ -586,7 +586,12 @@ class WhoopConnectionService : Service() {
                             // LocationTracker fails SAFE (no permission / no provider just ends the
                             // stream); runCatching guards an OEM throw so it can't tear down the FGS.
                             runCatching {
-                                locationTracker.stream().collect { pt -> GpsSession.append(pt) }
+                                locationTracker.stream().collect { pt ->
+                                    // GPS route persistence uses app-private disk I/O, never the main thread.
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        GpsSession.append(pt)
+                                    }
+                                }
                             }
                         }
                     } else {

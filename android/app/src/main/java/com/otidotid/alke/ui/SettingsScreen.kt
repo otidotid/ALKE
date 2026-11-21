@@ -730,6 +730,7 @@ fun SettingsScreen(
     // the engines pick up on the next analytics pass / offload. All opt-in / safe-default per spec.
     var illnessWatch by remember { mutableStateOf(AlkePrefs.illnessWatch(context)) }
     var cycleTracking by remember { mutableStateOf(AlkePrefs.cycleTracking(context)) }
+    var stepsDayCycleMode by remember { mutableStateOf(AlkePrefs.dayCycleMode(context)) }
     var cycleHidden by remember { mutableStateOf(AlkePrefs.cycleAwarenessHidden(context)) }
     var hydrationTracking by remember { mutableStateOf(AlkePrefs.hydrationTracking(context)) }
     var stressCheckIn by remember { mutableStateOf(BiofeedbackPrefs.checkInEnabled(context)) }
@@ -1268,6 +1269,67 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     color = Palette.textTertiary,
                 )
             }
+        }
+
+        // Steps calibration was persisted but inaccessible after the v588 UI rework.
+        SettingsCard(
+            collapsible = true,
+            icon = Icons.Filled.Sensors,
+            title = "Steps & Daily Cycle",
+            blurb = "Adjust step counting and when an activity day begins.",
+        ) {
+            SettingsFormRow(label = "WHOOP 5/MG counter divisor") {
+                StepperField(
+                    value = String.format(java.util.Locale.US, "%.1f", profile.stepTicksPerStep),
+                    accessibility = "Counter ticks per step",
+                    onMinus = {
+                        mutate { profile.stepTicksPerStep = ProfileStore.steppedStepScale(profile.stepTicksPerStep, false) }
+                        vm.recalibrateStepsAfterSettingsChange()
+                    },
+                    onPlus = {
+                        mutate { profile.stepTicksPerStep = ProfileStore.steppedStepScale(profile.stepTicksPerStep, true) }
+                        vm.recalibrateStepsAfterSettingsChange()
+                    },
+                )
+            }
+            Text("Default 1.0. Increase only if your WHOOP 5/MG counter consistently overcounts.",
+                style = AlkeType.caption, color = Palette.textTertiary)
+            SettingsRowDivider()
+            SettingsFormRow(label = "WHOOP 4.0 motion coefficient") {
+                StepperField(
+                    value = if (profile.stepsManualCoefficient <= 0.0) "Auto" else
+                        String.format(java.util.Locale.US, "%.1f", profile.stepsManualCoefficient),
+                    accessibility = "Manual steps per unit of motion; zero uses automatic calibration",
+                    onMinus = {
+                        mutate { profile.stepsManualCoefficient = (profile.stepsManualCoefficient - 0.5).coerceAtLeast(0.0) }
+                        vm.recalibrateStepsAfterSettingsChange()
+                    },
+                    onPlus = {
+                        mutate { profile.stepsManualCoefficient = profile.stepsManualCoefficient.coerceAtLeast(0.0) + 0.5 }
+                        vm.recalibrateStepsAfterSettingsChange()
+                    },
+                )
+            }
+            Text(
+                "Auto-fit: ${profile.stepsCalibrationSampleDays} reference days; " +
+                    "confidence ${String.format(java.util.Locale.US, "%.0f%%", profile.stepsCalibrationConfidence * 100)}. " +
+                    "Set manual to Auto (0) to resume automatic calibration.",
+                style = AlkeType.caption, color = Palette.textTertiary,
+            )
+            SettingsRowDivider()
+            SettingsFormRow(label = "Activity-day boundary") {
+                SegmentedPillControl(
+                    items = DayCycleMode.entries,
+                    selection = stepsDayCycleMode,
+                    label = { if (it == DayCycleMode.SLEEP_ONSET) "Sleep onset" else "Midnight" },
+                    onSelect = { selected ->
+                        stepsDayCycleMode = selected
+                        vm.setDayCycleMode(selected)
+                    },
+                )
+            }
+            Text("Changing the boundary re-scores daily Steps, effort and calories without deleting raw data.",
+                style = AlkeType.caption, color = Palette.textTertiary)
         }
 
         // ALKE DESIGN LOCK: Appearance controls intentionally removed from user-facing
@@ -1989,7 +2051,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                                 color = Palette.textSecondary,
                             )
                         }
-                        Text("ΓÇ║", style = AlkeType.title2, color = Palette.accent)
+                        Text("›", style = AlkeType.title2, color = Palette.accent)
                     }
                 }
             }
@@ -2527,7 +2589,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
 
                         // --- #103/queue-11a: Blood Oxygen strap estimate — OFF by default. ---
                         // Device-conditional (see IntelligenceEngine.nightlySpo2CeilingMean / .nightlySpo2CandidateMean):
-                        // a WHOOP 5/MG strap computes a nightly SpOΓéé candidate at byte @82 of the V18Aux stream
+                        // a WHOOP 5/MG strap computes a nightly SpO₂ candidate at byte @82 of the V18Aux stream
                         // (cross-device evidence split, corr +0.99 on 8 nights but 2 nights moved opposite); an
                         // Oura ring's own decoded 0x6F SpO2 runs high on the wire, so this instead surfaces the
                         // ceiling@100 mean (each sample capped at 100% before averaging), which has matched the
@@ -2570,7 +2632,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                             )
                         }
                         Text(
-                            "Surfaces your strap's nightly SpOΓéé estimate in the Blood Oxygen tile when no " +
+                            "Surfaces your strap's nightly SpO₂ estimate in the Blood Oxygen tile when no " +
                                     "calibrated percentage is available: a WHOOP 5.0/MG's @82 candidate byte, or an " +
                                     "Oura ring's own reading with each sample capped at 100% first (the ring's raw " +
                                     "reading runs high otherwise). This is an UNVERIFIED strap-computed value — the " +
@@ -2812,7 +2874,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                 SettingsRowDivider()
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_rhythm_experimental_12d357da),
-                    detail = "An experimental picture of your beat-to-beat timing: a Poincar├⌐ scatter and plain regularity stats from quiet resting windows. Not an ECG and not a diagnosis; you'll read a short disclaimer and accept before it turns on.",
+                    detail = "An experimental picture of your beat-to-beat timing: a Poincaré scatter and plain regularity stats from quiet resting windows. Not an ECG and not a diagnosis; you'll read a short disclaimer and accept before it turns on.",
                     checked = rhythmEnabled,
                     onCheckedChange = {
                         // Enabling here just un-gates the experimental item; the screen itself still shows
@@ -3221,7 +3283,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                                 color = Palette.textSecondary,
                             )
                         }
-                        Text("ΓÇ║", style = AlkeType.title2, color = Palette.accent)
+                        Text("›", style = AlkeType.title2, color = Palette.accent)
                     }
                 }
             }

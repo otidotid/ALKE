@@ -144,6 +144,10 @@ internal fun recordGoogleCloudBackupFailure(
             GoogleCloudBackupFailureAction.FAILURE
         }
         else -> {
+            if (failure.message?.contains("needs recovery-passphrase setup") == true) {
+                prefs.writeStatus("Automatic backup paused: set up encrypted history in Backup & History. Nothing was uploaded.")
+                return GoogleCloudBackupFailureAction.FAILURE
+            }
             if (runAttemptCount < 3) {
                 prefs.writeStatus("Automatic backup will retry after a temporary failure.")
                 GoogleCloudBackupFailureAction.RETRY
@@ -172,10 +176,18 @@ internal class GoogleCloudBackupWorker(
                 prefs.writeStatus("Google Drive authorization requires ALKE to be opened.")
             }
         return runCatching {
-            val uploaded = GoogleDriveBackupCoordinator(applicationContext)
-                .backUpNow(token, account.accountId)
-            prefs.writeStatus("Automatic backup uploaded: ${uploaded.name}")
-            Result.success()
+            // Automatic full backups include health and food databases. Never upload them
+            // unencrypted when portable recovery setup is unavailable.
+            val passphrase = AutomaticHistorySecretStore(applicationContext).load(account.accountId)
+                ?: error("Encrypted automatic backup needs recovery-passphrase setup in Backup & History.")
+            try {
+                val uploaded = GoogleDriveBackupCoordinator(applicationContext)
+                    .backUpNow(token, account.accountId, passphrase)
+                prefs.writeStatus("Encrypted automatic backup uploaded: ${uploaded.name}")
+                Result.success()
+            } finally {
+                passphrase.fill('\u0000')
+            }
         }.getOrElse { failure ->
             when (recordGoogleCloudBackupFailure(prefs, failure, runAttemptCount) { paused ->
                 GoogleCloudBackupScheduler.apply(applicationContext, paused)

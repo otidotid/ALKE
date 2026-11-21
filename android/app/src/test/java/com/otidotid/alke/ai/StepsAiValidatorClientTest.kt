@@ -32,6 +32,15 @@ class StepsAiValidatorClientTest {
         assertEquals(true, StepsAiValidatorClient.parse(json, 8000)!!.remoteAccepted)
     }
 
+    @Test fun cloudFallbackAndDisabledGateAreNotStampedAsValidated() {
+        for (model in listOf("fallback", "disabled", "local-safety-gate")) {
+            val response = """{"stepsValidation":{"schemaVersion":"steps-validator-v1","day":"2026-11-19","rawSteps":8000,"status":"KEEP","factor":1.0,"finalSteps":8000,"confidence":0.0,"reason":"Local result retained","model":"$model"}}"""
+            val parsed = StepsAiValidatorClient.parse(response, 8000)!!
+            assertEquals(false, parsed.remoteAccepted)
+            assertEquals(8000, parsed.finalSteps)
+        }
+    }
+
     @Test fun localFallbackIsNotRemoteAccepted() {
         assertEquals(false, StepsAiValidatorClient.Result.keep(8000, "offline").remoteAccepted)
     }

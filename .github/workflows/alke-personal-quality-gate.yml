@@ -5,6 +5,7 @@ on:
     branches: [alke/alpha20-insight-cleanup]
   push:
     branches: [alke/alpha20-insight-cleanup]
+    tags: ['v1.0.0-alpha.*']
   workflow_dispatch:
     inputs:
       run_full_tests:
@@ -42,7 +43,12 @@ jobs:
           set -euo pipefail
           grep -Eq 'versionCode = [0-9]+' android/app/build.gradle.kts
           grep -Eq 'versionName = "1\.0\.0-alpha\.[^"]+"' android/app/build.gradle.kts
-          test "${{ github.ref_name }}" = "alke/alpha20-insight-cleanup" || test "${{ github.event_name }}" = "pull_request"
+          test "${{ github.ref_name }}" = "alke/alpha20-insight-cleanup" || test "${{ github.event_name }}" = "pull_request" || [[ "$GITHUB_REF" == refs/tags/v1.0.0-alpha.* ]]
+          if [[ "$GITHUB_REF" == refs/tags/v1.0.0-alpha.* ]]; then
+            tag_version="${GITHUB_REF##*.}"
+            source_version="$(grep -Eo 'versionCode = [0-9]+' android/app/build.gradle.kts | head -1 | grep -Eo '[0-9]+')"
+            test "$tag_version" = "$source_version" || { echo "Release tag version does not match source: $tag_version != $source_version"; exit 1; }
+          fi
       - name: Targeted Personal release tests
         working-directory: android
         run: |
@@ -91,7 +97,6 @@ jobs:
         with:
           name: Android-SDK-apksigner
           path: ${{ runner.temp }}/apksigner.jar
-      - name: Complete Personal tests
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_full_tests) || github.head_ref == 'alke/v598-realtime-audit' }}
+      - name: Complete Personal tests (required for every PR and release)
         working-directory: android
         run: ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest

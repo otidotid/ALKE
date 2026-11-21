@@ -1,5 +1,9 @@
 package com.otidotid.alke.location
 
+import android.content.Context
+import android.content.SharedPreferences
+import java.io.File
+import java.util.Locale
 import com.otidotid.alke.analytics.RouteMath
 import com.otidotid.alke.analytics.RouteMath.LatLng
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +40,68 @@ object GpsSession {
         val pausedDurationMs: Long = 0L,
     )
 
+    private const val PREFS_NAME = "alke_active_gps_session"
+    private const val FILE_NAME = "alke_active_gps_track.txt"
+    private const val MAX_RECOVERY_POINTS = 100_000
+    private const val MAX_SESSION_AGE_MS = 3L * 24 * 60 * 60 * 1000
+
+    private var prefs: SharedPreferences? = null
+    private var routeFile: File? = null
+
+    /** Restore an in-flight workout after Android killed the process. */
+    @Synchronized
+    fun initialize(context: Context) {
+        if (prefs != null) return
+        val app = context.applicationContext
+        val p = app.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val file = File(app.noBackupFilesDir, FILE_NAME)
+        prefs = p
+        routeFile = file
+        if (!p.getBoolean("active", false)) return
+        val start = p.getLong("startMs", 0L)
+        val elapsed = System.currentTimeMillis() - start
+        if (start <= 0L || elapsed !in 0..MAX_SESSION_AGE_MS) {
+            clearPersistedSession()
+            return
+        }
+        val sport = p.getString("sportName", "") ?: ""
+        val points = runCatching {
+            if (!file.isFile) emptyList() else file.useLines { lines ->
+                lines.take(MAX_RECOVERY_POINTS).mapNotNull { line ->
+                    val parts = line.split(',')
+                    if (parts.size != 2) null else {
+                        val lat = parts[0].toDoubleOrNull()
+                        val lon = parts[1].toDoubleOrNull()
+                        if (lat != null && lon != null && lat.isFinite() && lon.isFinite()
+                            && lat in -90.0..90.0 && lon in -180.0..180.0
+                        ) LatLng(lat, lon) else null
+                    }
+                }.toList()
+            }
+        }.getOrDefault(emptyList())
+        val distance = RouteMath.totalMeters(points)
+        val pausedDuration = p.getLong("pausedDurationMs", 0L).coerceAtLeast(0L)
+        val pausedAt = p.getLong("pausedAtMs", 0L).takeIf { it > 0L }
+        val seconds = ((System.currentTimeMillis() - start - pausedDuration).coerceAtLeast(0L)) / 1000.0
+        _state.value = State(true, start, sport, points, distance,
+            RouteMath.paceSecPerKm(distance, seconds), pausedAt != null, pausedAt, pausedDuration)
+    }
+
+    private fun persistMetadata(s: State) {
+        prefs?.edit()
+            ?.putBoolean("active", s.active)
+            ?.putLong("startMs", s.startMs)
+            ?.putString("sportName", s.sportName)
+            ?.putLong("pausedAtMs", s.pausedAtMs ?: 0L)
+            ?.putLong("pausedDurationMs", s.pausedDurationMs)
+            ?.commit()
+    }
+
+    private fun clearPersistedSession() {
+        prefs?.edit()?.clear()?.commit()
+        runCatching { routeFile?.delete() }
+    }
+
     private val _state = MutableStateFlow(State())
     /** The live route, observed by the UI (via AppViewModel) and the service's collect-gate. */
     val state: StateFlow<State> = _state.asStateFlow()
@@ -51,14 +117,27 @@ object GpsSession {
     var workoutsLog: ((String) -> Unit)? = null
 
     /** Begin a route for [sportName]'s workout started at [startMs]. A re-arm just resets the track. */
+    @Synchronized
     fun start(startMs: Long, sportName: String) {
-        _state.value = State(active = true, startMs = startMs, sportName = sportName)
+        runCatching { routeFile?.writeText("") }
+        val fresh = State(active = true, startMs = startMs, sportName = sportName)
+        persistMetadata(fresh)
+        _state.value = fresh
     }
 
     /** Fold one accepted fix into the route, recomputing distance + pace. No-op when not active. */
+    @Synchronized
     fun append(pt: LatLng) {
         val s = _state.value
         if (!s.active || s.paused) return
+        if (!pt.lat.isFinite() || !pt.lon.isFinite()
+            || pt.lat !in -90.0..90.0 || pt.lon !in -180.0..180.0
+        ) return
+        // Append one coordinate rather than rewriting the entire track for every fix.
+        // Recovery ignores a torn final line.
+        runCatching {
+            routeFile?.appendText(String.format(Locale.ROOT, "%.7f,%.7f\n", pt.lat, pt.lon))
+        }
         val track = s.track + pt
         val dist = RouteMath.totalMeters(track)
         val secs = (System.currentTimeMillis() - s.startMs - s.pausedDurationMs) / 1000.0
@@ -77,23 +156,33 @@ object GpsSession {
     }
 
     /** End the route and clear it. Returns the final accumulated track for the saved WorkoutRow. */
+    @Synchronized
     fun stop(): List<LatLng> {
         val track = _state.value.track
         _state.value = State()
+        clearPersistedSession()
         return track
     }
 
+    @Synchronized
     fun pause() {
         val s = _state.value
-        if (s.active && !s.paused) _state.value = s.copy(paused = true, pausedAtMs = System.currentTimeMillis())
+        if (s.active && !s.paused) {
+            val next = s.copy(paused = true, pausedAtMs = System.currentTimeMillis())
+            persistMetadata(next)
+            _state.value = next
+        }
     }
 
+    @Synchronized
     fun resume() {
         val s = _state.value
         if (s.active && s.paused) {
             val added = s.pausedAtMs?.let { System.currentTimeMillis() - it } ?: 0L
-            _state.value = s.copy(paused = false, pausedAtMs = null,
+            val next = s.copy(paused = false, pausedAtMs = null,
                 pausedDurationMs = s.pausedDurationMs + added)
+            persistMetadata(next)
+            _state.value = next
         }
     }
 }

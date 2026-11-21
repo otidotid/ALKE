@@ -1,4 +1,4 @@
-package com.otidotid.alke.analytics
+﻿package com.otidotid.alke.analytics
 
 import java.util.Locale
 import com.otidotid.alke.data.DailyMetric
@@ -2139,19 +2139,51 @@ object IntelligenceEngine {
         val weeklyDay = saturdayKeyOnOrBefore(newestDay)
         // Serialize captured evidence and its outputs with manual refresh/experiment revocation.
         repo.withMetabolicCalculationTransaction {
-            val weeklyLabs = captureWeeklyLabs(repo, weeklyDay, profile, computedId)
-            val faPts = fitnessAgeRows(weeklyLabs, faGate7, profile, computedId, weeklyDay)
-            // Strap-log proof: the RHR-night count the engine sees for the gate , should equal the "N of last 7
-            // nights" the readiness card shows; `computed` says whether the value was (re)written this pass.
-            diag("fitnessAge gate day=$newestDay rhrNights=${faGate7.mapNotNull { it.restingHr }.size} activityDays=${faGate7.mapNotNull { it.strain }.size} computed=${faPts.isNotEmpty()}")
-            if (faPts.isNotEmpty()) {
+            val weeklyLabs =
+                captureWeeklyLabs(
+                    repo,
+                    weeklyDay,
+                    profile,
+                    computedId,
+                )
+
+            // The existing Fitness Age calculation continues to run on every
+            // analysis pass. Only publication to the visible weekly snapshot
+            // is frozen after the first successful write for this Saturday key.
+            val faPts =
+                fitnessAgeRows(
+                    weeklyLabs,
+                    faGate7,
+                    profile,
+                    computedId,
+                    weeklyDay,
+                )
+            // Calculation remains live, but publication follows the existing
+            // Saturday anchor. No additional repository read is introduced.
+            val publishFitnessAge =
+                faPts.isNotEmpty() &&
+                    newestDay == weeklyDay
+
+            diag(
+                "fitnessAge gate day=$newestDay " +
+                    "rhrNights=${faGate7.mapNotNull { it.restingHr }.size} " +
+                    "activityDays=${faGate7.mapNotNull { it.strain }.size} " +
+                    "computed=${faPts.isNotEmpty()} " +
+                    "published=$publishFitnessAge"
+            )
+
+            if (publishFitnessAge) {
                 repo.upsertMetricSeriesWithProvenance(
                     rows = faPts,
-                    provenance = weeklyScoreProvenance(weeklyLabs, faPts, computedId, faGate7, profile),
+                    provenance = weeklyScoreProvenance(
+                        weeklyLabs,
+                        faPts,
+                        computedId,
+                        faGate7,
+                        profile,
+                    ),
                 )
             }
-
-            // ── Vitality / Body Age (Phase 7), weekly, keyed to the week's Saturday ──
             val currentVitalityRows = vitalityRows(fa7, profile, computedId, saturdayKeyOnOrBefore(newestDay))
             if (currentVitalityRows.isNotEmpty()) {
                 repo.upsertMetricSeriesWithProvenance(
@@ -3130,7 +3162,7 @@ object IntelligenceEngine {
         val weeklyDay = saturdayKeyOnOrBefore(newestDay)
         val labs = captureWeeklyLabs(repo, weeklyDay, profile, computedId)
         val rows = fitnessAgeRows(labs, gate7, profile, computedId, weeklyDay)
-        if (rows.isNotEmpty()) {
+        if (rows.isNotEmpty() && newestDay == weeklyDay) {
             repo.upsertMetricSeriesWithProvenance(
                 rows = rows,
                 provenance = weeklyScoreProvenance(labs, rows, computedId, gate7, profile),

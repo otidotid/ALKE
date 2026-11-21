@@ -537,6 +537,35 @@ private fun AlkeGauge(
     }
 }
 
+/**
+ * Stage 1: two concise companions to Charge, without inventing a new score.
+ * Every value is handed in by the original DailyMetric / RestScorer pipeline.
+ */
+@Composable
+private fun AlkeOutlookScoreTile(
+    title: String,
+    context: String,
+    value: String,
+    tint: Color,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(shape)
+            .background(A.cardDark)
+            .border(1.dp, tint.copy(alpha = 0.25f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(title.uppercase(Locale.ROOT), color = tint,
+            fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+        Text(value, color = A.white, fontSize = 24.sp,
+            fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(context, color = A.muted, fontSize = 10.sp, maxLines = 1)
+    }
+}
+
 @Composable
 private fun AlkeMetricTile(
     title: String,
@@ -729,32 +758,57 @@ fun AlkeTodayExperience(
             Text(dateText, color = A.muted, fontSize = 13.sp)
             Text("Your performance and recovery, in balance.", color = A.muted, fontSize = 12.sp)
         }
-        AlkePanel(Modifier.fillMaxWidth(), onClick = { onMetric("recovery") }) {
+        // The only daily *score hero*: Charge, Effort and Rest share one source of
+        // truth. All original detail routes and algorithms remain untouched.
+        AlkePanel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("BODY READINESS", color = A.cyan, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 2.sp)
+                Text("YOUR DAILY OUTLOOK", color = A.cyan, fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.sp, letterSpacing = 1.5.sp)
                 Spacer(Modifier.weight(1f))
                 AlkePill(readinessLabel, A.gold)
             }
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                AlkeGauge(
-                    label = "Recovery", value = recovery,
-                    fraction = ((recovery ?: 0.0) / 100.0).toFloat(),
-                    suffix = "%", animateContinuously = true,
-                )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier.size(157.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable { onMetric("recovery") },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AlkeGauge(
+                        label = "Charge",
+                        value = recovery,
+                        fraction = ((recovery ?: 0.0) / 100.0).toFloat(),
+                        diameter = 156.dp,
+                        suffix = "%",
+                        animateContinuously = true,
+                    )
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AlkeOutlookScoreTile(
+                        title = "Effort", context = "Activity",
+                        value = niceOne(day?.strain),
+                        tint = A.gold, onClick = { onMetric("strain") },
+                    )
+                    AlkeOutlookScoreTile(
+                        title = "Rest", context = "Sleep",
+                        value = rest?.takeIf { it.isFinite() && it in 0.0..100.0 }
+                            ?.roundToInt()?.toString() ?: "—",
+                        tint = A.blue, onClick = onSleep,
+                    )
+                }
             }
-            Text(
-                if (recovery == null) "No recovery score yet" else
-                    "Tap for recovery details · ${readinessLabel}",
-                color = if (recovery == null) A.muted else A.green,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-                fontSize = 12.sp,
-            )
+            Text("Scores use the existing ALKE analysis · Tap for details",
+                color = A.muted, fontSize = 11.sp)
         }
+        AlkeSectionTitle("Key signals")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AlkeMetricTile("HRV", niceOne(day?.avgHrv, " ms"), Icons.Filled.FavoriteBorder, Modifier.weight(1f), A.cyan, { onMetric("hrv") })
             AlkeMetricTile("RHR", day?.restingHr?.let { "$it bpm" } ?: "—", Icons.Filled.Favorite, Modifier.weight(1f), A.gold, { onMetric("rhr") })
-            AlkeMetricTile("Sleep", niceMinutes(day?.totalSleepMin), Icons.Filled.Bedtime, Modifier.weight(1f), A.blue, onSleep)
+            AlkeMetricTile("Sleep time", niceMinutes(day?.totalSleepMin), Icons.Filled.Bedtime, Modifier.weight(1f), A.blue, onSleep)
         }
         AlkePanel(Modifier.fillMaxWidth(), onClick = onCoach) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -781,9 +835,8 @@ fun AlkeTodayExperience(
             }
         }
         AlkeSectionTitle("Today's Activity")
+        // Day Strain is already visible as Effort in the single Daily Outlook hero.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AlkeMetricTile("Day Strain", niceOne(day?.strain), Icons.Filled.DirectionsRun,
-                Modifier.weight(1f), A.gold, { onMetric("strain") })
             AlkeMetricTile("Steps",
                 todaysSteps?.let { java.text.NumberFormat.getIntegerInstance().format(it.roundToInt()) } ?: "—",
                 Icons.Filled.DirectionsWalk, Modifier.weight(1f), A.cyan, onSteps)
@@ -1061,12 +1114,16 @@ fun AlkeRecoveryExperience(
     )
     AlkePage {
         AlkeHeading("Recovery", "Sleep and physiology, viewed together.")
+        // Sleep details explain recorded duration and stages, rather than drawing
+        // another scoring dial. The Rest score itself is centralized on Today.
         AlkePanel(Modifier.fillMaxWidth()) {
-            Text("LAST RECORDED NIGHT", color = A.cyan, letterSpacing = 2.sp, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                AlkeGauge("Sleep duration", total?.div(60), ((total ?: 0.0) / 600.0).toFloat(), 205.dp, colors = listOf(A.blue, Color(0xFF7461CF), A.cyan))
-            }
-            Text("Duration: ${niceMinutes(total)}", color = A.white, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontSize = 16.sp)
+            Text("LAST RECORDED NIGHT", color = A.cyan, letterSpacing = 2.sp,
+                fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text(niceMinutes(total), color = A.white, fontSize = 42.sp, fontWeight = FontWeight.Bold)
+            Text(
+                if (total == null) "Awaiting a recorded night" else "Recorded sleep duration · Open Sleep analysis for full details",
+                color = A.muted, fontSize = 12.sp, lineHeight = 17.sp,
+            )
         }
         AlkeSectionTitle("Sleep stages")
         AlkePanel(Modifier.fillMaxWidth()) {

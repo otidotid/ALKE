@@ -3061,6 +3061,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { rescoreAfterEdit() }
     }
 
+    /** Apply a Steps calibration preference immediately, without waiting for the idle tick. */
+    fun recalibrateStepsAfterSettingsChange() {
+        viewModelScope.launch { rescoreAfterEdit() }
+    }
+
     /** Change the shared boundary used by additive daily metrics and immediately rebuild affected rows. */
     fun setDayCycleMode(mode: com.otidotid.alke.analytics.DayCycleMode) {
         AlkePrefs.setDayCycleMode(appContext, mode)

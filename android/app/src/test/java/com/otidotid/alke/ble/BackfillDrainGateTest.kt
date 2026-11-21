@@ -6,105 +6,96 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Pure JVM concurrency/overload contract for the historical-frame drain. */
+/** Fail-safe ordering, stale-generation isolation and large-backlog contracts. */
 class BackfillDrainGateTest {
-    private fun <T> start(gate: BackfillDrainGate<T>, value: T): BackfillDrainGate.Lease =
+    private fun <T> begin(gate: BackfillDrainGate<T>, value: T) =
         (gate.offer(value) as BackfillDrainGate.Offer.Start).lease
 
-    @Test fun producerBeforeEmptyHandoffLeavesWorkForCurrentOwner() {
+    @Test fun producerBeforeEmptyHandoffKeepsOriginalDrainOrder() {
         val gate = BackfillDrainGate<Int>()
-        val lease = start(gate, 1)
+        val lease = begin(gate, 1)
         assertEquals(1, gate.pollOrRelease(lease))
         assertEquals(BackfillDrainGate.Offer.Queued, gate.offer(2))
         assertEquals(2, gate.pollOrRelease(lease))
         assertNull(gate.pollOrRelease(lease))
     }
 
-    @Test fun producerAfterEmptyHandoffStartsReplacementDrain() {
+    @Test fun producerAfterHandoffStartsFreshOwner() {
         val gate = BackfillDrainGate<Int>()
-        val firstLease = start(gate, 1)
-        assertEquals(1, gate.pollOrRelease(firstLease))
-        assertNull(gate.pollOrRelease(firstLease))
-        val replacementLease = start(gate, 2)
-        assertEquals(2, gate.pollOrRelease(replacementLease))
-        assertNull(gate.pollOrRelease(replacementLease))
+        val first = begin(gate, 1)
+        assertEquals(1, gate.pollOrRelease(first))
+        assertNull(gate.pollOrRelease(first))
+        val second = begin(gate, 2)
+        assertEquals(2, gate.pollOrRelease(second))
+        assertNull(gate.pollOrRelease(second))
     }
 
-    @Test fun resetMakesLateOldDrainHarmlessToNewConnection() {
+    @Test fun staleOwnerCannotDrainOrCloseNewGeneration() {
         val gate = BackfillDrainGate<Int>()
-        val oldLease = start(gate, 1)
-        assertEquals(BackfillDrainGate.Offer.Queued, gate.offer(99))
+        val first = begin(gate, 1)
         gate.reset()
-        val newLease = start(gate, 2)
-        assertNull(gate.pollOrRelease(oldLease))
-        gate.release(oldLease)
-        assertEquals(2, gate.pollOrRelease(newLease))
-        assertNull(gate.pollOrRelease(newLease))
-    }
-
-    @Test fun exceptionalReleaseLetsNextProducerOwnDrain() {
-        val gate = BackfillDrainGate<Int>()
-        val failedLease = start(gate, 1)
-        assertEquals(1, gate.pollOrRelease(failedLease))
-        gate.release(failedLease)
-        val replacementLease = start(gate, 2)
-        assertEquals(2, gate.pollOrRelease(replacementLease))
-        assertNull(gate.pollOrRelease(replacementLease))
-    }
-
-    @Test fun largeNormalBacklogDrainsInArrivalOrderWithoutDroppingAnything() {
-        val gate = BackfillDrainGate<Int>(maxPendingFrames = 8_192)
-        val lease = start(gate, 0)
-        for (i in 1..8_192) {
-            // Keep a deterministic headroom by draining while the producer fills
-            // to model the real BLE callback + single-consumer arrangement.
-            if (i % 2 == 0) assertEquals(i - 2, gate.pollOrRelease(lease))
-            assertEquals(BackfillDrainGate.Offer.Queued, gate.offer(i))
-        }
-        // 4,096 values remain queued (plus the most recently offered frame).
-        val rest = mutableListOf<Int>()
-        while (true) {
-            val next = gate.pollOrRelease(lease) ?: break
-            rest += next
-        }
-        assertEquals(8_192, rest.last())
-        assertEquals(rest.sorted(), rest)
-    }
-
-    @Test fun overloadPoisonsCurrentOffloadWithoutAllowingAnUnprocessedTail() {
-        val gate = BackfillDrainGate<Int>(maxPendingFrames = 2)
-        val first = start(gate, 1)
-        assertEquals(BackfillDrainGate.Offer.Queued, gate.offer(2))
-        assertEquals(BackfillDrainGate.Offer.Overflow, gate.offer(3))
-        assertEquals(BackfillDrainGate.Offer.Closed, gate.offer(4))
+        val second = begin(gate, 2)
+        assertFalse(gate.failClosed(first))
         assertNull(gate.pollOrRelease(first))
         gate.release(first)
-        assertEquals(BackfillDrainGate.Offer.Closed, gate.offer(5))
+        assertTrue(gate.isActive(second))
+        assertEquals(2, gate.pollOrRelease(second))
+        assertNull(gate.pollOrRelease(second))
+    }
+
+    @Test fun exceptionClosesOnlyFaultedSessionAndRetainsItsFailureIdentity() {
+        val gate = BackfillDrainGate<Int>()
+        val failed = begin(gate, 1)
+        assertEquals(BackfillDrainGate.Offer.Queued, gate.offer(2))
+        assertEquals(1, gate.pollOrRelease(failed))
+        assertTrue(gate.failClosed(failed))
+        assertTrue(gate.isFailureFor(failed))
+        assertFalse(gate.isActive(failed))
+        assertNull(gate.pollOrRelease(failed))
+        assertEquals(BackfillDrainGate.Offer.Closed, gate.offer(3))
         gate.reset()
-        val retry = start(gate, 1)
+        val retry = begin(gate, 1)
+        assertFalse(gate.isFailureFor(failed))
         assertEquals(1, gate.pollOrRelease(retry))
         assertEquals(BackfillDrainGate.Offer.Queued, gate.offer(2))
         assertEquals(2, gate.pollOrRelease(retry))
         assertNull(gate.pollOrRelease(retry))
     }
 
-    @Test fun decoderFailureCannotLetLaterFramesOrStaleLeaseDrain() {
+    @Test fun teardownClosesGateUntilNextGenuineOffload() {
         val gate = BackfillDrainGate<Int>()
-        val oldLease = start(gate, 11)
-        gate.offer(12)
-        assertEquals(11, gate.pollOrRelease(oldLease))
-        gate.failClosed()
-        assertNull(gate.pollOrRelease(oldLease))
-        assertEquals(BackfillDrainGate.Offer.Closed, gate.offer(13))
-        gate.release(oldLease)
+        val old = begin(gate, 11)
+        gate.clear()
+        assertNull(gate.pollOrRelease(old))
+        assertEquals(BackfillDrainGate.Offer.Closed, gate.offer(12))
         gate.reset()
-        val fresh = start(gate, 21)
-        assertEquals(21, gate.pollOrRelease(fresh))
-        assertNull(gate.pollOrRelease(fresh))
+        val now = begin(gate, 13)
+        assertEquals(13, gate.pollOrRelease(now))
     }
 
-    @Test fun invalidQueueLimitIsRejected() {
-        val rejected = runCatching { BackfillDrainGate<Int>(maxPendingFrames = 0) }
-        assertTrue(rejected.isFailure)
+    @Test fun hugeBurstIsMeasuredNotAbortedAtAnUnverifiedThreshold() {
+        val gate = BackfillDrainGate<Int>()
+        val lease = begin(gate, 0)
+        for (i in 1..20_000) {
+            assertEquals(BackfillDrainGate.Offer.Queued, gate.offer(i))
+        }
+        assertEquals(20_001, gate.peakQueuedFrames())
+        for (i in 0..20_000) assertEquals(i, gate.pollOrRelease(lease))
+        assertNull(gate.pollOrRelease(lease))
+        assertEquals(20_001, gate.peakQueuedFrames())
+        gate.reset()
+        assertEquals(0, gate.peakQueuedFrames())
+    }
+
+    @Test fun interleavedLargeProducerAndConsumerPreservesEveryFrameInOrder() {
+        val gate = BackfillDrainGate<Int>()
+        val lease = begin(gate, 0)
+        assertEquals(0, gate.pollOrRelease(lease))
+        for (i in 1..10_000) {
+            assertEquals(BackfillDrainGate.Offer.Queued, gate.offer(i))
+            assertEquals(i, gate.pollOrRelease(lease))
+        }
+        assertNull(gate.pollOrRelease(lease))
+        assertTrue(gate.peakQueuedFrames() <= 1)
     }
 }

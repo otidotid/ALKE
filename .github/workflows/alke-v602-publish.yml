@@ -111,6 +111,6 @@ jobs:
           old_body="$(jq -r '.body // ""' <<< "$old_json")"
           if [[ "$old_body" != *"Superseded by ALKE v602"* ]]; then
             notice='> **Historical v599 — Superseded by ALKE v602.** GitHub may display this older release first due to a sorting issue. For the newest verified signed APK, use [ALKE v602](https://github.com/otidotid/ALKE/releases/tag/v1.0.0-alpha.22.12-total-audit-fixes.602). See [releases in numeric order](https://github.com/otidotid/ALKE/blob/alke/alpha20-insight-cleanup/docs/RELEASE_ORDER.md).'
-            new_body="$(printf '%s\\n\\n%s' "$notice" "$old_body")"
+            new_body="$(printf '%s\n\n%s' "$notice" "$old_body")"
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$old_id" -f name='ALKE v599 Premium Realtime Widgets (Historical)' -f body="$new_body" --jq '{tag:.tag_name,title:.name,assets:[.assets[].name]}'
           fi

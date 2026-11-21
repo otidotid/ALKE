@@ -79,18 +79,25 @@ class AlkeAlpha5ExperienceContractTest {
         }
     }
 
-    @Test fun todayActivityTilesAreDayStrainStepsActiveTimeInOrder() {
+    @Test fun todayDailyOutlookConsolidatesChargeEffortRestWithoutRepeatedScores() {
+        val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
         val ui = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
         val today = ui.substring(ui.indexOf("fun AlkeTodayExperience("),
             ui.indexOf("fun AlkeTrainingExperience("))
+        assertTrue(today.contains("YOUR DAILY OUTLOOK"))
+        assertTrue(today.contains("label = \"Charge\""))
+        assertTrue(today.contains("title = \"Effort\""))
+        assertTrue(today.contains("title = \"Rest\""))
+        assertTrue(today.contains("RestScorer.restFromDaily(it)"))
+        assertTrue(today.contains("onMetric(\"recovery\")"))
+        assertTrue(today.contains("onMetric(\"strain\")"))
         assertTrue(today.contains("AlkeSectionTitle(\"Today's Activity\")"))
-        assertFalse(today.contains("AlkeSectionTitle(\"Today's Activity\", \"Train\""))
-        val activity = today.substring(today.indexOf("AlkeSectionTitle(\"Today's Activity\")"),
-            today.indexOf("AlkeHeartRatePreview(vm, onHeartRateTimeline)"))
-        val strainPos = activity.indexOf("AlkeMetricTile(\"Day Strain\"")
-        val stepsPos = activity.indexOf("AlkeMetricTile(\"Steps\"")
-        val timePos = activity.indexOf("AlkeMetricTile(\"Active Time\"")
-        assertTrue(strainPos >= 0 && stepsPos > strainPos && timePos > stepsPos)
+        val stepsPos = today.indexOf("AlkeMetricTile(\"Steps\"")
+        val timePos = today.indexOf("AlkeMetricTile(\"Active Time\"")
+        assertTrue("Activity counts stay in Today", stepsPos >= 0 && timePos > stepsPos)
+        assertFalse("No repeated Charge tile", today.contains("AlkeMetricTile(\"Recovery\""))
+        assertFalse("No repeated Effort tile", today.contains("AlkeMetricTile(\"Day Strain\""))
+        assertFalse("No duplicated My Day summary", today.contains("AlkeSectionTitle(\"My Day\")"))
         assertTrue(today.contains("buildSeriesVitalDetail(vm, \"steps_est\")"))
         assertTrue(today.contains("it.day == LocalDate.now().toString()"))
         assertTrue(today.contains("A.cyan, onSteps"))
@@ -99,7 +106,6 @@ class AlkeAlpha5ExperienceContractTest {
             ui.indexOf("fun AlkeInsightExperience("))
         assertTrue(progress.contains("buildSeriesVitalDetail(vm, \"steps_est\")"))
         assertTrue(progress.contains("onClick = onSteps"))
-        val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
         assertTrue(nav.contains("onSteps = { nav.navigate(\"vital_detail/steps_est\") }"))
         val health = source("src/main/java/com/otidotid/alke/ui/HealthScreen.kt")
         assertTrue(health.contains("mergeStepsReadings(real, imported, est)"))
@@ -251,13 +257,13 @@ class AlkeAlpha5ExperienceContractTest {
         assertFalse(nav.contains("Destination.Intelligence, Destination.Insights"))
         val ui = source("src/main/java/com/otidotid/alke/ui/InsightsScreen.kt")
         val sections = listOf(
-            """item\s*\{\s*ConsolidatedInsightAiSummary\s*\(""",
             """item\s*\{\s*ConsolidatedInsightSignals\s*\(""",
             """item\s*\{\s*InsightDisclosure\s*\(\s*"Log Journal"""",
             """item\s*\{\s*MindSection\s*\(""",
             """item\s*\{\s*InsightDisclosure\s*\(\s*"Log Caffeine"""",
             """item\s*\{\s*InsightDisclosure\s*\(\s*"Personal Experiment"""",
             """item\s*\{\s*RelationshipsSection\s*\(""",
+            """item\s*\{\s*ConsolidatedInsightAiSummary\s*\(""",
         )
         val positions = sections.map { pattern ->
             Regex(pattern).find(ui)?.range?.first ?: -1

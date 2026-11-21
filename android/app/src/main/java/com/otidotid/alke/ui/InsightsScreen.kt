@@ -433,8 +433,6 @@ val expCandidates = experimentCandidates(
     ) {
 
                 // 2. Your Signals — current readings; unavailable metrics stay unavailable.
-        item { ConsolidatedInsightAiSummary(aiSummary, onRetry = { insightAiRetry++ }) }
-
         item { ConsolidatedInsightSignals(insightDay) }
 
         // 3. Log Journal — a premium collapsible disclosure. Existing history,
@@ -589,10 +587,11 @@ val expCandidates = experimentCandidates(
         //    nested under this analysis area, not a second Insight module.
         item { RelationshipsSection(relationships) }
 
-        item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
+        // One final interpretation AFTER the underlying journal, mood, caffeine,
+        // experiment and correlation evidence. No duplicate daily score hero.
+        item { ConsolidatedInsightAiSummary(aiSummary, onRetry = { insightAiRetry++ }) }
 
-        // 8. Your Insight Summary — AI sees ALL eight Insight sections above,
-        //    including the mood, caffeine and n-of-1 evidence, never other modules.
+        item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
     }
 }
 

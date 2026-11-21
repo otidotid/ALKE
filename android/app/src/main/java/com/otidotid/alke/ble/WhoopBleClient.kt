@@ -11041,49 +11041,49 @@ class WhoopBleClient(
     }
 
     /**
-     * Feed an offload frame to the Backfiller preserving exact arrival order. Frames are appended
-     * synchronously (callback order) and drained sequentially by a single coroutine, so START/data/
-     * END chunk assembly is never reordered. Port of `routeBackfillFrame` + the serial drain task.
-     */
-    /**
-     * The BLE callback never waits for Room. It submits one ordered frame to the
-     * bounded drain. If decoding/persistence throws or the queue overloads,
-     * terminate THIS offload rather than continuing past an unprocessed record.
-     * Already-ACKed chunks were durably stored; the unacked tail stays on strap.
+     * The Bluetooth callback enqueues quickly, while a single I/O coroutine
+     * handles ordered, durable backfill. A bad frame must NEVER be silently
+     * skipped: a later HISTORY_END could otherwise acknowledge records beyond
+     * it. Stop this offload and retry the still-unacknowledged history instead.
+     *
+     * Queue sizing is measured, not hardcoded: public Garmin/Zepp/COROS
+     * documentation does not define the WHOOP sender's flow-control mechanism.
      */
     private fun routeBackfillFrame(frame: ByteArray) {
         val lease = when (val offered = backfillDrain.offer(frame)) {
             is BackfillDrainGate.Offer.Start -> offered.lease
             BackfillDrainGate.Offer.Queued, BackfillDrainGate.Offer.Closed -> return
-            BackfillDrainGate.Offer.Overflow -> {
-                failHistoryDrain("queued history exceeds ${BackfillDrainGate.DEFAULT_MAX_PENDING_FRAMES} frames")
-                return
-            }
         }
         ioScope.launch {
             var ownsDrain = true
             try {
                 while (true) {
-                    val f = backfillDrain.pollOrRelease(lease)
-                    if (f == null) {
+                    val next = backfillDrain.pollOrRelease(lease)
+                    if (next == null) {
                         ownsDrain = false
                         break
                     }
                     try {
-                        backfiller.ingest(f)
+                        backfiller.ingest(next)
                     } catch (cancel: kotlinx.coroutines.CancellationException) {
-                        backfillDrain.failClosed()
+                        // A cancelled sync is not a valid completion or trim.
+                        backfillDrain.failClosed(lease)
                         throw cancel
-                    } catch (t: Throwable) {
-                        // A swallowed error allowed a later HISTORY_END to ACK a trim
-                        // beyond a skipped frame. Never consume another frame here.
-                        backfillDrain.failClosed()
-                        failHistoryDrain("frame processing failed (${t.javaClass.simpleName})")
+                    } catch (t: Exception) {
+                        // Only this generation may be shut down by the exception.
+                        if (backfillDrain.failClosed(lease)) {
+                            failHistoryDrain(lease, t.javaClass.simpleName)
+                        }
                         break
                     }
-                    // Complete only after every preceding frame was ingested.
                     if (backfilling && !backfiller.isBackfilling) {
-                        handler.post { if (backfilling) exitBackfilling("HISTORY_COMPLETE") }
+                        // A queued completion may race with a failed later frame.
+                        // Reject it if the generation was faulted or replaced.
+                        handler.post {
+                            if (backfilling && backfillDrain.isActive(lease)) {
+                                exitBackfilling("HISTORY_COMPLETE")
+                            }
+                        }
                     }
                 }
             } finally {
@@ -11092,12 +11092,12 @@ class WhoopBleClient(
         }
     }
 
-    private fun failHistoryDrain(reason: String) {
-        log("Backfill: $reason — stopping offload without ACK for unprocessed frames")
+    private fun failHistoryDrain(lease: BackfillDrainGate.Lease, failureKind: String) {
+        log("Backfill: frame processing error ($failureKind) — stopping the offload; unacknowledged history will be re-offloaded")
         handler.post {
-            if (!backfilling) return@post
-            // The same safe abort as the timeout, but not recorded as a clean
-            // complete or productive idle timeout. Next sync re-offloads the tail.
+            if (!backfilling || !backfillDrain.isFailureFor(lease)) return@post
+            // This runs after the faulted serial drain stopped ingesting. Do not
+            // emit HISTORY_COMPLETE, update Last Sync, or trim any new records.
             backfiller.timeoutFired()
             exitBackfilling("processing_error")
             _state.update {
@@ -11195,7 +11195,7 @@ class WhoopBleClient(
         // reporter to find Test Centre first, which is the friction that left #477/#533 unvalidated.
         val offloadElapsedMs =
             if (backfillStartedAtMs > 0L) System.currentTimeMillis() - backfillStartedAtMs else -1L
-        log("Backfill: ${offloadThroughputLine(offloadFramesThisSession, offloadElapsedMs)} ($reason)")
+        log("Backfill: ${offloadThroughputLine(offloadFramesThisSession, offloadElapsedMs)} ($reason) queuePeakFrames=${backfillDrain.peakQueuedFrames()}")
         // #174: a backfill just ended. Start (or extend) the deep-packet cooldown from this instant so
         // any type-0x2F records the strap flushes in the seconds after the session aren't miscounted as
         // the live R22 stream — they're the offload's tail.

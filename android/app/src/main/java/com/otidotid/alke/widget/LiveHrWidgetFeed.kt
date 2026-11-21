@@ -31,7 +31,8 @@ internal class LiveHrWidgetFeed(private val context: Context) {
                 val fresh = if (last == null) samples.receive()
                     else withTimeoutOrNull(HrDisplay.LIVE_MS) { samples.receive() }
                 val sample = fresh ?: last ?: continue
-                if (fresh != null && last?.bpm == sample.bpm && last.at / 60_000 == sample.at / 60_000) continue
+                // Every valid BLE frame refreshes provenance, even when BPM is unchanged.
+                // Rendering remains rate-limited below; samples are never deduplicated by value.
                 try {
                     val ids = GlanceAppWidgetManager(context).getGlanceIds(HrGlanceWidget::class.java)
                     for (id in ids) {
@@ -42,7 +43,7 @@ internal class LiveHrWidgetFeed(private val context: Context) {
                         }
                         HrGlanceWidget().update(context, id)
                     }
-                    previous = fresh
+                    previous = sample
                     delay(if (ids.isEmpty()) 5_000L else 1_000L)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e

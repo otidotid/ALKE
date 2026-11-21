@@ -380,7 +380,7 @@ internal object WidgetScoreRetention {
 internal object HrDisplay {
     /** A reading counts as a fresh live sample only if the last live push was within this window; past it
      *  (e.g. the app was killed mid-stream and never flipped `live` off) it's shown dimmed, not as live. */
-    const val LIVE_MS = 2 * 60_000L
+    const val LIVE_MS = 15_000L
 
     /** @return (bpm to show or null, stale) — stale = shown but NOT a fresh live sample, so the widget dims it. */
     fun resolve(lastHr: Int?, lastHrAtMs: Long, live: Boolean, nowMs: Long): Pair<Int?, Boolean> {

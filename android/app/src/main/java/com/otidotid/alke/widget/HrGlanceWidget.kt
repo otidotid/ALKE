@@ -149,7 +149,12 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
       .background(hrSurface(dark))
       .cornerRadius(16.dp)
       .padding(14.dp)
-      .clickable(actionStartActivity<MainActivity>()),
+      .clickable(actionStartActivity<MainActivity>(
+        parameters = androidx.glance.action.actionParametersOf(
+          androidx.glance.action.ActionParameters.Key<String>(WidgetNavigation.EXTRA_WIDGET_ACTION) to
+            WidgetNavigation.ACTION_HEART_RATE_TIMELINE,
+        ),
+      )),
   ) {
     Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
       // The notification heart, reused. It is authored as a solid alpha mask for exactly this kind

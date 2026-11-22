@@ -4,6 +4,7 @@ import android.content.Context
 import com.otidotid.alke.ui.HostedCardPrefs
 import com.otidotid.alke.ui.AlkePrefs
 import com.otidotid.alke.ui.ProfileStore
+import com.otidotid.alke.ui.ProfileAvatarStore
 import com.otidotid.alke.ui.UnitPrefs
 import org.json.JSONObject
 
@@ -33,7 +34,108 @@ object BackupSettingsCodec {
     const val ENTRY_NAME = "settings.json"
 
     /** The JSON kind a whitelisted key must decode to. Anything else is dropped, never guessed at. */
-    enum class Kind { INT, DOUBLE, STRING }
+    enum class Kind { INT, DOUBLE, STRING, BOOLEAN, LONG, STRING_SET }
+
+    /**
+     * ALKE Android-only personal preferences. Explicitly allowlisted rather than copying an entire
+     * SharedPreferences XML: never export tokens, Google account credentials, BLE identifiers, sync
+     * cursors, calibration outputs, permissions, pairing state or WorkManager runtime state.
+     * Prefixes keep this extension distinct from portable iOS/Android settings.json keys.
+     */
+    val ANDROID_MIGRATION_PREFS: Map<String, Map<String, Kind>> = linkedMapOf(
+        "alke_prefs" to linkedMapOf(
+            "today.keyMetricsDetailed" to Kind.BOOLEAN,
+            "appearance.gaugeNumerals" to Kind.STRING,
+            "alke.appIconNavy" to Kind.BOOLEAN,
+            "alke.bottomBarAutoHide" to Kind.BOOLEAN,
+            "alke.bottomBarModules" to Kind.STRING,
+            "alke.more.expandedSections" to Kind.STRING,
+            "alke.bottomBarOpacityStep" to Kind.INT,
+            "alke.bottomBarScale" to Kind.DOUBLE,
+            "alke.overlayBottomBar" to Kind.BOOLEAN,
+            "alke.quietMotion" to Kind.BOOLEAN,
+            "alke.todayRingGauges" to Kind.BOOLEAN,
+            "alke.showDayCycleBackground" to Kind.BOOLEAN,
+            "alke.skyBehindCards" to Kind.BOOLEAN,
+            "alke.cardOpacityPercent" to Kind.INT,
+            "alke.backgroundFillMode" to Kind.STRING,
+            "alke.backgroundConnection" to Kind.BOOLEAN,
+            "alke.continuousHrv" to Kind.BOOLEAN,
+            "alke.continuousHrvOvernight" to Kind.BOOLEAN,
+            "alke.spo2CandidateDisplay" to Kind.BOOLEAN,
+            "alke.stressPersonalBaseline" to Kind.BOOLEAN,
+            "alke.banisterEffort" to Kind.BOOLEAN,
+            "alke.powerSaving" to Kind.BOOLEAN,
+            "low_refresh" to Kind.BOOLEAN,
+            "alke.powerSavingBatteryPct" to Kind.INT,
+            "alke.pauseHrvOnPowerSave" to Kind.BOOLEAN,
+            "alke.smartAlarmEnabled" to Kind.BOOLEAN,
+            "alke.smartAlarmMinutes" to Kind.INT,
+            "alke.smartAlarmWeekdays" to Kind.STRING_SET,
+            "alke.smartAlarmDayOverrides" to Kind.STRING_SET,
+            "alke.zoneCoaching" to Kind.BOOLEAN,
+            "alke.zoneCoachRecovery" to Kind.BOOLEAN,
+            "alke.illnessWatch" to Kind.BOOLEAN,
+            "alke.cycleTracking" to Kind.BOOLEAN,
+            "alke.cycleAwarenessHidden" to Kind.BOOLEAN,
+            "alke.hydrationTracking" to Kind.BOOLEAN,
+            "alke.coachEnabled" to Kind.BOOLEAN,
+            "alke.coachSignals" to Kind.BOOLEAN,
+            "alke.coachMultimodal" to Kind.BOOLEAN,
+            "alke.coachSystemPrompt" to Kind.STRING,
+            "alke.autoDetectWorkouts" to Kind.BOOLEAN,
+            "alke.journalReminder" to Kind.BOOLEAN,
+            "alke.batteryAlerts" to Kind.BOOLEAN,
+            "alke.batteryPredictiveAlerts" to Kind.BOOLEAN,
+            "alke.report.morningRecap" to Kind.BOOLEAN,
+            "alke.report.postWorkout" to Kind.BOOLEAN,
+            "alke.report.strainTarget" to Kind.BOOLEAN,
+            "alke.caffeine.cutoffNudge" to Kind.BOOLEAN,
+            "alke.caffeine.bedtimeMinutes" to Kind.INT,
+            "today.totalCaloriesTargetKcal" to Kind.INT,
+            "workout.recentSports" to Kind.STRING,
+            "workoutKeepScreenOn" to Kind.BOOLEAN,
+            "alke.napDetectionEnabled" to Kind.BOOLEAN,
+            "alke.journalCatalogV2" to Kind.STRING,
+            "biofeedback.stressCheckIn" to Kind.BOOLEAN,
+            "biofeedback.stressAutoNudge" to Kind.BOOLEAN,
+            "biofeedback.stressQuietHours" to Kind.BOOLEAN,
+            "biofeedback.stressUseResonancePace" to Kind.BOOLEAN,
+            "biofeedback.stressQuietStartMin" to Kind.INT,
+            "biofeedback.stressQuietEndMin" to Kind.INT,
+            "biofeedback.resonanceBpm" to Kind.DOUBLE,
+        ),
+        "alke_inactivity_prefs" to linkedMapOf(
+            "inactivity.enabled" to Kind.BOOLEAN,
+            "inactivity.thresholdMinutes" to Kind.INT,
+            "inactivity.reNudgeMinutes" to Kind.INT,
+            "inactivity.buzzLoops" to Kind.INT,
+            "inactivity.activeHoursEnabled" to Kind.BOOLEAN,
+            "inactivity.activeStartMinutes" to Kind.INT,
+            "inactivity.activeEndMinutes" to Kind.INT,
+        ),
+        "alke_haptics_prefs" to linkedMapOf(
+            "haptics.breathing" to Kind.BOOLEAN,
+            "haptics.intervals" to Kind.BOOLEAN,
+            "haptics.liveSession" to Kind.BOOLEAN,
+            "haptics.workout" to Kind.BOOLEAN,
+        ),
+        "alke_notif_prefs" to linkedMapOf(
+            "notif.masterEnabled" to Kind.BOOLEAN,
+            "notif.allOtherApps" to Kind.BOOLEAN,
+            "notif.onlyWhenWorn" to Kind.BOOLEAN,
+            "notif.quietHoursEnabled" to Kind.BOOLEAN,
+            "notif.quietStartMinutes" to Kind.INT,
+            "notif.quietEndMinutes" to Kind.INT,
+            "notif.calls.masterEnabled" to Kind.BOOLEAN,
+            "notif.calls.phoneEnabled" to Kind.BOOLEAN,
+            "notif.calls.voipEnabled" to Kind.BOOLEAN,
+            "notif.calls.pattern" to Kind.STRING,
+            "notif.alarmTimer" to Kind.BOOLEAN,
+        ),
+    )
+
+    fun androidBackupKey(file: String, key: String): String = "android.$file.$key"
 
     /**
      * THE whitelist — the only keys `settings.json` may carry, keyed by their CANONICAL
@@ -53,6 +155,9 @@ object BackupSettingsCodec {
         "profile.waistCm" to Kind.DOUBLE,
         "profile.hrMax" to Kind.INT,
         "profile.hrZoneThresholds" to Kind.STRING,
+        "profile.dateOfBirthMillis" to Kind.LONG,
+        "profile.avatarPresent" to Kind.INT,
+        "profile.avatarJpegBase64" to Kind.STRING,
         "units.system" to Kind.STRING,
         "units.distance" to Kind.STRING,
         "units.temperature" to Kind.STRING,
@@ -87,7 +192,13 @@ object BackupSettingsCodec {
         // SCOPE: NAMES only — the wire carries no kind/group, so a numeric custom behaviour restores as a
         // plain .bool toggle (identical on both platforms; historical entries keep their DB numericValue).
         "journal.customBehaviors" to Kind.STRING,
-    )
+    ).apply {
+        for ((file, keys) in ANDROID_MIGRATION_PREFS) {
+            for ((key, kind) in keys) {
+                put(androidBackupKey(file, key), kind)
+            }
+        }
+    }
 
     /**
      * Encode the whitelisted subset of [values] as the flat `settings.json` object, or null when
@@ -127,6 +238,9 @@ object BackupSettingsCodec {
         Kind.STRING -> value as? String
         Kind.INT -> (value as? Number)?.toInt()
         Kind.DOUBLE -> (value as? Number)?.toDouble()
+        Kind.BOOLEAN -> value as? Boolean
+        Kind.LONG -> (value as? Number)?.toLong()
+        Kind.STRING_SET -> value as? String
     }
 }
 
@@ -152,6 +266,10 @@ object BackupSettingsBridge {
         "accent.customHex",
         "chart.style",
         "alke.appLanguage",
+        "today.sectionOrder",
+        "today.hiddenSections",
+        "today.dashboardCards",
+        "today.keyMetrics",
     )
 
     /** Journal-catalog storage keys in `alke_prefs` (#1361). The v2 items blob is the LIVE store; the
@@ -167,7 +285,12 @@ object BackupSettingsBridge {
     /** The whitelisted, user-SET settings of this device as the `settings.json` string, or null. */
     fun snapshotJson(context: Context): String? {
         val values = LinkedHashMap<String, Any>()
-        values.putAll(ProfileStore.from(context).backupSnapshot())
+        val profile = ProfileStore.from(context)
+        values.putAll(profile.backupSnapshot())
+        values["profile.dateOfBirthMillis"] = profile.dateOfBirthMillis
+        val avatar = ProfileAvatarStore.snapshotForBackup(context)
+        values["profile.avatarPresent"] = if (avatar == null) 0 else 1
+        if (avatar != null) values["profile.avatarJpegBase64"] = avatar
         val alke = AlkePrefs.of(context)
         if (alke.contains(AlkePrefs.KEY_UNIT_SYSTEM)) {
             alke.getString(AlkePrefs.KEY_UNIT_SYSTEM, null)?.let { values["units.system"] = it }
@@ -195,6 +318,30 @@ object BackupSettingsBridge {
         for (key in STABLE_STRING_PREFS) {
             if (alke.contains(key)) alke.getString(key, null)?.let { values[key] = it }
         }
+        if (alke.contains("today.keyMetricsWindowDays")) {
+            values["today.keyMetricsWindowDays"] = alke.getInt("today.keyMetricsWindowDays", 14)
+        }
+        // Preserve ONLY known, user-edited settings. Never wholesale-copy preference files.
+        for ((file, keys) in BackupSettingsCodec.ANDROID_MIGRATION_PREFS) {
+            val prefs = context.applicationContext.getSharedPreferences(file, Context.MODE_PRIVATE)
+            for ((key, kind) in keys) {
+                val raw = prefs.all[key] ?: continue
+                val mapped: Any? = when (kind) {
+                    BackupSettingsCodec.Kind.BOOLEAN -> raw as? Boolean
+                    BackupSettingsCodec.Kind.INT -> raw as? Int
+                    BackupSettingsCodec.Kind.LONG -> raw as? Long
+                    BackupSettingsCodec.Kind.DOUBLE -> (raw as? Number)?.toDouble()
+                    BackupSettingsCodec.Kind.STRING -> raw as? String
+                    BackupSettingsCodec.Kind.STRING_SET -> {
+                        val items = raw as? Set<*>
+                        if (items != null && items.all { it is String }) {
+                            org.json.JSONArray(items.filterIsInstance<String>().sorted()).toString()
+                        } else null
+                    }
+                }
+                if (mapped != null) values[BackupSettingsCodec.androidBackupKey(file, key)] = mapped
+            }
+        }
         // #1361: custom journal behaviours from the LIVE v2 catalog blob (the legacy key is read-once-
         // then-stale). Parse raw to avoid a data→ui dependency; shape mirrors JournalCatalog.
         alke.getString(JOURNAL_CATALOG_V2_PREF, null)?.let { blob ->
@@ -220,7 +367,12 @@ object BackupSettingsBridge {
         val values = BackupSettingsCodec.decode(json)
         if (values.isEmpty()) return
 
-        ProfileStore.from(context).applyBackup(values)
+        val profile = ProfileStore.from(context)
+        profile.applyBackup(values)
+        (values["profile.dateOfBirthMillis"] as? Long)?.let { dob ->
+            // Preserve the actual date of birth, not merely the age rounded to a year.
+            if (dob in 1L..System.currentTimeMillis()) profile.dateOfBirthMillis = dob
+        }
 
         val editor = AlkePrefs.of(context).edit()
         (values["units.system"] as? String)?.let { editor.putString(AlkePrefs.KEY_UNIT_SYSTEM, it) }
@@ -265,5 +417,36 @@ object BackupSettingsBridge {
             editor.remove(JOURNAL_CATALOG_V2_PREF)
         }
         editor.apply()
+        for ((file, keys) in BackupSettingsCodec.ANDROID_MIGRATION_PREFS) {
+            val prefs = context.applicationContext.getSharedPreferences(file, Context.MODE_PRIVATE).edit()
+            for ((key, kind) in keys) {
+                val saved = values[BackupSettingsCodec.androidBackupKey(file, key)] ?: continue
+                when (kind) {
+                    BackupSettingsCodec.Kind.BOOLEAN -> (saved as? Boolean)?.let { prefs.putBoolean(key, it) }
+                    BackupSettingsCodec.Kind.INT -> (saved as? Int)?.let { prefs.putInt(key, it) }
+                    BackupSettingsCodec.Kind.LONG -> (saved as? Long)?.let { prefs.putLong(key, it) }
+                    BackupSettingsCodec.Kind.DOUBLE -> (saved as? Double)?.let { prefs.putFloat(key, it.toFloat()) }
+                    BackupSettingsCodec.Kind.STRING -> (saved as? String)?.let { prefs.putString(key, it) }
+                    BackupSettingsCodec.Kind.STRING_SET -> (saved as? String)?.let { encoded ->
+                        val items = runCatching {
+                            val json = org.json.JSONArray(encoded)
+                            (0 until json.length()).map { i -> json.getString(i) }.toSet()
+                        }.getOrNull()
+                        if (items != null && items.size <= 100) prefs.putStringSet(key, items)
+                    }
+                }
+            }
+            prefs.apply()
+        }
+        when (values["profile.avatarPresent"] as? Int) {
+            0 -> ProfileAvatarStore.clearAvatar(context)
+            1 -> {
+                val encoded = values["profile.avatarJpegBase64"] as? String
+                if (encoded == null || !ProfileAvatarStore.restoreFromBackup(context, encoded)) {
+                    // No user photo is overwritten on an invalid avatar. Health/Food restore stays safe.
+                    throw IllegalArgumentException("Profile photo could not be restored")
+                }
+            }
+        }
     }
 }

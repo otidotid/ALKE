@@ -663,8 +663,20 @@ object BottomBarStyleStore {
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun AppRoot(viewModel: AppViewModel = viewModel()) {
+fun AppRoot(
+    viewModel: AppViewModel = viewModel(),
+    widgetEntryRequest: Pair<String?, Long> = null to 0L,
+) {
     val nav = rememberNavController()
+    // Widget actions are allowlisted by WidgetNavigation, never arbitrary external routes.
+    // A separate request id handles a second tap while the activity remains in the task stack.
+    LaunchedEffect(widgetEntryRequest) {
+        if (widgetEntryRequest.first == Destination.AlkeHeartRateTimeline.route &&
+            nav.currentDestination?.route != Destination.AlkeHeartRateTimeline.route
+        ) {
+            nav.navigate(Destination.AlkeHeartRateTimeline.route) { launchSingleTop = true }
+        }
+    }
 
     val backStack by nav.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route

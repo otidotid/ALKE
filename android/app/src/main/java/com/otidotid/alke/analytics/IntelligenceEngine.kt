@@ -2935,7 +2935,7 @@ object IntelligenceEngine {
         existing: Set<Pair<String, String>>,
     ): List<MetricSeriesRow> {
         val currentSaturday = saturdayKeyOnOrBefore(newestDay)
-        val byDay = history.associateBy { it.day }
+        val byDay = java.util.TreeMap(history.associateBy { it.day })
         val anchors = history.asSequence().map { saturdayKeyOnOrBefore(it.day) }
             .filter { it < currentSaturday }.distinct().sorted().toList()
         val rows = ArrayList<MetricSeriesRow>()
@@ -2944,7 +2944,7 @@ object IntelligenceEngine {
             if (primaryWeeklyKeys.all { key -> (anchorDay to key) in existing }) continue
             val anchor = runCatching { java.time.LocalDate.parse(anchorDay) }.getOrNull() ?: continue
             val from = anchor.minusDays(6).toString()
-            val week = byDay.values.filter { it.day in from..anchorDay }.sortedBy { it.day }
+            val week = WeeklyHistoryWindow.rows(byDay, from, anchorDay)
             val candidates = fitnessAgeRows(week, profile, computedId, anchorDay) +
                 vitalityRows(week, profile, computedId, anchorDay)
             for (row in candidates) if ((row.day to row.key) !in existing) rows.add(row)
@@ -2957,7 +2957,7 @@ object IntelligenceEngine {
         capturedLabs: MutableMap<String, WeeklyLabInputs>? = null,
     ): List<MetricSeriesRow> {
         val currentSaturday = saturdayKeyOnOrBefore(newestDay)
-        val byDay = history.associateBy { it.day }
+        val byDay = java.util.TreeMap(history.associateBy { it.day })
         val anchors = history.asSequence().map { saturdayKeyOnOrBefore(it.day) }
             .filter { it < currentSaturday }.distinct().sorted().toList()
         val rows = ArrayList<MetricSeriesRow>()
@@ -2966,7 +2966,7 @@ object IntelligenceEngine {
             if (primaryWeeklyKeys.all { key -> (anchorDay to key) in existing }) continue
             val anchor = runCatching { java.time.LocalDate.parse(anchorDay) }.getOrNull() ?: continue
             val from = anchor.minusDays(6).toString()
-            val week = byDay.values.filter { it.day in from..anchorDay }.sortedBy { it.day }
+            val week = WeeklyHistoryWindow.rows(byDay, from, anchorDay)
             val labs = captureWeeklyLabs(repo, anchorDay, profile, computedId)
             capturedLabs?.put(anchorDay, labs)
             val candidates = fitnessAgeRows(labs, week, profile, computedId, anchorDay) +
@@ -3150,9 +3150,9 @@ object IntelligenceEngine {
      *  strap is offline. Returns true if a value was written. */
     suspend fun recomputeFitnessAgeOnly(
         repo: WhoopRepository, profile: UserProfile, importedDeviceId: String, maxDays: Int = 21,
+        nowSeconds: Long = System.currentTimeMillis() / 1_000L,
     ): Boolean = repo.withMetabolicCalculationTransaction {
         val computedId = importedDeviceId + "-alke"
-        val nowSeconds = System.currentTimeMillis() / 1_000L
         val tzOffsetSeconds = java.util.TimeZone.getDefault().getOffset(nowSeconds * 1_000L) / 1_000L
         val nowLocalMidnight = midnightLocal(nowSeconds, tzOffsetSeconds)
         val newestDay = AnalyticsEngine.dayString(nowLocalMidnight, tzOffsetSeconds)
@@ -3162,13 +3162,16 @@ object IntelligenceEngine {
         val weeklyDay = saturdayKeyOnOrBefore(newestDay)
         val labs = captureWeeklyLabs(repo, weeklyDay, profile, computedId)
         val rows = fitnessAgeRows(labs, gate7, profile, computedId, weeklyDay)
+        // Keep the original Saturday-only publication contract. A computed
+        // weekday preview is NOT a persisted weekly score and must not be
+        // reported as a successful refresh.
         if (rows.isNotEmpty() && newestDay == weeklyDay) {
             repo.upsertMetricSeriesWithProvenance(
                 rows = rows,
                 provenance = weeklyScoreProvenance(labs, rows, computedId, gate7, profile),
             )
         }
-        rows.isNotEmpty()
+        rows.isNotEmpty() && newestDay == weeklyDay
     }
 
     /**

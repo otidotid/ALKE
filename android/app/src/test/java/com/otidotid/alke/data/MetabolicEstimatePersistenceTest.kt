@@ -123,7 +123,12 @@ class MetabolicEstimatePersistenceTest {
 
     private suspend fun score(): Double = db.whoopDao().metricSeries(computed, "fitness_age", day, day).single().value
     private suspend fun recompute(): Double {
-        assertTrue(IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile, source))
+        // Fitness Age is published on Saturdays only. Pin the scoring clock
+        // to the fixture Saturday so this persistence test is stable every day.
+        val saturdayNoon = anchor.atTime(12, 0)
+            .atZone(java.time.ZoneId.systemDefault()).toEpochSecond()
+        assertTrue(IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile, source,
+            nowSeconds = saturdayNoon))
         return score()
     }
     private suspend fun assertOriginalRowsUnchanged() {
@@ -136,6 +141,14 @@ class MetabolicEstimatePersistenceTest {
         }
         val provenance = previous.mapNotNull { db.whoopDao().scoreInputDetails(computed, it.day, it.key) }
         return store.save(accepted, source, previous, provenance)
+    }
+
+    @Test fun weekdayRecomputeNeverClaimsToPublishOrRewritesSaturday() = runBlocking {
+        val sundayNoon = anchor.plusDays(1).atTime(12, 0)
+            .atZone(java.time.ZoneId.systemDefault()).toEpochSecond()
+        assertFalse(IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile, source,
+            nowSeconds = sundayNoon))
+        assertTrue(db.whoopDao().metricSeries(computed, "fitness_age", day, day).isEmpty())
     }
 
     @Test fun validatedAiScalarReachesSavedProductionScoreWithOriginalEvidenceAndPriorOutputAudit() = runBlocking {
@@ -232,7 +245,9 @@ class MetabolicEstimatePersistenceTest {
         val audit = records().single().readBytes()
         store.setEnabled(false)
 
-        val result = MetabolicReviewService(context, repo, source).review()
+        val saturdayNoon = anchor.atTime(12, 0)
+            .atZone(java.time.ZoneId.systemDefault()).toEpochSecond()
+        val result = MetabolicReviewService(context, repo, source, saturdayNoon).review()
 
         assertTrue(result.saved)
         assertTrue(result.message.contains("recalculated from current local inputs"))

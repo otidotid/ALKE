@@ -33,6 +33,8 @@ internal class CompactDailySnapshots(context: Context) {
     }
 
     suspend fun refresh(today: LocalDate = LocalDate.now()): List<Summary> = withContext(Dispatchers.IO) {
+        // Protect large historical scans from concurrent full backup/archive operations.
+        BackgroundDataWorkGate.withExclusive {
         val (start, endExclusive) = window(today)
         val rows = linkedMapOf<Pair<String, String>, MutableSummary>()
         val health = WhoopDatabase.get(appContext).openHelper.readableDatabase
@@ -83,6 +85,7 @@ internal class CompactDailySnapshots(context: Context) {
             }
         } finally { tmp.delete() }
         snapshots
+        }
     }
 
     private class MutableSummary(

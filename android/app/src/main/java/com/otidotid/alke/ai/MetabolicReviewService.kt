@@ -21,8 +21,19 @@ class MetabolicReviewService(
     private val context: Context,
     private val repo: WhoopRepository,
     private val sourceId: String,
+    // Keep the original four-argument public API; both positional and trailing
+    // lambda activeSource call sites must retain their existing meaning.
     private val activeSource: () -> String = { sourceId },
 ) {
+    // Default production wall clock. The internal fixture-only overload avoids
+    // changing any public constructor call site or date/scoring policy.
+    private var calculationNowSeconds: () -> Long = { System.currentTimeMillis() / 1_000L }
+
+    internal constructor(context: Context, repo: WhoopRepository, sourceId: String, testNowSeconds: Long) :
+        this(context, repo, sourceId) {
+        calculationNowSeconds = { testNowSeconds }
+    }
+
     private val store = MetabolicEstimateStore(context)
     private fun profile() = ProfileStore(context.getSharedPreferences(ProfileStore.PREFS, Context.MODE_PRIVATE)).toUserProfile()
     private fun consent() = activeSource() == sourceId && store.enabled() && AiKeyStore.readConsent(context) &&
@@ -72,7 +83,8 @@ class MetabolicReviewService(
             if (!store.save(accepted, sourceId, previous, provenance))
                 return@activation fallbackLocked("The new AI estimate could not be activated.")
             if (activeSource() != sourceId) return@activation sourceChangedOutcome()
-            val saved = IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile(), sourceId)
+            val saved = IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile(), sourceId,
+                nowSeconds = calculationNowSeconds())
             savedOutcome(saved, day, accepted.requestId)
         }
     }
@@ -86,7 +98,8 @@ class MetabolicReviewService(
         val accepted = store.current(repo, sourceId, day, capturedProfile) ?: return@reuse null
         if (!consent() || day != scoreDay() || !sameProfile(capturedProfile, profile()))
             return@reuse fallbackLocked("The review settings changed; no new AI estimate was activated.")
-        val saved = IntelligenceEngine.recomputeFitnessAgeOnly(repo, capturedProfile, sourceId)
+        val saved = IntelligenceEngine.recomputeFitnessAgeOnly(repo, capturedProfile, sourceId,
+            nowSeconds = calculationNowSeconds())
         savedOutcome(saved, day, accepted.requestId)
     }
 
@@ -97,7 +110,8 @@ class MetabolicReviewService(
     private suspend fun fallbackLocked(reason: String): Outcome {
         currentCoroutineContext().ensureActive()
         if (activeSource() != sourceId) return sourceChangedOutcome()
-        val saved = IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile(), sourceId)
+        val saved = IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile(), sourceId,
+                nowSeconds = calculationNowSeconds())
         if (!saved) return Outcome("$reason No replacement Fitness Age was saved: more resting-heart-rate history is needed. Existing saved scores remain.")
         val trace = repo.scoreInputDetails(sourceId + "-alke", scoreDay(), "fitness_age")
         return if (trace?.algorithmVersion in setOf(
@@ -133,7 +147,8 @@ class MetabolicReviewService(
         if (activeSource() != sourceId) return@withContext false
         repo.withMetabolicCalculationTransaction {
             if (activeSource() != sourceId) return@withMetabolicCalculationTransaction false
-            IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile(), sourceId)
+            IntelligenceEngine.recomputeFitnessAgeOnly(repo, profile(), sourceId,
+                nowSeconds = calculationNowSeconds())
         }
     }
 

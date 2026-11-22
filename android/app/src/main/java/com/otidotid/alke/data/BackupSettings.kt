@@ -34,7 +34,7 @@ object BackupSettingsCodec {
     const val ENTRY_NAME = "settings.json"
 
     /** The JSON kind a whitelisted key must decode to. Anything else is dropped, never guessed at. */
-    enum class Kind { INT, DOUBLE, STRING, BOOLEAN, LONG }
+    enum class Kind { INT, DOUBLE, STRING, BOOLEAN, LONG, STRING_SET }
 
     /**
      * ALKE Android-only personal preferences. Explicitly allowlisted rather than copying an entire
@@ -46,6 +46,50 @@ object BackupSettingsCodec {
         "alke_prefs" to linkedMapOf(
             "today.keyMetricsDetailed" to Kind.BOOLEAN,
             "appearance.gaugeNumerals" to Kind.STRING,
+            "alke.appIconNavy" to Kind.BOOLEAN,
+            "alke.bottomBarAutoHide" to Kind.BOOLEAN,
+            "alke.bottomBarOpacityStep" to Kind.INT,
+            "alke.bottomBarScale" to Kind.INT,
+            "alke.overlayBottomBar" to Kind.BOOLEAN,
+            "alke.quietMotion" to Kind.BOOLEAN,
+            "alke.todayRingGauges" to Kind.BOOLEAN,
+            "alke.showDayCycleBackground" to Kind.BOOLEAN,
+            "alke.skyBehindCards" to Kind.BOOLEAN,
+            "alke.cardOpacityPercent" to Kind.INT,
+            "alke.backgroundFillMode" to Kind.STRING,
+            "alke.backgroundConnection" to Kind.BOOLEAN,
+            "alke.continuousHrv" to Kind.BOOLEAN,
+            "alke.continuousHrvOvernight" to Kind.BOOLEAN,
+            "alke.spo2CandidateDisplay" to Kind.BOOLEAN,
+            "alke.stressPersonalBaseline" to Kind.BOOLEAN,
+            "alke.banisterEffort" to Kind.BOOLEAN,
+            "alke.powerSaving" to Kind.BOOLEAN,
+            "low_refresh" to Kind.BOOLEAN,
+            "alke.powerSavingBatteryPct" to Kind.INT,
+            "alke.pauseHrvOnPowerSave" to Kind.BOOLEAN,
+            "alke.smartAlarmEnabled" to Kind.BOOLEAN,
+            "alke.smartAlarmMinutes" to Kind.INT,
+            "alke.smartAlarmWeekdays" to Kind.STRING_SET,
+            "alke.smartAlarmDayOverrides" to Kind.STRING_SET,
+            "alke.zoneCoaching" to Kind.BOOLEAN,
+            "alke.zoneCoachRecovery" to Kind.BOOLEAN,
+            "alke.illnessWatch" to Kind.BOOLEAN,
+            "alke.cycleTracking" to Kind.BOOLEAN,
+            "alke.cycleAwarenessHidden" to Kind.BOOLEAN,
+            "alke.hydrationTracking" to Kind.BOOLEAN,
+            "alke.coachEnabled" to Kind.BOOLEAN,
+            "alke.coachSignals" to Kind.BOOLEAN,
+            "alke.coachMultimodal" to Kind.BOOLEAN,
+            "alke.coachSystemPrompt" to Kind.STRING,
+            "alke.autoDetectWorkouts" to Kind.BOOLEAN,
+            "alke.journalReminder" to Kind.BOOLEAN,
+            "alke.batteryAlerts" to Kind.BOOLEAN,
+            "alke.batteryPredictiveAlerts" to Kind.BOOLEAN,
+            "alke.report.morningRecap" to Kind.BOOLEAN,
+            "alke.report.postWorkout" to Kind.BOOLEAN,
+            "alke.report.strainTarget" to Kind.BOOLEAN,
+            "alke.caffeine.cutoffNudge" to Kind.BOOLEAN,
+            "alke.caffeine.bedtimeMinutes" to Kind.INT,
             "today.totalCaloriesTargetKcal" to Kind.INT,
             "workout.recentSports" to Kind.STRING,
             "workoutKeepScreenOn" to Kind.BOOLEAN,
@@ -194,6 +238,7 @@ object BackupSettingsCodec {
         Kind.DOUBLE -> (value as? Number)?.toDouble()
         Kind.BOOLEAN -> value as? Boolean
         Kind.LONG -> (value as? Number)?.toLong()
+        Kind.STRING_SET -> value as? String
     }
 }
 
@@ -285,6 +330,12 @@ object BackupSettingsBridge {
                     BackupSettingsCodec.Kind.LONG -> raw as? Long
                     BackupSettingsCodec.Kind.DOUBLE -> (raw as? Number)?.toDouble()
                     BackupSettingsCodec.Kind.STRING -> raw as? String
+                    BackupSettingsCodec.Kind.STRING_SET -> {
+                        val items = raw as? Set<*>
+                        if (items != null && items.all { it is String }) {
+                            org.json.JSONArray(items.filterIsInstance<String>().sorted()).toString()
+                        } else null
+                    }
                 }
                 if (mapped != null) values[BackupSettingsCodec.androidBackupKey(file, key)] = mapped
             }
@@ -374,6 +425,13 @@ object BackupSettingsBridge {
                     BackupSettingsCodec.Kind.LONG -> (saved as? Long)?.let { prefs.putLong(key, it) }
                     BackupSettingsCodec.Kind.DOUBLE -> (saved as? Double)?.let { prefs.putFloat(key, it.toFloat()) }
                     BackupSettingsCodec.Kind.STRING -> (saved as? String)?.let { prefs.putString(key, it) }
+                    BackupSettingsCodec.Kind.STRING_SET -> (saved as? String)?.let { encoded ->
+                        val items = runCatching {
+                            val json = org.json.JSONArray(encoded)
+                            (0 until json.length()).map { i -> json.getString(i) }.toSet()
+                        }.getOrNull()
+                        if (items != null && items.size <= 100) prefs.putStringSet(key, items)
+                    }
                 }
             }
             prefs.apply()

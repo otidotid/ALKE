@@ -172,6 +172,18 @@ class UnitFormatterTest {
         assertEquals(null, TemperatureUnit.fromRaw(""))
     }
 
+    // --- Effort: display integer points without changing the underlying scale. ---
+    @Test
+    fun effortAlwaysDisplaysWholePointsOnBothAxes() {
+        assertEquals("59", UnitFormatter.effortDisplay(59.49, EffortScale.HUNDRED))
+        assertEquals("60", UnitFormatter.effortDisplay(59.50, EffortScale.HUNDRED))
+        assertEquals("12", UnitFormatter.effortDisplay(59.0, EffortScale.WHOOP))
+        assertEquals("11", UnitFormatter.effortDisplay(50.0, EffortScale.WHOOP))
+        assertEquals("21", UnitFormatter.effortDisplay(100.0, EffortScale.WHOOP))
+        assertEquals("—", UnitFormatter.effortDisplay(Double.NaN, EffortScale.WHOOP))
+        assertEquals(10.5, UnitFormatter.effortValue(50.0, EffortScale.WHOOP), 1e-9)
+    }
+
     // --- Pace (#1195): the live-workout distance/pace surface. Must byte-match the Swift formatter. ---
 
     @Test

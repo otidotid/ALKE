@@ -386,8 +386,14 @@ object RangeReportEngine {
         val unit = if (rawUnit.isEmpty()) "" else " $rawUnit"
         val first = displayValue(s.firstHalfMean, s.metric, units)
         val second = displayValue(s.secondHalfMean, s.metric, units)
-        return "${s.metric.label} is $word (avg ${round1(first)}$unit → " +
-            "${round1(second)}$unit)$frame."
+        // Display Effort as whole points; retain full-precision stats
+        // and original trend verdict calculations in the stored scale.
+        val firstText = if (s.metric == ReportMetric.STRAIN) first.roundToLong().toString()
+            else round1(first).toString()
+        val secondText = if (s.metric == ReportMetric.STRAIN) second.roundToLong().toString()
+            else round1(second).toString()
+        return "${s.metric.label} is $word (avg $firstText$unit → " +
+            "$secondText$unit)$frame."
     }
 
     // Trend

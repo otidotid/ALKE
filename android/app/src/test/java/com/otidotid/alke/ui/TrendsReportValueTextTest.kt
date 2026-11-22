@@ -41,9 +41,9 @@ class TrendsReportValueTextTest {
     fun effortRowFollowsTheChosenAxis() {
         // Native 0–100: a whole number, no unit — unchanged from before the fix.
         assertEquals("59", TrendsReportFormat.valueText(59.0, ReportMetric.STRAIN, celsius))
-        // WHOOP 0–21: rescaled, one decimal, and the denominator named.
-        assertEquals("12.4 / 21", TrendsReportFormat.valueText(59.0, ReportMetric.STRAIN, whoopAxis))
-        assertEquals("21.0 / 21", TrendsReportFormat.valueText(100.0, ReportMetric.STRAIN, whoopAxis))
+        // WHOOP 0–21: whole Effort points, denominator stays visible.
+        assertEquals("12 / 21", TrendsReportFormat.valueText(59.0, ReportMetric.STRAIN, whoopAxis))
+        assertEquals("21 / 21", TrendsReportFormat.valueText(100.0, ReportMetric.STRAIN, whoopAxis))
     }
 
     @Test

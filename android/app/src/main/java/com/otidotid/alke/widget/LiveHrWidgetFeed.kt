@@ -46,8 +46,13 @@ internal class LiveHrWidgetFeed(context: Context) {
                 val becameStale = fresh == null || now - sample.at !in 0..HrDisplay.LIVE_MS
                 // One-minute snapshots must not control the live widgets. Equal BPMs still
                 // refresh their source timestamp every five seconds, without wasteful bitmap redraws.
+                // v613 attempted a full Glance recomposition + bitmap transfer on EVERY
+                // changing BPM (~1 Hz). Some launchers fall behind or reject the resulting
+                // large RemoteViews; a clogged widget can look frozen for hours.
+                // Cap these expensive renders at 3 seconds, but propagate a live->stale
+                // transition immediately and refresh steady BPM provenance within 5 seconds.
                 val hrDue = becameStale != lastStale ||
-                    previous?.bpm != sample.bpm ||
+                    (previous?.bpm != sample.bpm && now - lastHrPush >= 3_000L) ||
                     now - lastHrPush >= 5_000L
                 val dailyDue = becameStale != lastStale ||
                     now - lastDailyPush >= 5_000L

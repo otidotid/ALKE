@@ -3150,29 +3150,28 @@ object IntelligenceEngine {
      *  strap is offline. Returns true if a value was written. */
     suspend fun recomputeFitnessAgeOnly(
         repo: WhoopRepository, profile: UserProfile, importedDeviceId: String, maxDays: Int = 21,
+        nowSeconds: Long = System.currentTimeMillis() / 1_000L,
     ): Boolean = repo.withMetabolicCalculationTransaction {
         val computedId = importedDeviceId + "-alke"
-        val nowSeconds = System.currentTimeMillis() / 1_000L
         val tzOffsetSeconds = java.util.TimeZone.getDefault().getOffset(nowSeconds * 1_000L) / 1_000L
         val nowLocalMidnight = midnightLocal(nowSeconds, tzOffsetSeconds)
         val newestDay = AnalyticsEngine.dayString(nowLocalMidnight, tzOffsetSeconds)
         val oldestDay = AnalyticsEngine.dayString(nowLocalMidnight - (maxDays - 1) * SECONDS_PER_DAY, tzOffsetSeconds)
+        val gate7 = repo.daysMerged(importedDeviceId)
+            .filter { it.day in oldestDay..newestDay }.sortedBy { it.day }.takeLast(7)
         val weeklyDay = saturdayKeyOnOrBefore(newestDay)
-        // A manual refresh after Saturday must recalculate that Saturday's
-        // completed seven-day window, not fold Sunday/weekday samples into
-        // a previously closed week or claim success without persisting.
-        val gate7 = WeeklyFitnessAgeWindow.select(
-            repo.daysMerged(importedDeviceId), oldestDay, weeklyDay,
-        )
         val labs = captureWeeklyLabs(repo, weeklyDay, profile, computedId)
         val rows = fitnessAgeRows(labs, gate7, profile, computedId, weeklyDay)
-        if (rows.isNotEmpty()) {
+        // Keep the original Saturday-only publication contract. A computed
+        // weekday preview is NOT a persisted weekly score and must not be
+        // reported as a successful refresh.
+        if (rows.isNotEmpty() && newestDay == weeklyDay) {
             repo.upsertMetricSeriesWithProvenance(
                 rows = rows,
                 provenance = weeklyScoreProvenance(labs, rows, computedId, gate7, profile),
             )
         }
-        rows.isNotEmpty()
+        rows.isNotEmpty() && newestDay == weeklyDay
     }
 
     /**

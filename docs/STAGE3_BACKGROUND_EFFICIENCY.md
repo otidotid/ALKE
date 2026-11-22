@@ -46,22 +46,23 @@ Saturday anchors, captured lab inputs, values and scorer calls are preserved.
 The boundary/equivalence regression tests cover gaps, duplicates and
 the empty/reversed window. No score values or daily history rows are modified.
 
-## CI regression found on Sunday — manual Fitness Age refresh
+## Sunday CI regression — uphold the Saturday-only publication contract
 
-The full Personal test gate on 22 Nov 2026 (Sunday) found **8 failures**
-in `MetabolicEstimatePersistenceTest`, all from an existing
-`recomputeFitnessAgeOnly` path returning `true` when no `fitness_age`
-was written. Previously the routine only upserted results when today was
-Saturday; tests running the day after Saturday exposed the false-success
-branch. On weekdays its seven-day inputs also included post-Saturday rows.
+The complete Personal suite on 22 Nov 2026 found eight
+`MetabolicEstimatePersistenceTest` fixture failures: their test clock
+followed real Sunday even though the deliberate Fitness Age contract publishes
+only on Saturdays. A first attempted change to publish on weekdays was rejected
+by `FitnessAgeWeeklyPublicationContractTest` and is **not** part of v605.
 
-**Fix:** explicitly anchor the score inputs at the last completed Saturday,
-using that Saturday's original seven-day filter/sort/takeLast logic. Persist
-and attach provenance whenever a nonempty weekly result exists, including
-Sunday–Friday. Do not use the newer weekday data to change a prior Saturday's
-score. All Fitness Age/AI Labs formulas remain untouched.
+The final correction preserves `newestDay == weeklyDay` as the **only**
+publication gate and the existing week/day input logic. The production clock
+still defaults to current time; a clock parameter lets persistence tests use
+their deterministic fixture Saturday and removes dependence on CI day-of-week.
+When a weekday manual recompute cannot publish, its Boolean result now returns
+`false`, instead of falsely reporting an update. It does **not** rewrite
+last Saturday's stored score. No Fitness Age, Vitality or AI Labs formula changed.
 
-Regression: Saturday boundary plus Sunday/Monday exclusion in
-`WeeklyFitnessAgeWindowTest`, and all eight real Room + AI metabolic
-persistence tests in the full gate. Old CI run 44980031775 is **not valid
-for release**; a subsequent green full run on this corrective commit is required.
+Regression: all prior AI metabolic persistence cases on a simulated Saturday,
+plus a new Sunday-no-publish/no-false-success case, and the existing
+Saturday-only contract test. Prior red CI runs 44980031775 and 44980879395
+must **not** be used for release; a third green full run is mandatory.

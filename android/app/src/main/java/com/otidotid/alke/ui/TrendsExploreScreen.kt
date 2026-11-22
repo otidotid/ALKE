@@ -46,6 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.otidotid.alke.R
 import com.otidotid.alke.data.DailyMetric
+import com.otidotid.alke.data.SmartDailySnapshotStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.otidotid.alke.data.MoodStore
 import com.otidotid.alke.data.WhoopRepository
 import com.otidotid.alke.ingest.NutritionCsvImporter
@@ -260,9 +263,19 @@ fun TrendsExploreScreen(vm: AppViewModel) {
     // series off it whenever the effective range reaches into the deep past. Until it lands we fall back to
     // `recentDays` so the screen is populated on the first frame; the default (shallow-range) refresh keeps
     // using the cheap bounded flow, so the cap is NOT raised (#797 stays fixed). Same merge as the dashboard.
-    var fullHistory by remember { mutableStateOf<List<DailyMetric>?>(null) }
+    val snapshotStore = remember(LocalContext.current) {
+        SmartDailySnapshotStore(LocalContext.current.filesDir)
+    }
+    var fullHistory by remember(deviceId) { mutableStateOf<List<DailyMetric>?>(null) }
     LaunchedEffect(deviceId) {
-        fullHistory = runCatching { vm.repo.daysMerged(deviceId) }.getOrNull()
+        // Cache-first for ALL/deep charts only; bounded recentDays still owns
+        // every shallow range and live recomputations.
+        fullHistory = withContext(Dispatchers.IO) { snapshotStore.read(deviceId) }
+        val authoritative = runCatching { vm.repo.daysMerged(deviceId) }.getOrNull()
+        if (authoritative != null) {
+            fullHistory = authoritative
+            withContext(Dispatchers.IO) { snapshotStore.publish(deviceId, authoritative) }
+        }
     }
 
     // Extra long-format keys from the metricSeries table (anything beyond the built-ins) , from the

@@ -59,6 +59,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.otidotid.alke.R
 import com.otidotid.alke.analytics.WeeklyDigestEngine
 import com.otidotid.alke.data.DailyMetric
+import com.otidotid.alke.data.SmartDailySnapshotStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -99,12 +102,19 @@ fun TrendsScreen(vm: AppViewModel) {
 
     // Full history loaded once for the long (1Y / ALL) ranges; falls back to the flow
     // until it lands so the screen is populated on first frame when any data exists.
-    var fullHistory by remember { mutableStateOf<List<DailyMetric>?>(null) }
-    LaunchedEffect(Unit) {
-        // Merged: imported WHOOP days win; on-device computed days gap-fill the trends. Reads the registry's
-        // ACTIVE strap id so daysMerged resolves the active-id ∪ canonical "my-whoop" union (SPINE / #814) ,
-        // a re-added strap's data and the canonical import both surface; a single-WHOOP install is unchanged.
-        fullHistory = vm.repo.daysMerged(vm.activeStrapId)
+    val trendSourceId = vm.activeStrapId
+    val snapshotStore = remember(LocalContext.current) {
+        SmartDailySnapshotStore(LocalContext.current.filesDir)
+    }
+    var fullHistory by remember(trendSourceId) { mutableStateOf<List<DailyMetric>?>(null) }
+    LaunchedEffect(trendSourceId) {
+        // Cached merged rows make historical plots responsive while the Room read is
+        // pending. Never use these rows as scoring inputs. Room always revalidates.
+        fullHistory = withContext(Dispatchers.IO) { snapshotStore.read(trendSourceId) }
+        // Original merge and user-edited/imported precedence are the only source of truth.
+        val authoritative = vm.repo.daysMerged(trendSourceId)
+        fullHistory = authoritative
+        withContext(Dispatchers.IO) { snapshotStore.publish(trendSourceId, authoritative) }
     }
     val days = fullHistory ?: reactiveDays
 

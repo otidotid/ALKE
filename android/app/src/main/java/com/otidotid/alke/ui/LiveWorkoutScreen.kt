@@ -339,10 +339,7 @@ private fun EffortGauge(liveStrain: Double, effortScale: EffortScale) {
         Overline("Effort building", color = Palette.effortColor)
         CountUpText(
             value = value,
-            format = { v ->
-                if (effortScale == EffortScale.WHOOP) String.format(java.util.Locale.US, "%.1f", v)
-                else v.toInt().toString()
-            },
+            format = { v -> v.roundToInt().toString() },
             style = AlkeType.number(56f),
             color = Palette.textPrimary,
         )

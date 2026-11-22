@@ -47,7 +47,7 @@ enum class TemperatureUnit(val raw: String) {
  * Mirrors the macOS [EffortScale].
  */
 enum class EffortScale(val raw: String) {
-    /** ALKE's native 0–100 axis (the stored value, one decimal). */
+    /** ALKE's native 0–100 axis (displayed as whole points). */
     HUNDRED("hundred"),
 
     /** WHOOP's 0–21 Day Strain axis — the stored 0–100 value rescaled down for display only. */
@@ -396,12 +396,12 @@ object UnitFormatter {
         if (scale == EffortScale.WHOOP) value * EFFORT_SCALE_FACTOR else value
 
     /**
-     * Format a stored 0–100 Effort value for display on the selected scale, to one decimal — the single
-     * helper every Effort read-out (Today tile, Intelligence, Live, Trends, Workouts) routes through so
-     * the toggle reaches all of them at once. The stored value is unchanged; only the display converts.
+     * Show Effort as WHOLE points on both the 0–100 and 0–21 axes.
+     * Stored values and all scoring math remain full precision; this display
+     * formatter never emits a locale-dependent decimal comma or point.
      */
     fun effortDisplay(value: Double, scale: EffortScale): String =
-        oneDecimal(effortValue(value, scale))
+        effortValue(value, scale).takeIf { it.isFinite() }?.roundToInt()?.toString() ?: "—"
 
     /** The "out of" denominator label for the selected Effort scale — "100" or "21". */
     fun effortScaleMax(scale: EffortScale): String =

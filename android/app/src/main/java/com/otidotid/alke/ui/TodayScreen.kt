@@ -3120,7 +3120,7 @@ private fun ScoreHeroRow(
                             tint = Palette.effortTint((strain ?: 0.0) / 100.0),
                             diameter = ring,
                             showsValue = strain != null,
-                            format = { if (effortScale == EffortScale.WHOOP) String.format(Locale.getDefault(), "%.1f", it) else it.toInt().toString() },
+                            format = { it.roundToInt().toString() },
                             animated = heroVesselsAnimated,
                             onTap = effortRingTap,
                             targetRange = targetFraction,

@@ -877,9 +877,9 @@ private fun EffortHero(
                         // hit-transparent so the tap reaches the vessel (splash). Honours the Effort scale.
                         CountUpText(
                             // `shownEffort` is already the display-scaled value, so the interpolated `it` is
-                            // in the user's scale - roll it up with the same one-decimal format as before.
+                            // in the user's scale, displayed as whole Effort points.
                             value = shownEffort,
-                            format = { oneDecimal(it) },
+                            format = { it.roundToInt().toString() },
                             style = AlkeType.number(30f, weight = FontWeight.Bold)
                                 .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
                             color = Color.White,
@@ -2098,14 +2098,14 @@ private fun SessionEffortCard(strain: Double, effortScale: EffortScale) {
                     modifier = Modifier.semantics {
                         contentDescription = uiString(
                             R.string.l10n_workouts_screen_this_session_s_effort_onedecimal_shown_74eed8be,
-                            oneDecimal(shown),
+                            UnitFormatter.effortDisplay(strain, effortScale),
                             if (effortScale == EffortScale.WHOOP) "0 to 21 strain" else "0 to 100 Effort",
                         )
                     },
                 ) {
                     CountUpText(
                         value = shown,
-                        format = { oneDecimal(it) },
+                        format = { it.roundToInt().toString() },
                         style = AlkeType.number(34f),
                         color = Palette.effortBright,
                     )

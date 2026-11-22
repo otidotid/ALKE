@@ -94,6 +94,9 @@ internal class GoogleDriveArchiveManager(
         recoveryPassphrase: CharArray,
         today: LocalDate = LocalDate.now(),
     ): List<GoogleDriveArchiveRecord> = withContext(Dispatchers.IO) {
+        // The monthly snapshot copies the same live databases used by the daily
+        // summary and full backups; only one heavy operation runs per process.
+        BackgroundDataWorkGate.withExclusive archive@{
         require(recoveryPassphrase.size >= 12) {
             "A recovery passphrase with at least 12 characters is required before archiving."
         }
@@ -102,7 +105,7 @@ internal class GoogleDriveArchiveManager(
         // Archive uploads are manual: we NEVER persist the passphrase or OAuth token.
         val lastArchiveMonth = HybridHistoryPolicy.lastArchiveMonth(today)
         val existing = manifest.read().associateBy { it.month }.toMutableMap()
-        val oldest = oldestLocalMonth() ?: return@withContext emptyList()
+        val oldest = oldestLocalMonth() ?: return@archive emptyList()
         val created = mutableListOf<GoogleDriveArchiveRecord>()
         var month = oldest
         while (!month.isAfter(lastArchiveMonth)) {
@@ -138,6 +141,7 @@ internal class GoogleDriveArchiveManager(
             } == true
         }) { "One or more rolling monthly archives are not verified." }
         created
+        }
     }
 
     /**

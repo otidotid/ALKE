@@ -20,6 +20,9 @@ internal class GoogleDriveBackupCoordinator(
         ownerId: String,
         passphrase: CharArray? = null,
     ): GoogleDriveBackupClient.RemoteBackup = withContext(Dispatchers.IO) {
+        // Prevent duplicate full backups and monthly archive copies from competing for
+        // SQLite WAL, temporary disk and Drive bandwidth. Includes user-triggered backups.
+        BackgroundDataWorkGate.withExclusive {
         val directory = File(appContext.cacheDir, CLOUD_BACKUP_DIRECTORY).apply {
             if (!exists() && !mkdirs()) {
                 throw IllegalStateException("ALKE could not create its temporary backup directory.")
@@ -80,6 +83,7 @@ internal class GoogleDriveBackupCoordinator(
         } finally {
             backupFile.delete()
             encryptedFile.delete()
+        }
         }
     }
 

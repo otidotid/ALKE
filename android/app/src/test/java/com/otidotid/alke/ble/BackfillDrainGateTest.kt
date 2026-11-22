@@ -87,6 +87,23 @@ class BackfillDrainGateTest {
         assertEquals(0, gate.peakQueuedFrames())
     }
 
+    @Test fun fiftyThousandFrameBacklogRemainsOrderedWithoutDroppingAnyFrame() {
+        val gate = BackfillDrainGate<Int>()
+        val lease = begin(gate, 0)
+        for (i in 1..50_000) {
+            assertEquals(BackfillDrainGate.Offer.Queued, gate.offer(i))
+        }
+        assertEquals(50_001, gate.peakQueuedFrames())
+        for (i in 0..50_000) assertEquals(i, gate.pollOrRelease(lease))
+        assertNull(gate.pollOrRelease(lease))
+        // A new offload cannot inherit queued frames from the previous generation.
+        gate.reset()
+        val next = begin(gate, 51_000)
+        assertEquals(51_000, gate.pollOrRelease(next))
+        assertNull(gate.pollOrRelease(next))
+        assertEquals(1, gate.peakQueuedFrames())
+    }
+
     @Test fun interleavedLargeProducerAndConsumerPreservesEveryFrameInOrder() {
         val gate = BackfillDrainGate<Int>()
         val lease = begin(gate, 0)

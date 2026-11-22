@@ -263,8 +263,9 @@ fun TrendsExploreScreen(vm: AppViewModel) {
     // series off it whenever the effective range reaches into the deep past. Until it lands we fall back to
     // `recentDays` so the screen is populated on the first frame; the default (shallow-range) refresh keeps
     // using the cheap bounded flow, so the cap is NOT raised (#797 stays fixed). Same merge as the dashboard.
-    val snapshotStore = remember(LocalContext.current) {
-        SmartDailySnapshotStore(LocalContext.current.filesDir)
+    val historyContext = LocalContext.current
+    val snapshotStore = remember(historyContext) {
+        SmartDailySnapshotStore(historyContext.filesDir)
     }
     var fullHistory by remember(deviceId) { mutableStateOf<List<DailyMetric>?>(null) }
     LaunchedEffect(deviceId) {

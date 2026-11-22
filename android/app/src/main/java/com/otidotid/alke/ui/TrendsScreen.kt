@@ -103,8 +103,9 @@ fun TrendsScreen(vm: AppViewModel) {
     // Full history loaded once for the long (1Y / ALL) ranges; falls back to the flow
     // until it lands so the screen is populated on first frame when any data exists.
     val trendSourceId = vm.activeStrapId
-    val snapshotStore = remember(LocalContext.current) {
-        SmartDailySnapshotStore(LocalContext.current.filesDir)
+    val historyContext = LocalContext.current
+    val snapshotStore = remember(historyContext) {
+        SmartDailySnapshotStore(historyContext.filesDir)
     }
     var fullHistory by remember(trendSourceId) { mutableStateOf<List<DailyMetric>?>(null) }
     LaunchedEffect(trendSourceId) {

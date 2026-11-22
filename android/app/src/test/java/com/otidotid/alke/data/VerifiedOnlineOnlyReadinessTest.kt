@@ -81,6 +81,6 @@ class VerifiedOnlineOnlyReadinessTest {
             true, true, true, true, true, true, nowMs - 3_600_000L)
         val status = assess(proof = oldStyle)
         assertFalse(status.eligibleToConsiderOffload)
-        assertTrue(status.blockers.any { it.contains("clean isolated-store") })
+        assertTrue(status.blockers.any { it.contains("Clean isolated-store") })
     }
 }

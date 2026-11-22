@@ -45,3 +45,23 @@ in both the local-only and labs-enriched paths. The index now uses
 Saturday anchors, captured lab inputs, values and scorer calls are preserved.
 The boundary/equivalence regression tests cover gaps, duplicates and
 the empty/reversed window. No score values or daily history rows are modified.
+
+## CI regression found on Sunday — manual Fitness Age refresh
+
+The full Personal test gate on 22 Nov 2026 (Sunday) found **8 failures**
+in `MetabolicEstimatePersistenceTest`, all from an existing
+`recomputeFitnessAgeOnly` path returning `true` when no `fitness_age`
+was written. Previously the routine only upserted results when today was
+Saturday; tests running the day after Saturday exposed the false-success
+branch. On weekdays its seven-day inputs also included post-Saturday rows.
+
+**Fix:** explicitly anchor the score inputs at the last completed Saturday,
+using that Saturday's original seven-day filter/sort/takeLast logic. Persist
+and attach provenance whenever a nonempty weekly result exists, including
+Sunday–Friday. Do not use the newer weekday data to change a prior Saturday's
+score. All Fitness Age/AI Labs formulas remain untouched.
+
+Regression: Saturday boundary plus Sunday/Monday exclusion in
+`WeeklyFitnessAgeWindowTest`, and all eight real Room + AI metabolic
+persistence tests in the full gate. Old CI run 44980031775 is **not valid
+for release**; a subsequent green full run on this corrective commit is required.

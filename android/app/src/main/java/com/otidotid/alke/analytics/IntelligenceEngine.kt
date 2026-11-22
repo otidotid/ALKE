@@ -3157,12 +3157,16 @@ object IntelligenceEngine {
         val nowLocalMidnight = midnightLocal(nowSeconds, tzOffsetSeconds)
         val newestDay = AnalyticsEngine.dayString(nowLocalMidnight, tzOffsetSeconds)
         val oldestDay = AnalyticsEngine.dayString(nowLocalMidnight - (maxDays - 1) * SECONDS_PER_DAY, tzOffsetSeconds)
-        val gate7 = repo.daysMerged(importedDeviceId)
-            .filter { it.day in oldestDay..newestDay }.sortedBy { it.day }.takeLast(7)
         val weeklyDay = saturdayKeyOnOrBefore(newestDay)
+        // A manual refresh after Saturday must recalculate that Saturday's
+        // completed seven-day window, not fold Sunday/weekday samples into
+        // a previously closed week or claim success without persisting.
+        val gate7 = WeeklyFitnessAgeWindow.select(
+            repo.daysMerged(importedDeviceId), oldestDay, weeklyDay,
+        )
         val labs = captureWeeklyLabs(repo, weeklyDay, profile, computedId)
         val rows = fitnessAgeRows(labs, gate7, profile, computedId, weeklyDay)
-        if (rows.isNotEmpty() && newestDay == weeklyDay) {
+        if (rows.isNotEmpty()) {
             repo.upsertMetricSeriesWithProvenance(
                 rows = rows,
                 provenance = weeklyScoreProvenance(labs, rows, computedId, gate7, profile),

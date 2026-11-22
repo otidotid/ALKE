@@ -1,6 +1,7 @@
 package com.otidotid.alke.widget
 
 import android.graphics.Bitmap
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -60,6 +61,19 @@ class HrWidgetCanvasRendererTest {
                 val center = bitmap.getPixel(bitmap.width / 2, bitmap.height / 2)
                 val corner = bitmap.getPixel(0, 0)
                 assertTrue("Image should render layered content", center != 0 || corner != 0)
+                // Capture actual Android Canvas results for review. A test that checks
+                // dimensions alone cannot detect a visually broken widget layout.
+                if (w == 250f && h == 150f) {
+                    val dir = File("build/hr-widget-previews").apply { mkdirs() }
+                    val suffix = when {
+                        snapshot.heartRate == null -> "waiting"
+                        snapshot.heartRateStale -> "stale"
+                        else -> "live"
+                    }
+                    File(dir, "hr-${suffix}-250x150.png").outputStream().use {
+                        assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                    }
+                }
                 bitmap.recycle()
             }
         }

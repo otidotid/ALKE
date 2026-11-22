@@ -174,7 +174,7 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         text = when {
           snap.heartRate == null -> "WAITING"
           snap.heartRateStale -> "LAST RECORDED"
-          else -> "LIVE",
+          else -> "LIVE"
         },
         style = TextStyle(
           color = if (snap.heartRate == null || snap.heartRateStale)

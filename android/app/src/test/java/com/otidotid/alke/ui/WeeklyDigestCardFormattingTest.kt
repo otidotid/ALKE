@@ -52,19 +52,19 @@ class WeeklyDigestCardFormattingTest {
 
     @Test fun effortMeanOnTheNativeScaleShowsValueOutOf100() {
         val s = summary(WeeklyMetric.EFFORT, thisMean = 21.6, thisN = 5, prevMean = 20.0, prevN = 5)
-        assertEquals("21.6 / 100", meanText(s, EffortScale.HUNDRED))
+        assertEquals("22 / 100", meanText(s, EffortScale.HUNDRED))
     }
 
     @Test fun effortMeanOnTheWhoopScaleConvertsAndShowsOutOf21() {
-        // 21.6 stored × 0.21 = 4.536 → "4.5" on the 0-21 display scale.
+        // 21.6 stored × 0.21 = 4.536 → whole Effort points on 0-21 display scale.
         val s = summary(WeeklyMetric.EFFORT, thisMean = 21.6, thisN = 5, prevMean = 20.0, prevN = 5)
-        assertEquals("4.5 / 21", meanText(s, EffortScale.WHOOP))
+        assertEquals("5 / 21", meanText(s, EffortScale.WHOOP))
     }
 
     @Test fun effortCeilingMapsToTheScaleCeiling() {
         val s = summary(WeeklyMetric.EFFORT, thisMean = 100.0, thisN = 7, prevMean = 90.0, prevN = 7)
-        assertEquals("21.0 / 21", meanText(s, EffortScale.WHOOP))
-        assertEquals("100.0 / 100", meanText(s, EffortScale.HUNDRED))
+        assertEquals("21 / 21", meanText(s, EffortScale.WHOOP))
+        assertEquals("100 / 100", meanText(s, EffortScale.HUNDRED))
     }
 
     @Test fun nonEffortMeansAreUntouchedByTheToggle() {

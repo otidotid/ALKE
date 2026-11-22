@@ -10890,6 +10890,10 @@ class WhoopBleClient(
         // #42/#364: consecutiveAutoContinues > 0 means this offload is re-kicked after an EARLIER session
         // in the same burst banked rows — tell the backfiller so its no-cursor END reads as "caught up",
         // not "no banked history / charge to 100%". A fresh offload (count 0) keeps the honest guidance.
+        // Start a fresh history-drain generation only when a NEW offload starts.
+        // A failed/overloaded previous session stays closed until this point, so
+        // its queued frames cannot leak into the next session.
+        backfillDrain.reset()
         backfiller.begin(connectedFamily, continuedAfterRows = consecutiveAutoContinues > 0)   // family drives the +4 puffin offset for 5/MG (#78)
         acquireHistoricalWakeLock()
         backfilling = true
@@ -11037,36 +11041,68 @@ class WhoopBleClient(
     }
 
     /**
-     * Feed an offload frame to the Backfiller preserving exact arrival order. Frames are appended
-     * synchronously (callback order) and drained sequentially by a single coroutine, so START/data/
-     * END chunk assembly is never reordered. Port of `routeBackfillFrame` + the serial drain task.
+     * The Bluetooth callback enqueues quickly, while a single I/O coroutine
+     * handles ordered, durable backfill. A bad frame must NEVER be silently
+     * skipped: a later HISTORY_END could otherwise acknowledge records beyond
+     * it. Stop this offload and retry the still-unacknowledged history instead.
+     *
+     * Queue sizing is measured, not hardcoded: public Garmin/Zepp/COROS
+     * documentation does not define the WHOOP sender's flow-control mechanism.
      */
     private fun routeBackfillFrame(frame: ByteArray) {
-        val lease = backfillDrain.enqueue(frame) ?: return
+        val lease = when (val offered = backfillDrain.offer(frame)) {
+            is BackfillDrainGate.Offer.Start -> offered.lease
+            BackfillDrainGate.Offer.Queued, BackfillDrainGate.Offer.Closed -> return
+        }
         ioScope.launch {
             var ownsDrain = true
-            // A throw from ingest() must NEVER leave the drain stuck owned (that would wedge the
-            // offload — every later frame returns early and the queue never drains). finally guarantees
-            // the lease is released even if a chunk handler throws. (#77/#91 hardening.)
             try {
                 while (true) {
-                    val f = backfillDrain.pollOrRelease(lease)
-                    if (f == null) {
+                    val next = backfillDrain.pollOrRelease(lease)
+                    if (next == null) {
                         ownsDrain = false
                         break
                     }
                     try {
-                        backfiller.ingest(f)
-                    } catch (t: Throwable) {
-                        log("Backfill: drain error (${t.message}) — skipping frame, offload continues")
+                        backfiller.ingest(next)
+                    } catch (cancel: kotlinx.coroutines.CancellationException) {
+                        // A cancelled sync is not a valid completion or trim.
+                        backfillDrain.failClosed(lease)
+                        throw cancel
+                    } catch (t: Exception) {
+                        // Only this generation may be shut down by the exception.
+                        if (backfillDrain.failClosed(lease)) {
+                            failHistoryDrain(lease, t.javaClass.simpleName)
+                        }
+                        break
                     }
-                    // If the Backfiller consumed all historical data, exit the session cleanly.
                     if (backfilling && !backfiller.isBackfilling) {
-                        handler.post { exitBackfilling("HISTORY_COMPLETE") }
+                        // A queued completion may race with a failed later frame.
+                        // Reject it if the generation was faulted or replaced.
+                        handler.post {
+                            if (backfilling && backfillDrain.isActive(lease)) {
+                                exitBackfilling("HISTORY_COMPLETE")
+                            }
+                        }
                     }
                 }
             } finally {
                 if (ownsDrain) backfillDrain.release(lease)
+            }
+        }
+    }
+
+    private fun failHistoryDrain(lease: BackfillDrainGate.Lease, failureKind: String) {
+        log("Backfill: frame processing error ($failureKind) — stopping the offload; unacknowledged history will be re-offloaded")
+        handler.post {
+            if (!backfilling || !backfillDrain.isFailureFor(lease)) return@post
+            // This runs after the faulted serial drain stopped ingesting. Do not
+            // emit HISTORY_COMPLETE, update Last Sync, or trim any new records.
+            backfiller.timeoutFired()
+            exitBackfilling("processing_error")
+            _state.update {
+                it.copy(lastSyncError =
+                    "History sync interrupted. Unacknowledged data will be retried on the next sync.")
             }
         }
     }
@@ -11159,7 +11195,7 @@ class WhoopBleClient(
         // reporter to find Test Centre first, which is the friction that left #477/#533 unvalidated.
         val offloadElapsedMs =
             if (backfillStartedAtMs > 0L) System.currentTimeMillis() - backfillStartedAtMs else -1L
-        log("Backfill: ${offloadThroughputLine(offloadFramesThisSession, offloadElapsedMs)} ($reason)")
+        log("Backfill: ${offloadThroughputLine(offloadFramesThisSession, offloadElapsedMs)} ($reason) queuePeakFrames=${backfillDrain.peakQueuedFrames()}")
         // #174: a backfill just ended. Start (or extend) the deep-packet cooldown from this instant so
         // any type-0x2F records the strap flushes in the seconds after the session aren't miscounted as
         // the live R22 stream — they're the offload's tail.

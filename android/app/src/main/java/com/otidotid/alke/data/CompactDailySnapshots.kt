@@ -8,6 +8,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Tier 2 read-only snapshot builder. Source databases are NEVER changed, archived or purged here.
@@ -124,10 +125,16 @@ internal class CompactDailySnapshots(context: Context) {
             RetentionPlan.DateFormat.PARENT_SESSION -> "date(s.startTs,'unixepoch','localtime')"
             RetentionPlan.DateFormat.NONE -> return
         }
+        // Keep the calendar-day GROUP BY, but constrain raw rows with their indexed
+        // timestamp/day column. Filtering on date(ts,'unixepoch','localtime')
+        // made SQLite evaluate a function for every historical row even though
+        // this snapshot covers only seven days. The epoch bounds use the device
+        // zone at each midnight, so DST days remain 23/25 hours as appropriate.
+        val bounds = SnapshotCountBounds.forTable(policy, first, lastExclusive)
         db.query(
             "SELECT $day, $source, COUNT(*) FROM $from " +
-                "WHERE $day >= ? AND $day < ? GROUP BY $day, $source",
-            arrayOf(first, lastExclusive),
+                "WHERE ${bounds.predicate} GROUP BY $day, $source",
+            bounds.arguments,
         ).use { c -> while (c.moveToNext()) {
             val key = c.getString(0) to c.getString(1)
             rows.getOrPut(key) { MutableSummary() }.counts[policy.name] = c.getLong(2)
@@ -149,5 +156,38 @@ internal class CompactDailySnapshots(context: Context) {
             "workout", "journal", "labMarker", "appleDaily", "appleStepHour",
             "coachMessage", "liveSession", "liftSession", "liftSet",
         )
+    }
+}
+
+/**
+ * Cheap, index-eligible prefilter for the read-only 15..21 day snapshot.
+ * All original records remain in Room; only SQL scan bounds change.
+ * Derive the two midnights independently for DST correctness.
+ */
+internal object SnapshotCountBounds {
+    data class Query(val predicate: String, val arguments: Array<Any>)
+
+    fun forTable(
+        table: RetentionPlan.Table,
+        first: String,
+        lastExclusive: String,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Query {
+        val field = when (table.dateFormat) {
+            RetentionPlan.DateFormat.DAY_TEXT,
+            RetentionPlan.DateFormat.EPOCH_SECONDS ->
+                "t.\"" + requireNotNull(table.dateColumn).replace("\"", "\"\"") + "\""
+            RetentionPlan.DateFormat.PARENT_SESSION -> "s.startTs"
+            RetentionPlan.DateFormat.NONE -> error("Undated table cannot be snapshotted: ${table.name}")
+        }
+        val args = if (table.dateFormat == RetentionPlan.DateFormat.DAY_TEXT) {
+            arrayOf<Any>(first, lastExclusive)
+        } else {
+            arrayOf<Any>(
+                LocalDate.parse(first).atStartOfDay(zone).toEpochSecond(),
+                LocalDate.parse(lastExclusive).atStartOfDay(zone).toEpochSecond(),
+            )
+        }
+        return Query("$field >= ? AND $field < ?", args)
     }
 }

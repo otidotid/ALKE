@@ -128,11 +128,25 @@ internal object AutomaticHybridHistoryScheduler {
     fun ensureScheduled(context: Context) {
         val app = context.applicationContext
         val manager = WorkManager.getInstance(app)
-        manager.enqueueUniquePeriodicWork(SNAPSHOT_PERIODIC, ExistingPeriodicWorkPolicy.KEEP,
-            PeriodicWorkRequestBuilder<RollingSnapshotWorker>(1, TimeUnit.DAYS).build())
+        // UPDATE preserves the original periodic timing while migrating WorkManager
+        // constraints on existing installations; KEEP would silently retain old,
+        // unconstrained work from the previous ALKE version.
+        // Snapshot aggregation can touch sizable databases. Postpone nonurgent
+        // work while Android reports low battery or storage; never delete data
+        // or prevent the foreground app from reading its full local history.
+        val snapshotConstraints = Constraints.Builder()
+            .setRequiresBatteryNotLow(true)
+            .setRequiresStorageNotLow(true)
+            .build()
+        manager.enqueueUniquePeriodicWork(SNAPSHOT_PERIODIC, ExistingPeriodicWorkPolicy.UPDATE,
+            PeriodicWorkRequestBuilder<RollingSnapshotWorker>(1, TimeUnit.DAYS)
+                .setConstraints(snapshotConstraints)
+                .build())
         if (AutomaticHistoryStatus(app).snapshotDay() != LocalDate.now().toString()) {
             manager.enqueueUniqueWork(SNAPSHOT_CATCHUP, ExistingWorkPolicy.KEEP,
-                OneTimeWorkRequestBuilder<RollingSnapshotWorker>().build())
+                OneTimeWorkRequestBuilder<RollingSnapshotWorker>()
+                    .setConstraints(snapshotConstraints)
+                    .build())
         }
         val account = GoogleAccountStore(app).read()
         if (account != null && AutomaticHistorySecretStore(app).isConfiguredFor(account.accountId)) {
@@ -148,9 +162,10 @@ internal object AutomaticHybridHistoryScheduler {
         val manager = WorkManager.getInstance(context)
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
+            .setRequiresBatteryNotLow(true)
             .setRequiresStorageNotLow(true)
             .build()
-        manager.enqueueUniquePeriodicWork(ARCHIVE_PERIODIC, ExistingPeriodicWorkPolicy.KEEP,
+        manager.enqueueUniquePeriodicWork(ARCHIVE_PERIODIC, ExistingPeriodicWorkPolicy.UPDATE,
             PeriodicWorkRequestBuilder<RollingArchiveWorker>(1, TimeUnit.DAYS)
                 .setConstraints(constraints)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.MINUTES)
@@ -161,7 +176,7 @@ internal object AutomaticHybridHistoryScheduler {
         WorkManager.getInstance(context).enqueueUniqueWork(ARCHIVE_CATCHUP, ExistingWorkPolicy.KEEP,
             OneTimeWorkRequestBuilder<RollingArchiveWorker>()
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED)
-                    .setRequiresStorageNotLow(true).build())
+                    .setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true).build())
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.MINUTES)
                 .build())
     }

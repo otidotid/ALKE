@@ -33,6 +33,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -75,6 +76,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Size
@@ -587,6 +590,52 @@ private fun AlkeMetricTile(
         Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(21.dp))
         Text(title, color = A.muted, fontSize = 11.sp, maxLines = 1)
         Text(value, color = A.white, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * Shared Me accordion chrome. More Tools and Settings must have the same
+ * 43dp icon badge, card, spacing, type scale and animated direction cue.
+ * SettingsScreen owns the Settings body below the Me header (one scroll host).
+ */
+@Composable
+private fun AlkeMeDisclosureHeader(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    accent: Color = A.cyan,
+) {
+    val shape = RoundedCornerShape(17.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clip(shape)
+            .background(A.card)
+            .border(1.dp, A.stroke.copy(alpha = 0.55f), shape)
+            .clickable(onClick = onToggle)
+            .semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(13.dp),
+    ) {
+        Box(
+            Modifier.size(43.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(24.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, color = A.white, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text(subtitle, color = A.muted, fontSize = 11.sp, lineHeight = 15.sp)
+        }
+        Icon(
+            Icons.Filled.ChevronRight,
+            contentDescription = if (expanded) "Collapse $title" else "Expand $title",
+            tint = A.cyan,
+            modifier = Modifier.size(21.dp)
+                .graphicsLayer { rotationZ = if (expanded) 90f else 0f },
+        )
     }
 }
 
@@ -1969,6 +2018,7 @@ fun AlkeMeExperience(
     }
     var showDockEditor by remember { mutableStateOf(false) }
     var personalSettingsExpanded by rememberSaveable { mutableStateOf(false) }
+    var moreToolsExpanded by rememberSaveable { mutableStateOf(false) }
 
     // Me is the only home of settings. Reuse the COMPLETE existing SettingsScreen
     // body rather than duplicating hundreds of controls or reimplementing settings
@@ -1992,18 +2042,29 @@ fun AlkeMeExperience(
             AlkeSectionTitle("App")
             AlkeLinkRow("Customize Dock", "Choose and reorder your quick navigation", Icons.Filled.Tune,
                 { showDockEditor = true }, A.cyan)
-            AlkeExpandableSection(
-                "More tools",
-                "All modules and notification controls",
-            ) {
-                AlkeLinkRow("All Modules", "Explore the complete ALKE toolkit", Icons.Filled.Tune, onModules, A.gold)
-                AlkeLinkRow("Notifications", "Updates and notification preferences", Icons.Filled.NotificationsNone, onNotifications)
+            AlkeMeDisclosureHeader(
+                title = "More Tools",
+                subtitle = "All modules and notification controls",
+                icon = Icons.Filled.Apps,
+                expanded = moreToolsExpanded,
+                onToggle = { moreToolsExpanded = !moreToolsExpanded },
+                accent = A.gold,
+            )
+            if (moreToolsExpanded) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(start = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    AlkeLinkRow("All Modules", "Explore the complete ALKE toolkit", Icons.Filled.Apps, onModules, A.gold)
+                    AlkeLinkRow("Notifications", "Updates and notification preferences", Icons.Filled.NotificationsNone, onNotifications)
+                }
             }
-            AlkeLinkRow(
-                "Settings",
-                "Profile, display and app preferences",
-                Icons.Filled.Settings,
-                { personalSettingsExpanded = !personalSettingsExpanded },
+            AlkeMeDisclosureHeader(
+                title = "Settings",
+                subtitle = "Profile, display and app preferences",
+                icon = Icons.Filled.Settings,
+                expanded = personalSettingsExpanded,
+                onToggle = { personalSettingsExpanded = !personalSettingsExpanded },
             )
         },
     )

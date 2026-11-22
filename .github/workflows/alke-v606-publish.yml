@@ -1,0 +1,114 @@
+name: Publish ALKE v606 signed Me and cloud history review
+
+on:
+  push:
+    branches: [alke/v606-me-smart-history-cache]
+    paths:
+      - .github/workflows/alke-v606-publish.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: alke-v606-me-cloud-read-release
+  cancel-in-progress: false
+
+jobs:
+  publish-v606:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v1.0.0-alpha.22.16-me-cloud-read-cache.606
+      SOURCE_COMMIT: fdc32d400f9cb29f3b9be664b079ec7c0d64aa97
+      VALIDATED_RUN: "44986350306"
+      VALIDATED_SOURCE_SHA: fdc32d400f9cb29f3b9be664b079ec7c0d64aa97
+      UNSIGNED_SHA256: f25a8ed19d65610e6c9621e4d8278adec656562e751dd20a9efd3e6ae3abbcc9
+      PATCH_SHA256: 5023c610e7ceea3dbe0526cedc2bb95fc460912232fa66c23ca91619cbf58232
+      SIGNED_SHA256: 49fd258cbf11cd1d0fb79696576b3634fe43d4843a10aa4370309fb807034af9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify identical tested source and successful Personal quality gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$SOURCE_COMMIT" HEAD
+          git diff --quiet "$SOURCE_COMMIT" HEAD -- android cloud-coach
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)" = "$VALIDATED_SOURCE_SHA"
+
+      - name: Fetch the validated Personal APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v606"
+          gh run download "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --name ALKE-Personal-Validated-Unsigned --dir "$RUNNER_TEMP/v606"
+          echo "$UNSIGNED_SHA256  $RUNNER_TEMP/v606/ALKE-personal-v606-unsigned.apk" | sha256sum -c -
+
+      - name: Reconstruct independently signed APK from public binary delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d release-assets/v606-signed.zlib.b64 |
+            python3 -c 'import zlib,sys; sys.stdout.buffer.write(zlib.decompress(sys.stdin.buffer.read()))' > "$RUNNER_TEMP/v606/signed.zstpatch"
+          echo "$PATCH_SHA256  $RUNNER_TEMP/v606/signed.zstpatch" | sha256sum -c -
+          zstd -q -d --patch-from="$RUNNER_TEMP/v606/ALKE-personal-v606-unsigned.apk" "$RUNNER_TEMP/v606/signed.zstpatch" -o "$RUNNER_TEMP/v606/ALKE-v606-me-history-cache-signed.apk"
+          echo "$SIGNED_SHA256  $RUNNER_TEMP/v606/ALKE-v606-me-history-cache-signed.apk" | sha256sum -c -
+          echo "$SIGNED_SHA256  ALKE-v606-me-history-cache-signed.apk" > "$RUNNER_TEMP/v606/ALKE-v606-me-history-cache-signed.apk.sha256"
+
+      - name: Verify package, version, signatures, and exact v605 Personal certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="$RUNNER_TEMP/v606/ALKE-v606-me-history-cache-signed.apk"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          test -x "$signer" && test -x "$aapt"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" > "$RUNNER_TEMP/v606/signature.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/v606/signature.txt"
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$RUNNER_TEMP/v606/signature.txt"
+          "$aapt" dump badging "$apk" | head -1 | tee "$RUNNER_TEMP/v606/badging.txt"
+          grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v606/badging.txt"
+          grep -Fq "versionCode='606'" "$RUNNER_TEMP/v606/badging.txt"
+          mkdir -p "$RUNNER_TEMP/v606/old"
+          gh release download v1.0.0-alpha.22.15-background-efficiency.605 --repo "$GITHUB_REPOSITORY" --pattern ALKE-v605-stage3-efficiency-signed.apk --dir "$RUNNER_TEMP/v606/old"
+          "$signer" verify --min-sdk-version 26 --print-certs "$RUNNER_TEMP/v606/old/ALKE-v605-stage3-efficiency-signed.apk" > "$RUNNER_TEMP/v606/v605-cert.txt"
+          old_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v606/v605-cert.txt" | head -1)"
+          new_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v606/signature.txt" | head -1)"
+          test -n "$old_cert" && test "$old_cert" = "$new_cert"
+          test "$new_cert" = "f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877"
+
+      - name: Publish signed prerelease for owner smoke testing
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/v606/RELEASE_NOTES.md" <<'NOTES'
+          # ALKE v606 — Unified Me accordions and smarter cloud-history reads
+
+          **Signed Personal APK**, in-place update over v605. Do not uninstall or clear data.
+
+          - More Tools and Settings in Me share matching premium expandable rows with icon badges, spacing, sizes, accessibility status and chevrons.
+          - All Modules, Notifications, full Settings and all original navigation/backup callbacks are preserved.
+          - Encrypted Google Drive monthly history downloads can be reused after checksum, size and archive schema verification.
+          - At most 3 encrypted months / 512 MiB are held in disposable app cache; decrypted SQLite and cleartext archives are deleted after preview.
+          - All scoring algorithms, database schema, monthly archive format, backups, encryption and historical retention are unchanged.
+
+          Verified full Personal quality gate run 44986350306 on source fdc32d400f9cb29f3b9be664b079ec7c0d64aa97.
+          APK v2/v3 signatures and original Personal certificate verified against v605.
+          Signed APK SHA-256: 49fd258cbf11cd1d0fb79696576b3634fe43d4843a10aa4370309fb807034af9.
+
+          For owner smoke testing: expand More Tools and Settings, open All Modules and Notifications, then view a cloud history month twice. This is a prerelease; offline-first cross-module routing and partial day downloads are not yet implemented.
+          NOTES
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/v606/ALKE-v606-me-history-cache-signed.apk" "$RUNNER_TEMP/v606/ALKE-v606-me-history-cache-signed.apk.sha256" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title 'ALKE Alpha 22.16 v606 — Me & Smart Online History Signed Review' --notes-file "$RUNNER_TEMP/v606/RELEASE_NOTES.md" --prerelease
+          else
+            gh release create "$RELEASE_TAG" "$RUNNER_TEMP/v606/ALKE-v606-me-history-cache-signed.apk" "$RUNNER_TEMP/v606/ALKE-v606-me-history-cache-signed.apk.sha256" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_COMMIT" --title 'ALKE Alpha 22.16 v606 — Me & Smart Online History Signed Review' --notes-file "$RUNNER_TEMP/v606/RELEASE_NOTES.md" --prerelease
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

@@ -45,8 +45,8 @@ android {
         minSdk = 26
         targetSdk = 34
         // ALKE Alpha 1: user-test build; no production signing or data migration changes.
-        versionCode = 605
-        versionName = "1.0.0-alpha.22.15-background-efficiency"
+        versionCode = 606
+        versionName = "1.0.0-alpha.22.16-me-cloud-read-cache"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_COACH_BASE_URL", "\"${cloudCoachBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")

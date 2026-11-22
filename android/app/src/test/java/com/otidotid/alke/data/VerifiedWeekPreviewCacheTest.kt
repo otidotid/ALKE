@@ -3,6 +3,7 @@ package com.otidotid.alke.data
 import java.io.File
 import java.security.MessageDigest
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -58,6 +59,38 @@ class VerifiedWeekPreviewCacheTest {
         }.exceptionOrNull()
         assertTrue(failure is IllegalStateException)
         assertTrue(tmp.root.listFiles().orEmpty().none { it.name.endsWith(".alkeenc") })
+    }
+
+    @Test fun overlappingPreviewRequestsFetchOneCiphertextNotTwo() = runBlocking {
+        val bytes = "encrypted-concurrent-fixture".toByteArray()
+        val item = part(bytes)
+        val cache = VerifiedWeekPreviewCache(tmp.root)
+        val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var downloads = 0
+        val first = async {
+            cache.withVerified(item, {
+                downloads++
+                it.writeBytes(bytes)
+            }, {
+                entered.complete(Unit)
+                release.await()
+                it.length()
+            })
+        }
+        entered.await()
+        val second = async {
+            cache.withVerified(item, {
+                downloads++
+                it.writeBytes(bytes)
+            }, { it.length() })
+        }
+        kotlinx.coroutines.yield()
+        assertEquals(1, downloads)
+        release.complete(Unit)
+        assertEquals(bytes.size.toLong(), first.await())
+        assertEquals(bytes.size.toLong(), second.await())
+        assertEquals(1, downloads)
     }
 
     @Test fun cacheEvictsOldEncryptedEntriesAndNeverTouchesUnknownFiles() = runBlocking {

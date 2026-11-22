@@ -45,6 +45,7 @@ object BackupSettingsCodec {
     val ANDROID_MIGRATION_PREFS: Map<String, Map<String, Kind>> = linkedMapOf(
         "alke_prefs" to linkedMapOf(
             "today.keyMetricsDetailed" to Kind.BOOLEAN,
+            "appearance.gaugeNumerals" to Kind.STRING,
             "today.totalCaloriesTargetKcal" to Kind.INT,
             "workout.recentSports" to Kind.STRING,
             "workoutKeepScreenOn" to Kind.BOOLEAN,

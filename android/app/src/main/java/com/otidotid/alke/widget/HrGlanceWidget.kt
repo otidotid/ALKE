@@ -149,7 +149,7 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
       .background(hrSurface(dark))
       .cornerRadius(16.dp)
       .padding(14.dp)
-      .clickable(actionStartActivity<MainActivity>()),
+      .clickable(actionStartActivity(WidgetNavigation.heartRateTimelineIntent(LocalContext.current))),
   ) {
     Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
       // The notification heart, reused. It is authored as a solid alpha mask for exactly this kind

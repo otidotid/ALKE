@@ -66,3 +66,15 @@ Regression: all prior AI metabolic persistence cases on a simulated Saturday,
 plus a new Sunday-no-publish/no-false-success case, and the existing
 Saturday-only contract test. Prior red CI runs 44980031775 and 44980879395
 must **not** be used for release; a third green full run is mandatory.
+
+## CI revision: service test clock must match the weekly fixture
+
+A follow-up full run found one remaining failure in
+`disabledReviewReplacesAStaleAiScoreAndReportsTheActualLocalResult`: the
+production `MetabolicReviewService` created its own current clock (Sunday),
+while the fixture's expected persisted result was on Saturday.
+The service now passes a default production clock to the engine and permits
+a deterministic Saturday override in this specific persistence test.
+All normal calls use the same real wall clock as before; the Saturday-only
+publication gate and score formulas are unchanged. A fourth full Personal
+CI success is required before release.

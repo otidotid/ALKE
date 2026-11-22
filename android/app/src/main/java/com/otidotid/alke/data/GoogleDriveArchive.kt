@@ -451,7 +451,10 @@ internal class GoogleDriveArchiveManager(
     ): ArchivePreview {
         val work = File(appContext.cacheDir, "drive-archive-day-preview").apply { mkdirs() }
         val encrypted = File.createTempFile("week-", ".alkeenc", work)
-        val clear = File.createTempFile("week-", ".json", work)
+        val clear = File.createTempFile("week-", ".json", work).apply {
+            // ArchiveEncryption.decrypt refuses to overwrite an existing target.
+            check(delete())
+        }
         try {
             driveClient.download(token, part.driveFileId, encrypted)
             check(encrypted.length() == part.sizeBytes) { "Weekly preview size mismatch." }
@@ -597,9 +600,15 @@ internal class GoogleDriveArchiveManager(
             val work = File(appContext.cacheDir, "drive-archive-day-preview").apply { mkdirs() }
             for (window in CloudDayPreviewIndex.windows(month, coveredThrough)) {
                 val clear = File.createTempFile("weekly-", ".json", work)
-                val encrypted = File.createTempFile("weekly-", ".alkeenc", work)
+                val encrypted = File.createTempFile("weekly-", ".alkeenc", work).apply {
+                    // ArchiveEncryption.encrypt publishes only to a new filename.
+                    check(delete())
+                }
                 val verified = File.createTempFile("weekly-", ".verify.alkeenc", work)
-                val recovered = File.createTempFile("weekly-", ".verify.json", work)
+                val recovered = File.createTempFile("weekly-", ".verify.json", work).apply {
+                    // ArchiveEncryption.decrypt likewise refuses to overwrite.
+                    check(delete())
+                }
                 try {
                     val days = JSONObject()
                     var count = 0

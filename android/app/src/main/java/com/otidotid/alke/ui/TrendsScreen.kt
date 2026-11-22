@@ -486,14 +486,13 @@ private fun WeekInReviewCard(
             if (effortAvg != null) {
                 // Effort is stored 0–100 but reads on the user's chosen scale: convert the displayed
                 // number AND the bar position so the pip fill and the count-up value agree. On WHOOP's
-                // 0–21 scale Effort reads to one decimal; on 0–100 it's a whole number.
+                // Both display scales use whole-number Effort; the bar preserves full precision.
                 val display = UnitFormatter.effortValue(effortAvg, effortScale)
                 val maxV = UnitFormatter.effortValue(100.0, effortScale)
-                val oneDecimal = effortScale == EffortScale.WHOOP
                 PipScoreRow(
                     label = stringResource(R.string.trends_effort), value = display, range = 0f..maxV.toFloat(),
                     tint = Palette.effortColor,
-                    format = { if (oneDecimal) String.format(Locale.US, "%.1f", it) else "${it.roundToInt()}" },
+                    format = { it.roundToInt().toString() },
                 )
             }
             if (restAvg != null) {

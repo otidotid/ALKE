@@ -133,10 +133,11 @@ private data class MetricSpec(
     val displayUnit: String get() = if (whoopEffort) "/21" else unit
 
     fun format(v: Double): String {
-        if (!v.isFinite()) return ","
+        if (!v.isFinite()) return "—"
         // Effort (#268): the stored value is 0–100; convert to 0–21 for display when that scale is picked.
         val shown = if (whoopEffort) UnitFormatter.effortValue(v, EffortScale.WHOOP) else v
-        val n = if (decimals == 0) "${shown.roundToInt()}" else String.format(Locale.US, "%.${decimals}f", shown)
+        val n = if (key == "strain" || decimals == 0) "${shown.roundToInt()}"
+            else String.format(Locale.US, "%.${decimals}f", shown)
         return if (displayUnit.isEmpty()) n else "$n $displayUnit"
     }
 }
@@ -151,7 +152,7 @@ private val builtInMetrics: List<MetricSpec> = listOf(
     ),
     MetricSpec(
         key = "strain", title = uiString(R.string.l10n_trends_explore_screen_effort_8c974bc6), unit = "/100", category = uiString(R.string.explore_category_effort),
-        accent = Palette.strain066, higherIsBetter = null, decimals = 1,
+        accent = Palette.strain066, higherIsBetter = null, decimals = 0,
         dailyPick = { it.strain },
         description = uiString(R.string.explore_description_effort),
     ),

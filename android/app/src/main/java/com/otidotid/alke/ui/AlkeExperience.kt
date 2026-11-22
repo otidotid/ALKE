@@ -839,7 +839,7 @@ fun AlkeTodayExperience(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     AlkeOutlookScoreTile(
                         title = "Effort", context = "Activity",
-                        value = niceOne(day?.strain),
+                        value = day?.strain?.let { UnitFormatter.effortDisplay(it, UnitPrefs.effortScale(context)) } ?: "—",
                         tint = A.gold, onClick = { onMetric("strain") },
                     )
                     AlkeOutlookScoreTile(

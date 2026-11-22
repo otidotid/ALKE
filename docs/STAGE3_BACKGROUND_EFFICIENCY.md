@@ -34,3 +34,14 @@ the permit. Restore/preview and foreground score reading remain unrestricted.
 multi-process worker setup would require an inter-process filesystem lock.
 A physical power/thermal benchmark and deep-backlog on-device testing remain
 optional follow-up evidence, not claims made by this change.
+
+## Weekly analytics — avoid rescanning the entire history per week
+
+The historical weekly Fitness Age/Vitality backfill built a map of all daily
+metrics, but scanned and sorted **every day again for every missing Saturday**,
+in both the local-only and labs-enriched paths. The index now uses
+`TreeMap` and one seven-day inclusive `subMap` per week. The original
+`associateBy` last-wins behavior for duplicate days, ascending order,
+Saturday anchors, captured lab inputs, values and scorer calls are preserved.
+The boundary/equivalence regression tests cover gaps, duplicates and
+the empty/reversed window. No score values or daily history rows are modified.

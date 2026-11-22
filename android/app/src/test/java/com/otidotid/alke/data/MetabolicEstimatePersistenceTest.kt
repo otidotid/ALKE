@@ -247,8 +247,7 @@ class MetabolicEstimatePersistenceTest {
 
         val saturdayNoon = anchor.atTime(12, 0)
             .atZone(java.time.ZoneId.systemDefault()).toEpochSecond()
-        val result = MetabolicReviewService(context, repo, source,
-            calculationNowSeconds = { saturdayNoon }).review()
+        val result = MetabolicReviewService(context, repo, source, saturdayNoon).review()
 
         assertTrue(result.saved)
         assertTrue(result.message.contains("recalculated from current local inputs"))

@@ -21,11 +21,19 @@ class MetabolicReviewService(
     private val context: Context,
     private val repo: WhoopRepository,
     private val sourceId: String,
-    // Production uses wall clock; tests may pin a completed weekly Saturday.
-    private val calculationNowSeconds: () -> Long = { System.currentTimeMillis() / 1_000L },
-    // Keep activeSource last: existing call sites use a trailing lambda for it.
+    // Keep the original four-argument public API; both positional and trailing
+    // lambda activeSource call sites must retain their existing meaning.
     private val activeSource: () -> String = { sourceId },
 ) {
+    // Default production wall clock. The internal fixture-only overload avoids
+    // changing any public constructor call site or date/scoring policy.
+    private var calculationNowSeconds: () -> Long = { System.currentTimeMillis() / 1_000L }
+
+    internal constructor(context: Context, repo: WhoopRepository, sourceId: String, testNowSeconds: Long) :
+        this(context, repo, sourceId) {
+        calculationNowSeconds = { testNowSeconds }
+    }
+
     private val store = MetabolicEstimateStore(context)
     private fun profile() = ProfileStore(context.getSharedPreferences(ProfileStore.PREFS, Context.MODE_PRIVATE)).toUserProfile()
     private fun consent() = activeSource() == sourceId && store.enabled() && AiKeyStore.readConsent(context) &&

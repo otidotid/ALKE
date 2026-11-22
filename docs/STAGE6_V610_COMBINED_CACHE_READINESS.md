@@ -43,3 +43,20 @@ non-destructive online-only readiness gate. Source is signed v609 baseline.
 - Signed GitHub prerelease only after full Android Personal CI.
 - User smoke test: install over v609; read the same archived day twice,
   observe intact history and monthly fallback, confirm no data disappears.
+
+## User-requested connection policy — no hardcoded unmetered-only prefetch
+
+Under **Me > Google Account > Google Drive > Prefetch connection**, the user
+selects one of three persistent modes:
+1. **Wi-Fi non-metered only** (default for existing installs).
+2. **All Wi-Fi (including tethering)** — Wi-Fi transport is permitted even if
+   Android marks it as metered.
+3. **Wi-Fi + mobile data** — permits metered cellular and metered Wi-Fi.
+
+Connection eligibility derives from actual Android
+`NetworkCapabilities.TRANSPORT_WIFI / TRANSPORT_CELLULAR`, rather than
+assuming Wi-Fi means unmetered. Internet validation is required. Android
+Data Saver and Battery Saver continue to suppress optional prefetch.
+The setting affects prefetch only; full backup schedule and manual history
+download keep their existing separate user controls. Selection persists
+in private SharedPreferences and is read anew for each prefetch request.

@@ -17,6 +17,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.Composable
@@ -33,6 +34,8 @@ import com.otidotid.alke.data.GoogleDriveAuthenticationException
 import com.otidotid.alke.data.GoogleDriveArchiveManager
 import com.otidotid.alke.data.CompactDailySnapshots
 import com.otidotid.alke.data.HybridHistoryPolicy
+import com.otidotid.alke.data.PrefetchConnectionMode
+import com.otidotid.alke.data.PrefetchConnectionPreferences
 import com.otidotid.alke.data.VerifiedOnlineOnlyReadiness
 import com.otidotid.alke.data.UnifiedHistoryReader
 import com.otidotid.alke.data.UnifiedHistoryRead
@@ -79,6 +82,12 @@ internal fun GoogleAccountCard() {
     }
     val unifiedHistoryReader = remember(context) {
         UnifiedHistoryReader(context.applicationContext)
+    }
+    val prefetchConnectionPreferences = remember(context) {
+        PrefetchConnectionPreferences(context.applicationContext)
+    }
+    var prefetchConnectionMode by remember(context) {
+        mutableStateOf(prefetchConnectionPreferences.read())
     }
     val automaticHistorySecrets = remember(context) {
         AutomaticHistorySecretStore(context.applicationContext)
@@ -525,8 +534,9 @@ internal fun GoogleAccountCard() {
                                     } else {
                                         archiveManager.previewDayOnline(token, day, secret).also { opened ->
                                             if (opened.partialDayPreview) {
-                                                // UI-scoped; ciphertext-only, on unmetered network
-                                                // with battery/data saver off. No secret reused.
+                                                // UI-scoped and encrypted-only. The user's saved
+                                                // connection mode decides Wi-Fi/hotspot/mobile,
+                                                // with Android power/data saver still respected.
                                                 scope.launch {
                                                     archiveManager.prefetchAdjacentPreview(token, day)
                                                 }
@@ -963,6 +973,45 @@ internal fun GoogleAccountCard() {
                         "No local records are deleted.",
                     style = AlkeType.footnote,
                     color = Palette.textSecondary,
+                )
+                Text(
+                    "Prefetch connection",
+                    style = AlkeType.subhead, color = Palette.textPrimary,
+                )
+                Text(
+                    "Choose when ALKE may pre-download an adjacent encrypted history week. " +
+                        "Metered Wi-Fi hotspots are still Wi-Fi. Your manual history opens " +
+                        "and separate backup schedule are not restricted by this option.",
+                    style = AlkeType.footnote, color = Palette.textSecondary,
+                )
+                PrefetchConnectionMode.entries.forEach { mode ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = prefetchConnectionMode == mode,
+                            onClick = {
+                                prefetchConnectionMode = mode
+                                prefetchConnectionPreferences.write(mode)
+                            },
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                mode.label, style = AlkeType.body,
+                                color = Palette.textPrimary,
+                            )
+                            Text(
+                                mode.description, style = AlkeType.footnote,
+                                color = Palette.textSecondary,
+                            )
+                        }
+                    }
+                }
+                Text(
+                    "Optional prefetch pauses automatically with Android Battery Saver " +
+                        "or Data Saver. Your selected connection mode is saved.",
+                    style = AlkeType.footnote, color = Palette.textSecondary,
                 )
                 OutlinedTextField(
                     value = selectedHistoryDay,

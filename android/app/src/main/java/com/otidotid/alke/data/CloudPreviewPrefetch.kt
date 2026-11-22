@@ -24,8 +24,27 @@ internal object CloudPreviewPrefetch {
         }?.takeIf { CloudDayPreviewIndex.find(record, day)?.sha256 != it.sha256 }
     }
 
-    fun eligible(unmeteredValidated: Boolean, batterySaver: Boolean, dataSaver: Boolean) =
-        unmeteredValidated && !batterySaver && !dataSaver
+    /**
+     * Explicit choice of transport. Do NOT use metered alone to classify Wi-Fi:
+     * hotspots/tethering may be Wi-Fi TRANSPORT_WIFI but marked metered.
+     * Battery/Data Saver still suppress optional prefetch on every mode.
+     */
+    fun eligible(
+        mode: PrefetchConnectionMode,
+        validated: Boolean,
+        wifi: Boolean,
+        cellular: Boolean,
+        unmetered: Boolean,
+        batterySaver: Boolean,
+        dataSaver: Boolean,
+    ): Boolean {
+        if (!validated || batterySaver || dataSaver) return false
+        return when (mode) {
+            PrefetchConnectionMode.UNMETERED_WIFI -> wifi && unmetered
+            PrefetchConnectionMode.ALL_WIFI -> wifi
+            PrefetchConnectionMode.WIFI_AND_MOBILE -> wifi || cellular
+        }
+    }
 
     fun eligibleOnDevice(context: Context): Boolean = runCatching {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE)
@@ -35,8 +54,12 @@ internal object CloudPreviewPrefetch {
         val pm = context.getSystemService(Context.POWER_SERVICE)
             as? PowerManager ?: return@runCatching false
         eligible(
-            unmeteredValidated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) &&
+            mode = PrefetchConnectionPreferences(context).read(),
+            validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
                 caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+            wifi = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI),
+            cellular = caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR),
+            unmetered = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED),
             batterySaver = pm.isPowerSaveMode,
             dataSaver = cm.restrictBackgroundStatus ==
                 ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED,

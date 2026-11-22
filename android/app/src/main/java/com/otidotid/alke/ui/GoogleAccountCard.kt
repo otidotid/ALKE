@@ -33,6 +33,7 @@ import com.otidotid.alke.data.GoogleDriveAuthenticationException
 import com.otidotid.alke.data.GoogleDriveArchiveManager
 import com.otidotid.alke.data.CompactDailySnapshots
 import com.otidotid.alke.data.HybridHistoryPolicy
+import com.otidotid.alke.data.VerifiedOnlineOnlyReadiness
 import com.otidotid.alke.data.UnifiedHistoryReader
 import com.otidotid.alke.data.UnifiedHistoryRead
 import com.otidotid.alke.data.AutomaticHistorySecretStore
@@ -522,7 +523,15 @@ internal fun GoogleAccountCard() {
                                     archivePreview = if (day == null) {
                                         archiveManager.previewMonthOnline(token, month, secret)
                                     } else {
-                                        archiveManager.previewDayOnline(token, day, secret)
+                                        archiveManager.previewDayOnline(token, day, secret).also { opened ->
+                                            if (opened.partialDayPreview) {
+                                                // UI-scoped; ciphertext-only, on unmetered network
+                                                // with battery/data saver off. No secret reused.
+                                                scope.launch {
+                                                    archiveManager.prefetchAdjacentPreview(token, day)
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             } catch (failure: Exception) {
@@ -1066,6 +1075,25 @@ internal fun GoogleAccountCard() {
                         "Encrypted cloud history does not replace your local data or full backups.",
                     style = AlkeType.footnote,
                     color = Palette.textSecondary,
+                )
+                val offloadAssessment = remember(archiveRecords) {
+                    // PR #13 + #14: readiness only. Complete inventory, independent
+                    // restore/drill and user opt-in are intentionally NOT inferred
+                    // from a local manifest or a successful preview.
+                    VerifiedOnlineOnlyReadiness.assess(
+                        requiredMonths = emptyList(),
+                        today = LocalDate.now(),
+                        archives = archiveRecords,
+                    )
+                }
+                Text(
+                    "Online-only storage: not enabled — local raw data is preserved.",
+                    style = AlkeType.subhead, color = Palette.textSecondary,
+                )
+                Text(
+                    "Recovery verification pending: ${offloadAssessment.blockers.size} safety gates. " +
+                        "No data removal is available in this version.",
+                    style = AlkeType.footnote, color = Palette.textSecondary,
                 )
             }
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

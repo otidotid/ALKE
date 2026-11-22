@@ -10,6 +10,7 @@ import com.otidotid.alke.ui.MainActivity
  * activity. MainActivity handles both cold launch and onNewIntent.
  */
 object WidgetNavigation {
+    const val EXTRA_WIDGET_ACTION = "com.otidotid.alke.extra.WIDGET_ACTION"
     const val ACTION_HEART_RATE_TIMELINE = "com.otidotid.alke.action.OPEN_HR_TIMELINE"
     const val ROUTE_HEART_RATE_TIMELINE = "alke_hr_timeline"
 

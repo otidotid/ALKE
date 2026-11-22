@@ -2,7 +2,7 @@ name: Publish ALKE v606 signed Me and cloud history review
 
 on:
   push:
-    branches: [alke/v606-stage3-background-io]
+    branches: [alke/v606-me-smart-history-cache]
     paths:
       - .github/workflows/alke-v606-publish.yml
   workflow_dispatch:

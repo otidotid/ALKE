@@ -47,7 +47,7 @@ internal fun PremiumCard(content: @Composable () -> Unit) {
             .background(PremiumWidgetPalette.Background)
             .cornerRadius(24.dp)
             .clickable(actionStartActivity<MainActivity>())
-            .padding(16.dp),
+            .padding(12.dp),
         verticalAlignment = Alignment.Vertical.CenterVertically,
     ) {
         content()

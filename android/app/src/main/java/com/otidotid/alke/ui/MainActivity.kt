@@ -40,6 +40,7 @@ import com.otidotid.alke.BuildConfig
 import com.otidotid.alke.CrashCapture
 import com.otidotid.alke.AlkeApplication
 import com.otidotid.alke.R
+import com.otidotid.alke.widget.WidgetNavigation
 import com.otidotid.alke.ble.WhoopModel
 import com.otidotid.alke.data.DemoSeeder
 import com.otidotid.alke.data.WhoopRepository
@@ -60,6 +61,17 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  */
 class MainActivity : ComponentActivity() {
 
+    // Monotonic event id permits repeated taps to navigate, even if the destination is unchanged.
+    private var widgetEntryRequest by mutableStateOf<Pair<String?, Long>>(null to 0L)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        WidgetNavigation.routeForAction(intent.getStringExtra(WidgetNavigation.EXTRA_WIDGET_ACTION) ?: intent.action)?.let { route ->
+            widgetEntryRequest = route to (widgetEntryRequest.second + 1L)
+        }
+    }
+
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLanguagePrefs.wrap(newBase))
     }
@@ -72,6 +84,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        widgetEntryRequest = WidgetNavigation.routeForAction(intent?.getStringExtra(WidgetNavigation.EXTRA_WIDGET_ACTION) ?: intent?.action) to 1L
         WindowCompat.setDecorFitsSystemWindows(window, false)
         // NOTE: `crash` stays RAW here on purpose. acknowledge() fingerprints what it is given, and
         // pendingCrash() fingerprints the stored file — hand it redacted text and the two hashes never
@@ -191,7 +204,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AlkeTheme {
-                AlkeRoot()
+                AlkeRoot(widgetEntryRequest = widgetEntryRequest)
             }
         }
     }
@@ -1616,7 +1629,7 @@ object AlkePrefs {
  * state on each transition.
  */
 @Composable
-fun AlkeRoot() {
+fun AlkeRoot(widgetEntryRequest: Pair<String?, Long> = null to 0L) {
     val context = LocalContext.current
     val prefs = remember { AlkePrefs.of(context) }
     val appViewModel: AppViewModel = viewModel()
@@ -1688,7 +1701,7 @@ fun AlkeRoot() {
 
     // Existing, onboarded user: render the app, and if they've updated since last launch
     // (stored version behind current), show "What's New" once over the top.
-    AppRoot(viewModel = appViewModel)
+    AppRoot(viewModel = appViewModel, widgetEntryRequest = widgetEntryRequest)
 
     if (onboarded && lastSeenChangelog != AppChangelog.CURRENT_VERSION) {
         Dialog(

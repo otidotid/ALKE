@@ -69,17 +69,13 @@ class HrGlanceWidget : GlanceAppWidget() {
       val bpm = prefs[LiveHrWidgetFeed.bpm]
       val at = prefs[LiveHrWidgetFeed.at] ?: 0L
       val now = System.currentTimeMillis()
-      val display = if (bpm == null) {
-        snap.copy(heartRateStale = snap.heartRate != null)
-      } else {
-        snap.copy(
-          heartRate = bpm,
-          heartRateAtMs = at,
-          updatedAtMs = at,
-          heartRateStale = prefs[LiveHrWidgetFeed.live] != true || now - at !in 0..HrDisplay.LIVE_MS,
-          hrSeries = HrTrace.append(snap.hrSeries, at / 1000, bpm, now / 1000),
-        )
-      }
+      val display = HrWidgetReading.resolve(
+        snapshot = snap,
+        streamBpm = bpm,
+        streamAtMs = at,
+        streamActive = prefs[LiveHrWidgetFeed.live] == true,
+        nowMs = now,
+      )
       HrWidgetContent(display, dark)
     }
   }
@@ -92,6 +88,7 @@ class HrGlanceWidget : GlanceAppWidget() {
     appWidgetId: Int,
     throwable: Throwable,
   ) {
+    android.util.Log.e("HrGlanceWidget", "HR widget failed to compose", throwable)
     runCatching {
       val rv = android.widget.RemoteViews(context.packageName, R.layout.alke_widget_error)
       android.appwidget.AppWidgetManager.getInstance(context).updateAppWidget(appWidgetId, rv)
@@ -149,7 +146,12 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
       .background(hrSurface(dark))
       .cornerRadius(16.dp)
       .padding(14.dp)
-      .clickable(actionStartActivity<MainActivity>()),
+      .clickable(actionStartActivity<MainActivity>(
+        parameters = androidx.glance.action.actionParametersOf(
+          androidx.glance.action.ActionParameters.Key<String>(WidgetNavigation.EXTRA_WIDGET_ACTION) to
+            WidgetNavigation.ACTION_HEART_RATE_TIMELINE,
+        ),
+      )),
   ) {
     Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
       // The notification heart, reused. It is authored as a solid alpha mask for exactly this kind
@@ -165,6 +167,19 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         text = uiString(R.string.l10n_alke_glance_widget_heart_rate_410aa15c),
         style = TextStyle(
           color = hrTextPrimary(dark), fontSize = 13.sp, fontWeight = FontWeight.Medium,
+        ),
+      )
+      Spacer(GlanceModifier.defaultWeight())
+      Text(
+        text = when {
+          snap.heartRate == null -> "WAITING"
+          snap.heartRateStale -> "LAST RECORDED"
+          else -> "LIVE"
+        },
+        style = TextStyle(
+          color = if (snap.heartRate == null || snap.heartRateStale)
+            hrTextSecondary(dark) else ColorProvider(hrAccent(dark)),
+          fontSize = 9.sp, fontWeight = FontWeight.Bold,
         ),
       )
     }
@@ -206,7 +221,7 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
 
     Row(verticalAlignment = Alignment.Vertical.Bottom) {
       Text(
-        text = snap.heartRate?.toString() ?: "-",
+        text = snap.heartRate?.toString() ?: "--",
         style = TextStyle(
           color = if (snap.heartRateStale) hrTextSecondary(dark) else hrTextPrimary(dark),
           fontSize = 30.sp,
@@ -246,6 +261,23 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
       HrTraceImage(snap, dark, widthDp = size.width.value, stats = stats,
              modifier = GlanceModifier.defaultWeight())
       HrTimeAxis(snap, dark, hasScale = stats != null && stats.max > stats.min)
+    } else {
+      // A three-hour break naturally prunes every graph point. Do not leave a
+      // seemingly broken empty card with only "Last recorded 3h ago".
+      Spacer(GlanceModifier.height(8.dp))
+      Row(
+        modifier = GlanceModifier.fillMaxWidth()
+          .background(ColorProvider(hrSurfaceColor(dark).copy(alpha = 0.85f)))
+          .cornerRadius(8.dp)
+          .padding(horizontal = 4.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.Vertical.CenterVertically,
+      ) {
+        Text(
+          text = if (snap.heartRate == null)
+            "Waiting for heart-rate signal" else "No HR trace in last 3 hours",
+          style = TextStyle(color = hrTextSecondary(dark), fontSize = 11.sp),
+        )
+      }
     }
 
     if (snap.updatedAtMs > 0) {

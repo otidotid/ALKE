@@ -596,11 +596,21 @@ internal fun GoogleAccountCard() {
                     modifier = Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(Metrics.space12),
                 ) {
-                    Text("Read-only verified online history", style = AlkeType.subhead, color = Palette.accent)
+                    Text(
+                        if (preview.partialDayPreview)
+                            "Verified encrypted weekly download · selected day"
+                        else "Read-only verified online history",
+                        style = AlkeType.subhead, color = Palette.accent,
+                    )
                     preview.record.coveredThrough?.let {
                         Text("Archived through: $it", style = AlkeType.footnote, color = Palette.textSecondary)
                     }
-                    Text("Total records: ${preview.totalRecords}", style = AlkeType.body, color = Palette.textPrimary)
+                    Text(
+                        if (preview.partialDayPreview)
+                            "Full monthly archive records: ${preview.totalRecords}"
+                        else "Total records: ${preview.totalRecords}",
+                        style = AlkeType.body, color = Palette.textPrimary,
+                    )
                     Text("Schema: ${preview.record.schemaVersion} | " +
                         (if (preview.record.encrypted) "Encrypted + authenticated" else "Legacy unencrypted") +
                         " | SHA-256 verified", style = AlkeType.footnote, color = Palette.textSecondary)
@@ -611,7 +621,13 @@ internal fun GoogleAccountCard() {
                     preview.history.forEach { line ->
                         Text(line, style = AlkeType.footnote, color = Palette.textSecondary)
                     }
-                    Text("Decrypted working files are removed after reading; a bounded encrypted download may be cached.", style = AlkeType.caption, color = Palette.textTertiary)
+                    Text(
+                        if (preview.partialDayPreview)
+                            "Quick daily overview only. Full monthly archives remain available under Browse Archived History. " +
+                                "Both weekly ciphertext and decrypted working files are deleted after reading."
+                        else "Decrypted working files are removed after reading; a bounded encrypted download may be cached.",
+                        style = AlkeType.caption, color = Palette.textTertiary,
+                    )
                 }
             },
             confirmButton = { TextButton(onClick = { archivePreview = null }) { Text("Close") } },

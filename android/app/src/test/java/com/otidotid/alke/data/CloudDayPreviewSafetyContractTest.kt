@@ -22,9 +22,7 @@ class CloudDayPreviewSafetyContractTest {
 
     @Test fun independentlyEncryptedPreviewAlwaysUsesUnusedTargetPaths() {
         val source = archiveSource()
-        val read = source.substringAfter("private suspend fun readVerifiedDayPreview(")
-            .substringBefore("    data class ArchivePreview(", missingDelimiterValue = "")
-        // Method placement can change; the essential invariant is that the
+        // The essential invariant is that the
         // .json decrypt destination is deleted before decrypt is invoked.
         assertTrue(source.contains(
             "val clear = File.createTempFile(\"week-\", \".json\", work).apply {"))

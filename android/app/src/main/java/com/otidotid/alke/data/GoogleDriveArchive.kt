@@ -616,7 +616,7 @@ internal class GoogleDriveArchiveManager(
                     while (!day.isAfter(window.through)) {
                         val lines = readHistoryPreview(source, tables, day)
                         count += lines.size
-                        days.put(day.toString(), JSONArray().apply { lines.forEach(::put) })
+                        days.put(day.toString(), JSONArray().apply { lines.forEach { put(it) } })
                         day = day.plusDays(1)
                     }
                     val content = JSONObject()

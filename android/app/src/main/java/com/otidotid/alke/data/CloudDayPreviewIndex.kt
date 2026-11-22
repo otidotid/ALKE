@@ -31,7 +31,7 @@ internal object CloudDayPreviewIndex {
         return record.dayPreviewParts.firstOrNull { part ->
             val from = runCatching { LocalDate.parse(part.fromDay) }.getOrNull()
             val end = runCatching { LocalDate.parse(part.throughDay) }.getOrNull()
-            from != null && end != null && !end.isBefore(from) &&
+            from != null && end != null && !end.isBefore(from) && !end.isAfter(from.plusDays(6)) &&
                 YearMonth.from(from) == YearMonth.from(day) &&
                 YearMonth.from(end) == YearMonth.from(day) &&
                 !day.isBefore(from) && !day.isAfter(end) &&

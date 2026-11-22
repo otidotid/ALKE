@@ -1,0 +1,112 @@
+name: Publish ALKE v608 signed Unified History Reader review
+
+on:
+  push:
+    branches: [alke/v608-unified-history-reader]
+    paths:
+      - .github/workflows/alke-v608-publish.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: alke-v608-unified-reader-signed-review-release
+  cancel-in-progress: false
+
+jobs:
+  publish-v608:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v1.0.0-alpha.22.18-unified-history-reader.608
+      SOURCE_COMMIT: 72ac90b41cf00ed10e8acb142d49b3e224b95444
+      VALIDATED_RUN: '44990735645'
+      VALIDATED_SOURCE_SHA: 72ac90b41cf00ed10e8acb142d49b3e224b95444
+      UNSIGNED_SHA256: 56fe3ce02b5ad485ff1becd55e8723632b1e2ed85ab6ce862befb6a359e4d40b
+      PATCH_SHA256: 2512d86b690b9959670418b64c4f1d14891595a6c8886be9872807043cdee9bf
+      SIGNED_SHA256: bd76947ac476d2e617352ba61eed609f2cf2ca6c900092bd97f3f1719eb65082
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact tested source and complete Personal quality gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$SOURCE_COMMIT" HEAD
+          git diff --quiet "$SOURCE_COMMIT" HEAD -- android cloud-coach
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)" = "$VALIDATED_SOURCE_SHA"
+
+      - name: Download validated unsigned APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v608"
+          gh run download "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --name ALKE-Personal-Validated-Unsigned --dir "$RUNNER_TEMP/v608"
+          echo "$UNSIGNED_SHA256  $RUNNER_TEMP/v608/ALKE-personal-v608-unsigned.apk" | sha256sum -c -
+
+      - name: Reconstruct privately signed APK using public binary delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d release-assets/v608-signed.zlib.b64 |
+            python3 -c 'import zlib,sys; sys.stdout.buffer.write(zlib.decompress(sys.stdin.buffer.read()))' > "$RUNNER_TEMP/v608/signed.zstpatch"
+          echo "$PATCH_SHA256  $RUNNER_TEMP/v608/signed.zstpatch" | sha256sum -c -
+          zstd -q -d --patch-from="$RUNNER_TEMP/v608/ALKE-personal-v608-unsigned.apk" "$RUNNER_TEMP/v608/signed.zstpatch" -o "$RUNNER_TEMP/v608/ALKE-v608-unified-history-reader-signed.apk"
+          echo "$SIGNED_SHA256  $RUNNER_TEMP/v608/ALKE-v608-unified-history-reader-signed.apk" | sha256sum -c -
+          echo "$SIGNED_SHA256  ALKE-v608-unified-history-reader-signed.apk" > "$RUNNER_TEMP/v608/ALKE-v608-unified-history-reader-signed.apk.sha256"
+
+      - name: Verify package, version and ALKE Personal update certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="$RUNNER_TEMP/v608/ALKE-v608-unified-history-reader-signed.apk"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          test -x "$signer" && test -x "$aapt"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" > "$RUNNER_TEMP/v608/signature.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/v608/signature.txt"
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$RUNNER_TEMP/v608/signature.txt"
+          "$aapt" dump badging "$apk" | head -1 | tee "$RUNNER_TEMP/v608/badging.txt"
+          grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v608/badging.txt"
+          grep -Fq "versionCode='608'" "$RUNNER_TEMP/v608/badging.txt"
+          mkdir -p "$RUNNER_TEMP/v608/previous"
+          gh release download v1.0.0-alpha.22.17-smart-daily-snapshot.607 --repo "$GITHUB_REPOSITORY" --pattern ALKE-v607-smart-daily-snapshot-signed.apk --dir "$RUNNER_TEMP/v608/previous"
+          "$signer" verify --min-sdk-version 26 --print-certs "$RUNNER_TEMP/v608/previous/ALKE-v607-smart-daily-snapshot-signed.apk" > "$RUNNER_TEMP/v608/v607-cert.txt"
+          old_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v608/v607-cert.txt" | head -1)"
+          new_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v608/signature.txt" | head -1)"
+          test -n "$old_cert" && test "$old_cert" = "$new_cert"
+          test "$new_cert" = "f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877"
+
+      - name: Publish GitHub signed prerelease for owner smoke testing
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/v608/RELEASE_NOTES.md" <<'NOTES'
+          # ALKE v608 — Unified Local + Cloud History Reader and Daily Outlook layout
+
+          Signed Personal APK for direct update over v607. DO NOT uninstall or clear ALKE data.
+
+          - History day opens with authoritative one-day local Room lookup, then a valid Smart Daily Snapshot if local is absent; registered verified Drive archive is requested only when both local sources lack the date.
+          - The same imported/computed/user-edited sleep and activity-file source merge priority is reused; no scoring changes.
+          - Google Account history-day browser now uses the shared reader and displays local-day results without requiring a new Google Drive download. Existing encrypted archive passphrase verification still applies where necessary.
+          - Today Daily Outlook's Effort and Rest values now align beside their labels; Activity and Sleep subtitles remain visible. Tap actions and all numbers remain unchanged.
+          - NO data deletion, archive schema changes, cloud offloading, or backup changes. Unified history coverage is limited to the day browser; full cross-module online detail integration is not claimed.
+          - Full Personal CI: run 44990735645, source 72ac90b41cf00ed10e8acb142d49b3e224b95444; same ALKE signing certificate as v607, APK Signature v2/v3.
+          - Signed APK SHA-256: bd76947ac476d2e617352ba61eed609f2cf2ca6c900092bd97f3f1719eb65082
+
+          Smoke test: install over v607, open Today Effort/Rest cards, browse a recent local history day and a history day older than 22 days, confirm Google Drive still works for missing cloud-only history and does not delete local data. PR #11 stays draft until smoke test approval.
+          NOTES
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/v608/ALKE-v608-unified-history-reader-signed.apk" "$RUNNER_TEMP/v608/ALKE-v608-unified-history-reader-signed.apk.sha256" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title 'ALKE Alpha 22.18 v608 — Unified Reader & Daily Outlook Signed Review' --notes-file "$RUNNER_TEMP/v608/RELEASE_NOTES.md" --prerelease
+          else
+            gh release create "$RELEASE_TAG" "$RUNNER_TEMP/v608/ALKE-v608-unified-history-reader-signed.apk" "$RUNNER_TEMP/v608/ALKE-v608-unified-history-reader-signed.apk.sha256" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_COMMIT" --title 'ALKE Alpha 22.18 v608 — Unified Reader & Daily Outlook Signed Review' --notes-file "$RUNNER_TEMP/v608/RELEASE_NOTES.md" --prerelease
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

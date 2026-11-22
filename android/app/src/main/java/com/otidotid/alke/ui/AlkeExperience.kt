@@ -553,19 +553,31 @@ private fun AlkeOutlookScoreTile(
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(14.dp)
-    Column(
-        modifier = Modifier.fillMaxWidth().clip(shape)
+    // Daily Outlook: labels and their numbers sit on ONE horizontal line,
+    // rather than stacking three short lines and leaving the narrow tile empty.
+    // Keep the Activity/Sleep context under its label and the big numeric
+    // reading right-aligned. Two 72dp tiles + 8dp gap match the Charge gauge.
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp).clip(shape)
             .background(A.cardDark)
             .border(1.dp, tint.copy(alpha = 0.25f), shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(title.uppercase(Locale.ROOT), color = tint,
-            fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-        Text(value, color = A.white, fontSize = 24.sp,
-            fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(context, color = A.muted, fontSize = 10.sp, maxLines = 1)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Text(title.uppercase(Locale.ROOT), color = tint,
+                fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.sp, maxLines = 1)
+            Text(context, color = A.muted, fontSize = 10.sp, maxLines = 1)
+        }
+        Text(value, color = A.white, fontSize = 27.sp,
+            fontWeight = FontWeight.Bold, textAlign = TextAlign.End,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

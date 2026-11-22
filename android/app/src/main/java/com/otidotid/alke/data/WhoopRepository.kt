@@ -2160,6 +2160,31 @@ class WhoopRepository(
         )
     }
 
+    /**
+     * One-day authoritative equivalent of [daysMerged], for the unified history
+     * reader. Uses the SAME union order, activity-file step overlay and user
+     * sleep-edit precedence, but only fetches the selected day's DailyMetric
+     * rows (indexed on source + day) instead of years of daily aggregates.
+     *
+     * Only the small set of hand-edited sleep sessions is read across days:
+     * edits can be keyed by their local WAKE date, not their stored startTs.
+     * No raw samples, scorer, or database writes are involved.
+     */
+    suspend fun dayMerged(deviceId: String, day: String): DailyMetric? {
+        val imported = unionByDay(importedSourceIds(deviceId).map {
+            dao.dailyMetricsRange(it, day, day)
+        })
+        val computed = unionByDay(computedSourceIds(deviceId).map {
+            dao.dailyMetricsRange(it, day, day)
+        })
+        val activityFile = dao.dailyMetricsRange(ACTIVITY_FILE_SOURCE, day, day)
+        val edited = computedSourceIds(deviceId).flatMap { dao.editedSleepSessions(it) }
+        return mergeActivityFileSteps(
+            mergeDaily(imported = imported, computed = computed, userEditedDays = userEditedDays(edited)),
+            activityFile,
+        ).singleOrNull { it.day == day }
+    }
+
     /** Count the same merged day set as [daysMerged] using SQL, without loading every DailyMetric. */
     suspend fun daysMergedCount(deviceId: String): Int {
         val sourceIds = (importedSourceIds(deviceId) + computedSourceIds(deviceId) + ACTIVITY_FILE_SOURCE).distinct()

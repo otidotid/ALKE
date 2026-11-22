@@ -29,8 +29,8 @@ class WeekPreviewIntegrationContractTest {
     @Test fun onlineOnlyCannotDeleteRecordsInThisRelease() {
         val code = source("VerifiedOnlineOnlyReadiness.kt")
         assertTrue(code.contains("Full table-by-table remote restore"))
-        assertTrue(code.contains("Rollback copy"))
-        assertTrue(code.contains("read-only", ignoreCase = true) ||
-            code.contains("READ-ONLY"))
+        assertTrue(code.contains("Rollback and interrupted-offload recovery drills"))
+        assertTrue(code.contains("NEVER deletes or migrates records"))
+        assertTrue(code.contains("Explicit opt-in for eventual history offload missing"))
     }
 }

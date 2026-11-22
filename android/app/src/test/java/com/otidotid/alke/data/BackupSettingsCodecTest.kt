@@ -152,6 +152,39 @@ class BackupSettingsCodecTest {
         expected.forEach { (key, value) -> assertEquals(value, decoded[key]) }
     }
 
+    @Test fun completeDeviceMigrationRoundTripsStableAndroidPrefsAndPhotoMetadata() {
+        val personal = linkedMapOf<String, Any?>(
+            "profile.dateOfBirthMillis" to 946684800000L,
+            "profile.avatarPresent" to 1,
+            "profile.avatarJpegBase64" to "AQIDBA==",
+            BackupSettingsCodec.androidBackupKey("alke_prefs", "today.keyMetricsDetailed") to true,
+            BackupSettingsCodec.androidBackupKey("alke_prefs", "today.totalCaloriesTargetKcal") to 2700,
+            BackupSettingsCodec.androidBackupKey("alke_prefs", "appearance.gaugeNumerals") to "soft",
+            BackupSettingsCodec.androidBackupKey("alke_inactivity_prefs", "inactivity.enabled") to false,
+            BackupSettingsCodec.androidBackupKey("alke_inactivity_prefs", "inactivity.thresholdMinutes") to 45,
+            BackupSettingsCodec.androidBackupKey("alke_notif_prefs", "notif.calls.pattern") to "PULSE",
+        )
+        val encoded = requireNotNull(BackupSettingsCodec.encode(personal))
+        val roundTrip = BackupSettingsCodec.decode(encoded)
+        personal.forEach { (key, value) -> assertEquals(key, value, roundTrip[key]) }
+        assertEquals(personal.size, roundTrip.size)
+    }
+
+    @Test fun secretsAndInstallSpecificStateCannotEnterDeviceMigration() {
+        val attempted = mapOf<String, Any?>(
+            "profile.age" to 35,
+            BackupSettingsCodec.androidBackupKey("alke_google_account", "access_token") to "unsafe",
+            BackupSettingsCodec.androidBackupKey("alke_prefs", "alke.apiKey") to "unsafe",
+            BackupSettingsCodec.androidBackupKey("alke_prefs", "ble.deviceAddress") to "AA:BB",
+            BackupSettingsCodec.androidBackupKey("alke_inactivity_prefs", "inactivity.lastBuzzAt") to 1000L,
+        )
+        val encoded = requireNotNull(BackupSettingsCodec.encode(attempted))
+        assertFalse(encoded.contains("unsafe"))
+        assertFalse(encoded.contains("AA:BB"))
+        assertFalse(encoded.contains("lastBuzzAt"))
+        assertEquals(1, BackupSettingsCodec.decode(encoded).size)
+    }
+
     @Test fun garbageDecodesToEmptyAndEmptyEncodesToNull() {
         assertTrue(BackupSettingsCodec.decode("not json at all").isEmpty())
         assertTrue(BackupSettingsCodec.decode("[1,2,3]").isEmpty())

@@ -32,6 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import java.io.File
+import java.io.IOException
+import android.util.Base64
 
 // MARK: - Profile picture (optional, on-device avatar)
 //
@@ -118,6 +120,52 @@ object ProfileAvatarStore {
         bitmap = scaled.asImageBitmap()
         return true
     }
+
+    /**
+     * Portable JPEG snapshot for ALKE Complete Device Migration. Read the exact user-selected avatar,
+     * not a Contacts/Google account picture. Its bytes travel INSIDE the full backup, which is
+     * encrypted by the Drive recovery flow; the private photo is never uploaded separately.
+     * Refuse an incomplete/missing photo instead of producing a misleading "complete" backup.
+     */
+    @Synchronized
+    @Throws(IOException::class)
+    fun snapshotForBackup(ctx: Context): String? {
+        val app = ctx.applicationContext
+        if (!prefs(app).getBoolean(KEY_HAS_AVATAR, false)) return null
+        val file = avatarFile(app)
+        if (!file.isFile || file.length() !in 1..MAX_BACKUP_AVATAR_BYTES) {
+            throw IOException("Profile photo is missing or invalid; complete migration backup was cancelled.")
+        }
+        val bytes = file.readBytes()
+        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            ?: throw IOException("Profile photo could not be decoded; backup was cancelled.")
+        decoded.recycle()
+        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+
+    /**
+     * Apply a checked JPEG snapshot through the SAME atomic picture writer as an in-app photo pick.
+     * On failure, keep the old avatar untouched. Do not accept unbounded base64 from an imported ZIP.
+     */
+    @Synchronized
+    fun restoreFromBackup(ctx: Context, encoded: String): Boolean {
+        if (encoded.isEmpty() || encoded.length > MAX_BACKUP_AVATAR_BYTES * 2L) return false
+        val bytes = runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull()
+            ?: return false
+        if (bytes.size.toLong() !in 1..MAX_BACKUP_AVATAR_BYTES) return false
+        val app = ctx.applicationContext
+        val staging = File(app.cacheDir, "alke-avatar-migration.jpg")
+        return try {
+            staging.outputStream().use { it.write(bytes) }
+            setAvatarFromUri(app, Uri.fromFile(staging))
+        } catch (_: Exception) {
+            false
+        } finally {
+            staging.delete()
+        }
+    }
+
+    private const val MAX_BACKUP_AVATAR_BYTES = 500_000L
 
     /** Remove the photo: delete the file, clear the flag, and drop the live [bitmap] back to null. */
     @Synchronized

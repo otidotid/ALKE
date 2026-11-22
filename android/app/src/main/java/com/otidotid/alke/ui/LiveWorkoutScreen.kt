@@ -28,6 +28,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import kotlin.math.roundToInt
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -339,10 +340,7 @@ private fun EffortGauge(liveStrain: Double, effortScale: EffortScale) {
         Overline("Effort building", color = Palette.effortColor)
         CountUpText(
             value = value,
-            format = { v ->
-                if (effortScale == EffortScale.WHOOP) String.format(java.util.Locale.US, "%.1f", v)
-                else v.toInt().toString()
-            },
+            format = { v -> v.roundToInt().toString() },
             style = AlkeType.number(56f),
             color = Palette.textPrimary,
         )

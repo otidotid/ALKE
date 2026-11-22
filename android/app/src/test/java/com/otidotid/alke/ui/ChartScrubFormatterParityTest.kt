@@ -76,7 +76,7 @@ class ChartScrubFormatterParityTest {
     fun anAxisConvertedMetricDisagreedOnTheValueItself() {
         val toWhoopScale: (Double) -> String = { UnitFormatter.effortDisplay(it, EffortScale.WHOOP) }
         assertEquals("59", lineChartSelectionLabel(59.0, null))          // raw, as the chart used to say
-        assertEquals("12.4", lineChartSelectionLabel(59.0, toWhoopScale)) // what the axis says
+        assertEquals("12", lineChartSelectionLabel(59.0, toWhoopScale)) // Effort axis now shows whole points
     }
 
     /** A day label still prefixes the formatted value, so #691's date context survives the fix. */

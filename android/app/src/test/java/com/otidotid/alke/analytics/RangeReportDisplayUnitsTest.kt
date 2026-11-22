@@ -144,11 +144,11 @@ class RangeReportDisplayUnitsTest {
             trend = ReportTrend.RISING, latest = DayValue("2026-08-25", 55.0),
         )
         assertEquals(
-            "Strain is trending up (avg 40.0 → 59.0) - a good sign.",
+            "Strain is trending up (avg 40 → 59) - a good sign.",
             RangeReportEngine.headline(stat, celsius),
         )
         assertEquals(
-            "Strain is trending up (avg 8.4 / 21 → 12.4 / 21) - a good sign.",
+            "Strain is trending up (avg 8 / 21 → 12 / 21) - a good sign.",
             RangeReportEngine.headline(stat, whoopAxis),
         )
     }

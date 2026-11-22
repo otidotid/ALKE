@@ -191,14 +191,13 @@ internal object TrendsReportFormat {
      *
      * Both the value and its unit go through [RangeReportEngine] (#1637) — the same conversion the
      * headline sentences use — so the exported page cannot print a unit the app disagrees with.
-     * Effort gains a decimal once rescaled to the 0–21 axis, where a whole number would throw away
-     * most of the resolution the 0–100 value carried.
+     * Effort is shown as whole points on BOTH display axes. The raw report
+     * statistics and chart calculations retain full floating-point precision.
      */
     fun valueText(v: Double, metric: ReportMetric, units: ReportDisplayUnits): String {
         val unit = RangeReportEngine.displayUnit(metric, units)
         val shown = RangeReportEngine.displayValue(v, metric, units)
-        val oneDecimal = metric.usesOneDecimal ||
-            (metric == ReportMetric.STRAIN && units.effortFactor != 1.0)
+        val oneDecimal = metric.usesOneDecimal && metric != ReportMetric.STRAIN
         // The whole-number branch keeps `roundToInt` (ties toward +∞) where Swift rounds away from
         // zero. The two agree for every NON-NEGATIVE input, and this branch only ever serves
         // Recovery / HRV / Resting HR / Effort — all non-negative by construction — so it cannot

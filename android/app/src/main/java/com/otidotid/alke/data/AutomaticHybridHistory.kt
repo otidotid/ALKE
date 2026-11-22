@@ -193,6 +193,21 @@ internal class RollingSnapshotWorker(context: Context, params: WorkerParameters)
     CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = try {
         CompactDailySnapshots(applicationContext).refresh()
+        // Refresh a full-fidelity *daily aggregate* presentation cache as a
+        // companion to the existing 15..21-day compact count snapshots.
+        // It never stores raw BLE streams and never changes archive/backup policy.
+        try {
+            BackgroundDataWorkGate.withExclusive {
+                val db = WhoopDatabase.get(applicationContext)
+                val active = DeviceRegistry(db).activeDeviceId() ?: "my-whoop"
+                val merged = WhoopRepository(db, applicationContext).daysMerged(active)
+                SmartDailySnapshotStore(applicationContext.filesDir).publish(active, merged)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // A failed optional plot cache cannot block the verified compact snapshot.
+        }
         AutomaticHistoryStatus(applicationContext).snapshotCompleted(LocalDate.now())
         Result.success()
     } catch (cancelled: CancellationException) {

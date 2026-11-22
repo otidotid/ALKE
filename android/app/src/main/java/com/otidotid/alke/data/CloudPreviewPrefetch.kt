@@ -18,10 +18,16 @@ internal object CloudPreviewPrefetch {
         val month = YearMonth.from(day)
         val next = day.plusDays(7)
         val previous = day.minusDays(7)
+        val current = CloudDayPreviewIndex.find(record, day) ?: return null
         return listOf(next, previous).firstNotNullOfOrNull {
             if (YearMonth.from(it) == month) CloudDayPreviewIndex.find(record, it)
             else null
-        }?.takeIf { CloudDayPreviewIndex.find(record, day)?.sha256 != it.sha256 }
+        }?.takeIf {
+            // Two independent weeks may have identical ciphertext checksums
+            // (e.g. equivalent source data). Date window, NOT file hash,
+            // identifies whether it is the adjacent preview segment.
+            it.fromDay != current.fromDay || it.throughDay != current.throughDay
+        }
     }
 
     /**

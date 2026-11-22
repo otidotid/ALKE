@@ -73,5 +73,9 @@ class CloudPreviewPrefetchTest {
             PrefetchConnectionMode.fromRaw("all_wifi"))
         assertEquals(PrefetchConnectionMode.WIFI_AND_MOBILE,
             PrefetchConnectionMode.fromRaw("wifi_and_mobile"))
+        assertEquals(PrefetchConnectionMode.DISABLED,
+            PrefetchConnectionMode.fromRaw("off"))
+        assertFalse(allowed(PrefetchConnectionMode.DISABLED,
+            wifi = true, cellular = true, unmetered = true))
     }
 }

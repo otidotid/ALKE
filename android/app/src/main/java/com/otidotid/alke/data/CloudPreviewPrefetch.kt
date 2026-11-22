@@ -40,6 +40,7 @@ internal object CloudPreviewPrefetch {
     ): Boolean {
         if (!validated || batterySaver || dataSaver) return false
         return when (mode) {
+            PrefetchConnectionMode.DISABLED -> false
             PrefetchConnectionMode.UNMETERED_WIFI -> wifi && unmetered
             PrefetchConnectionMode.ALL_WIFI -> wifi
             PrefetchConnectionMode.WIFI_AND_MOBILE -> wifi || cellular

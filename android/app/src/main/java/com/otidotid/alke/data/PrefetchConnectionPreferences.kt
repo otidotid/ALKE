@@ -14,6 +14,11 @@ internal enum class PrefetchConnectionMode(
     val label: String,
     val description: String,
 ) {
+    DISABLED(
+        "off",
+        "Off",
+        "No automatic prefetch; manual history access still works",
+    ),
     UNMETERED_WIFI(
         "unmetered_wifi",
         "Wi-Fi non-metered only",

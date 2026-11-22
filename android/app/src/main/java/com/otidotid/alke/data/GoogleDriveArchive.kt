@@ -495,8 +495,8 @@ internal class GoogleDriveArchiveManager(
 
     /**
      * After a user explicitly opens a cloud history day, opportunistically
-     * fetch ONE adjacent week's ciphertext on unmetered validated Wi-Fi or
-     * equivalent. This does not persist a token or passphrase, run a worker,
+     * fetch ONE adjacent week's ciphertext on the user's preferred validated
+     * Wi-Fi/cellular connection. This does not persist a token or passphrase, run a worker,
      * or decrypt any prefetched content. Failure is non-fatal to history reads.
      */
     suspend fun prefetchAdjacentPreview(

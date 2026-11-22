@@ -1,5 +1,6 @@
 package com.otidotid.alke.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -986,15 +987,15 @@ internal fun GoogleAccountCard() {
                 )
                 PrefetchConnectionMode.entries.forEach { mode ->
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            prefetchConnectionMode = mode
+                            prefetchConnectionPreferences.write(mode)
+                        },
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     ) {
                         RadioButton(
                             selected = prefetchConnectionMode == mode,
-                            onClick = {
-                                prefetchConnectionMode = mode
-                                prefetchConnectionPreferences.write(mode)
-                            },
+                            onClick = null,
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(

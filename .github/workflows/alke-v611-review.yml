@@ -1,0 +1,105 @@
+name: Publish ALKE v611 Patch 15 non-destructive review APK
+
+on:
+  push:
+    branches: [alke/v611-verified-offload-parity-gates]
+    paths:
+      - .github/workflows/alke-v611-review.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: alke-v611-safe-review-release
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ALKE_CLOUD_COACH_URL: ${{ vars.ALKE_CLOUD_COACH_URL || 'https://alke-cloud-coach.anandhito-prakoso.workers.dev' }}
+      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID || '542598370283-1gr0qq8ad4ga691k3lvrotma140hcu5r.apps.googleusercontent.com' }}
+      RELEASE_TAG: v1.0.0-alpha.22.21-verified-offload-safety.611
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Verify safe source and build number
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 611' android/app/build.gradle.kts
+          grep -Fq 'versionName = "1.0.0-alpha.22.21-verified-offload-safety"' android/app/build.gradle.kts
+          grep -Fq 'No local user data is deleted' docs/STAGE6_V610_COMBINED_CACHE_READINESS.md || true
+          grep -Fq 'This v611 safety branch introduces **NO source-data deletion**' docs/STAGE7_PATCH15_VERIFIED_OFFLOAD_SAFETY.md
+
+      - name: Run complete Personal regression suite and assemble isolated staging review
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest :app:assemblePersonalRelease
+
+      - name: Validate package signature and APK integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/personal/release/app-personal-release.apk
+          test -s "$apk"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -1)"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -1)"
+          test -x "$aapt" && test -x "$signer"
+          "$aapt" dump badging "$apk" | head -1 | tee "$RUNNER_TEMP/alke-v611-badging.txt"
+          grep -Fq "name='com.otidotid.alke.personal.staging'" "$RUNNER_TEMP/alke-v611-badging.txt"
+          grep -Fq "versionCode='611'" "$RUNNER_TEMP/alke-v611-badging.txt"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" | tee "$RUNNER_TEMP/alke-v611-certificate.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/alke-v611-certificate.txt"
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$RUNNER_TEMP/alke-v611-certificate.txt"
+          unzip -t "$apk" >/dev/null
+          mkdir -p release-output
+          cp "$apk" release-output/ALKE-v611-patch15-staging-review.apk
+          sha256sum release-output/ALKE-v611-patch15-staging-review.apk > release-output/ALKE-v611-patch15-staging-review.apk.sha256
+
+      - name: Create separate-installation GitHub prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/v611-notes.md" <<'NOTES'
+          # ALKE v611 — Patch 15 Storage Safety Review (non-destructive)
+          
+          **Review APK for side-by-side installation only.** This artifact is
+          staging/debug-key signed with package
+          `com.otidotid.alke.personal.staging`. It is **not** an in-place
+          upgrade over signed ALKE v610 `com.otidotid.alke.personal.debug`.
+          Do **not** uninstall the existing ALKE app, clear its data, or expect
+          the separate review installation to read the existing app's private database.
+          
+          - Contiguous historical-month inventory checking, archive timestamp
+            checks, fresh independent restore-proof gating.
+          - Requires separate full HEALTH+FOOD encrypted recovery, isolated-store
+            restore, cross-module, source/score parity and interrupted-offload rollback
+            BEFORE future local deletion may be considered.
+          - **No data offload, compaction, retention deletion or cloud-only mode
+            is activated in this build.** Existing data and v610 cache/prefetch remain unchanged.
+          - Full Android Personal unit-test suite and packaged APK verification
+            are executed before publication.
+          
+          A direct-update APK requires the owner's existing ALKE Personal signing
+          certificate, which is intentionally not embedded in the public repository.
+          This staging review does not substitute for real-device backup/restore tests.
+          NOTES
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-output/ALKE-v611-patch15-staging-review.apk release-output/ALKE-v611-patch15-staging-review.apk.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "ALKE v611 Patch 15 — Safe Staging Review" --notes-file "$RUNNER_TEMP/v611-notes.md" --prerelease
+          else
+            gh release create "$RELEASE_TAG" release-output/ALKE-v611-patch15-staging-review.apk release-output/ALKE-v611-patch15-staging-review.apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "ALKE v611 Patch 15 — Safe Staging Review" --notes-file "$RUNNER_TEMP/v611-notes.md" --prerelease
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

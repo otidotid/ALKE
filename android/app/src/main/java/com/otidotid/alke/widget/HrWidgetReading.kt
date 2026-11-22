@@ -16,6 +16,7 @@ internal object HrWidgetReading {
         streamAtMs: Long,
         streamActive: Boolean,
         nowMs: Long = System.currentTimeMillis(),
+        liveTrace: List<HrPoint> = emptyList(),
     ): WidgetSnapshot {
         val storedBpm = snapshot.heartRate?.takeIf { it in 30..220 }
         val storedAt = snapshot.heartRateAtMs
@@ -32,16 +33,20 @@ internal object HrWidgetReading {
         val isLive = bpm != null && active && at > 0L &&
             nowMs - at in 0..HrDisplay.LIVE_MS
 
-        // Keep the historical 3-hour curve. It is persisted by the 60-second snapshot
-        // lane; a 1Hz live readout must not force a large bitmap redraw on every beat.
-        // A brand-new placement with no stored trace gets one dot for its first sample.
-        val series = if (snapshot.hrSeries.isEmpty() && bpm != null &&
-            at > 0L && nowMs - at in 0..HrDisplay.LIVE_MS
+        // Merge the regular minute snapshot with the independent BLE minute-bucket
+        // store. The latter wins when both include the same minute, and each trace
+        // is pruned to the real three-hour window. A fresh first sample becomes a
+        // visible dot until the next minute is recorded.
+        val byMinute = LinkedHashMap<Long, HrPoint>()
+        for (p in snapshot.hrSeries) byMinute[p.ts] = p
+        for (p in liveTrace) byMinute[p.ts] = p
+        if (byMinute.isEmpty() && bpm != null && at > 0L &&
+            nowMs - at in 0..HrDisplay.LIVE_MS
         ) {
-            HrTrace.append(emptyList(), at / 1000L, bpm, nowMs / 1000L)
-        } else {
-            snapshot.hrSeries
+            val point = HrTrace.append(emptyList(), at / 1000L, bpm, nowMs / 1000L)
+            for (p in point) byMinute[p.ts] = p
         }
+        val series = HrTrace.prune(byMinute.values.toList(), nowMs / 1000L)
 
         return snapshot.copy(
             heartRate = bpm,

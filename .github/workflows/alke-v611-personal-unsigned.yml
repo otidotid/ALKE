@@ -5,6 +5,8 @@ on:
     branches: [alke/v611-verified-offload-parity-gates]
     paths:
       - .github/workflows/alke-v611-personal-unsigned.yml
+      - android/app/src/main/java/com/otidotid/alke/data/VerifiedOnlineOnlyReadiness.kt
+      - android/app/src/test/java/com/otidotid/alke/data/WeekPreviewIntegrationContractTest.kt
   workflow_dispatch:
 
 permissions:

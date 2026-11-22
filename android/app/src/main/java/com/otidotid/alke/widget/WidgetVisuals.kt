@@ -92,30 +92,43 @@ internal fun WidgetValueTile(
         modifier = modifier
             .background(PremiumWidgetPalette.Surface)
             .cornerRadius(12.dp)
-            .padding(horizontal = if (large) 9.dp else 6.dp, vertical = if (large) 8.dp else 6.dp),
+            .padding(horizontal = if (large) 7.dp else 5.dp, vertical = if (large) 6.dp else 4.dp),
         horizontalAlignment = Alignment.Horizontal.Start,
     ) {
-        Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
-            WidgetGlyph(icon, accent, if (large) 16 else 13)
-            Spacer(GlanceModifier.width(4.dp))
-            Text(
-                text = value?.let { "$it$suffix" } ?: "--",
-                style = TextStyle(
-                    color = PremiumWidgetPalette.Primary,
-                    fontSize = if (large) 24.sp else 20.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-        }
-        Spacer(GlanceModifier.height(2.dp))
-        Text(
-            text = label,
-            style = TextStyle(
-                color = PremiumWidgetPalette.Secondary,
-                fontSize = if (large) 10.sp else 9.sp,
+        if (large) {
+            // A 3x2 launcher cell is narrow: a three-digit score must not share a line
+            // with its icon. Place the icon/label above the value instead.
+            Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
+                WidgetGlyph(icon, accent, 14)
+                Spacer(GlanceModifier.width(3.dp))
+                Text(label, style = TextStyle(
+                    color = PremiumWidgetPalette.Secondary, fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                ))
+            }
+            Spacer(GlanceModifier.height(3.dp))
+            Text(value?.let { "$it$suffix" } ?: "--", style = TextStyle(
+                color = PremiumWidgetPalette.Primary, fontSize = 23.sp,
+                fontWeight = FontWeight.Bold,
+            ))
+        } else {
+            Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
+                WidgetGlyph(icon, accent, 12)
+                Spacer(GlanceModifier.width(3.dp))
+                Text(
+                    text = value?.let { "$it$suffix" } ?: "--",
+                    style = TextStyle(
+                        color = PremiumWidgetPalette.Primary, fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                )
+            }
+            Spacer(GlanceModifier.height(1.dp))
+            Text(label, style = TextStyle(
+                color = PremiumWidgetPalette.Secondary, fontSize = 9.sp,
                 fontWeight = FontWeight.Medium,
-            ),
-        )
+            ))
+        }
     }
 }
 

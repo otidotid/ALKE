@@ -33,6 +33,8 @@ import com.otidotid.alke.data.GoogleDriveAuthenticationException
 import com.otidotid.alke.data.GoogleDriveArchiveManager
 import com.otidotid.alke.data.CompactDailySnapshots
 import com.otidotid.alke.data.HybridHistoryPolicy
+import com.otidotid.alke.data.UnifiedHistoryReader
+import com.otidotid.alke.data.UnifiedHistoryRead
 import com.otidotid.alke.data.AutomaticHistorySecretStore
 import com.otidotid.alke.data.AutomaticHistoryStatus
 import com.otidotid.alke.data.AutomaticHybridHistoryScheduler
@@ -73,6 +75,9 @@ internal fun GoogleAccountCard() {
     }
     val snapshotsManager = remember(context) {
         CompactDailySnapshots(context.applicationContext)
+    }
+    val unifiedHistoryReader = remember(context) {
+        UnifiedHistoryReader(context.applicationContext)
     }
     val automaticHistorySecrets = remember(context) {
         AutomaticHistorySecretStore(context.applicationContext)
@@ -170,6 +175,7 @@ internal fun GoogleAccountCard() {
     }
     var archiveRecords by remember { mutableStateOf(archiveManager.archives()) }
     var archivePreview by remember { mutableStateOf<GoogleDriveArchiveManager.ArchivePreview?>(null) }
+    var localHistoryPreview by remember { mutableStateOf<UnifiedHistoryRead.Day?>(null) }
     var showArchiveBrowser by remember { mutableStateOf(false) }
     var showTechnicalDetails by remember { mutableStateOf(false) }
     var showRollingSnapshotDetails by remember { mutableStateOf(false) }
@@ -537,6 +543,50 @@ internal fun GoogleAccountCard() {
         )
     }
 
+    localHistoryPreview?.let { preview ->
+        val day = preview.daily
+        val sourceLabel = when (preview.source) {
+            UnifiedHistoryRead.Source.LOCAL_DATABASE -> "Local database · authoritative"
+            UnifiedHistoryRead.Source.CACHED_DAILY_SNAPSHOT -> "Local daily snapshot · cached"
+        }
+        AlertDialog(
+            onDismissRequest = { localHistoryPreview = null },
+            title = { Text("History | ${day.day}") },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(Metrics.space12),
+                ) {
+                    Text(sourceLabel, style = AlkeType.subhead, color = Palette.accent)
+                    Text("Daily history for ${day.deviceId}", style = AlkeType.footnote,
+                        color = Palette.textSecondary)
+                    Text("Recovery: ${day.recovery?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "—"}",
+                        style = AlkeType.body, color = Palette.textPrimary)
+                    Text("Effort: ${day.strain?.let {
+                        UnitFormatter.effortDisplay(it, UnitPrefs.effortScale(context))
+                    } ?: "—"}", style = AlkeType.body, color = Palette.textPrimary)
+                    Text("Steps: ${day.steps ?: "—"}", style = AlkeType.body,
+                        color = Palette.textPrimary)
+                    Text("Sleep: ${day.totalSleepMin?.let {
+                        String.format(java.util.Locale.US, "%.1f min", it)
+                    } ?: "—"}", style = AlkeType.body, color = Palette.textPrimary)
+                    Text("HRV: ${day.avgHrv?.let {
+                        String.format(java.util.Locale.US, "%.1f ms", it)
+                    } ?: "—"}", style = AlkeType.body, color = Palette.textPrimary)
+                    Text(
+                        if (preview.source == UnifiedHistoryRead.Source.LOCAL_DATABASE)
+                            "Read directly from the existing history; no Google Drive download was needed."
+                        else "Read from a recent presentation snapshot. Open the original ALKE modules for authoritative details.",
+                        style = AlkeType.footnote, color = Palette.textSecondary,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { localHistoryPreview = null }) { Text("Close") }
+            },
+        )
+    }
+
     archivePreview?.let { preview ->
         AlertDialog(
             onDismissRequest = { archivePreview = null },
@@ -561,7 +611,7 @@ internal fun GoogleAccountCard() {
                     preview.history.forEach { line ->
                         Text(line, style = AlkeType.footnote, color = Palette.textSecondary)
                     }
-                    Text("The temporary archive cache is removed when this preview closes.", style = AlkeType.caption, color = Palette.textTertiary)
+                    Text("Decrypted working files are removed after reading; a bounded encrypted download may be cached.", style = AlkeType.caption, color = Palette.textTertiary)
                 }
             },
             confirmButton = { TextButton(onClick = { archivePreview = null }) { Text("Close") } },
@@ -883,54 +933,65 @@ internal fun GoogleAccountCard() {
                     )
                 }
                 Text(
-                    "Cloud history is eligible from day 22 onward. " +
-                        "Days 15-21 use the rolling local snapshot window; " +
-                        "no local records are deleted.",
+                    "History opens from the local database first, then a valid daily snapshot. " +
+                        "Only a missing day aged 22+ needs a verified Google Drive archive. " +
+                        "No local records are deleted.",
                     style = AlkeType.footnote,
                     color = Palette.textSecondary,
                 )
                 OutlinedTextField(
                     value = selectedHistoryDay,
                     onValueChange = { selectedHistoryDay = it.take(10) },
-                    label = { Text("Online history day (YYYY-MM-DD)") },
+                    label = { Text("History day (YYYY-MM-DD)") },
                     singleLine = true,
                 )
                 AlkeButton(
-                    text = "Open verified online history for day",
+                    text = "Open history for day",
                     kind = AlkeButtonKind.Secondary,
                     fullWidth = true,
                     enabled = !driveBusy,
                     onClick = {
                         val day = runCatching { LocalDate.parse(selectedHistoryDay.trim()) }.getOrNull()
-                        val token = driveAccessToken
-                        when {
-                            day == null -> errorMessage = "Enter a valid day in YYYY-MM-DD format."
-                            HybridHistoryPolicy.tier(day, LocalDate.now()) !=
-                                HybridHistoryPolicy.Tier.ENCRYPTED_CLOUD_ELIGIBLE -> {
-                                errorMessage = "This date is not yet in the cloud window. " +
-                                    "Cloud history starts at day 22."
-                            }
-                            token == null -> errorMessage = "Reconnect Google Drive to read online history."
-                            else -> {
-                                val record = archiveRecords.firstOrNull { it.month == YearMonth.from(day).toString() }
-                                if (record == null) {
-                                    errorMessage = "This day has no verified cloud archive yet. " +
-                                        "Automatic archiving is pending. Check the sync status or reconnect Drive."
-                                } else if (record.encrypted) {
-                                    archiveOpenDay = day
-                                    archiveOpenMonth = YearMonth.from(day)
-                                    archiveMigrationMonth = null
-                                    archivePassphrase = ""
-                                    archivePassphraseConfirm = ""
-                                    showArchivePassphraseDialog = true
-                                } else {
-                                    driveBusy = true
-                                    scope.launch {
-                                        runCatching { archiveManager.previewDayOnline(token, day) }
-                                            .onSuccess { archivePreview = it }
-                                            .onFailure { errorMessage = "Unable to verify this historical day." }
-                                        driveBusy = false
+                        if (day == null) {
+                            errorMessage = "Enter a valid day in YYYY-MM-DD format."
+                        } else {
+                            // One entry point. Do not demand OAuth or a passphrase until
+                            // the bounded authoritative local read and snapshot both miss.
+                            driveBusy = true
+                            errorMessage = null
+                            scope.launch {
+                                try {
+                                    when (val found = unifiedHistoryReader.read(day)) {
+                                        is UnifiedHistoryRead.Day -> {
+                                            localHistoryPreview = found
+                                        }
+                                        is UnifiedHistoryRead.Unavailable -> {
+                                            errorMessage = found.reason
+                                        }
+                                        is UnifiedHistoryRead.CloudRequired -> {
+                                            val token = driveAccessToken
+                                            when {
+                                                token == null -> {
+                                                    errorMessage = "Local history is unavailable. Reconnect Google Drive to read the verified archive."
+                                                }
+                                                found.record.encrypted -> {
+                                                    archiveOpenDay = day
+                                                    archiveOpenMonth = YearMonth.from(day)
+                                                    archiveMigrationMonth = null
+                                                    archivePassphrase = ""
+                                                    archivePassphraseConfirm = ""
+                                                    showArchivePassphraseDialog = true
+                                                }
+                                                else -> {
+                                                    archivePreview = archiveManager.previewDayOnline(token, day)
+                                                }
+                                            }
+                                        }
                                     }
+                                } catch (_: Exception) {
+                                    errorMessage = "History read failed. Your local data and backups were not modified."
+                                } finally {
+                                    driveBusy = false
                                 }
                             }
                         }

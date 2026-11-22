@@ -21,9 +21,10 @@ class MetabolicReviewService(
     private val context: Context,
     private val repo: WhoopRepository,
     private val sourceId: String,
-    private val activeSource: () -> String = { sourceId },
     // Production uses wall clock; tests may pin a completed weekly Saturday.
     private val calculationNowSeconds: () -> Long = { System.currentTimeMillis() / 1_000L },
+    // Keep activeSource last: existing call sites use a trailing lambda for it.
+    private val activeSource: () -> String = { sourceId },
 ) {
     private val store = MetabolicEstimateStore(context)
     private fun profile() = ProfileStore(context.getSharedPreferences(ProfileStore.PREFS, Context.MODE_PRIVATE)).toUserProfile()

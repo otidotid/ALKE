@@ -317,6 +317,8 @@ internal class GoogleDriveArchiveManager(
         /** Read-only, bounded daily detail from the downloaded archive (not a restore). */
         val history: List<String> = emptyList(),
         val selectedDay: LocalDate? = null,
+        /** Verified encrypted weekly day-preview; not the full raw monthly archive. */
+        val partialDayPreview: Boolean = false,
     )
 
     suspend fun previewMonthOnline(
@@ -413,11 +415,78 @@ internal class GoogleDriveArchiveManager(
         day.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toEpochSecond().toString(),
     )
 
+    /**
+     * Prefer a tiny independently-encrypted, SHA-256 verified 7-day preview when
+     * its index points to the EXACT currently recorded monthly archive.
+     * Legacy/no-part/missing/corrupt sidecars always fall back to the existing
+     * full monthly reader. Neither route modifies local history.
+     */
     suspend fun previewDayOnline(
         accessToken: String, day: LocalDate, passphrase: CharArray? = null,
-    ): ArchivePreview = previewMonthOnline(
-        accessToken, YearMonth.from(day), passphrase, day,
-    )
+    ): ArchivePreview = withContext(Dispatchers.IO) {
+        val month = YearMonth.from(day)
+        val record = manifest.read().firstOrNull { it.month == month.toString() }
+        val part = record?.let { CloudDayPreviewIndex.find(it, day) }
+        if (record != null && part != null && passphrase?.isNotEmpty() == true &&
+            HybridHistoryPolicy.tier(day, LocalDate.now()) ==
+                HybridHistoryPolicy.Tier.ENCRYPTED_CLOUD_ELIGIBLE
+        ) {
+            try {
+                return@withContext readVerifiedDayPreview(accessToken, record, part, day, passphrase)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (auth: GoogleDriveAuthenticationException) {
+                throw auth
+            } catch (_: Exception) {
+                // A sidecar never becomes a required path. The independently
+                // verified monthly archive remains the recovery/legacy fallback.
+            }
+        }
+        previewMonthOnline(accessToken, month, passphrase, day)
+    }
+
+    private suspend fun readVerifiedDayPreview(
+        token: String, record: GoogleDriveArchiveRecord,
+        part: CloudDayPreviewPart, day: LocalDate, passphrase: CharArray,
+    ): ArchivePreview {
+        val work = File(appContext.cacheDir, "drive-archive-day-preview").apply { mkdirs() }
+        val encrypted = File.createTempFile("week-", ".alkeenc", work)
+        val clear = File.createTempFile("week-", ".json", work)
+        try {
+            driveClient.download(token, part.driveFileId, encrypted)
+            check(encrypted.length() == part.sizeBytes) { "Weekly preview size mismatch." }
+            check(driveClient.sha256(encrypted) == part.sha256) { "Weekly preview checksum mismatch." }
+            ArchiveEncryption.decrypt(encrypted, clear, passphrase)
+            check(clear.length() in 1..(2L * 1024L * 1024L)) { "Weekly preview too large." }
+            val doc = JSONObject(clear.readText(Charsets.UTF_8))
+            check(doc.getString("format") == "alke-weekly-day-preview-v1")
+            check(doc.getString("month") == record.month)
+            check(doc.getString("monthlySha256") == record.sha256)
+            check(doc.getString("fromDay") == part.fromDay &&
+                doc.getString("throughDay") == part.throughDay)
+            check(doc.getInt("schemaVersion") == record.schemaVersion)
+            val days = doc.getJSONObject("days")
+            var rowCount = 0
+            var cursor = LocalDate.parse(part.fromDay)
+            val end = LocalDate.parse(part.throughDay)
+            while (!cursor.isAfter(end)) {
+                val lines = days.getJSONArray(cursor.toString())
+                check(lines.length() <= 200) { "Weekly day preview row limit exceeded." }
+                rowCount += lines.length()
+                cursor = cursor.plusDays(1)
+            }
+            check(rowCount == part.previewLineCount) { "Weekly preview row count mismatch." }
+            val selected = days.getJSONArray(day.toString())
+            val history = (0 until selected.length()).map { selected.getString(it) }
+            return ArchivePreview(record, emptyMap(), record.recordCount, history, day,
+                partialDayPreview = true)
+        } finally {
+            // Both downloaded ciphertext and plaintext are private working
+            // files, not persistent raw history. Neither survives the read.
+            clear.delete()
+            encrypted.delete()
+        }
+    }
 
     fun clearTemporaryCache(month: YearMonth? = null) {
         val cache = File(appContext.cacheDir, "drive-archive-cache")
@@ -475,15 +544,118 @@ internal class GoogleDriveArchiveManager(
                 check(opened.version == schema) { "Google Drive archive schema mismatch." }
                 check(countRows(opened) == count) { "Google Drive archive record count mismatch." }
             } finally { opened.close() }
+            // Optional, small weekly preview files are independently encrypted
+            // and verified. The full monthly archive above has ALREADY passed
+            // download/decrypt/SQLite checks; failure to create any preview
+            // never invalidates that recovery archive.
+            val previews = try {
+                uploadVerifiedDayPreviews(
+                    dbCopy, month, coveredThrough, checksum, schema,
+                    token, ownerId, recoveryPassphrase,
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                emptyList()
+            }
             return GoogleDriveArchiveRecord(
                 month.toString(), remote.id, checksum, encryptedArchive.length(), count,
                 schema, System.currentTimeMillis(), encrypted = true,
                 coveredThrough = coveredThrough.toString(),
+                dayPreviewParts = previews,
             )
         } finally {
             // App-private cache only. No plaintext is retained after this manual operation.
             listOf(dbCopy, archive, encryptedArchive, verifyEncrypted, verifyArchive, verifyDb)
                 .forEach(File::delete)
+        }
+    }
+
+    /**
+     * Export the SAME bounded human-readable day lines as the historic monthly
+     * reader, but as independently encrypted weekly JSON sidecars. Unlike a
+     * SQLite history copy, these previews do NOT contain raw waveform, GPS,
+     * food notes or hidden extra tables. Full monthly originals stay intact.
+     */
+    private suspend fun uploadVerifiedDayPreviews(
+        monthlySnapshot: File,
+        month: YearMonth, coveredThrough: LocalDate,
+        monthlySha256: String, schemaVersion: Int,
+        token: String, ownerId: String, passphrase: CharArray,
+    ): List<CloudDayPreviewPart> {
+        val source = SQLiteDatabase.openDatabase(
+            monthlySnapshot.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+        try {
+            val tables = mutableSetOf<String>()
+            source.rawQuery(
+                "SELECT name FROM sqlite_master WHERE type='table' " +
+                    "AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'room_%'", null
+            ).use { cursor ->
+                while (cursor.moveToNext()) tables.add(cursor.getString(0))
+            }
+            val results = mutableListOf<CloudDayPreviewPart>()
+            val work = File(appContext.cacheDir, "drive-archive-day-preview").apply { mkdirs() }
+            for (window in CloudDayPreviewIndex.windows(month, coveredThrough)) {
+                val clear = File.createTempFile("weekly-", ".json", work)
+                val encrypted = File.createTempFile("weekly-", ".alkeenc", work)
+                val verified = File.createTempFile("weekly-", ".verify.alkeenc", work)
+                val recovered = File.createTempFile("weekly-", ".verify.json", work)
+                try {
+                    val days = JSONObject()
+                    var count = 0
+                    var day = window.from
+                    while (!day.isAfter(window.through)) {
+                        val lines = readHistoryPreview(source, tables, day)
+                        count += lines.size
+                        days.put(day.toString(), JSONArray().apply { lines.forEach(::put) })
+                        day = day.plusDays(1)
+                    }
+                    val content = JSONObject()
+                        .put("format", "alke-weekly-day-preview-v1")
+                        .put("month", month.toString())
+                        .put("fromDay", window.from.toString())
+                        .put("throughDay", window.through.toString())
+                        .put("monthlySha256", monthlySha256)
+                        .put("schemaVersion", schemaVersion)
+                        .put("days", days)
+                        .toString()
+                    check(content.toByteArray(Charsets.UTF_8).size <= 2 * 1024 * 1024) {
+                        "Weekly preview exceeded its optional size limit."
+                    }
+                    clear.writeText(content, Charsets.UTF_8)
+                    ArchiveEncryption.encrypt(clear, encrypted, passphrase)
+                    val hash = driveClient.sha256(encrypted)
+                    val remote = driveClient.uploadDayPreview(
+                        token, encrypted, ownerId, window.from.toString(),
+                        window.through.toString(), count,
+                    )
+                    check(remote.sha256 == hash) { "Weekly preview Drive metadata checksum mismatch." }
+                    driveClient.download(token, remote.id, verified)
+                    check(verified.length() == encrypted.length())
+                    check(driveClient.sha256(verified) == hash)
+                    ArchiveEncryption.decrypt(verified, recovered, passphrase)
+                    check(recovered.readBytes().contentEquals(clear.readBytes())) {
+                        "Downloaded encrypted day preview did not roundtrip."
+                    }
+                    results.add(
+                        CloudDayPreviewPart(window.from.toString(), window.through.toString(),
+                            remote.id, hash, encrypted.length(), count, monthlySha256)
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // One optional preview may be missing. The index simply
+                    // falls back to the authenticated monthly original.
+                } finally {
+                    clear.delete()
+                    encrypted.delete()
+                    verified.delete()
+                    recovered.delete()
+                }
+            }
+            return results
+        } finally {
+            source.close()
         }
     }
 

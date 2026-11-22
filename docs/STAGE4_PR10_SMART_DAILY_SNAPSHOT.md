@@ -35,3 +35,11 @@ Based on merged PR #9/v606 (approved by owner on 2026-11-22).
 - Re-reading the authoritative history still costs database IO; the
   cache improves first render responsiveness, not a benchmarked total
   CPU reduction. Never consume the cached rows as scores or backup data.
+
+## Owner-requested Effort integer presentation (same PR #10)
+Effort readouts now show whole points with NO comma or decimal point,
+both in the native 0–100 scale and WHOOP 0–21 scale. The display-only
+rounding is applied to Today, compact Me tile, Workouts, Live Workout,
+Trends, Explore and report metric rows/headlines. Stored floating-point
+values and the scoring/reporting calculations are untouched. Separate
+unit and UI source-contract tests guard against formatting regression.

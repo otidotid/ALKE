@@ -79,4 +79,41 @@ class HrWidgetReadingTest {
         assertEquals(listOf(point), result.hrSeries)
         assertEquals(86, result.heartRate)
     }
+    @Test fun independentBleMinuteBucketsFillGraphWithoutSnapshotPush() {
+        val firstBucket = (now / 1000L / 60L) * 60L - 180L
+        val direct = listOf(
+            HrPoint(firstBucket, 72),
+            HrPoint(firstBucket + 60L, 82),
+            HrPoint(firstBucket + 120L, 79),
+        )
+        val stored = WidgetSnapshot(
+            heartRate = 79,
+            heartRateAtMs = now - 2_000L,
+            connected = true,
+            hrSeries = emptyList(),
+        )
+        val result = HrWidgetReading.resolve(
+            snapshot = stored,
+            streamBpm = 81,
+            streamAtMs = now - 1_000L,
+            streamActive = true,
+            nowMs = now,
+            liveTrace = direct,
+        )
+        assertEquals(81, result.heartRate)
+        assertFalse(result.heartRateStale)
+        assertEquals(direct, result.hrSeries)
+    }
+
+    @Test fun bleTraceReplacesSnapshotPointWithinSameBucket() {
+        val bucket = (now / 1000L / 60L) * 60L - 60L
+        val result = HrWidgetReading.resolve(
+            snapshot = WidgetSnapshot(hrSeries = listOf(HrPoint(bucket, 63))),
+            streamBpm = null, streamAtMs = 0L, streamActive = false,
+            nowMs = now,
+            liveTrace = listOf(HrPoint(bucket, 82)),
+        )
+        assertEquals(listOf(HrPoint(bucket, 82)), result.hrSeries)
+    }
+
 }

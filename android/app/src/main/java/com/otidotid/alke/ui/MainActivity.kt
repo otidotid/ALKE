@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        WidgetNavigation.routeForAction(intent.action)?.let { route ->
+        WidgetNavigation.routeForAction(intent.getStringExtra(WidgetNavigation.EXTRA_WIDGET_ACTION) ?: intent.action)?.let { route ->
             widgetEntryRequest = route to (widgetEntryRequest.second + 1L)
         }
     }
@@ -84,7 +84,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        widgetEntryRequest = WidgetNavigation.routeForAction(intent?.action) to 1L
+        widgetEntryRequest = WidgetNavigation.routeForAction(intent?.getStringExtra(WidgetNavigation.EXTRA_WIDGET_ACTION) ?: intent?.action) to 1L
         WindowCompat.setDecorFitsSystemWindows(window, false)
         // NOTE: `crash` stays RAW here on purpose. acknowledge() fingerprints what it is given, and
         // pendingCrash() fingerprints the stored file — hand it redacted text and the two hashes never

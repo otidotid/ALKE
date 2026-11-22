@@ -1,5 +1,8 @@
 pluginManagement {
     repositories {
+        // KSP plugin markers are published on Maven Central. Prefer it before
+        // Google's plugin mirror to avoid transient Google Maven misses in CI.
+        mavenCentral()
         google {
             content {
                 includeGroupByRegex("com\\.android.*")
@@ -7,7 +10,6 @@ pluginManagement {
                 includeGroupByRegex("androidx.*")
             }
         }
-        mavenCentral()
         gradlePluginPortal()
     }
 }

@@ -1,0 +1,78 @@
+name: Build and validate ALKE v611 Personal unsigned APK for private signing
+
+on:
+  push:
+    branches: [alke/v611-verified-offload-parity-gates]
+    paths:
+      - .github/workflows/alke-v611-personal-unsigned.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-personal:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      ALKE_CLOUD_COACH_URL: ${{ vars.ALKE_CLOUD_COACH_URL || 'https://alke-cloud-coach.anandhito-prakoso.workers.dev' }}
+      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID || '542598370283-1gr0qq8ad4ga691k3lvrotma140hcu5r.apps.googleusercontent.com' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Verify version and no source-data deletion
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 611' android/app/build.gradle.kts
+          grep -Fq 'versionName = "1.0.0-alpha.22.21-verified-offload-safety"' android/app/build.gradle.kts
+          grep -Fq 'This v611 safety branch introduces **NO source-data deletion**' docs/STAGE7_PATCH15_VERIFIED_OFFLOAD_SAFETY.md
+
+      - name: Resolve Gradle plugins with bounded network retries
+        shell: bash
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          for attempt in 1 2 3; do
+            if ./gradlew -PstagingRelease --no-daemon help; then
+              exit 0
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "::error::Gradle plugins failed to resolve on all 3 attempts"
+              exit 1
+            fi
+            sleep 15
+          done
+
+      - name: Complete unit tests and assemble original-package Personal APK
+        shell: bash
+        working-directory: android
+        run: ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest :app:assemblePersonalDebug
+
+      - name: Validate APK package, version and ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+          test -s "$apk"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -1)"
+          "$aapt" dump badging "$apk" | head -1 | tee "$RUNNER_TEMP/v611-badging.txt"
+          grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v611-badging.txt"
+          grep -Fq "versionCode='611'" "$RUNNER_TEMP/v611-badging.txt"
+          unzip -t "$apk" >/dev/null
+          ! unzip -Z1 "$apk" | grep -Eq '(\.p12$|\.jks$|\.keystore$|\.alkebak$|local\.properties$)'
+          mkdir -p release-output
+          cp "$apk" release-output/ALKE-personal-v611-unsigned.apk
+          sha256sum release-output/ALKE-personal-v611-unsigned.apk > release-output/ALKE-personal-v611-unsigned.apk.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-Personal-v611-Unsigned
+          path: release-output/*
+          if-no-files-found: error
+          retention-days: 30

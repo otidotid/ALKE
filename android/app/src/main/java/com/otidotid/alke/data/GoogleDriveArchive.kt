@@ -245,7 +245,11 @@ internal class GoogleDriveArchiveManager(
             try {
                 check(opened.version == record.schemaVersion) { "Archive schema mismatch." }
                 check(countRows(opened) == record.recordCount) { "Archive record count mismatch." }
-                cache.listFiles()?.filterNot { it.name.startsWith(record.month) }?.forEach(File::delete)
+                // Keep only a small, authenticated ENCRYPTED download cache.
+                // A same-month read can reuse its verified blob without another Drive fetch.
+                // Cleartext SQLite is always deleted after the preview closes.
+                if (record.encrypted) blob.setLastModified(System.currentTimeMillis())
+                VerifiedArchiveCache.prune(cache)
                 opened
             } catch (failure: Throwable) {
                 opened.close()
@@ -304,7 +308,10 @@ internal class GoogleDriveArchiveManager(
                     readHistoryPreview(opened, counts.keys, selectedDay), selectedDay)
             } finally {
                 opened.close()
-                clearTemporaryCache(month)
+                // On success preserve only the checksum-verified encrypted blob.
+                // Never retain decrypted .alkearc or temporary SQLite files.
+                VerifiedArchiveCache.clearPlaintextForMonth(
+                    File(appContext.cacheDir, "drive-archive-cache"), month)
             }
         }
 

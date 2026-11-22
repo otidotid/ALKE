@@ -9,6 +9,8 @@
       ALKE server, telemetry, or network dependency is introduced by this permission.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Foreground, best-effort cloud preview prefetch must skip metered networks. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Android 12+ (API 31+) Bluetooth runtime permissions.
          neverForLocation: we do not derive physical location from BLE scans, so we

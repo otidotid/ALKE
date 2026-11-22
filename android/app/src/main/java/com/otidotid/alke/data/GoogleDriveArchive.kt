@@ -450,44 +450,74 @@ internal class GoogleDriveArchiveManager(
         part: CloudDayPreviewPart, day: LocalDate, passphrase: CharArray,
     ): ArchivePreview {
         val work = File(appContext.cacheDir, "drive-archive-day-preview").apply { mkdirs() }
-        val encrypted = File.createTempFile("week-", ".alkeenc", work)
         val clear = File.createTempFile("week-", ".json", work).apply {
             // ArchiveEncryption.decrypt refuses to overwrite an existing target.
             check(delete())
         }
         try {
-            driveClient.download(token, part.driveFileId, encrypted)
-            check(encrypted.length() == part.sizeBytes) { "Weekly preview size mismatch." }
-            check(driveClient.sha256(encrypted) == part.sha256) { "Weekly preview checksum mismatch." }
-            ArchiveEncryption.decrypt(encrypted, clear, passphrase)
-            check(clear.length() in 1..(2L * 1024L * 1024L)) { "Weekly preview too large." }
-            val doc = JSONObject(clear.readText(Charsets.UTF_8))
-            check(doc.getString("format") == "alke-weekly-day-preview-v1")
-            check(doc.getString("month") == record.month)
-            check(doc.getString("monthlySha256") == record.sha256)
-            check(doc.getString("fromDay") == part.fromDay &&
-                doc.getString("throughDay") == part.throughDay)
-            check(doc.getInt("schemaVersion") == record.schemaVersion)
-            val days = doc.getJSONObject("days")
-            var rowCount = 0
-            var cursor = LocalDate.parse(part.fromDay)
-            val end = LocalDate.parse(part.throughDay)
-            while (!cursor.isAfter(end)) {
-                val lines = days.getJSONArray(cursor.toString())
-                check(lines.length() <= 200) { "Weekly day preview row limit exceeded." }
-                rowCount += lines.length()
-                cursor = cursor.plusDays(1)
+            // Stage 6: ciphertext-only, LRU-bounded cache. Every hit is checked
+            // against THIS manifest part's SHA/length; no cached plaintext.
+            return VerifiedWeekPreviewCache(
+                File(appContext.cacheDir, "verified-week-preview-cache")
+            ).withVerified(part, { destination ->
+                driveClient.download(token, part.driveFileId, destination)
+            }) { encrypted ->
+                ArchiveEncryption.decrypt(encrypted, clear, passphrase)
+                check(clear.length() in 1..(2L * 1024L * 1024L)) { "Weekly preview too large." }
+                val doc = JSONObject(clear.readText(Charsets.UTF_8))
+                check(doc.getString("format") == "alke-weekly-day-preview-v1")
+                check(doc.getString("month") == record.month)
+                check(doc.getString("monthlySha256") == record.sha256)
+                check(doc.getString("fromDay") == part.fromDay &&
+                    doc.getString("throughDay") == part.throughDay)
+                check(doc.getInt("schemaVersion") == record.schemaVersion)
+                val days = doc.getJSONObject("days")
+                var rowCount = 0
+                var cursor = LocalDate.parse(part.fromDay)
+                val end = LocalDate.parse(part.throughDay)
+                while (!cursor.isAfter(end)) {
+                    val lines = days.getJSONArray(cursor.toString())
+                    check(lines.length() <= 200) { "Weekly day preview row limit exceeded." }
+                    rowCount += lines.length()
+                    cursor = cursor.plusDays(1)
+                }
+                check(rowCount == part.previewLineCount) { "Weekly preview row count mismatch." }
+                val selected = days.getJSONArray(day.toString())
+                val history = (0 until selected.length()).map { selected.getString(it) }
+                ArchivePreview(record, emptyMap(), record.recordCount, history, day,
+                    partialDayPreview = true)
             }
-            check(rowCount == part.previewLineCount) { "Weekly preview row count mismatch." }
-            val selected = days.getJSONArray(day.toString())
-            val history = (0 until selected.length()).map { selected.getString(it) }
-            return ArchivePreview(record, emptyMap(), record.recordCount, history, day,
-                partialDayPreview = true)
         } finally {
-            // Both downloaded ciphertext and plaintext are private working
-            // files, not persistent raw history. Neither survives the read.
+            // Decrypted JSON must not survive an authenticated preview.
             clear.delete()
-            encrypted.delete()
+        }
+    }
+
+    /**
+     * After a user explicitly opens a cloud history day, opportunistically
+     * fetch ONE adjacent week's ciphertext on the user's preferred validated
+     * Wi-Fi/cellular connection. This does not persist a token or passphrase, run a worker,
+     * or decrypt any prefetched content. Failure is non-fatal to history reads.
+     */
+    suspend fun prefetchAdjacentPreview(
+        accessToken: String, selectedDay: LocalDate,
+    ) = withContext(Dispatchers.IO) {
+        if (!CloudPreviewPrefetch.eligibleOnDevice(appContext)) return@withContext
+        val record = manifest.read().firstOrNull {
+            it.month == YearMonth.from(selectedDay).toString()
+        } ?: return@withContext
+        val neighbor = CloudPreviewPrefetch.neighbor(record, selectedDay)
+            ?: return@withContext
+        try {
+            VerifiedWeekPreviewCache(
+                File(appContext.cacheDir, "verified-week-preview-cache")
+            ).withVerified(neighbor, { destination ->
+                driveClient.download(accessToken, neighbor.driveFileId, destination)
+            }) { Unit }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Optimization only: no extra retry, prompt, or failing UI state.
         }
     }
 

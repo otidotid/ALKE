@@ -1,5 +1,6 @@
 package com.otidotid.alke.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.Composable
@@ -33,6 +35,9 @@ import com.otidotid.alke.data.GoogleDriveAuthenticationException
 import com.otidotid.alke.data.GoogleDriveArchiveManager
 import com.otidotid.alke.data.CompactDailySnapshots
 import com.otidotid.alke.data.HybridHistoryPolicy
+import com.otidotid.alke.data.PrefetchConnectionMode
+import com.otidotid.alke.data.PrefetchConnectionPreferences
+import com.otidotid.alke.data.VerifiedOnlineOnlyReadiness
 import com.otidotid.alke.data.UnifiedHistoryReader
 import com.otidotid.alke.data.UnifiedHistoryRead
 import com.otidotid.alke.data.AutomaticHistorySecretStore
@@ -78,6 +83,12 @@ internal fun GoogleAccountCard() {
     }
     val unifiedHistoryReader = remember(context) {
         UnifiedHistoryReader(context.applicationContext)
+    }
+    val prefetchConnectionPreferences = remember(context) {
+        PrefetchConnectionPreferences(context.applicationContext)
+    }
+    var prefetchConnectionMode by remember(context) {
+        mutableStateOf(prefetchConnectionPreferences.read())
     }
     val automaticHistorySecrets = remember(context) {
         AutomaticHistorySecretStore(context.applicationContext)
@@ -522,7 +533,16 @@ internal fun GoogleAccountCard() {
                                     archivePreview = if (day == null) {
                                         archiveManager.previewMonthOnline(token, month, secret)
                                     } else {
-                                        archiveManager.previewDayOnline(token, day, secret)
+                                        archiveManager.previewDayOnline(token, day, secret).also { opened ->
+                                            if (opened.partialDayPreview) {
+                                                // UI-scoped and encrypted-only. The user's saved
+                                                // connection mode decides Wi-Fi/hotspot/mobile,
+                                                // with Android power/data saver still respected.
+                                                scope.launch {
+                                                    archiveManager.prefetchAdjacentPreview(token, day)
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             } catch (failure: Exception) {
@@ -955,6 +975,45 @@ internal fun GoogleAccountCard() {
                     style = AlkeType.footnote,
                     color = Palette.textSecondary,
                 )
+                Text(
+                    "Prefetch connection",
+                    style = AlkeType.subhead, color = Palette.textPrimary,
+                )
+                Text(
+                    "Choose when ALKE may pre-download an adjacent encrypted history week. " +
+                        "Metered Wi-Fi hotspots are still Wi-Fi. Your manual history opens " +
+                        "and separate backup schedule are not restricted by this option.",
+                    style = AlkeType.footnote, color = Palette.textSecondary,
+                )
+                PrefetchConnectionMode.entries.forEach { mode ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            prefetchConnectionMode = mode
+                            prefetchConnectionPreferences.write(mode)
+                        },
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = prefetchConnectionMode == mode,
+                            onClick = null,
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                mode.label, style = AlkeType.body,
+                                color = Palette.textPrimary,
+                            )
+                            Text(
+                                mode.description, style = AlkeType.footnote,
+                                color = Palette.textSecondary,
+                            )
+                        }
+                    }
+                }
+                Text(
+                    "Optional prefetch pauses automatically with Android Battery Saver " +
+                        "or Data Saver. Your selected connection mode is saved.",
+                    style = AlkeType.footnote, color = Palette.textSecondary,
+                )
                 OutlinedTextField(
                     value = selectedHistoryDay,
                     onValueChange = { selectedHistoryDay = it.take(10) },
@@ -1066,6 +1125,25 @@ internal fun GoogleAccountCard() {
                         "Encrypted cloud history does not replace your local data or full backups.",
                     style = AlkeType.footnote,
                     color = Palette.textSecondary,
+                )
+                val offloadAssessment = remember(archiveRecords) {
+                    // PR #13 + #14: readiness only. Complete inventory, independent
+                    // restore/drill and user opt-in are intentionally NOT inferred
+                    // from a local manifest or a successful preview.
+                    VerifiedOnlineOnlyReadiness.assess(
+                        requiredMonths = emptyList(),
+                        today = LocalDate.now(),
+                        archives = archiveRecords,
+                    )
+                }
+                Text(
+                    "Online-only storage: not enabled — local raw data is preserved.",
+                    style = AlkeType.subhead, color = Palette.textSecondary,
+                )
+                Text(
+                    "Recovery verification pending: ${offloadAssessment.blockers.size} safety gates. " +
+                        "No data removal is available in this version.",
+                    style = AlkeType.footnote, color = Palette.textSecondary,
                 )
             }
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

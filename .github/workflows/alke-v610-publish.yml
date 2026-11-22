@@ -1,0 +1,112 @@
+name: Publish ALKE v610 signed Cache + Readiness review
+
+on:
+  push:
+    branches: [alke/v610-cache-offload-readiness]
+    paths:
+      - .github/workflows/alke-v610-publish.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: alke-v610-cache-offload-signed-review-release
+  cancel-in-progress: false
+
+jobs:
+  publish-v610:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v1.0.0-alpha.22.20-cache-online-readiness.610
+      SOURCE_COMMIT: 282dc0752e333acf8b5e7a15ccc38cd2857a4e5d
+      VALIDATED_RUN: '44995588442'
+      VALIDATED_SOURCE_SHA: 282dc0752e333acf8b5e7a15ccc38cd2857a4e5d
+      UNSIGNED_SHA256: 35e8f0e3b668deaee6a515ecd994ee13081f446a6d7bf16ae945465a72f5060c
+      PATCH_SHA256: 1ee39487f1eb7b0d947e0646b6b67f45edfc6a84d9148ace5c70bfbc3bbe8fd9
+      SIGNED_SHA256: a9008e090281367af887afc8493802ca16b2345981d4c1947d51ef8c98882835
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact tested source and complete Personal quality gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$SOURCE_COMMIT" HEAD
+          git diff --quiet "$SOURCE_COMMIT" HEAD -- android cloud-coach
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)" = "$VALIDATED_SOURCE_SHA"
+
+      - name: Download validated unsigned APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v610"
+          gh run download "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --name ALKE-Personal-Validated-Unsigned --dir "$RUNNER_TEMP/v610"
+          echo "$UNSIGNED_SHA256  $RUNNER_TEMP/v610/ALKE-personal-v610-unsigned.apk" | sha256sum -c -
+
+      - name: Reconstruct privately signed APK using public binary delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d release-assets/v610-signed.zlib.b64 |
+            python3 -c 'import zlib,sys; sys.stdout.buffer.write(zlib.decompress(sys.stdin.buffer.read()))' > "$RUNNER_TEMP/v610/signed.zstpatch"
+          echo "$PATCH_SHA256  $RUNNER_TEMP/v610/signed.zstpatch" | sha256sum -c -
+          zstd -q -d --patch-from="$RUNNER_TEMP/v610/ALKE-personal-v610-unsigned.apk" "$RUNNER_TEMP/v610/signed.zstpatch" -o "$RUNNER_TEMP/v610/ALKE-v610-cache-online-readiness-signed.apk"
+          echo "$SIGNED_SHA256  $RUNNER_TEMP/v610/ALKE-v610-cache-online-readiness-signed.apk" | sha256sum -c -
+          echo "$SIGNED_SHA256  ALKE-v610-cache-online-readiness-signed.apk" > "$RUNNER_TEMP/v610/ALKE-v610-cache-online-readiness-signed.apk.sha256"
+
+      - name: Verify package, version and ALKE Personal update certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="$RUNNER_TEMP/v610/ALKE-v610-cache-online-readiness-signed.apk"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          test -x "$signer" && test -x "$aapt"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" > "$RUNNER_TEMP/v610/signature.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/v610/signature.txt"
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$RUNNER_TEMP/v610/signature.txt"
+          "$aapt" dump badging "$apk" | head -1 | tee "$RUNNER_TEMP/v610/badging.txt"
+          grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v610/badging.txt"
+          grep -Fq "versionCode='610'" "$RUNNER_TEMP/v610/badging.txt"
+          mkdir -p "$RUNNER_TEMP/v610/previous"
+          gh release download v1.0.0-alpha.22.19-cloud-day-preview-index.609 --repo "$GITHUB_REPOSITORY" --pattern ALKE-v609-cloud-day-preview-index-signed.apk --dir "$RUNNER_TEMP/v610/previous"
+          "$signer" verify --min-sdk-version 26 --print-certs "$RUNNER_TEMP/v610/previous/ALKE-v609-cloud-day-preview-index-signed.apk" > "$RUNNER_TEMP/v610/v609-cert.txt"
+          old_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v610/v609-cert.txt" | head -1)"
+          new_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v610/signature.txt" | head -1)"
+          test -n "$old_cert" && test "$old_cert" = "$new_cert"
+          test "$new_cert" = "f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877"
+
+      - name: Publish GitHub signed prerelease for owner smoke testing
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/v610/RELEASE_NOTES.md" <<'NOTES'
+          # ALKE v610 — Smart Cloud Cache, Prefetch & Offload Readiness (PR #13)
+
+          Signed Personal review APK. Update directly over v609 without uninstalling or clearing data.
+
+          - Combined user-requested PR #13/#14 work in one APK: encrypted weekly history preview cache (8 weeks / 64 MiB), SHA-256 verification on every use, corruption refetch and ciphertext-only LRU eviction.
+          - Optional one-adjacent-week prefetch after manual cloud history read. User-selected connection modes in Me > Google Account > Google Drive > Prefetch connection: Off; Wi-Fi non-metered only; All Wi-Fi including metered hotspot/tethering; Wi-Fi + mobile data. Choice is persistent, default conservative.
+          - Prefetch requires validated internet and respects Android Battery Saver and Data Saver. It never stores the Drive token or decrypts a prefetched week. Existing full-month fallback remains available.
+          - Online-only offloading is NOT enabled. Full verified restore, score parity, cross-module history, health/food recovery and rollback are required before any future cleanup. NO local user data is deleted.
+          - Score algorithms, full backup and original monthly archive formats remain unchanged.
+          - Full Personal quality gate: GitHub Actions run 44995588442, source 282dc0752e333acf8b5e7a15ccc38cd2857a4e5d.
+          - APK SHA-256: a9008e090281367af887afc8493802ca16b2345981d4c1947d51ef8c98882835
+
+          Smoke test: install over v609, check existing health history, test selected prefetch network mode with Wi-Fi hotspot/mobile data and verify Google Drive history opens normally. PR #13 remains draft until owner smoke test passes.
+          NOTES
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/v610/ALKE-v610-cache-online-readiness-signed.apk" "$RUNNER_TEMP/v610/ALKE-v610-cache-online-readiness-signed.apk.sha256" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title 'ALKE Alpha 22.20 v610 — Smart Cache + Prefetch Signed Review' --notes-file "$RUNNER_TEMP/v610/RELEASE_NOTES.md" --prerelease
+          else
+            gh release create "$RELEASE_TAG" "$RUNNER_TEMP/v610/ALKE-v610-cache-online-readiness-signed.apk" "$RUNNER_TEMP/v610/ALKE-v610-cache-online-readiness-signed.apk.sha256" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_COMMIT" --title 'ALKE Alpha 22.20 v610 — Smart Cache + Prefetch Signed Review' --notes-file "$RUNNER_TEMP/v610/RELEASE_NOTES.md" --prerelease
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

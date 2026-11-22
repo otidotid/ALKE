@@ -42,6 +42,12 @@ internal class LiveHrWidgetFeed(context: Context) {
                 val fresh = if (previous == null) samples.receive()
                     else withTimeoutOrNull(HrDisplay.LIVE_MS) { samples.receive() }
                 val sample = fresh ?: previous ?: continue
+                // Persist one tiny HR trace point per minute on this IO collector.
+                // Never write prefs on the BLE notification callback thread.
+                if (fresh != null) {
+                    runCatching { LiveHrTraceStore.record(app, sample.bpm, sample.at) }
+                        .onFailure { android.util.Log.w("LiveHrWidgetFeed", "HR trace save failed", it) }
+                }
                 val now = System.currentTimeMillis()
                 val becameStale = fresh == null || now - sample.at !in 0..HrDisplay.LIVE_MS
                 // One-minute snapshots must not control the live widgets. Equal BPMs still

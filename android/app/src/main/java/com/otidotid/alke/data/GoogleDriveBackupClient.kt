@@ -106,6 +106,22 @@ internal class GoogleDriveBackupClient(
         ),
     )
 
+    /** Independently encrypted 7-day preview, not a substitute for monthly backup. */
+    suspend fun uploadDayPreview(
+        accessToken: String, encryptedFile: File, ownerId: String,
+        fromDay: String, throughDay: String, previewLineCount: Int,
+    ): RemoteBackup = uploadObject(
+        accessToken, encryptedFile, ownerId,
+        "alke-day-preview-$fromDay-to-$throughDay.alkeenc",
+        "alke_weekly_day_preview_v1",
+        mapOf(
+            "fromDay" to fromDay,
+            "throughDay" to throughDay,
+            "previewLineCount" to previewLineCount.toString(),
+            "encryption" to "ALKEENC-v1",
+        ),
+    )
+
     /** Page through the user's full recovery history, not only the most recent ten files. */
     suspend fun list(accessToken: String, ownerId: String): List<RemoteBackup> =
         withContext(Dispatchers.IO) {

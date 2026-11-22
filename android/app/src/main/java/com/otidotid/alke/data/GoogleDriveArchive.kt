@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.os.StatFs
 import android.os.Build
 import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -20,6 +21,21 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
+/**
+ * Independently encrypted 7-day bounded, read-only archive PREVIEW segment.
+ * A segment contains the exact legacy day-preview lines, not a raw-history
+ * replacement. Its parent ciphertext hash prevents stale rolling-month reuse.
+ */
+data class CloudDayPreviewPart(
+    val fromDay: String,
+    val throughDay: String,
+    val driveFileId: String,
+    val sha256: String,
+    val sizeBytes: Long,
+    val previewLineCount: Int,
+    val monthlySha256: String,
+)
+
 data class GoogleDriveArchiveRecord(
     val month: String,
     val driveFileId: String,
@@ -34,6 +50,8 @@ data class GoogleDriveArchiveRecord(
     val legacyDriveFileId: String? = null,
     /** Inclusive rolling cutoff. Null for legacy archives which cover a complete month. */
     val coveredThrough: String? = null,
+    /** Missing in old manifests; old monthly archives remain fully readable. */
+    val dayPreviewParts: List<CloudDayPreviewPart> = emptyList(),
 )
 
 internal class GoogleDriveArchiveManifest(context: Context) {
@@ -56,6 +74,25 @@ internal class GoogleDriveArchiveManifest(context: Context) {
                     encrypted = item.optBoolean("encrypted", false),
                     legacyDriveFileId = item.optString("legacyDriveFileId").takeIf { it.isNotBlank() },
                     coveredThrough = item.optString("coveredThrough").takeIf { it.isNotBlank() },
+                    dayPreviewParts = buildList {
+                        val previews = item.optJSONArray("dayPreviewParts") ?: JSONArray()
+                        for (partIndex in 0 until previews.length()) {
+                            // An optional malformed preview cannot hide a full monthly archive.
+                            val part = runCatching {
+                                val node = previews.getJSONObject(partIndex)
+                                CloudDayPreviewPart(
+                                    fromDay = node.getString("fromDay"),
+                                    throughDay = node.getString("throughDay"),
+                                    driveFileId = node.getString("driveFileId"),
+                                    sha256 = node.getString("sha256"),
+                                    sizeBytes = node.getLong("sizeBytes"),
+                                    previewLineCount = node.getInt("previewLineCount"),
+                                    monthlySha256 = node.getString("monthlySha256"),
+                                )
+                            }.getOrNull()
+                            if (part != null) add(part)
+                        }
+                    },
                 ))
             }
         }
@@ -71,7 +108,18 @@ internal class GoogleDriveArchiveManifest(context: Context) {
                 .put("verifiedAtMs", row.verifiedAtMs)
                 .put("encrypted", row.encrypted)
                 .put("legacyDriveFileId", row.legacyDriveFileId)
-                .put("coveredThrough", row.coveredThrough))
+                .put("coveredThrough", row.coveredThrough)
+                .put("dayPreviewParts", JSONArray().apply {
+                    row.dayPreviewParts.forEach { part ->
+                        put(JSONObject().put("fromDay", part.fromDay)
+                            .put("throughDay", part.throughDay)
+                            .put("driveFileId", part.driveFileId)
+                            .put("sha256", part.sha256)
+                            .put("sizeBytes", part.sizeBytes)
+                            .put("previewLineCount", part.previewLineCount)
+                            .put("monthlySha256", part.monthlySha256))
+                    }
+                }))
         }
         val temp = File(file.parentFile, "${file.name}.tmp")
         temp.writeText(array.toString(), Charsets.UTF_8)

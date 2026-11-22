@@ -78,7 +78,7 @@ jobs:
           grep -Fq 'certificate SHA-256 digest: f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877' "$RUNNER_TEMP/v612/signature.txt"
           "$aapt" dump badging "$apk" | head -1 | tee "$RUNNER_TEMP/v612/badging.txt"
           grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v612/badging.txt"
-          grep -Fq "versionCode='611'" "$RUNNER_TEMP/v612/badging.txt"
+          grep -Fq "versionCode='612'" "$RUNNER_TEMP/v612/badging.txt"
           unzip -t "$apk" >/dev/null
           mkdir -p "$RUNNER_TEMP/v612/previous"
           gh release download v1.0.0-alpha.22.21-verified-offload-safety.611 --repo "$GITHUB_REPOSITORY" --pattern ALKE-v611-patch15-personal-signed.apk --dir "$RUNNER_TEMP/v612/previous"

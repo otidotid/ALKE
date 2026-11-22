@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HrWidgetReadingTest {
-    private val now = 10_000_000L
+    private val now = 1_000_000_000L
 
     @Test fun staleGlancePreferenceCannotMaskNewerSnapshot() {
         val stored = WidgetSnapshot(

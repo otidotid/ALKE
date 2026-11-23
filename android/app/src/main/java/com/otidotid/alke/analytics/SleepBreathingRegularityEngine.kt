@@ -111,11 +111,19 @@ internal object SleepBreathingRegularityEngine {
         // de-duplicates overlapping transport copies. Its estimator rejects missing beats.
         val rrRate = arrayOfNulls<Window>(count)
         if (rr.isNotEmpty()) {
+            // One pass over RR; a per-window rr.filter scan would be O(windows × beats)
+            // on a long WHOOP 4 night and slow down the seven-night Sleep screen.
+            val rrBuckets = Array(count) { ArrayList<RrInterval>(300) }
+            for (beat in rr) {
+                if (beat.ts < startTs || beat.ts >= startTs + count * WINDOW_SECONDS) continue
+                val index = ((beat.ts - startTs) / WINDOW_SECONDS).toInt()
+                if (direct[index] == null) rrBuckets[index].add(beat)
+            }
             for (index in 0 until count) {
                 if (direct[index] != null) continue
                 val from = startTs + index * WINDOW_SECONDS
                 val until = from + WINDOW_SECONDS
-                val beatRows = rr.filter { it.ts >= from && it.ts < until }
+                val beatRows = rrBuckets[index]
                 if (beatRows.size < 120) continue // 2.5 minutes at >=48 beats/min
                 val rate = SleepStager.respRateFromRR(beatRows, from, until - 1)
                 if (rate.isFinite() && rate in 8.0..25.0) {

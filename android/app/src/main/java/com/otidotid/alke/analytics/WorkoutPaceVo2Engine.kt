@@ -11,7 +11,8 @@ import kotlin.math.abs
  *
  * The ACSM level-running oxygen cost (3.5 + 0.2 * metres/minute) is extrapolated
  * using heart-rate reserve (HRR). This is a wellness estimate, NOT a lab VO2max.
- * Only independently recorded GPS routes + plausible exercise HR qualify. A
+ * Import from Health Connect also qualifies when it supplies independent distance/HR,
+ * even without route sharing. A
  * multi-run median gently calibrates the unchanged Nes/Uth baseline.
  */
 object WorkoutPaceVo2Engine {
@@ -55,11 +56,20 @@ object WorkoutPaceVo2Engine {
         val pace = paceSecPerKm(row) ?: return null
         val speedKmh = 3600.0 / pace
         if (speedKmh !in 7.0..18.0) return null
-        val encoded = row.routePolyline?.takeIf { it.length in 24..100000 } ?: return null
-        val route = runCatching { RouteMath.decode(encoded) }.getOrNull() ?: return null
-        if (route.size < 12 || route.any { !it.lat.isFinite() || !it.lon.isFinite() || it.lat !in -90.0..90.0 || it.lon !in -180.0..180.0 }) return null
-        val routeDistance = RouteMath.totalMeters(route)
-        if (!routeDistance.isFinite() || abs(routeDistance - distance) / distance > 0.20) return null
+        // Health Connect may import a verified Zepp exercise/distance/HR record without
+        // the separately consented exercise-route polyline. Do NOT discard those runs.
+        // Never grant the same exception to manually entered distance/HR, which is not GPS proof.
+        val importedHealthConnect = row.source.equals("health-connect", ignoreCase = true) &&
+            row.deviceId.equals("health-connect", ignoreCase = true)
+        val encoded = row.routePolyline?.takeIf { it.length in 24..100000 }
+        if (encoded != null) {
+            val route = runCatching { RouteMath.decode(encoded) }.getOrNull() ?: return null
+            if (route.size < 12 ||
+                route.any { !it.lat.isFinite() || !it.lon.isFinite() ||
+                    it.lat !in -90.0..90.0 || it.lon !in -180.0..180.0 }) return null
+            val routeDistance = RouteMath.totalMeters(route)
+            if (!routeDistance.isFinite() || abs(routeDistance - distance) / distance > 0.20) return null
+        } else if (!importedHealthConnect) return null
 
         val avgHr = row.avgHr?.toDouble() ?: return null
         val peakHr = row.maxHr?.toDouble()

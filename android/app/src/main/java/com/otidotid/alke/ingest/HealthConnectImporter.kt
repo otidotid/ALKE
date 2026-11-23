@@ -602,8 +602,8 @@ object HealthConnectImporter {
             // Fill per-workout HR (#77): an ExerciseSessionRecord carries no summary HR, so avg/max
             // were stored null and every imported workout showed "–". Intersect each session's window
             // with its HeartRateRecord samples — a targeted per-session read, bounded by workout count
-            // (the day-aggregate HeartRateRecord pass above streams the full range and must not be
-            // buffered). readAll swallows a per-session failure, so one bad session can't fail the
+            // and avoids reading a broad day-wide HR feed. readAll swallows a per-session failure,
+            // so one bad session cannot fail the
             // import. ≥60 samples (~1 min) required so a few strays can't fabricate an average.
             for (i in workouts.indices) {
                 val w = workouts[i]
@@ -885,7 +885,18 @@ object HealthConnectImporter {
                 repo.upsertSleepSessions(sleepRows)
             }
             if (workouts.isNotEmpty()) {
-                acceptedWorkouts = repo.saveCandidateWorkoutsNoOverlap(workouts)
+                // Re-import after granting workout-HR permission must enrich existing HC
+                // sessions rather than rejecting their exact interval as an overlap.
+                // Preserve every already-populated original field and other providers'
+                // records; never delete or replace workouts due to a partial import.
+                val prior = repo.workouts(
+                    HC_DEVICE, start.epochSecond, end.epochSecond, limit = 3000,
+                )
+                val (newWorkouts, enrichments) =
+                    HealthConnectWorkoutEnrichment.split(workouts, prior)
+                val added = repo.saveCandidateWorkoutsNoOverlap(newWorkouts)
+                repo.persistWorkoutBackfills(enrichments)
+                acceptedWorkouts = added + enrichments
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e

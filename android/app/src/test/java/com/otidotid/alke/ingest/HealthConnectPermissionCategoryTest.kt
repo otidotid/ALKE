@@ -67,7 +67,7 @@ class HealthConnectPermissionCategoryTest {
         assertTrue(HealthPermission.getReadPermission(StepsRecord::class) in permissions)
         assertTrue(HealthPermission.getReadPermission(ExerciseSessionRecord::class) in permissions)
         assertTrue(HealthPermission.getReadPermission(DistanceRecord::class) in permissions)
-        assertFalse(HealthPermission.getReadPermission(HeartRateRecord::class) in permissions)
+        assertTrue(HealthPermission.getReadPermission(HeartRateRecord::class) in permissions)
         assertFalse(HealthPermission.getReadPermission(WeightRecord::class) in permissions)
     }
 

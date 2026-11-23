@@ -433,6 +433,7 @@ fun TodayScreen(
             )
         }
     }
+    val hypopneaReadContext = LocalContext.current
     // v617: completed-night CVHR screening. Only changed days / sync transitions
     // trigger a database scan; per-second live HR is not a dependency.
     var todayHypopnea by remember { mutableStateOf(
@@ -449,7 +450,7 @@ fun TodayScreen(
                 com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
             )
         } else try {
-            SleepHypopneaData.latest(viewModel.repo, viewModel.activeStrapId)
+            SleepHypopneaData.latest(hypopneaReadContext, viewModel.repo, viewModel.activeStrapId)
         } catch (cancel: kotlinx.coroutines.CancellationException) {
             throw cancel
         } catch (_: Exception) {

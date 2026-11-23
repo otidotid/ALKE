@@ -2,7 +2,7 @@ name: ALKE v618 - Hypopnea Risk Review APK
 
 on:
   push:
-    branches: [alke/v618-sleep-hypopnea-risk]
+    branches: [alke/v618-hypopnea-pinned-today]
   pull_request:
     branches: [alke/v617-sleep-hypopnea-risk]
   workflow_dispatch:

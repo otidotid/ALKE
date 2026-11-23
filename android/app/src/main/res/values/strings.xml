@@ -2876,4 +2876,17 @@
     <string name="l10n_settings_screen_use_weight_from_health_connect_detail_40238f8a">After every sync, your profile weight takes the newest Health Connect reading. Turn off to set it by hand.</string>
     <string name="l10n_sleep_screen_move_relative_to_tonight_fd71d87b">Move, relative to tonight</string>
     <string name="today_card_total_calories_subtitle">Total calories</string>
+    <!-- ALKE v617: post-sleep pulse-pattern screening; deliberately not an AHI diagnosis. -->
+    <string name="sleep_hypopnea_title">SLEEP BREATHING QUALITY</string>
+    <string name="sleep_hypopnea_risk_title">HYPOPNEA RISK</string>
+    <string name="sleep_hypopnea_low">LOW</string>
+    <string name="sleep_hypopnea_medium">MEDIUM</string>
+    <string name="sleep_hypopnea_high">HIGH</string>
+    <string name="sleep_hypopnea_waiting">PENDING</string>
+    <string name="sleep_hypopnea_unavailable">UNAVAILABLE</string>
+    <string name="sleep_hypopnea_waiting_hint">Available after sleep ends and the session finishes syncing.</string>
+    <string name="sleep_hypopnea_unavailable_hint">Not enough usable overnight pulse data for a reliable screening estimate.</string>
+    <string name="sleep_hypopnea_method">Risk estimated using cyclic heart-rate variation (CVHR) pattern screening inspired by Hayano/ACAT. The sensor-derived method is exploratory and has not been clinically validated for ALKE. Wearable movement can suppress artifacts; raw respiration is not treated as a calibrated airflow measurement.</string>
+    <string name="sleep_hypopnea_disclaimer">ALKE is not a medical device. This estimate is not a diagnosis of hypopnea or sleep apnea. For medical concerns, consult a qualified healthcare professional.</string>
+    <string name="sleep_hypopnea_low_caution">A LOW pattern estimate does not rule out sleep apnea or other breathing disorders.</string>
 </resources>

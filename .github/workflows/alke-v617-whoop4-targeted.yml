@@ -7,6 +7,9 @@ on:
       - android/app/src/main/java/com/otidotid/alke/analytics/SleepBreathingRegularityEngine.kt
       - android/app/src/main/java/com/otidotid/alke/ui/SleepBreathingQualityCard.kt
       - android/app/src/main/java/com/otidotid/alke/ui/SleepScreen.kt
+      - android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt
+      - android/app/src/main/java/com/otidotid/alke/ui/AppRoot.kt
+      - android/app/src/test/java/com/otidotid/alke/ui/AlkeHypopneaShortcutNavigationTest.kt
       - android/app/src/main/java/com/otidotid/alke/data/WhoopRepository.kt
       - android/app/src/test/java/com/otidotid/alke/analytics/SleepBreathingRegularityEngineTest.kt
       - .github/workflows/alke-v617-whoop4-targeted.yml
@@ -52,7 +55,8 @@ jobs:
             --tests 'com.otidotid.alke.analytics.RespRateRsaTest' \
             --tests 'com.otidotid.alke.analytics.SleepStagerRespEvidenceTest' \
             --tests 'com.otidotid.alke.ui.SleepLayoutPrefsTest' \
-            --tests 'com.otidotid.alke.ui.SleepSectionReorderTest'
+            --tests 'com.otidotid.alke.ui.SleepSectionReorderTest' \
+            --tests 'com.otidotid.alke.ui.AlkeHypopneaShortcutNavigationTest'
           ./gradlew -PstagingRelease --no-daemon :app:assemblePersonalDebug
       - name: Validate Personal signing base
         shell: bash

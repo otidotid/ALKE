@@ -2862,12 +2862,11 @@ object IntelligenceEngine {
             java.time.LocalDate.parse(saturdayKey).plusDays(1)
                 .atStartOfDay(java.time.ZoneId.systemDefault()).toEpochSecond()
         }.getOrNull() ?: return rows to false
-        val sessions = repo.workoutsUnion(
-            importedDeviceId,
-            dayEnd - WorkoutPaceVo2Engine.LOOKBACK_DAYS * 86400L,
-            dayEnd,
-            limit = 200,
-        )
+        val historyFrom = dayEnd - WorkoutPaceVo2Engine.LOOKBACK_DAYS * 86400L
+        // Zepp -> Health Connect imported sessions are stored under "health-connect",
+        // not the WHOOP union. Both sources are read, without any cloud round-trip.
+        val sessions = repo.workoutsUnion(importedDeviceId, historyFrom, dayEnd, limit = 200) +
+            repo.workouts("health-connect", historyFrom, dayEnd, limit = 200)
         val estimate = WorkoutPaceVo2Engine.estimate(
             workouts = sessions,
             baseline = original.value,

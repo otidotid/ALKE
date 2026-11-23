@@ -77,16 +77,24 @@ internal fun SleepHypopneaCard(
                         color = Palette.textSecondary,
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (assessment.isReady) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(R.string.sleep_hypopnea_risk_title),
+                            style = if (compact) AlkeType.subhead else AlkeType.headline,
+                            color = Palette.textPrimary,
+                        )
+                        Text(
+                            riskLabel(risk),
+                            style = if (compact) AlkeType.headline else AlkeType.title2,
+                            color = accent,
+                        )
+                    }
+                } else if (compact) {
                     Text(
-                        stringResource(R.string.sleep_hypopnea_risk_title),
-                        style = if (compact) AlkeType.subhead else AlkeType.headline,
-                        color = Palette.textPrimary,
-                    )
-                    Text(
-                        riskLabel(risk),
-                        style = if (compact) AlkeType.headline else AlkeType.title2,
-                        color = accent,
+                        stringResource(R.string.sleep_hypopnea_title),
+                        style = AlkeType.subhead,
+                        color = Palette.textSecondary,
                     )
                 }
                 if (!compact && !assessment.isReady) {
@@ -119,9 +127,13 @@ internal fun SleepHypopneaDetailContent(assessment: SleepHypopneaRiskEngine.Asse
             style = AlkeType.overline,
             color = Palette.restColor,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.sleep_hypopnea_risk_title), style = AlkeType.headline, color = Palette.textPrimary)
-            Text(riskLabel(assessment.risk), style = AlkeType.title1, color = riskColor(assessment.risk))
+        // Never show "HYPOPNEA RISK PENDING" as though it were a measurement.
+        // The verdict is displayed only when a completed night has real coverage.
+        if (assessment.isReady) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.sleep_hypopnea_risk_title), style = AlkeType.headline, color = Palette.textPrimary)
+                Text(riskLabel(assessment.risk), style = AlkeType.title1, color = riskColor(assessment.risk))
+            }
         }
         if (!assessment.isReady) {
             Text(

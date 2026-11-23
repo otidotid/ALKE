@@ -685,6 +685,9 @@ fun AppRoot(
     // Only the Coach route gets this adjustment; every other screen keeps its existing layout.
     val coachKeyboardVisible = currentRoute == Destination.Coach.route && WindowInsets.isImeVisible
     var showQuickActions by remember { mutableStateOf(false) }
+    // Internal one-shot Today -> exact Sleep Breathing section, not an external deep link.
+    // Consumed after the destination scrolls, preserving normal Sleep tab launches.
+    var sleepBreathingJumpRequested by remember { mutableStateOf(false) }
     // The Updates inbox sheet (opened by the Today header bell). The store is a process singleton so
     // the Today cards and the import path post to the same inbox this sheet renders.
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -829,6 +832,10 @@ fun AppRoot(
                         onMetric = { key -> nav.navigate("vital_detail/$key") },
                         onSteps = { nav.navigate("vital_detail/steps_est") },
                         onHeartRateTimeline = { nav.navigate(Destination.AlkeHeartRateTimeline.route) },
+                        onSleepBreathing = {
+                            sleepBreathingJumpRequested = true
+                            nav.navigate(Destination.Sleep.route) { launchSingleTop = true }
+                        },
                     )
                 }
                 composable(Destination.AlkeHeartRateTimeline.route) {
@@ -906,6 +913,8 @@ fun AppRoot(
                         vm = viewModel,
                         onOpenJournal = { nav.navigateTopLevel(Destination.Intelligence.route) },
                         onOpenAlarms = { nav.navigate(Destination.SmartAlarm.route) },
+                        focusBreathingSection = sleepBreathingJumpRequested,
+                        onBreathingFocusConsumed = { sleepBreathingJumpRequested = false },
                     )
                 }
                 composable(Destination.CoupledView.route) {

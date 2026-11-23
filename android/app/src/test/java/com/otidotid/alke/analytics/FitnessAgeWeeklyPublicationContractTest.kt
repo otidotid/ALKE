@@ -163,7 +163,7 @@ class FitnessAgeWeeklyPublicationContractTest {
 
         assertTrue(
             source.contains(
-                "if (rows.isNotEmpty() && newestDay == weeklyDay)"
+                "if (originalRows.isNotEmpty() && newestDay == weeklyDay)"
             )
         )
     }

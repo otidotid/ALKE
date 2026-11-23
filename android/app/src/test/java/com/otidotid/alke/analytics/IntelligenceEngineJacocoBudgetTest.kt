@@ -91,7 +91,7 @@ class IntelligenceEngineJacocoBudgetTest {
             // diagnostics are identifiable only because they pass a call rather than a literal.
             "fitness diagnostic" to Regex("""\bdiag\s*\((?!\s*(?:StepsMotionCache|AnalysisPhaseTally)\b)"""),
             "Fitness upsert" to Regex(
-                """\brepo\s*\.\s*upsertMetricSeriesWithProvenance\s*\(\s*rows\s*=\s*faPts\b""",
+                """\brepo\s*\.\s*upsertMetricSeriesWithProvenance\s*\(\s*rows\s*=\s*publishedRows\b""",
             ),
             "Vitality compute" to Regex("""\bvitalityRows\s*\(\s*fa7\b"""),
             "Vitality upsert" to Regex("""\brepo\s*\.\s*upsertMetricSeriesWithProvenance\s*\(\s*currentVitalityRows\b"""),

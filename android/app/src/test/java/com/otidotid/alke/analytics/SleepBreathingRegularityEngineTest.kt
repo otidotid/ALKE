@@ -88,6 +88,60 @@ class SleepBreathingRegularityEngineTest {
         assertFalse(result.hasEvidence)
     }
 
+    @Test fun directWhoop4RespirationHasHighTrustWithoutApproximation() {
+        val result = SleepBreathingRegularityEngine.assess(
+            start, start + nightSeconds, 290.0, recording(),
+        )
+        assertEquals(SleepBreathingRegularityEngine.Trust.HIGH, result.trust)
+        assertEquals(SleepBreathingRegularityEngine.Source.DIRECT_RESPIRATION, result.source)
+        assertFalse(result.approximate)
+        assertEquals(SleepBreathingRegularityEngine.Pattern.LOW_VARIATION, result.pattern)
+    }
+
+    @Test fun partialDirectSamplesStillGiveApproximateNumberInsteadOfBlank() {
+        val result = SleepBreathingRegularityEngine.assess(
+            start, start + nightSeconds, 290.0,
+            recording(keepMinute = { it < 45 }),
+        )
+        assertTrue(result.hasEvidence)
+        assertTrue(result.approximate)
+        assertEquals(SleepBreathingRegularityEngine.Trust.LOW, result.trust)
+        assertEquals(SleepBreathingRegularityEngine.State.INSUFFICIENT_DATA, result.state)
+        assertEquals(15.0, result.medianBpm!!, 0.1)
+    }
+
+    @Test fun dailyRespiratoryRateYieldsApproximateLowTrustFallback() {
+        val result = SleepBreathingRegularityEngine.assess(
+            start, start + nightSeconds, 290.0, emptyList(),
+            dailyRateBpm = 15.3,
+        )
+        assertEquals(SleepBreathingRegularityEngine.Trust.LOW, result.trust)
+        assertEquals(SleepBreathingRegularityEngine.Source.DAILY_AGGREGATE, result.source)
+        assertTrue(result.approximate)
+        assertTrue(result.hasEvidence)
+        assertEquals(15.3, result.medianBpm!!, 0.001)
+        assertEquals(SleepBreathingRegularityEngine.Pattern.NOT_ASSESSABLE, result.pattern)
+    }
+
+    @Test fun missingOrImplausibleDailyRateIsNotInvented() {
+        val result = SleepBreathingRegularityEngine.assess(
+            start, start + nightSeconds, 290.0, emptyList(),
+            dailyRateBpm = 75.0,
+        )
+        assertFalse(result.hasEvidence)
+        assertEquals(SleepBreathingRegularityEngine.Source.NONE, result.source)
+    }
+
+    @Test fun activityAndHeartRateCoverageAloneNeverBecomeHypopneaRisk() {
+        val result = SleepBreathingRegularityEngine.assess(
+            start, start + nightSeconds, 290.0, emptyList(),
+            hrCoveragePercent = 100, movementCoveragePercent = 100,
+        )
+        assertFalse(result.hasEvidence)
+        assertEquals(SleepBreathingRegularityEngine.Pattern.NOT_ASSESSABLE, result.pattern)
+        assertEquals(SleepBreathingRegularityEngine.Trust.NONE, result.trust)
+    }
+
     @Test fun invertedOrOversizedWindowsFailClosed() {
         assertEquals(
             SleepBreathingRegularityEngine.State.INSUFFICIENT_DATA,

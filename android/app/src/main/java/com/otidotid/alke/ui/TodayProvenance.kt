@@ -82,6 +82,7 @@ internal fun provenanceDisplayLabel(
 internal fun vo2MaxAttributionLabelRes(estimator: Vo2MaxEstimator?): Int = when (estimator) {
     Vo2MaxEstimator.NES -> R.string.vo2max_method_nes
     Vo2MaxEstimator.UTH -> R.string.vo2max_method_uth
+    Vo2MaxEstimator.PACE -> R.string.vo2max_method_pace
     null -> R.string.vo2max_method_unknown
 }
 

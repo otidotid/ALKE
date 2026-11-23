@@ -829,6 +829,10 @@ fun AppRoot(
                         onMetric = { key -> nav.navigate("vital_detail/$key") },
                         onSteps = { nav.navigate("vital_detail/steps_est") },
                         onHeartRateTimeline = { nav.navigate(Destination.AlkeHeartRateTimeline.route) },
+                        onHypopneaDetail = {
+                            SleepHypopneaNavigation.requestDetail()
+                            nav.navigate(Destination.Sleep.route)
+                        },
                     )
                 }
                 composable(Destination.AlkeHeartRateTimeline.route) {

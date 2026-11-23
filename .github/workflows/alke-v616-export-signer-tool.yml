@@ -1,0 +1,29 @@
+name: ALKE v616 - Export Official Android APK Signing Tool
+on:
+  push:
+    branches: [alke/v616-vo2-pace-v2]
+    paths: [.github/workflows/alke-v616-export-signer-tool.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package-apksigner:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Select installed official Android Build Tools signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar="$(find "$ANDROID_HOME/build-tools" -path '*/lib/apksigner.jar' -type f | sort -V | tail -1)"
+          test -s "$jar"
+          java -jar "$jar" --version
+          mkdir -p signer-export
+          cp "$jar" signer-export/apksigner.jar
+          sha256sum signer-export/apksigner.jar > signer-export/apksigner.jar.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-apksigner-jar-v616
+          path: signer-export/*
+          if-no-files-found: error
+          retention-days: 7

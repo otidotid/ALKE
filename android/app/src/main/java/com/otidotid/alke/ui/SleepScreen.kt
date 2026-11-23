@@ -605,18 +605,15 @@ fun SleepScreen(
         model ?: fallbackSleepModel(days, imported, napSleepMinByDay, sessions = sleeps)
     }
 
-    // v618: a completed wake-day's LOW/MEDIUM/HIGH verdict is pinned. Never
-    // overwrite it with PENDING while BLE history offloads again in daytime.
-    // A DIFFERENT selected wake-day gets its own fresh cache/result.
-    var hypopneaAssessment by remember(vm.activeStrapId, night?.heroWakeTs, night?.session?.endTs) {
-        mutableStateOf(
-            (night?.heroWakeTs ?: night?.session?.endTs)?.let {
-                SleepHypopneaData.cached(context, vm.activeStrapId, it)
-            } ?: com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
-            )
-        )
-    }
+    // v618: pin each completed morning's verdict across daytime sync/reloads.
+    // Keep the last displayed result even while the sleep-session list briefly
+    // empties during offload. Only a REAL selected wake-day change resets it.
+    var hypopneaAssessment by remember(vm.activeStrapId) { mutableStateOf(
+        com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+        ),
+    ) }
+    var hypopneaWakeTs by remember(vm.activeStrapId) { mutableStateOf<Long?>(null) }
     var showHypopneaDetail by remember { mutableStateOf(false) }
     LaunchedEffect(
         days, vm.activeStrapId, night?.session?.startTs, night?.session?.endTs,
@@ -625,16 +622,28 @@ fun SleepScreen(
     ) {
         val selected = night
         val wake = selected?.heroWakeTs ?: selected?.session?.endTs
+        if (wake != null && hypopneaWakeTs != wake) {
+            hypopneaWakeTs = wake
+            // This is a new navigated night, not an intermediate sync state.
+            hypopneaAssessment = SleepHypopneaData.cached(context, vm.activeStrapId, wake)
+                ?: com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+                )
+        }
         val saved = wake?.let { SleepHypopneaData.cached(context, vm.activeStrapId, it) }
         when {
             saved != null -> hypopneaAssessment = saved
-            // Only WAIT for an unassessed night. A scored night cannot flip to
-            // PENDING because a new sync or a background analysis has started.
+            // Sleep rows may temporarily disappear during a sync. Never flash
+            // LOW -> PENDING -> LOW because of that transient reload.
+            selected == null && !sleepRowsReady -> Unit
+            selected == null -> {
+                if (!hypopneaAssessment.isReady) {
+                    hypopneaAssessment = com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                        com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
+                    )
+                }
+            }
             !sleepRowsReady || freshnessLive.backfilling || freshnessLive.analyzing -> Unit
-            selected == null -> hypopneaAssessment =
-                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
-                )
             else -> {
                 val result = try {
                     SleepHypopneaData.forWindow(
@@ -649,9 +658,7 @@ fun SleepScreen(
                         com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
                     )
                 }
-                if (result.isReady || !hypopneaAssessment.isReady) {
-                    hypopneaAssessment = result
-                }
+                if (result.isReady || !hypopneaAssessment.isReady) hypopneaAssessment = result
             }
         }
     }

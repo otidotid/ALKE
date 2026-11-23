@@ -61,6 +61,16 @@ jobs:
             --tests 'com.otidotid.alke.analytics.StepsFusionProductionTest' \
             --tests 'com.otidotid.alke.analytics.StepsEstimateEngineTest' \
             --tests 'com.otidotid.alke.analytics.StepsCounterTest'
+      - name: Save rendered HR widget previews for visual regression review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-HR-Widget-Visual-Previews
+          path: |
+            android/app/build/hr-widget-previews/*.png
+            android/build/hr-widget-previews/*.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Assemble Personal Debug
         working-directory: android
         run: ./gradlew -PstagingRelease --no-daemon :app:assemblePersonalDebug

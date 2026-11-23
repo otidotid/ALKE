@@ -1,0 +1,123 @@
+name: Publish ALKE v615 original Personal signed HR Widget Canvas
+
+on:
+  push:
+    branches: [alke/v615-hr-widget-canvas-rebuild]
+    paths:
+      - .github/workflows/alke-v615-personal-publish.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: alke-v615-original-personal-signed-release
+  cancel-in-progress: false
+
+jobs:
+  publish-v615:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v1.0.0-alpha.22.25-hr-widget-canvas.615
+      SOURCE_COMMIT: 5a8ef5ca0f83ecf594d0e2feddc27ad599e7de46
+      VALIDATED_RUN: '45022347605'
+      VALIDATED_SOURCE_SHA: 5a8ef5ca0f83ecf594d0e2feddc27ad599e7de46
+      UNSIGNED_SHA256: 85816cc14847f983581116e791f4f95b1d2a3ab554c34d8b6c0d0e7369bfc2c2
+      PATCH_SHA256: e785f19d646097231634e11c8eb2b57f0a0747952ec4561d95552e32ce9a27d2
+      SIGNED_SHA256: 57ee41062a9bc303ffd648a0e532203a08d51d2eb74c7f57f6d49d708cddd499
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact tested source and full Personal quality gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$SOURCE_COMMIT" HEAD
+          git diff --quiet "$SOURCE_COMMIT" HEAD -- android cloud-coach
+          grep -Fq 'versionCode = 615' android/app/build.gradle.kts
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+          test "$(gh run view "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)" = "$VALIDATED_SOURCE_SHA"
+
+      - name: Download precisely validated v615 Personal APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v615"
+          gh run download "$VALIDATED_RUN" --repo "$GITHUB_REPOSITORY" --name ALKE-Personal-Validated-Unsigned --dir "$RUNNER_TEMP/v615"
+          echo "$UNSIGNED_SHA256  $RUNNER_TEMP/v615/ALKE-personal-v615-unsigned.apk" | sha256sum -c -
+
+      - name: Reconstruct privately signed APK without ever hosting the keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat release-assets/v615-signed-part-{01..06}.b64 | base64 -d |
+            python3 -c 'import zlib,sys;sys.stdout.buffer.write(zlib.decompress(sys.stdin.buffer.read()))' > "$RUNNER_TEMP/v615/signed.zstpatch"
+          echo "$PATCH_SHA256  $RUNNER_TEMP/v615/signed.zstpatch" | sha256sum -c -
+          zstd -q -d --patch-from="$RUNNER_TEMP/v615/ALKE-personal-v615-unsigned.apk" "$RUNNER_TEMP/v615/signed.zstpatch" -o "$RUNNER_TEMP/v615/ALKE-v615-hr-widget-canvas-personal-signed.apk"
+          echo "$SIGNED_SHA256  $RUNNER_TEMP/v615/ALKE-v615-hr-widget-canvas-personal-signed.apk" | sha256sum -c -
+          echo "$SIGNED_SHA256  ALKE-v615-hr-widget-canvas-personal-signed.apk" > "$RUNNER_TEMP/v615/ALKE-v615-hr-widget-canvas-personal-signed.apk.sha256"
+
+      - name: Validate original v614 compatible signer, app package and build number
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="$RUNNER_TEMP/v615/ALKE-v615-hr-widget-canvas-personal-signed.apk"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -1)"
+          test -x "$signer" && test -x "$aapt"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" > "$RUNNER_TEMP/v615/signature.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/v615/signature.txt"
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$RUNNER_TEMP/v615/signature.txt"
+          grep -Fq 'certificate SHA-256 digest: f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877' "$RUNNER_TEMP/v615/signature.txt"
+          "$aapt" dump badging "$apk" | head -1 | tee "$RUNNER_TEMP/v615/badging.txt"
+          grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v615/badging.txt"
+          grep -Fq "versionCode='615'" "$RUNNER_TEMP/v615/badging.txt"
+          unzip -t "$apk" >/dev/null
+          mkdir -p "$RUNNER_TEMP/v615/previous"
+          gh release download v1.0.0-alpha.22.24-hr-widget-recovery.614 --repo "$GITHUB_REPOSITORY" --pattern ALKE-v614-hr-widget-recovery-personal-signed.apk --dir "$RUNNER_TEMP/v615/previous"
+          "$signer" verify --min-sdk-version 26 --print-certs "$RUNNER_TEMP/v615/previous/ALKE-v614-hr-widget-recovery-personal-signed.apk" > "$RUNNER_TEMP/v615/previous-cert.txt"
+          previous_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v615/previous-cert.txt" | head -1)"
+          new_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v615/signature.txt" | head -1)"
+          test -n "$previous_cert" && test "$new_cert" = "$previous_cert"
+
+      - name: Publish signed ALKE v615 GitHub prerelease for owner review
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/v615/RELEASE_NOTES.md" <<'NOTES'
+          # ALKE v615 — Stable Heart Rate Widget (Personal signed)
+          
+          **Signed with ALKE's existing Personal update certificate, compatible with v614.**
+          Update directly over v614. DO NOT uninstall, clear data or reset storage.
+          
+          - Rebuild the dedicated 4x2 Heart Rate widget as one bounded RGB_565 bitmap, with
+            explicit positions for BPM, status, a single freshness label, and the HR trace.
+            This removes the overlapping Last Recorded text and clipped/blank weighted layouts.
+          - Rendered Android test previews verified for LIVE, stale and missing-HR states;
+            additional geometry tests cover 4x2, narrow and shorter launchers.
+          - Maintain a durable three-hour HR trace from BLE itself (one minute bucket),
+            independently of the existing 60-second daily snapshot refresh throttle.
+          - Keep direct tap to Heart Rate Timeline.
+          - Preserve both v613 Compact 2x2 and Daily 3x2 widgets, app data and algorithms.
+          - No changes to sync, BLE protocols, cloud, backup or workout scoring.
+          - Live HR still requires an active BLE stream and permitted foreground background service;
+            when offline, show the last recorded value rather than claim a live pulse.
+          - Device launcher smoke testing is still needed after installation.
+          
+          Full Personal CI success: 45022347605, source SHA 5a8ef5ca0f83ecf594d0e2feddc27ad599e7de46.
+          Signed APK SHA-256: 57ee41062a9bc303ffd648a0e532203a08d51d2eb74c7f57f6d49d708cddd499.
+          NOTES
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/v615/ALKE-v615-hr-widget-canvas-personal-signed.apk" "$RUNNER_TEMP/v615/ALKE-v615-hr-widget-canvas-personal-signed.apk.sha256" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "ALKE Alpha 22.25 v615 — Stable HR Widget Canvas (Personal Signed)" --notes-file "$RUNNER_TEMP/v615/RELEASE_NOTES.md" --prerelease
+          else
+            gh release create "$RELEASE_TAG" "$RUNNER_TEMP/v615/ALKE-v615-hr-widget-canvas-personal-signed.apk" "$RUNNER_TEMP/v615/ALKE-v615-hr-widget-canvas-personal-signed.apk.sha256" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_COMMIT" --title "ALKE Alpha 22.25 v615 — Stable HR Widget Canvas (Personal Signed)" --notes-file "$RUNNER_TEMP/v615/RELEASE_NOTES.md" --prerelease
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

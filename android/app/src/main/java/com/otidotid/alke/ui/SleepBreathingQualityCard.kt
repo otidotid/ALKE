@@ -19,94 +19,123 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.otidotid.alke.analytics.SleepBreathingRegularityEngine
+import com.otidotid.alke.analytics.SleepBreathingRegularityEngine as Breathing
 import java.util.Locale
 
 /**
- * Experimental, non-diagnostic Sleep section. Never shows hypopnea counts, apnea risk,
- * desaturation events or a numerical health "quality" score.
+ * Simple WHOOP 4 sleep breathing display:
+ * NUMBER (≈ when inferred) / DATA TRUST / descriptive pattern indicator.
+ *
+ * AASSM hypopnea/AHI require validated airflow and desaturation/arousal evidence;
+ * we do not invent risk categories for hypopnea from wrist RR or ADC.
  */
 @Composable
 internal fun SleepBreathingQualityCard(
     selectedDay: String?,
-    report: SleepBreathingRegularityEngine.Report?,
-    recent: List<Pair<String, SleepBreathingRegularityEngine.Report?>>,
+    report: Breathing.Report?,
+    recent: List<Pair<String, Breathing.Report?>>,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val status = when (report?.state) {
-        SleepBreathingRegularityEngine.State.RELATIVELY_STEADY -> "Relatively steady"
-        SleepBreathingRegularityEngine.State.MORE_VARIABLE -> "More variable"
-        SleepBreathingRegularityEngine.State.INSUFFICIENT_DATA -> "Insufficient data"
-        null -> if (selectedDay == null) "No recorded sleep" else "Checking signal..."
-    }
-    val explanation = when (report?.reason) {
-        SleepBreathingRegularityEngine.Reason.SLEEP_TOO_SHORT ->
-            "At least 4 hours of recorded sleep are required."
-        SleepBreathingRegularityEngine.Reason.NO_DIRECT_RESPIRATION ->
-            "No directly recorded respiration samples for this night. Some WHOOP models do not provide this stream."
-        SleepBreathingRegularityEngine.Reason.LOW_COVERAGE ->
-            "Too few usable 5-minute breathing windows; missing data is not interpreted as regular breathing."
-        SleepBreathingRegularityEngine.Reason.UNUSABLE_SIGNAL ->
-            "The recorded respiration signal could not pass signal-quality checks."
-        else -> ""
-    }
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        SectionHeader("Sleep breathing regularity", overline = "Experimental", trailing = "Wellness only")
+        SectionHeader("Sleep breathing quality", overline = "WHOOP 4 · Wellness", trailing = "Experimental")
         AlkeCard(tint = Palette.metricPurple) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(status, style = AlkeType.headline, color = Palette.textPrimary)
-                if (report?.hasEvidence == true) {
-                    Text(
-                        "Median ${String.format(Locale.US, "%.1f", report.medianBpm)} breaths/min  ·  " +
-                            "Recorded coverage ${report.coveragePercent}%",
-                        style = AlkeType.footnote, color = Palette.textSecondary,
-                    )
-                    Text(
-                        "Within-night variability ${String.format(Locale.US, "%.1f", report.variabilityPercent)}% " +
-                            "(experimental, not a medical threshold)",
-                        style = AlkeType.footnote, color = Palette.textSecondary,
-                    )
-                } else {
-                    Text(explanation.ifEmpty { "Direct breathing measurements are being checked." },
-                        style = AlkeType.footnote, color = Palette.textSecondary)
+                val hasValue = report?.hasEvidence == true
+                val valueLabel = when {
+                    selectedDay == null -> "No recorded sleep"
+                    report == null -> "Analyzing breathing..."
+                    hasValue -> formatRate(report)
+                    else -> "No respiratory reading"
                 }
+                Text(valueLabel, style = AlkeType.headline, color = Palette.textPrimary)
+
+                if (hasValue) {
+                    Text(
+                        "Data trust: ${trustText(report!!.trust)} · ${sourceText(report.source)}",
+                        style = AlkeType.footnote, color = Palette.textSecondary,
+                    )
+                    Text(
+                        "Breathing pattern: ${patternText(report.pattern)}",
+                        style = AlkeType.footnote, color = Palette.textPrimary,
+                    )
+                    if (report.variabilityPercent != null) {
+                        Text(
+                            "Observed variation: ${String.format(Locale.US, "%.1f", report.variabilityPercent)}% " +
+                                "· window coverage ${report.coveragePercent}%",
+                            style = AlkeType.footnote, color = Palette.textSecondary,
+                        )
+                    } else {
+                        Text(
+                            "Not enough time-resolved measurements to classify overnight variation.",
+                            style = AlkeType.footnote, color = Palette.textSecondary,
+                        )
+                    }
+                } else {
+                    val explanation = when (report?.reason) {
+                        Breathing.Reason.NO_DIRECT_RESPIRATION ->
+                            "No directly recorded respiration or beat-timing evidence for this night."
+                        Breathing.Reason.LOW_COVERAGE, Breathing.Reason.UNUSABLE_SIGNAL ->
+                            "Recorded signals do not pass the minimum quality checks."
+                        Breathing.Reason.SLEEP_TOO_SHORT ->
+                            "Too little reliable sleep timing for a nightly assessment."
+                        else -> "No measured or estimated respiratory rate is available."
+                    }
+                    Text(explanation, style = AlkeType.footnote, color = Palette.textSecondary)
+                }
+
                 Text(
-                    "Not a sleep apnea or hypopnea detector. No airflow measurement or clinically validated event count.",
+                    "Hypopnea: not clinically assessable from wrist signals. " +
+                        "Breathing-pattern categories are NOT no/medium/high hypopnea risk.",
                     style = AlkeType.footnote, color = Palette.textTertiary,
                 )
+
                 Text(
-                    if (expanded) "Hide nightly detail" else "View nightly detail and 7-night trend",
+                    if (expanded) "Hide details" else "Details · previous 7 recorded nights",
                     modifier = Modifier.clickable { expanded = !expanded }.padding(vertical = 6.dp),
                     style = AlkeType.footnote, color = Palette.metricPurple,
                 )
                 if (expanded) {
-                    if (report?.hasEvidence == true && report.windows.size >= 2) {
-                        Text("Direct respiratory-rate observations · 5-minute windows",
-                            style = AlkeType.footnote, color = Palette.textSecondary)
+                    if (report != null && report.windows.size >= 2) {
+                        Text(
+                            "Respiratory-rate observations · five-minute windows",
+                            style = AlkeType.footnote, color = Palette.textSecondary,
+                        )
                         BreathingRateTrace(report.windows)
+                    }
+                    if (report != null) {
+                        Text(
+                            "Direct ${report.directCoveragePercent}% · RR estimates " +
+                                "${report.rrCoveragePercent}% · HR " +
+                                "${report.hrCoveragePercent?.let { "$it%" } ?: "n/a"} · motion " +
+                                "${report.movementCoveragePercent?.let { "$it%" } ?: "n/a"}",
+                            style = AlkeType.footnote, color = Palette.textTertiary,
+                        )
                     }
                     Text("Recent 7 recorded nights", style = AlkeType.footnote, color = Palette.textPrimary)
                     if (recent.isEmpty()) {
-                        Text("No recent sleep history.", style = AlkeType.footnote, color = Palette.textSecondary)
+                        Text("No recorded sleep history.", style = AlkeType.footnote, color = Palette.textSecondary)
                     } else {
                         recent.forEach { (day, historical) ->
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
                                 Text(day, style = AlkeType.footnote, color = Palette.textSecondary)
                                 Text(
-                                    if (historical == null) "Checking..."
-                                    else if (historical.hasEvidence)
-                                        String.format(Locale.US, "%.1f%% relative variability", historical.variabilityPercent)
-                                    else "Insufficient data",
+                                    when {
+                                        historical == null -> "Analyzing..."
+                                        historical.hasEvidence -> formatRate(historical) + " · " + trustText(historical.trust)
+                                        else -> "No reliable respiratory rate",
+                                    },
                                     style = AlkeType.footnote, color = Palette.textPrimary,
                                 )
                             }
                         }
                     }
                     Text(
-                        "The comparison describes observed variation in raw respiration signal only. " +
-                            "It is not SpO2, AHI, ODI, snoring, apnea or hypopnea screening. " +
-                            "If you have persistent symptoms such as loud snoring or daytime sleepiness, consult a clinician.",
+                        "≈ means estimated or lower-trust data. Even high-trust raw respiration is not " +
+                            "a measured hypopnea count. A sleep test is needed to assess clinical risk.",
                         style = AlkeType.footnote, color = Palette.textTertiary,
                     )
                 }
@@ -115,12 +144,38 @@ internal fun SleepBreathingQualityCard(
     }
 }
 
+private fun formatRate(report: Breathing.Report): String =
+    (if (report.approximate) "≈ " else "") +
+        String.format(Locale.US, "%.1f", report.medianBpm) + " breaths/min"
+
+private fun trustText(trust: Breathing.Trust): String = when (trust) {
+    Breathing.Trust.HIGH -> "High"
+    Breathing.Trust.MEDIUM -> "Medium (≈)"
+    Breathing.Trust.LOW -> "Low (≈)"
+    Breathing.Trust.NONE -> "Unavailable"
+}
+
+private fun sourceText(source: Breathing.Source): String = when (source) {
+    Breathing.Source.DIRECT_RESPIRATION -> "Direct respiration"
+    Breathing.Source.MIXED_DIRECT_AND_RR -> "Respiration + RR estimate"
+    Breathing.Source.RR_ESTIMATE -> "RR/HRV estimate"
+    Breathing.Source.DAILY_AGGREGATE -> "Daily respiratory aggregate"
+    Breathing.Source.NONE -> "No respiration source"
+}
+
+private fun patternText(pattern: Breathing.Pattern): String = when (pattern) {
+    Breathing.Pattern.LOW_VARIATION -> "Low variation"
+    Breathing.Pattern.MODERATE_VARIATION -> "Medium variation (≈)"
+    Breathing.Pattern.HIGH_VARIATION -> "High variation (≈)"
+    Breathing.Pattern.NOT_ASSESSABLE -> "Cannot classify from current samples"
+}
+
 @Composable
-private fun BreathingRateTrace(windows: List<SleepBreathingRegularityEngine.Window>) {
+private fun BreathingRateTrace(windows: List<Breathing.Window>) {
     val color = Palette.metricPurple
     Canvas(
         modifier = Modifier.fillMaxWidth().height(92.dp).semantics {
-            contentDescription = "Experimental direct respiratory rate by 5-minute window; gaps mean missing readings."
+            contentDescription = "Respiratory rate by five-minute window; gaps indicate missing readings."
         },
     ) {
         val last = (windows.lastOrNull()?.offsetMinutes ?: 5).coerceAtLeast(5)
@@ -132,7 +187,11 @@ private fun BreathingRateTrace(windows: List<SleepBreathingRegularityEngine.Wind
         windows.forEach { window ->
             val x = left + usableW * window.offsetMinutes / last
             val y = top + usableH * (25.0 - window.rateBpm).toFloat() / 17f
-            drawCircle(color, radius = 2.2.dp.toPx(), center = Offset(x, y))
+            drawCircle(
+                if (window.derivedFromRr) color.copy(alpha = 0.55f) else color,
+                radius = 2.2.dp.toPx(),
+                center = Offset(x, y),
+            )
         }
     }
 }

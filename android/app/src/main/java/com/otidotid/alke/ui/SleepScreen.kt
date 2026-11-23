@@ -58,6 +58,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import com.otidotid.alke.data.DailyMetric
 import com.otidotid.alke.data.HrBucket
@@ -90,6 +91,7 @@ import com.otidotid.alke.analytics.CircadianEngine
 import com.otidotid.alke.analytics.HypnogramCoverage
 import com.otidotid.alke.analytics.ScoreConfidence
 import com.otidotid.alke.analytics.SleepEditGuard
+import com.otidotid.alke.analytics.SleepBreathingRegularityEngine
 import com.otidotid.alke.analytics.SleepGroupEdit
 import com.otidotid.alke.analytics.SleepStageTotals
 import com.otidotid.alke.analytics.StagePercentages
@@ -97,6 +99,9 @@ import com.otidotid.alke.data.DismissedSleep
 import com.otidotid.alke.data.SleepSession
 import com.otidotid.alke.data.WhoopRepository
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.Instant
 import java.time.ZoneId
@@ -534,6 +539,44 @@ fun SleepScreen(
         selectNight(navDays, days, nightOffset, habitualMidsleep, motionByStart, is24h = is24h)
     }
 
+    // A cache only for the currently loaded source history. No Room schema or retention change.
+    // The selected day and six preceding RECORDED nights are assessed on demand, off the UI thread.
+    // Missing direct respirations (common on WHOOP 5/MG) stay "Insufficient data".
+    val breathingCache = remember(days, vm.activeStrapId) {
+        mutableStateMapOf<String, SleepBreathingRegularityEngine.Report>()
+    }
+    val breathingNights = remember(
+        navDays, nightOffset, days, habitualMidsleep, motionByStart, is24h,
+    ) {
+        (nightOffset until minOf(navDays.size, nightOffset + 7)).mapNotNull { index ->
+            selectNight(navDays, days, index, habitualMidsleep, motionByStart, is24h = is24h)
+        }
+    }
+    LaunchedEffect(breathingNights, vm.activeStrapId, days) {
+        for (selected in breathingNights) {
+            if (breathingCache.containsKey(selected.dayKey)) continue
+            val onset = selected.heroOnsetTs ?: selected.session.effectiveStartTs
+            val wake = selected.heroWakeTs ?: selected.session.endTs
+            val asleep = days.firstOrNull { it.day == selected.dayKey }?.totalSleepMin?.toDouble()
+            try {
+                val samples = if (asleep != null && asleep >= 240.0 &&
+                    wake > onset && wake - onset <= 16L * 3600L) {
+                    vm.repo.respSamplesUnion(vm.activeStrapId, onset, wake)
+                } else emptyList()
+                val report = withContext(Dispatchers.Default) {
+                    SleepBreathingRegularityEngine.assess(onset, wake, asleep, samples)
+                }
+                breathingCache[selected.dayKey] = report
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Read errors cannot surface an apparently reassuring regularity label.
+                breathingCache[selected.dayKey] =
+                    SleepBreathingRegularityEngine.assess(onset, wake, asleep, emptyList())
+            }
+        }
+    }
+
     // #1311: label the carousel by CALENDAR nights, not the flat recorded-night index — a night with no
     // data (strap off-body) is skipped by the carousel, so labelling by index makes two nights either
     // side of it read as consecutive and desyncs the "N nights ago" labels. Shared by the Rest hero
@@ -951,6 +994,18 @@ fun SleepScreen(
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
                                 NightDetailHostCard(m, onMetricClick = { detailMetricKey = it })
                             }
+                        }
+                    }
+                }
+                SleepSection.SLEEP_BREATHING -> item(key = k) {
+                    SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                        Column {
+                            Spacer(Modifier.height(Metrics.selectorTopUp))
+                            SleepBreathingQualityCard(
+                                selectedDay = night?.dayKey,
+                                report = night?.dayKey?.let { breathingCache[it] },
+                                recent = breathingNights.map { it.dayKey to breathingCache[it.dayKey] },
+                            )
                         }
                     }
                 }

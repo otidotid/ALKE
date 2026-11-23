@@ -1,0 +1,130 @@
+name: ALKE v616 VO2 Pace - Quality Gate and Staging Release
+
+on:
+  push:
+    branches: [alke/v616-vo2-pace-v2]
+    paths:
+      - .github/workflows/alke-v616-vo2-pace-release.yml
+      - android/app/build.gradle.kts
+      - android/app/src/main/java/com/otidotid/alke/analytics/WorkoutPaceVo2Engine.kt
+      - android/app/src/main/java/com/otidotid/alke/analytics/IntelligenceEngine.kt
+      - android/app/src/main/java/com/otidotid/alke/analytics/RouteMath.kt
+      - android/app/src/main/java/com/otidotid/alke/data/WhoopDao.kt
+      - android/app/src/main/java/com/otidotid/alke/data/WhoopRepository.kt
+      - android/app/src/main/java/com/otidotid/alke/data/Entities.kt
+      - android/app/src/main/java/com/otidotid/alke/ingest/HealthConnectImporter.kt
+      - android/app/src/main/java/com/otidotid/alke/ingest/HealthConnectWorkoutEnrichment.kt
+      - android/app/src/main/java/com/otidotid/alke/ui/WorkoutsScreen.kt
+      - android/app/src/main/java/com/otidotid/alke/ui/HealthScreen.kt
+      - android/app/src/test/java/com/otidotid/alke/analytics/WorkoutPaceVo2EngineTest.kt
+      - android/app/src/test/java/com/otidotid/alke/ingest/HealthConnectPermissionCategoryTest.kt
+      - android/app/src/test/java/com/otidotid/alke/ingest/HealthConnectWorkoutEnrichmentTest.kt
+      - android/app/src/test/java/com/otidotid/alke/ingest/HealthConnectWorkoutScopeTest.kt
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: alke-v616-vo2-pace-staging-release
+  cancel-in-progress: false
+
+jobs:
+  verify-build-release:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ALKE_CLOUD_COACH_URL: ${{ vars.ALKE_CLOUD_COACH_URL || 'https://alke-cloud-coach.anandhito-prakoso.workers.dev' }}
+      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID || '542598370283-1gr0qq8ad4ga691k3lvrotma140hcu5r.apps.googleusercontent.com' }}
+      RELEASE_TAG: v1.0.0-alpha.22.26-vo2-pace.616
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Verify source version and bounded VO2 correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 616' android/app/build.gradle.kts
+          grep -Fq 'versionName = "1.0.0-alpha.22.26-vo2-pace"' android/app/build.gradle.kts
+          grep -Fq 'MAX_CORRECTION = 0.5' android/app/src/main/java/com/otidotid/alke/analytics/WorkoutPaceVo2Engine.kt
+
+      - name: Full Personal JVM tests plus staging and signing-base APK builds
+        shell: bash
+        working-directory: android
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest :app:assemblePersonalRelease :app:assemblePersonalDebug
+
+      - name: Validate staging APK and hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/personal/release/app-personal-release.apk
+          base=android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+          test -s "$apk" && test -s "$base"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -1)"
+          test -x "$aapt" && test -x "$signer"
+          "$aapt" dump badging "$apk" | head -1 | tee "$RUNNER_TEMP/v616-package.txt"
+          grep -Fq "name='com.otidotid.alke.personal.staging'" "$RUNNER_TEMP/v616-package.txt"
+          grep -Fq "versionCode='616'" "$RUNNER_TEMP/v616-package.txt"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" | tee "$RUNNER_TEMP/v616-signer.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/v616-signer.txt"
+          unzip -t "$apk" >/dev/null
+          if unzip -Z1 "$apk" | grep -Eq '(\.alkebak$|\.noopbak$|\.keystore$|\.jks$|\.p12$|local\.properties$)'; then
+            echo "::error::Unexpected private content in APK"
+            exit 1
+          fi
+          mkdir -p release-output
+          cp "$apk" release-output/ALKE-v616-VO2-Pace-staging.apk
+          sha256sum release-output/ALKE-v616-VO2-Pace-staging.apk > release-output/ALKE-v616-VO2-Pace-staging.apk.sha256
+
+      - name: Upload original-package build for owner signing only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-v616-Personal-Base-REQUIRES-ORIGINAL-SIGNER
+          path: android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish tested staging APK to GitHub prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/v616-notes.md" <<'NOTES'
+          # ALKE v616 — Workout Pace + Conservative VO2 Max
+
+          **Separate-installation prerelease** for `com.otidotid.alke.personal.staging`.
+          This is not a direct update for the owner's existing
+          `com.otidotid.alke.personal.debug` app. Do not uninstall the existing
+          Personal APK, clear its data or assume a different signature can update it.
+
+          - Average pace is displayed in workout details when valid distance and
+            duration are recorded, regardless of ALKE / Zepp / Health Connect / other import source.
+          - Health Connect can import workout heart rate with its own explicit user
+            permission, and non-destructively enrich previously imported workouts.
+          - VO2 Max uses the existing Nes/Uth estimate unchanged when running
+            evidence is absent. After three quality-gated running sessions, a
+            conservative exercise-based correction is capped at +/-0.5 ml/kg/min.
+          - No direct AI adjustment, no cloud calculation and no silent body age changes.
+          - Original metric history, backup format and database schema unchanged.
+
+          A direct-in-place Personal update requires the original ALKE signing key.
+          This public CI runner does not possess that private key.
+          Hardware, location and provider-specific smoke tests remain necessary.
+          NOTES
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-output/ALKE-v616-VO2-Pace-staging.apk release-output/ALKE-v616-VO2-Pace-staging.apk.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "ALKE v616 — VO2 Max Pace (Staging Signed)" --notes-file "$RUNNER_TEMP/v616-notes.md" --prerelease
+          else
+            gh release create "$RELEASE_TAG" release-output/ALKE-v616-VO2-Pace-staging.apk release-output/ALKE-v616-VO2-Pace-staging.apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "ALKE v616 — VO2 Max Pace (Staging Signed)" --notes-file "$RUNNER_TEMP/v616-notes.md" --prerelease
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

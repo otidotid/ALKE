@@ -62,13 +62,13 @@ internal object SleepHypopneaData {
 
 /** Tiny single-use navigation intent; Today points to the actual Sleep detail. */
 internal object SleepHypopneaNavigation {
-    var showDetailRequested by androidx.compose.runtime.mutableStateOf(false)
-        private set
+    private val pending = androidx.compose.runtime.mutableStateOf(false)
+    val showDetailRequested: Boolean get() = pending.value
 
-    fun requestDetail() { showDetailRequested = true }
+    fun requestDetail() { pending.value = true }
     fun consumeDetail(): Boolean {
-        if (!showDetailRequested) return false
-        showDetailRequested = false
+        if (!pending.value) return false
+        pending.value = false
         return true
     }
 }

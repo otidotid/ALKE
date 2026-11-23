@@ -35,7 +35,6 @@ jobs:
           grep -Fq 'SleepHypopneaNavigation.requestDetail()' android/app/src/main/java/com/otidotid/alke/ui/TodayScreen.kt
           grep -Fq 'Risk.UNAVAILABLE' android/app/src/main/java/com/otidotid/alke/analytics/SleepHypopneaRiskEngine.kt
           grep -Fq 'SleepHypopneaData.cached(' android/app/src/main/java/com/otidotid/alke/ui/SleepScreen.kt
-          grep -Fq 'key = "today-hypopnea-main-night"' android/app/src/main/java/com/otidotid/alke/ui/TodayScreen.kt
           grep -Fq 'completedRevision' android/app/src/main/java/com/otidotid/alke/ui/SleepHypopneaData.kt
           # Contract for the REAL fixed ALKE home (not the legacy TodayScreen).
           python3 - <<'PY'

@@ -1,0 +1,25 @@
+name: ALKE v616 - Legacy Branch Permission Check
+on:
+  push:
+    branches: [alke/v615-hr-widget-canvas-rebuild]
+    paths: [.github/workflows/alke-v616-release-permission-legacy-branch.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  draft-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check ability to create draft release from known previously working workflow branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+            -f tag_name="v1.0.0-alpha.22.26-vo2-pace.616" \
+            -f target_commitish="9e6f84cb48ae8f45082c3e66a808128fc9c2434f" \
+            -f name="ALKE v616 — VO2 Max Pace (Personal Signed)" \
+            -f body="Awaiting owner signed APK" \
+            -F draft=true -F prerelease=true --jq '{draft:.draft, tag:.tag_name}'

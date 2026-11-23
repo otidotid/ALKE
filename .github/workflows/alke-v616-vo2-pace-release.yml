@@ -33,7 +33,7 @@ permissions:
 
 concurrency:
   group: alke-v616-vo2-pace-staging-release
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   verify-build-release:

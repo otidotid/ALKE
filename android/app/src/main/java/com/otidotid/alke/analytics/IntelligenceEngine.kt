@@ -2173,14 +2173,18 @@ object IntelligenceEngine {
             )
 
             if (publishFitnessAge) {
+                val (publishedRows, paceApplied) = applyWorkoutPaceVo2(
+                    repo, faPts, faGate7, profile, importedDeviceId, weeklyDay,
+                )
                 repo.upsertMetricSeriesWithProvenance(
-                    rows = faPts,
+                    rows = publishedRows,
                     provenance = weeklyScoreProvenance(
                         weeklyLabs,
-                        faPts,
+                        publishedRows,
                         computedId,
                         faGate7,
                         profile,
+                        paceApplied = paceApplied,
                     ),
                 )
             }
@@ -2831,7 +2835,48 @@ object IntelligenceEngine {
     /** Fitness Age rows for one seven-day window, using original Lab Book evidence. */
     suspend fun fitnessAgeRows(repo: WhoopRepository,
         gateDays: List<DailyMetric>, profile: UserProfile, computedId: String, satKey: String,
-    ): List<MetricSeriesRow> = fitnessAgeRows(captureWeeklyLabs(repo, satKey, profile, computedId), gateDays, profile, computedId, satKey)
+    ): List<MetricSeriesRow> {
+        val baseline = fitnessAgeRows(captureWeeklyLabs(repo, satKey, profile, computedId), gateDays, profile, computedId, satKey)
+        return applyWorkoutPaceVo2(repo, baseline, gateDays, profile, computedId.removeSuffix("-alke"), satKey).first
+    }
+
+    /**
+     * Optional, bounded exercise calibration of the existing Nes/Uth result. No qualifying
+     * recorded GPS running sessions means the original value is returned EXACTLY.
+     * No new database tables, per-pass raw HR scan, or modification to Fitness Age.
+     */
+    private suspend fun applyWorkoutPaceVo2(
+        repo: WhoopRepository,
+        rows: List<MetricSeriesRow>,
+        gateDays: List<DailyMetric>,
+        profile: UserProfile,
+        importedDeviceId: String,
+        saturdayKey: String,
+    ): Pair<List<MetricSeriesRow>, Boolean> {
+        val original = rows.firstOrNull { it.key == "vo2max_est" } ?: return rows to false
+        val rhrs = gateDays.mapNotNull { it.restingHr?.toDouble() }
+        if (rhrs.size < FitnessAgeEngine.minCoverageDays || !profile.age.isFinite() || profile.age <= 0.0) {
+            return rows to false
+        }
+        val dayEnd = runCatching {
+            java.time.LocalDate.parse(saturdayKey).plusDays(1)
+                .atStartOfDay(java.time.ZoneId.systemDefault()).toEpochSecond()
+        }.getOrNull() ?: return rows to false
+        val sessions = repo.workoutsUnion(
+            importedDeviceId,
+            dayEnd - WorkoutPaceVo2Engine.LOOKBACK_DAYS * 86400L,
+            dayEnd,
+            limit = 200,
+        )
+        val estimate = WorkoutPaceVo2Engine.estimate(
+            workouts = sessions,
+            baseline = original.value,
+            restingHr = medianOfDoubles(rhrs),
+            hrMax = StrainScorer.tanakaHRmax(profile.age),
+            asOfEpochSeconds = dayEnd,
+        ) ?: return rows to false
+        return rows.map { if (it.key == "vo2max_est") it.copy(value = estimate.value) else it } to true
+    }
 
     internal fun fitnessAgeRows(
         labs: WeeklyLabInputs, gateDays: List<DailyMetric>, profile: UserProfile, computedId: String, satKey: String,
@@ -3018,6 +3063,7 @@ object IntelligenceEngine {
         computedId: String,
         gateDays: List<DailyMetric>,
         profile: UserProfile,
+        paceApplied: Boolean = false,
     ): List<ScoreInputProvenanceRow> {
         if (rows.isEmpty()) return emptyList()
         val waistSource = labs.body["waist"]
@@ -3087,9 +3133,11 @@ object IntelligenceEngine {
         return rows.mapNotNull { row ->
             val (version, source, summary) = when (row.key) {
                 "vo2max_est" -> Triple(
-                    if (hasNes) FitnessAgeEngine.ALGORITHM_VERSION else "vo2max-uth-hr-ratio-v1",
-                    if (hasNes) "nes" else "uth",
-                    weeklyInputs + if (hasNes) "; Estimator: Nes waist variant" else
+                    if (paceApplied) WorkoutPaceVo2Engine.ALGORITHM_VERSION
+                    else if (hasNes) FitnessAgeEngine.ALGORITHM_VERSION else "vo2max-uth-hr-ratio-v1",
+                    if (paceApplied) "pace" else if (hasNes) "nes" else "uth",
+                    if (paceApplied) weeklyInputs + "; Estimator: GPS running HRR correction, bounded to +/-0.5 ml/kg/min over original baseline"
+                    else weeklyInputs + if (hasNes) "; Estimator: Nes waist variant" else
                         "; Estimator: Uth HRmax/RHR, HRmax age-predicted"
                 )
                 "fitness_age" -> Triple(
@@ -3161,17 +3209,18 @@ object IntelligenceEngine {
             .filter { it.day in oldestDay..newestDay }.sortedBy { it.day }.takeLast(7)
         val weeklyDay = saturdayKeyOnOrBefore(newestDay)
         val labs = captureWeeklyLabs(repo, weeklyDay, profile, computedId)
-        val rows = fitnessAgeRows(labs, gate7, profile, computedId, weeklyDay)
+        val originalRows = fitnessAgeRows(labs, gate7, profile, computedId, weeklyDay)
         // Keep the original Saturday-only publication contract. A computed
         // weekday preview is NOT a persisted weekly score and must not be
         // reported as a successful refresh.
-        if (rows.isNotEmpty() && newestDay == weeklyDay) {
+        if (originalRows.isNotEmpty() && newestDay == weeklyDay) {
+            val (rows, paceApplied) = applyWorkoutPaceVo2(repo, originalRows, gate7, profile, importedDeviceId, weeklyDay)
             repo.upsertMetricSeriesWithProvenance(
                 rows = rows,
-                provenance = weeklyScoreProvenance(labs, rows, computedId, gate7, profile),
+                provenance = weeklyScoreProvenance(labs, rows, computedId, gate7, profile, paceApplied = paceApplied),
             )
         }
-        rows.isNotEmpty() && newestDay == weeklyDay
+        originalRows.isNotEmpty() && newestDay == weeklyDay
     }
 
     /**

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,42 +35,27 @@ internal fun SleepBreathingQualityCard(
     selectedDay: String?,
     report: Breathing.Report?,
     recent: List<Pair<String, Breathing.Report?>>,
+    openDetailsOnEntry: Boolean = false,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(openDetailsOnEntry) }
+    LaunchedEffect(openDetailsOnEntry) {
+        if (openDetailsOnEntry) expanded = true
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader("SLEEP BREATHING QUALITY")
         AlkeCard(tint = Palette.metricPurple) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                val valueLabel = when {
-                    selectedDay == null -> "No recorded sleep"
-                    report == null -> "Analyzing breathing..."
-                    report?.hasEvidence == true -> formatRate(report)
-                    else -> "No respiratory reading"
-                }
-                Text(valueLabel, style = AlkeType.headline, color = Palette.textPrimary)
-
-                if (report != null && report.hasEvidence) {
-                    Text(
-                        "Data Trust: ${trustText(report.trust)}",
-                        style = AlkeType.footnote, color = Palette.textSecondary,
-                    )
-                    Text(
-                        "Breathing Pattern: ${patternText(report.pattern)}",
-                        style = AlkeType.footnote, color = Palette.textPrimary,
-                    )
-                } else {
-                    val explanation = when (report?.reason) {
-                        Breathing.Reason.NO_DIRECT_RESPIRATION ->
-                            "No directly recorded respiration or beat-timing evidence for this night."
-                        Breathing.Reason.LOW_COVERAGE, Breathing.Reason.UNUSABLE_SIGNAL ->
-                            "Recorded signals do not pass the minimum quality checks."
-                        Breathing.Reason.SLEEP_TOO_SHORT ->
-                            "Too little reliable sleep timing for a nightly assessment."
-                        else -> "No measured or estimated respiratory rate is available."
-                    }
-                    Text(explanation, style = AlkeType.footnote, color = Palette.textSecondary)
-                }
+                // Actual WHOOP 4 CVHR/hypopnea classifier remains in research and
+                // clinical validation. No evidence-based low/medium/high risk is available
+                // yet; never convert ordinary RR/HRV variability into "Low risk".
+                Text("HYPOPNEA RISK: NOT ASSESSED",
+                    style = AlkeType.headline, color = Palette.textPrimary)
+                Text(
+                    "ALKE is not a medical device. For medical concerns, " +
+                        "consult a qualified healthcare professional.",
+                    style = AlkeType.footnote, color = Palette.textTertiary,
+                )
 
                 Text(
                     if (expanded) "Hide Details" else "Details · Previous 7 Nights",
@@ -77,6 +63,21 @@ internal fun SleepBreathingQualityCard(
                     style = AlkeType.footnote, color = Palette.metricPurple,
                 )
                 if (expanded) {
+                    // Reuse the existing breathing evidence only INSIDE details; it is not
+                    // a hypopnea risk label, and the Today shortcut never displays bpm.
+                    val valueLabel = when {
+                        selectedDay == null -> "No recorded sleep"
+                        report == null -> "Analyzing breathing..."
+                        report.hasEvidence -> formatRate(report)
+                        else -> "No respiratory reading"
+                    }
+                    Text(valueLabel, style = AlkeType.headline, color = Palette.textPrimary)
+                    if (report != null && report.hasEvidence) {
+                        Text("Data Trust: ${trustText(report.trust)}",
+                            style = AlkeType.footnote, color = Palette.textSecondary)
+                        Text("Breathing Pattern: ${patternText(report.pattern)}",
+                            style = AlkeType.footnote, color = Palette.textPrimary)
+                    }
                     if (report != null && report.windows.size >= 2) {
                         Text(
                             "Respiratory-rate observations · five-minute windows",

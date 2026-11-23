@@ -8,6 +8,10 @@ on:
       - android/app/build.gradle.kts
       - android/app/src/main/java/com/otidotid/alke/analytics/WorkoutPaceVo2Engine.kt
       - android/app/src/main/java/com/otidotid/alke/analytics/IntelligenceEngine.kt
+      - android/app/src/main/java/com/otidotid/alke/analytics/HealthConnectWorkoutReconciler.kt
+      - android/app/src/main/java/com/otidotid/alke/ui/AppViewModel.kt
+      - android/app/src/test/java/com/otidotid/alke/analytics/HealthConnectWorkoutReconcilerTest.kt
+      - android/app/src/test/java/com/otidotid/alke/ingest/HealthConnectWorkoutEnrichmentTest.kt
       - android/app/src/main/java/com/otidotid/alke/analytics/RouteMath.kt
       - android/app/src/main/java/com/otidotid/alke/data/WhoopDao.kt
       - android/app/src/main/java/com/otidotid/alke/data/WhoopRepository.kt

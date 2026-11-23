@@ -1139,11 +1139,7 @@ private fun FitnessAgeHero(
                     lowLabel = "15",
                     highLabel = "70",
                     source = "On-device estimate",
-                    detail = when (vo2maxEstimator) {
-                        Vo2MaxEstimator.NES -> "Nes 2011 waist model"
-                        Vo2MaxEstimator.UTH -> "Uth 2004 HR-ratio fallback"
-                        else -> "Method pending provenance"
-                    },
+                    detail = "Based on your fitness and activity",
                 )
                 HorizontalDivider(color = Palette.heroBorder.copy(alpha = 0.7f))
                 FitnessAgeFactorRow(

@@ -539,9 +539,9 @@ fun SleepScreen(
         selectNight(navDays, days, nightOffset, habitualMidsleep, motionByStart, is24h = is24h)
     }
 
-    // A cache only for the currently loaded source history. No Room schema or retention change.
-    // The selected day and six preceding RECORDED nights are assessed on demand, off the UI thread.
-    // Missing direct respirations (common on WHOOP 5/MG) stay "Insufficient data".
+    // WHOOP 4: use direct respiration when present, then RR-derived RSA in missing windows,
+    // and a low-confidence daily respiration estimate when raw streams are unavailable.
+    // Cached per loaded data snapshot; entirely read-only and separate from Sleep/Fitness scores.
     val breathingCache = remember(days, vm.activeStrapId) {
         mutableStateMapOf<String, SleepBreathingRegularityEngine.Report>()
     }
@@ -557,22 +557,52 @@ fun SleepScreen(
             if (breathingCache.containsKey(selected.dayKey)) continue
             val onset = selected.heroOnsetTs ?: selected.session.effectiveStartTs
             val wake = selected.heroWakeTs ?: selected.session.endTs
-            val asleep = days.firstOrNull { it.day == selected.dayKey }?.totalSleepMin?.toDouble()
+            val daily = days.firstOrNull { it.day == selected.dayKey }
+            val asleep = daily?.totalSleepMin ?: selected.groupStages?.let {
+                it.light + it.deep + it.rem
+            }
+            val dailyRate = daily?.respRateBpm
             try {
-                val samples = if (asleep != null && asleep >= 240.0 &&
-                    wake > onset && wake - onset <= 16L * 3600L) {
-                    vm.repo.respSamplesUnion(vm.activeStrapId, onset, wake)
-                } else emptyList()
-                val report = withContext(Dispatchers.Default) {
-                    SleepBreathingRegularityEngine.assess(onset, wake, asleep, samples)
+                val validWindow = wake > onset && wake - onset <= 16L * 3600L
+                val samples = if (validWindow) vm.repo.respSamplesUnion(vm.activeStrapId, onset, wake)
+                    else emptyList()
+                val directOnly = withContext(Dispatchers.Default) {
+                    SleepBreathingRegularityEngine.assess(
+                        onset, wake, asleep, samples, dailyRateBpm = dailyRate,
+                    )
                 }
-                breathingCache[selected.dayKey] = report
+                // Avoid the expensive beat/RSA path when direct 4.0 respiration is already
+                // high-confidence; otherwise recover missing five-minute windows from RR.
+                val rr = if (validWindow && directOnly.trust != SleepBreathingRegularityEngine.Trust.HIGH)
+                    vm.repo.rrIntervalsUnion(vm.activeStrapId, onset, wake)
+                else emptyList()
+                // Quality context is computed from downsampled minutes, never massive raw gravity.
+                val totalMinutes = ((wake - onset) / 60L).coerceAtLeast(1L).toInt()
+                val hrMinutes = if (validWindow) vm.repo.hrBucketsUnion(
+                    vm.activeStrapId, onset, wake, bucketSeconds = 60L,
+                ).size else 0
+                val movementMinutes = if (validWindow) vm.repo.gravityCoveredMinutesUnion(
+                    vm.activeStrapId, onset, wake,
+                ) else 0
+                val hrCoverage = (hrMinutes * 100 / totalMinutes).coerceIn(0, 100)
+                val motionCoverage = (movementMinutes * 100 / totalMinutes).coerceIn(0, 100)
+                breathingCache[selected.dayKey] = withContext(Dispatchers.Default) {
+                    SleepBreathingRegularityEngine.assess(
+                        onset, wake, asleep, samples, rr,
+                        dailyRateBpm = dailyRate,
+                        hrCoveragePercent = hrCoverage,
+                        movementCoveragePercent = motionCoverage,
+                    )
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                // Read errors cannot surface an apparently reassuring regularity label.
+                // Even when a sensor query fails, a daily aggregate is still useful as a clearly
+                // marked estimate. Never silently convert missing data into "low risk".
                 breathingCache[selected.dayKey] =
-                    SleepBreathingRegularityEngine.assess(onset, wake, asleep, emptyList())
+                    SleepBreathingRegularityEngine.assess(
+                        onset, wake, asleep, emptyList(), dailyRateBpm = dailyRate,
+                    )
             }
         }
     }

@@ -3,6 +3,7 @@ package com.otidotid.alke.ingest
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.StepsRecord
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -13,6 +14,7 @@ class HealthConnectWorkoutScopeTest {
         val types = HealthConnectImporter.ImportCategory.ACTIVITY_ONLY.recordTypes
         assertTrue(ExerciseSessionRecord::class in types)
         assertTrue(DistanceRecord::class in types)
+        assertTrue(HeartRateRecord::class in types)
         assertFalse(StepsRecord::class in types)
         assertFalse(ActiveCaloriesBurnedRecord::class in types)
     }
@@ -21,6 +23,7 @@ class HealthConnectWorkoutScopeTest {
         val types = HealthConnectImporter.ImportCategory.ALL.recordTypes
         assertTrue(ExerciseSessionRecord::class in types)
         assertTrue(DistanceRecord::class in types)
+        assertTrue(HeartRateRecord::class in types)
         assertTrue(StepsRecord::class in types)
         assertTrue(ActiveCaloriesBurnedRecord::class in types)
     }

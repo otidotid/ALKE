@@ -84,6 +84,24 @@ class WorkoutPaceVo2EngineTest {
         ))
     }
 
+    @Test fun importedZeppHealthConnectDistanceAndHrQualifyWithoutRoute() {
+        val imported = listOf(0, 1, 2).map {
+            run(it, withRoute = false).copy(deviceId = "health-connect", source = "health-connect")
+        }
+        assertNotNull(WorkoutPaceVo2Engine.qualifiedRun(imported.first(), 60.0, 180.0))
+        val est = WorkoutPaceVo2Engine.estimate(
+            imported, 52.5, 60.0, 180.0, baseStart + 5 * 86400L,
+        )
+        assertNotNull(est)
+        assertTrue(abs(est!!.value - 52.5) <= 0.500000001)
+    }
+
+    @Test fun otherImportSourcesAreNotRestrictedToZepp() {
+        val apple = run(0, withRoute = false).copy(deviceId = "apple-health", source = "apple-health")
+        assertNotNull(WorkoutPaceVo2Engine.qualifiedRun(apple, 60.0, 180.0))
+        assertNull(WorkoutPaceVo2Engine.qualifiedRun(apple.copy(avgHr = null), 60.0, 180.0))
+    }
+
     @Test fun untrustedManualDistanceCannotBeUsedAsGPSRunningEvidence() {
         val fake = run(0, withRoute = false)
         assertFalse(WorkoutPaceVo2Engine.qualifiedRun(fake, 60.0, 180.0) != null)

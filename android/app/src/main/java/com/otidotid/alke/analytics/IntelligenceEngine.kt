@@ -2863,10 +2863,9 @@ object IntelligenceEngine {
                 .atStartOfDay(java.time.ZoneId.systemDefault()).toEpochSecond()
         }.getOrNull() ?: return rows to false
         val historyFrom = dayEnd - WorkoutPaceVo2Engine.LOOKBACK_DAYS * 86400L
-        // Zepp -> Health Connect imported sessions are stored under "health-connect",
-        // not the WHOOP union. Both sources are read, without any cloud round-trip.
-        val sessions = repo.workoutsUnion(importedDeviceId, historyFrom, dayEnd, limit = 200) +
-            repo.workouts("health-connect", historyFrom, dayEnd, limit = 200)
+        // Source-agnostic: native ALKE GPS, Health Connect (including Zepp), Apple
+        // and other registered importers all share the workout table.
+        val sessions = repo.workoutsForPaceCalibration(historyFrom, dayEnd)
         val estimate = WorkoutPaceVo2Engine.estimate(
             workouts = sessions,
             baseline = original.value,

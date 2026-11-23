@@ -1138,8 +1138,8 @@ private fun FitnessAgeHero(
                     position = vo2Position,
                     lowLabel = "15",
                     highLabel = "70",
-                    source = "On-device estimate",
-                    detail = "Based on your fitness and activity",
+                    source = "",
+                    detail = "",
                 )
                 HorizontalDivider(color = Palette.heroBorder.copy(alpha = 0.7f))
                 FitnessAgeFactorRow(
@@ -1284,7 +1284,10 @@ private fun FitnessAgeFactorRow(
             Text(lowLabel, style = AlkeType.caption, color = Palette.textTertiary)
             Text(highLabel, style = AlkeType.caption, color = Palette.textTertiary)
         }
-        Text("$source · $detail", style = AlkeType.footnote, color = Palette.textSecondary)
+        if (source.isNotBlank() || detail.isNotBlank()) {
+            Text(listOf(source, detail).filter { it.isNotBlank() }.joinToString(" · "),
+                style = AlkeType.footnote, color = Palette.textSecondary)
+        }
     }
 }
 

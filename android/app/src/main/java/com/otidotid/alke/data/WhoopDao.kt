@@ -1257,6 +1257,14 @@ interface WhoopDao : DeviceRegistryDao {
     )
     suspend fun workouts(deviceId: String, from: Long, to: Long, limit: Int): List<WorkoutRow>
 
+    /** Bounded newest-first training sessions across EVERY source (HC, Apple, strap, other imports).
+     *  This read-only view never edits or deduplicates stored workouts. */
+    @Query(
+        "SELECT * FROM workout WHERE startTs >= :from AND startTs <= :to " +
+            "ORDER BY startTs DESC LIMIT :limit"
+    )
+    suspend fun workoutsAllSources(from: Long, to: Long, limit: Int): List<WorkoutRow>
+
     /** All-source half-open interval overlap query used by the single workout Save gate. */
     @Query(
         "SELECT * FROM workout WHERE startTs < :candidateEnd AND endTs > :candidateStart " +

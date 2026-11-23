@@ -1966,6 +1966,10 @@ class WhoopRepository(
     suspend fun workouts(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT): List<WorkoutRow> =
         dao.workouts(deviceId, OnlineFirstWindow.clampSecond(from), to, limit)
 
+    /** Existing workout records irrespective of import provider; bounded read, no mutations. */
+    suspend fun workoutsForPaceCalibration(from: Long, to: Long, limit: Int = 250): List<WorkoutRow> =
+        dao.workoutsAllSources(from, to, limit)
+
     /** Scalar COUNT twin of [workouts] (exact total, no row limit) for count badges. */
     suspend fun workoutsCount(deviceId: String, from: Long, to: Long): Int =
         dao.workoutsCount(deviceId, from, to)

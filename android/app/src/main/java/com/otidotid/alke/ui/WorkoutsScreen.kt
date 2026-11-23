@@ -121,6 +121,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import com.otidotid.alke.analytics.ActivityHeatmap
 import com.otidotid.alke.analytics.RouteMath
+import com.otidotid.alke.analytics.WorkoutPaceVo2Engine
 import com.otidotid.alke.ingest.RouteExport
 import kotlinx.coroutines.launch
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -1760,6 +1761,11 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
             if (row.distanceM != null) {
                 val unitSystem = UnitPrefs.distanceSystem(LocalContext.current)
                 DetailRow("Distance", UnitFormatter.distanceFromKilometers(row.distanceM / 1000.0, unitSystem))
+                if (WorkoutSport.isOnFoot(row.sport)) {
+                    WorkoutPaceVo2Engine.paceSecPerKm(row)?.let { pace ->
+                        DetailRow("Average pace", UnitFormatter.paceFromSecPerKm(pace, unitSystem))
+                    }
+                }
             }
             steps?.let { DetailRow("Steps", "${grouped(it.toDouble())} steps") }  // #398, on-foot sports
             if (!row.notes.isNullOrBlank()) DetailRow("Notes", row.notes)

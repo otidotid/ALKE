@@ -111,13 +111,14 @@ object HealthConnectImporter {
         // ACTIVITY_ONLY now means Workout Only; ALL means Workout + Activity.
         ACTIVITY_ONLY(
             "activity-only",
-            setOf(ExerciseSessionRecord::class, DistanceRecord::class),
+            setOf(ExerciseSessionRecord::class, DistanceRecord::class, HeartRateRecord::class),
         ),
         ALL(
             "all",
             setOf(
                 ExerciseSessionRecord::class,
                 DistanceRecord::class,
+                HeartRateRecord::class,
                 StepsRecord::class,
                 TotalCaloriesBurnedRecord::class,
                 ActiveCaloriesBurnedRecord::class,
@@ -129,8 +130,9 @@ object HealthConnectImporter {
      * Hard security boundary for manual Health Connect import.
      *
      * Keep this separate from [ImportCategory] so a future category or a stale Android permission cannot
-     * accidentally activate the dormant readers below for HR, HRV, sleep, weight, body composition,
-     * oxygen, respiration, VO2 max, or hydration. Export/write permissions are governed separately by
+     * accidentally activate dormant readers for HRV, sleep, weight, body composition,
+     * oxygen, respiration, VO2 max, or hydration. Workout HR is deliberately permitted
+     * only after its distinct user-approved Health Connect permission. Exports are governed by
      * HealthConnectWriter and are not broadened by this read allowlist.
      */
     internal val IMPORT_READ_ALLOWLIST: Set<KClass<out Record>> = setOf(
@@ -139,6 +141,7 @@ object HealthConnectImporter {
         ActiveCaloriesBurnedRecord::class,
         ExerciseSessionRecord::class,
         DistanceRecord::class,
+        HeartRateRecord::class,
     )
 
     /** Health Connect import is intentionally limited to activity and exercise data. */
@@ -435,14 +438,8 @@ object HealthConnectImporter {
                 activeKcalRecords.add(
                 KcalRecord(r.startTime.epochSecond, r.endTime.epochSecond, r.energy.inKilocalories, src))
             }
-            // --- Heart rate (instantaneous samples) -> per-day average ---
-            readSelected(HeartRateRecord::class) { r ->
-                for (s in r.samples) {
-                    val b = bucket(dayOf(s.time, r.startZoneOffset))
-                    b.hrSum += s.beatsPerMinute
-                    b.hrCount += 1
-                }
-            }
+            // Workout heart rate is read in session windows below, never as a broad
+            // daily health import. Preserve the activity-only data contract.
             // --- Resting heart rate -> per-day average (rounded to Int) ---
             readSelected(RestingHeartRateRecord::class) { r ->
                 val b = bucket(dayOf(r.time, r.zoneOffset))

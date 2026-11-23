@@ -37,17 +37,18 @@ class HealthConnectPermissionCategoryTest {
     }
 
     @Test
-    fun legacyActivityOnlyKeyMeansWorkoutOnlyWithoutActivityOrHealthReads() {
+    fun legacyActivityOnlyKeyMeansWorkoutOnlyIncludingConsentedSessionHeartRate() {
         val permissions = HealthConnectImporter.permissionsFor(activityOnly)
 
         assertEquals(setOf(
             HealthPermission.getReadPermission(ExerciseSessionRecord::class),
             HealthPermission.getReadPermission(DistanceRecord::class),
+            HealthPermission.getReadPermission(HeartRateRecord::class),
         ), permissions)
         assertFalse(HealthPermission.getReadPermission(StepsRecord::class) in permissions)
         assertFalse(HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class) in permissions)
         assertFalse(HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class) in permissions)
-        assertFalse(HealthPermission.getReadPermission(HeartRateRecord::class) in permissions)
+        assertTrue(HealthPermission.getReadPermission(HeartRateRecord::class) in permissions)
         assertFalse(HealthPermission.getReadPermission(WeightRecord::class) in permissions)
     }
 
@@ -58,6 +59,7 @@ class HealthConnectPermissionCategoryTest {
         assertEquals(setOf(
             HealthPermission.getReadPermission(ExerciseSessionRecord::class),
             HealthPermission.getReadPermission(DistanceRecord::class),
+            HealthPermission.getReadPermission(HeartRateRecord::class),
             HealthPermission.getReadPermission(StepsRecord::class),
             HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
             HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
@@ -75,7 +77,7 @@ class HealthConnectPermissionCategoryTest {
             HealthConnectImporter.permissionsFor(HealthConnectImporter.ALL_CATEGORIES),
             HealthConnectImporter.PERMISSIONS,
         )
-        assertFalse(
+        assertTrue(
             HealthPermission.getReadPermission(HeartRateRecord::class) in
                 HealthConnectImporter.PERMISSIONS,
         )
@@ -148,7 +150,7 @@ class HealthConnectPermissionCategoryTest {
         )
 
         assertEquals(
-            setOf(ExerciseSessionRecord::class),
+            setOf(ExerciseSessionRecord::class, HeartRateRecord::class),
             HealthConnectImporter.readableRecordTypes(
                 categories = activityOnly,
                 grantedPermissions = granted,
@@ -161,13 +163,12 @@ class HealthConnectPermissionCategoryTest {
         )
         assertTrue(StepsRecord::class in allReadable)
         assertTrue(ExerciseSessionRecord::class in allReadable)
-        assertFalse(HeartRateRecord::class in allReadable)
+        assertTrue(HeartRateRecord::class in allReadable)
     }
 
     @Test
     fun hardAllowlistRejectsHealthAndProfileRecordsEvenWhenGranted() {
         val forbidden = setOf(
-            HeartRateRecord::class,
             RestingHeartRateRecord::class,
             HeartRateVariabilityRmssdRecord::class,
             SleepSessionRecord::class,
@@ -187,7 +188,7 @@ class HealthConnectPermissionCategoryTest {
 
         assertTrue(readable.all { it in HealthConnectImporter.IMPORT_READ_ALLOWLIST })
         assertTrue(forbidden.none { it in readable })
-        assertFalse(HealthConnectImporter.IMPORT_READ_ALLOWLIST.contains(HeartRateRecord::class))
+        assertTrue(HealthConnectImporter.IMPORT_READ_ALLOWLIST.contains(HeartRateRecord::class))
         assertFalse(HealthConnectImporter.IMPORT_READ_ALLOWLIST.contains(SleepSessionRecord::class))
         assertFalse(HealthConnectImporter.IMPORT_READ_ALLOWLIST.contains(WeightRecord::class))
     }

@@ -11,9 +11,9 @@ import kotlin.math.abs
  *
  * The ACSM level-running oxygen cost (3.5 + 0.2 * metres/minute) is extrapolated
  * using heart-rate reserve (HRR). This is a wellness estimate, NOT a lab VO2max.
- * Import from Health Connect also qualifies when it supplies independent distance/HR,
- * even without route sharing. A
- * multi-run median gently calibrates the unchanged Nes/Uth baseline.
+ * A session imported from Health Connect or another provider may qualify using
+ * independent distance and HR even without optional GPS route sharing.
+ * A multi-run median gently calibrates the unchanged Nes/Uth baseline.
  */
 object WorkoutPaceVo2Engine {
     const val ALGORITHM_VERSION = "vo2max-outdoor-run-pace-hrr-v1"
@@ -56,11 +56,13 @@ object WorkoutPaceVo2Engine {
         val pace = paceSecPerKm(row) ?: return null
         val speedKmh = 3600.0 / pace
         if (speedKmh !in 7.0..18.0) return null
-        // Health Connect may import a verified Zepp exercise/distance/HR record without
-        // the separately consented exercise-route polyline. Do NOT discard those runs.
-        // Never grant the same exception to manually entered distance/HR, which is not GPS proof.
-        val importedHealthConnect = row.source.equals("health-connect", ignoreCase = true) &&
-            row.deviceId.equals("health-connect", ignoreCase = true)
+        // Third-party exercise imports (Zepp through Health Connect, Apple Health, etc.)
+        // can provide independent distance and HR without sharing an optional GPS route.
+        // Manual/auto-detected ALKE entries still require actual recorded route geometry.
+        val trustedImport = row.source.lowercase() !in setOf(
+            "manual", "auto-detected", "detected", "alke"
+        ) && !row.source.lowercase().endsWith("-alke") &&
+            row.deviceId.isNotBlank()
         val encoded = row.routePolyline?.takeIf { it.length in 24..100000 }
         if (encoded != null) {
             val route = runCatching { RouteMath.decode(encoded) }.getOrNull() ?: return null
@@ -69,7 +71,7 @@ object WorkoutPaceVo2Engine {
                     it.lat !in -90.0..90.0 || it.lon !in -180.0..180.0 }) return null
             val routeDistance = RouteMath.totalMeters(route)
             if (!routeDistance.isFinite() || abs(routeDistance - distance) / distance > 0.20) return null
-        } else if (!importedHealthConnect) return null
+        } else if (!trustedImport) return null
 
         val avgHr = row.avgHr?.toDouble() ?: return null
         val peakHr = row.maxHr?.toDouble()

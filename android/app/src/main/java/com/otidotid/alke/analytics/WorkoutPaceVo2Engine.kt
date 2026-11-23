@@ -59,7 +59,7 @@ object WorkoutPaceVo2Engine {
         // Third-party exercise imports (Zepp through Health Connect, Apple Health, etc.)
         // can provide independent distance and HR without sharing an optional GPS route.
         // Manual/auto-detected ALKE entries still require actual recorded route geometry.
-        val trustedImport = row.source.lowercase() !in setOf(
+        val trustedImport = row.source.isNotBlank() && row.source.lowercase() !in setOf(
             "manual", "auto-detected", "detected", "alke"
         ) && !row.source.lowercase().endsWith("-alke") &&
             row.deviceId.isNotBlank()

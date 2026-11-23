@@ -1,0 +1,82 @@
+name: ALKE v618 - Hypopnea Risk Review APK
+
+on:
+  push:
+    branches: [alke/v618-sleep-hypopnea-risk]
+  pull_request:
+    branches: [alke/v617-sleep-hypopnea-risk]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alke-v618-hypopnea
+  cancel-in-progress: true
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Check version and new risk screen contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 618' android/app/build.gradle.kts
+          grep -Fq 'versionName = "1.0.0-alpha.22.28-hypopnea-pinned"' android/app/build.gradle.kts
+          grep -Fq 'SleepHypopneaData.forWindow(' android/app/src/main/java/com/otidotid/alke/ui/SleepScreen.kt
+          grep -Fq 'SleepHypopneaNavigation.requestDetail()' android/app/src/main/java/com/otidotid/alke/ui/TodayScreen.kt
+          grep -Fq 'Risk.UNAVAILABLE' android/app/src/main/java/com/otidotid/alke/analytics/SleepHypopneaRiskEngine.kt
+          grep -Fq 'SleepHypopneaData.cached(' android/app/src/main/java/com/otidotid/alke/ui/SleepScreen.kt
+          grep -Fq 'key = "today-hypopnea-main-night"' android/app/src/main/java/com/otidotid/alke/ui/TodayScreen.kt
+          grep -Fq 'completedRevision' android/app/src/main/java/com/otidotid/alke/ui/SleepHypopneaData.kt
+      - name: Full Personal unit tests and testable staging + signing-base builds
+        shell: bash
+        working-directory: android
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest :app:assemblePersonalRelease :app:assemblePersonalDebug
+      - name: Verify APK and create checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/personal/release/app-personal-release.apk
+          base=android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+          test -s "$apk" && test -s "$base"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -1)"
+          "$aapt" dump badging "$apk" | head -n 1 | tee "$RUNNER_TEMP/package.txt"
+          grep -Fq "name='com.otidotid.alke.personal.staging'" "$RUNNER_TEMP/package.txt"
+          grep -Fq "versionCode='618'" "$RUNNER_TEMP/package.txt"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" | tee "$RUNNER_TEMP/signature.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/signature.txt"
+          unzip -t "$apk" >/dev/null
+          if unzip -Z1 "$apk" | grep -Eq '(\.alkebak$|\.noopbak$|\.keystore$|\.jks$|\.p12$|local\.properties$)'; then
+            echo "::error::Private content found in APK archive"
+            exit 1
+          fi
+          mkdir -p release-output
+          cp "$apk" release-output/ALKE-v618-HypopneaRisk-STAGING.apk
+          (cd release-output && sha256sum ALKE-v618-HypopneaRisk-STAGING.apk > ALKE-v618-HypopneaRisk-STAGING.apk.sha256)
+      - name: Upload side-by-side smoke-test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-v618-HypopneaRisk-STAGING
+          path: release-output/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Upload untrusted-signature Personal base for original-key signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-v618-PersonalBase-REQUIRES-ORIGINAL-SIGNER
+          path: android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+          retention-days: 30
+          if-no-files-found: error

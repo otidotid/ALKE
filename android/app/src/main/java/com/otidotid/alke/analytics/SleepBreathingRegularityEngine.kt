@@ -166,7 +166,7 @@ internal object SleepBreathingRegularityEngine {
             else -> Source.RR_ESTIMATE
         }
         val state = when {
-            variation == null || totalPct < MIN_VALID_FRACTION -> State.INSUFFICIENT_DATA
+            variation == null || totalPct.toDouble() / 100.0 < MIN_VALID_FRACTION -> State.INSUFFICIENT_DATA
             pattern == Pattern.LOW_VARIATION -> State.RELATIVELY_STEADY
             else -> State.MORE_VARIABLE
         }

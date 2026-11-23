@@ -38,7 +38,7 @@ internal fun SleepBreathingQualityCard(
     var expanded by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        SectionHeader("Sleep breathing quality", overline = "WHOOP 4 · Wellness", trailing = "Experimental")
+        SectionHeader("SLEEP BREATHING QUALITY")
         AlkeCard(tint = Palette.metricPurple) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val valueLabel = when {
@@ -51,25 +51,13 @@ internal fun SleepBreathingQualityCard(
 
                 if (report != null && report.hasEvidence) {
                     Text(
-                        "Data trust: ${trustText(report.trust)} · ${sourceText(report.source)}",
+                        "Data Trust: ${trustText(report.trust)}",
                         style = AlkeType.footnote, color = Palette.textSecondary,
                     )
                     Text(
-                        "Breathing pattern: ${patternText(report.pattern)}",
+                        "Breathing Pattern: ${patternText(report.pattern)}",
                         style = AlkeType.footnote, color = Palette.textPrimary,
                     )
-                    if (report.variabilityPercent != null) {
-                        Text(
-                            "Observed variation: ${String.format(Locale.US, "%.1f", report.variabilityPercent)}% " +
-                                "· window coverage ${report.coveragePercent}%",
-                            style = AlkeType.footnote, color = Palette.textSecondary,
-                        )
-                    } else {
-                        Text(
-                            "Not enough time-resolved measurements to classify overnight variation.",
-                            style = AlkeType.footnote, color = Palette.textSecondary,
-                        )
-                    }
                 } else {
                     val explanation = when (report?.reason) {
                         Breathing.Reason.NO_DIRECT_RESPIRATION ->
@@ -84,13 +72,7 @@ internal fun SleepBreathingQualityCard(
                 }
 
                 Text(
-                    "Hypopnea: not clinically assessable from wrist signals. " +
-                        "Breathing-pattern categories are NOT no/medium/high hypopnea risk.",
-                    style = AlkeType.footnote, color = Palette.textTertiary,
-                )
-
-                Text(
-                    if (expanded) "Hide details" else "Details · previous 7 recorded nights",
+                    if (expanded) "Hide Details" else "Details · Previous 7 Nights",
                     modifier = Modifier.clickable { expanded = !expanded }.padding(vertical = 6.dp),
                     style = AlkeType.footnote, color = Palette.metricPurple,
                 )
@@ -103,6 +85,17 @@ internal fun SleepBreathingQualityCard(
                         BreathingRateTrace(report.windows)
                     }
                     if (report != null) {
+                        Text(
+                            "Source: ${sourceText(report.source)}",
+                            style = AlkeType.footnote, color = Palette.textSecondary,
+                        )
+                        if (report.variabilityPercent != null) {
+                            Text(
+                                "Observed Variation: ${String.format(Locale.US, "%.1f", report.variabilityPercent)}% · " +
+                                    "Window Coverage: ${report.coveragePercent}%",
+                                style = AlkeType.footnote, color = Palette.textSecondary,
+                            )
+                        }
                         Text(
                             "Direct ${report.directCoveragePercent}% · RR estimates " +
                                 "${report.rrCoveragePercent}% · HR " +
@@ -132,11 +125,6 @@ internal fun SleepBreathingQualityCard(
                             }
                         }
                     }
-                    Text(
-                        "≈ means estimated or lower-trust data. Even high-trust raw respiration is not " +
-                            "a measured hypopnea count. A sleep test is needed to assess clinical risk.",
-                        style = AlkeType.footnote, color = Palette.textTertiary,
-                    )
                 }
             }
         }
@@ -149,8 +137,8 @@ private fun formatRate(report: Breathing.Report): String =
 
 private fun trustText(trust: Breathing.Trust): String = when (trust) {
     Breathing.Trust.HIGH -> "High"
-    Breathing.Trust.MEDIUM -> "Medium (≈)"
-    Breathing.Trust.LOW -> "Low (≈)"
+    Breathing.Trust.MEDIUM -> "Medium"
+    Breathing.Trust.LOW -> "Low"
     Breathing.Trust.NONE -> "Unavailable"
 }
 
@@ -163,10 +151,10 @@ private fun sourceText(source: Breathing.Source): String = when (source) {
 }
 
 private fun patternText(pattern: Breathing.Pattern): String = when (pattern) {
-    Breathing.Pattern.LOW_VARIATION -> "Low variation"
-    Breathing.Pattern.MODERATE_VARIATION -> "Medium variation (≈)"
-    Breathing.Pattern.HIGH_VARIATION -> "High variation (≈)"
-    Breathing.Pattern.NOT_ASSESSABLE -> "Cannot classify from current samples"
+    Breathing.Pattern.LOW_VARIATION -> "Low Variation"
+    Breathing.Pattern.MODERATE_VARIATION -> "Medium Variation"
+    Breathing.Pattern.HIGH_VARIATION -> "High Variation"
+    Breathing.Pattern.NOT_ASSESSABLE -> "Not Assessed"
 }
 
 @Composable

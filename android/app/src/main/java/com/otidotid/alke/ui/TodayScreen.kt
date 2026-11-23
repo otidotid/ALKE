@@ -433,8 +433,11 @@ fun TodayScreen(
             )
         }
     }
-    // v617: completed-night CVHR screening. Only changed days / sync transitions
-    // trigger a database scan; per-second live HR is not a dependency.
+    // v618: Today follows the pinned main-night result shared with Sleep, not
+    // the latest-ending nap. This revision is published only for a newly scored
+    // sleep morning; it never changes with per-second HR samples.
+    val hypopneaContext = LocalContext.current
+    val hypopneaRevision by SleepHypopneaData.revision.collectAsState()
     var todayHypopnea by remember { mutableStateOf(
         com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
             com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
@@ -442,14 +445,14 @@ fun TodayScreen(
     ) }
     LaunchedEffect(
         days, viewModel.activeStrapId, liveSnap.backfilling,
-        liveSnap.analyzingHistory, liveSnap.lastSyncAt,
+        liveSnap.analyzingHistory, liveSnap.lastSyncAt, hypopneaRevision,
     ) {
-        todayHypopnea = if (liveSnap.backfilling || liveSnap.analyzingHistory) {
-            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
-            )
-        } else try {
-            SleepHypopneaData.latest(viewModel.repo, viewModel.activeStrapId)
+        // A background sync must never erase a result already calculated for
+        // the morning. Once sync finishes, latest() checks the persistent
+        // wake-day cache before reading the sensor database again.
+        if (liveSnap.backfilling || liveSnap.analyzingHistory) return@LaunchedEffect
+        val result = try {
+            SleepHypopneaData.latest(hypopneaContext, viewModel.repo, viewModel.activeStrapId)
         } catch (cancel: kotlinx.coroutines.CancellationException) {
             throw cancel
         } catch (_: Exception) {
@@ -457,6 +460,7 @@ fun TodayScreen(
                 com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
             )
         }
+        if (result.isReady || !todayHypopnea.isReady) todayHypopnea = result
     }
     // #849: seed from the ViewModel cache so a re-mount (tab-return / post-import) restores the last footer
     // immediately instead of flashing empty while the heavy reload is (now) skipped for unchanged data.
@@ -1575,6 +1579,22 @@ fun TodayScreen(
         }
         }
 
+        // Pinned Hypopnea shortcut: independent of the customisable/reorderable
+        // HERO section. It stays discoverable even when HERO is hidden or moved.
+        // No PENDING/false LOW is shown before a genuine completed-night result.
+        if (selectedDayOffset == 0 && todayHypopnea.isReady) {
+            item(key = "today-hypopnea-main-night") {
+                SleepHypopneaCard(
+                    assessment = todayHypopnea,
+                    compact = true,
+                    onOpen = {
+                        SleepHypopneaNavigation.requestDetail()
+                        onOpenSleep()
+                    },
+                )
+            }
+        }
+
         // Workout actions live exclusively on the Workouts screen. Today intentionally renders none.
 
         // Design Reset (iOS parity): the "New here?" first-run card is off the Today dashboard for the
@@ -1809,18 +1829,6 @@ fun TodayScreen(
                                         color = Palette.textTertiary,
                                     )
                                 }
-                            }
-                            // One-line shortcut in the premium Today hero; never show a false
-                            // LOW during sync, with a missing night, or on a browsed past day.
-                            if (selectedDayOffset == 0 && todayHypopnea.isReady) {
-                                SleepHypopneaCard(
-                                    assessment = todayHypopnea,
-                                    compact = true,
-                                    onOpen = {
-                                        SleepHypopneaNavigation.requestDetail()
-                                        onOpenSleep()
-                                    },
-                                )
                             }
                         }
                         // LIVE SESSIONS (beta): the compact "Start session · BETA" entry. Today only

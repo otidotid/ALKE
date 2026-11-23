@@ -285,6 +285,7 @@ private data class TodayLiveSnapshot(
     val hrStreaming: Boolean,
     val lastSyncAt: Long?,
     val backfilling: Boolean,
+    val analyzingHistory: Boolean,
     val syncChunksThisSession: Int,
     /** Mirrors `LiveState.historyReady` — whether this strap can actually hand over history. Flips at
      *  most once per connection, so it costs the snapshot nothing. */
@@ -420,6 +421,7 @@ fun TodayScreen(
                 hrStreaming = s.heartRate != null,
                 lastSyncAt = s.lastSyncAt,
                 backfilling = s.backfilling,
+                analyzingHistory = s.analyzingHistory,
                 syncChunksThisSession = s.syncChunksThisSession,
                 historyReady = s.historyReady,
                 historySyncExperimental = s.historySyncExperimental,
@@ -428,6 +430,31 @@ fun TodayScreen(
                 batteryPct = s.batteryPct,
                 whoop5 = s.whoop5Detected,
                 charging = s.charging,
+            )
+        }
+    }
+    // v617: completed-night CVHR screening. Only changed days / sync transitions
+    // trigger a database scan; per-second live HR is not a dependency.
+    var todayHypopnea by remember { mutableStateOf(
+        com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+        ),
+    ) }
+    LaunchedEffect(
+        days, viewModel.activeStrapId, liveSnap.backfilling,
+        liveSnap.analyzingHistory, liveSnap.lastSyncAt,
+    ) {
+        todayHypopnea = if (liveSnap.backfilling || liveSnap.analyzingHistory) {
+            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+            )
+        } else try {
+            SleepHypopneaData.latest(viewModel.repo, viewModel.activeStrapId)
+        } catch (cancel: kotlinx.coroutines.CancellationException) {
+            throw cancel
+        } catch (_: Exception) {
+            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
             )
         }
     }
@@ -1782,6 +1809,18 @@ fun TodayScreen(
                                         color = Palette.textTertiary,
                                     )
                                 }
+                            }
+                            // One-line shortcut in the premium Today hero; never show a false
+                            // LOW during sync, with a missing night, or on a browsed past day.
+                            if (selectedDayOffset == 0 && todayHypopnea.isReady) {
+                                SleepHypopneaCard(
+                                    assessment = todayHypopnea,
+                                    compact = true,
+                                    onOpen = {
+                                        SleepHypopneaNavigation.requestDetail()
+                                        onOpenSleep()
+                                    },
+                                )
                             }
                         }
                         // LIVE SESSIONS (beta): the compact "Start session · BETA" entry. Today only

@@ -605,6 +605,63 @@ fun SleepScreen(
         model ?: fallbackSleepModel(days, imported, napSleepMinByDay, sessions = sleeps)
     }
 
+    // v617: one read-only CVHR screen per *completed* navigated sleep window.
+    // Only sync/analysis completion or changing night triggers another read; 1Hz live HR
+    // updates never run this model. Do not infer a LOW risk from missing pulse data.
+    var hypopneaAssessment by remember { mutableStateOf(
+        com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+        ),
+    ) }
+    var showHypopneaDetail by remember { mutableStateOf(false) }
+    LaunchedEffect(
+        days, vm.activeStrapId, night?.session?.startTs, night?.session?.endTs,
+        sleepRowsReady, freshnessLive.backfilling, freshnessLive.analyzing,
+    ) {
+        val selected = night
+        hypopneaAssessment = when {
+            !sleepRowsReady || freshnessLive.backfilling || freshnessLive.analyzing ->
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+                )
+            selected == null ->
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
+                )
+            else -> try {
+                SleepHypopneaData.forWindow(
+                    vm.repo, vm.activeStrapId,
+                    selected.heroOnsetTs ?: selected.session.effectiveStartTs,
+                    selected.heroWakeTs ?: selected.session.endTs,
+                )
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
+                )
+            }
+        }
+    }
+    // Today shortcut is a true deep link: open the newest night and this sheet.
+    LaunchedEffect(SleepHypopneaNavigation.showDetailRequested, sleepRowsReady) {
+        if (sleepRowsReady && SleepHypopneaNavigation.consumeDetail()) {
+            nightOffset = 0
+            showHypopneaDetail = true
+        }
+    }
+    if (showHypopneaDetail) {
+        val hypopneaSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showHypopneaDetail = false },
+            sheetState = hypopneaSheet,
+            containerColor = Palette.surfaceRaised,
+            contentColor = Palette.textPrimary,
+        ) {
+            SleepHypopneaDetailContent(hypopneaAssessment)
+        }
+    }
+
     // Jump straight to a night by its (local) wake-day — the center date block opens a picker.
     // navDays is newest-day-first, so the day's index IS its offset (0 = last night). (#160, #59)
     val onPickNightDate: (LocalDate) -> Unit = { targetDate ->
@@ -733,6 +790,10 @@ fun SleepScreen(
                     source = restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
                     overline = nightLabel,
                 )
+            }
+            // v617: post-wake Sleep Breathing Quality card. A tap opens the detailed explanation.
+            item(key = "sleep-hypopnea-risk") {
+                SleepHypopneaCard(hypopneaAssessment, onOpen = { showHypopneaDetail = true })
             }
             item { SleepAlarmsEntry(onOpenAlarms) }
             // #sleep-layout: a compact "Arrange" affordance (the same Tune entry Today uses) opens the

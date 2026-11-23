@@ -55,6 +55,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.lazy.rememberLazyListState
 import kotlinx.coroutines.ensureActive
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -102,6 +103,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.Instant
 import java.time.ZoneId
@@ -209,6 +211,8 @@ fun SleepScreen(
     vm: AppViewModel,
     onOpenJournal: () -> Unit = {},
     onOpenAlarms: () -> Unit = {},
+    focusBreathingSection: Boolean = false,
+    onBreathingFocusConsumed: () -> Unit = {},
 ) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     // Whether the ACTIVE strap is an Oura ring, off the canonical brand table (not an "oura" literal) — so
@@ -389,6 +393,28 @@ fun SleepScreen(
     // the edge auto-scroll velocity SleepReorderableSection's onDrag computed. Persistence is on drop
     // (onDrop below), not here — this only updates the in-memory order live.
     val sleepListState = rememberLazyListState()
+    // Deep jump from native ALKE Today: reveal the requested card if the user hid it,
+    // then locate its actual LazyColumn item key. No fragile hard-coded list offsets.
+    LaunchedEffect(focusBreathingSection, sleepRowsReady, hiddenSections, sleepSectionOrder) {
+        if (!focusBreathingSection || !sleepRowsReady) return@LaunchedEffect
+        if (SleepSection.SLEEP_BREATHING in hiddenSections) {
+            val visible = hiddenSections - SleepSection.SLEEP_BREATHING
+            hiddenSections = visible
+            SleepLayoutPrefs.setHidden(context, visible)
+            return@LaunchedEffect // Recompose, then scroll to the now-visible section.
+        }
+        val targetKey = SLEEP_SECTION_KEY_PREFIX + SleepSection.SLEEP_BREATHING.raw
+        val count = snapshotFlow { sleepListState.layoutInfo.totalItemsCount }.first { it > 0 }
+        for (index in 0 until count) {
+            sleepListState.scrollToItem(index)
+            val match = sleepListState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == targetKey }
+            if (match != null) {
+                sleepListState.animateScrollToItem(match.index)
+                onBreathingFocusConsumed()
+                break
+            }
+        }
+    }
     val sleepSectionDrag = remember { SleepSectionDragState() }
     val sleepDragActive = sleepSectionDrag.key != null
     LaunchedEffect(sleepDragActive) {
@@ -1035,6 +1061,7 @@ fun SleepScreen(
                                 selectedDay = night?.dayKey,
                                 report = night?.dayKey?.let { breathingCache[it] },
                                 recent = breathingNights.map { it.dayKey to breathingCache[it.dayKey] },
+                                openDetailsOnEntry = focusBreathingSection,
                             )
                         }
                     }

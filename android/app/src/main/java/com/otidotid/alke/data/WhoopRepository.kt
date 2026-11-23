@@ -1833,6 +1833,24 @@ class WhoopRepository(
     suspend fun respSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =
         dao.respSamples(deviceId, from, to, limit)
 
+    /**
+     * Read-only direct respiratory ADC union for the experimental Sleep Breathing card.
+     * Active-strap data wins overlapping seconds; never mix synthetic/estimated SpO2 or
+     * append samples beyond a bounded 16-hour night. Room source rows are untouched.
+     */
+    suspend fun respSamplesUnion(
+        activeDeviceId: String, from: Long, to: Long, limit: Int = 60_000,
+    ): List<RespSample> {
+        val boundedLimit = limit.coerceIn(1, 60_000)
+        val unique = LinkedHashMap<Long, RespSample>()
+        for (id in rawWhoopSourceIds(activeDeviceId)) {
+            for (row in dao.respSamples(id, from, to, boundedLimit)) {
+                unique.putIfAbsent(row.ts, row)
+            }
+        }
+        return unique.values.sortedBy { it.ts }.take(boundedLimit)
+    }
+
     suspend fun gravitySamplesForDevice(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =
         dao.gravitySamples(deviceId, from, to, limit)
 

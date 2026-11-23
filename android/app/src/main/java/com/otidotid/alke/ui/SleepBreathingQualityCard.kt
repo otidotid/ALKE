@@ -41,11 +41,10 @@ internal fun SleepBreathingQualityCard(
         SectionHeader("Sleep breathing quality", overline = "WHOOP 4 · Wellness", trailing = "Experimental")
         AlkeCard(tint = Palette.metricPurple) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                val hasValue = report?.hasEvidence == true
                 val valueLabel = when {
                     selectedDay == null -> "No recorded sleep"
                     report == null -> "Analyzing breathing..."
-                    hasValue -> formatRate(report)
+                    report?.hasEvidence == true -> formatRate(report)
                     else -> "No respiratory reading"
                 }
                 Text(valueLabel, style = AlkeType.headline, color = Palette.textPrimary)

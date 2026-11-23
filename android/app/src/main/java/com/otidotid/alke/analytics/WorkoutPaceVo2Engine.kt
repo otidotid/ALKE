@@ -18,6 +18,8 @@ object WorkoutPaceVo2Engine {
     const val ALGORITHM_VERSION = "vo2max-outdoor-run-pace-hrr-v1"
     const val REQUIRED_RUNS = 3
     const val LOOKBACK_DAYS = 42L
+    /** Maximum single-publication correction: preserve the already matching Nes/Uth baseline. */
+    const val MAX_CORRECTION = 0.5
 
     data class Run(
         val startTs: Long,
@@ -104,7 +106,7 @@ object WorkoutPaceVo2Engine {
         val runMedian = median(consistent.map { it.predictedVo2max })
         val paceMedian = median(consistent.map { it.paceSecPerKm })
         // Keep Nes/Uth as a stable anchor. Even three matching runs cannot cause a sudden multi-point jump.
-        val correction = (runMedian - baseline).coerceIn(-6.0, 6.0) * 0.35
+        val correction = ((runMedian - baseline) * 0.10).coerceIn(-MAX_CORRECTION, MAX_CORRECTION)
         return Estimate(
             value = (baseline + correction).coerceIn(15.0, 85.0),
             baseline = baseline,

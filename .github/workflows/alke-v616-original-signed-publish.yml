@@ -22,8 +22,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: v1.0.0-alpha.22.26-vo2-pace.616
-      VERIFIED_RUN: '45103176365'
-      VERIFIED_HEAD: cdc74b8fab8350a0bf0f8f44edb86c1aa0897a66
+      VERIFIED_RUN: '45104501872'
+      VERIFIED_HEAD: 9e6f84cb48ae8f45082c3e66a808128fc9c2434f
       EXCHANGE_BRANCH: alke/v616-vo2-pace-v2
     steps:
       - uses: actions/checkout@v4

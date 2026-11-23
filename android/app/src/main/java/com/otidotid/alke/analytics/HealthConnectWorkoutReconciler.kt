@@ -7,9 +7,9 @@ import kotlin.math.roundToInt
 /**
  * Reconciles an imported Health Connect workout against the ALKE strap HR trace.
  *
- * Health Connect remains authoritative only for session identity, time, sport, distance and route.
- * HR, workout calories and Effort are local ALKE values. With fewer than two strap samples the
- * session stays pending; no external or synthetic metric is shown.
+ * Imported Health Connect workout heart rate is retained when the ALKE strap has no
+ * independent HR samples; when strap samples exist, those remain authoritative.
+ * Workout calories and Effort are still locally computed from strap evidence only.
  *
  * Workout calories are an interval breakdown only. They are never added to DailyMetric active
  * calories, whose whole-day raw-HR pipeline already includes the same interval exactly once.
@@ -35,7 +35,9 @@ object HealthConnectWorkoutReconciler {
             .toList()
 
         if (window.size < 2) {
-            return row.copy(avgHr = null, maxHr = null, energyKcal = null, strain = null)
+            // Retain real imported Health Connect HR for pace-based fitness estimation
+            // and the exercise detail. Do not invent Effort or trust external calories.
+            return row.copy(energyKcal = null, strain = null)
         }
 
         val kcal = runCatching {

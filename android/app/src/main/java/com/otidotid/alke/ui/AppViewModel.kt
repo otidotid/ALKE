@@ -2245,9 +2245,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 strainSex = profileStore.sex,
                 effortMethod = AlkePrefs.effortMethod(appContext),
             )
-            // Health Connect contributes session identity, time, sport, distance and route only.
-            // Re-resolve HR, calories and Effort from the ALKE strap window every time workouts load.
-            // This self-heals old imports, including impossible external kcal, after HR offload/sync.
+            // Retain consented Health Connect workout HR if there is no strap HR window.
+            // When strap HR is present, it wins; calories/Effort always require ALKE's
+            // local scoring evidence, avoiding fabricated external kcal after offload.
             val locallyReconciled = filled.map { row ->
                 if (!row.source.equals(
                         com.otidotid.alke.analytics.HealthConnectWorkoutReconciler.sourceId,

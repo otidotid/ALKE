@@ -24,11 +24,11 @@ class HealthConnectWorkoutReconcilerTest {
         // A very short workout may not be eligible for Effort, but must never crash.
     }
 
-    @Test fun missingStrapHrBecomesPendingInsteadOfKeepingExternalOrEstimatedValues() {
+    @Test fun missingStrapHrKeepsImportedWorkoutHrButNotExternalCaloriesOrEffort() {
         val out = HealthConnectWorkoutReconciler.reconcile(
             row(), emptyList(), profile, 185.0, 55.0, StrainScorer.Method.EDWARDS, "male")
-        assertNull(out.avgHr)
-        assertNull(out.maxHr)
+        assertEquals(118, out.avgHr)
+        assertEquals(130, out.maxHr)
         assertNull(out.energyKcal)
         assertNull(out.strain)
     }

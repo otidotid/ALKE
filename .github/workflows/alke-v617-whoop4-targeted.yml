@@ -1,0 +1,90 @@
+name: ALKE v617 WHOOP4 - Targeted Breathing Gate and APK
+
+on:
+  push:
+    branches: [alke/v617-sleep-breathing-regularity]
+    paths:
+      - android/app/src/main/java/com/otidotid/alke/analytics/SleepBreathingRegularityEngine.kt
+      - android/app/src/main/java/com/otidotid/alke/ui/SleepBreathingQualityCard.kt
+      - android/app/src/main/java/com/otidotid/alke/ui/SleepScreen.kt
+      - android/app/src/main/java/com/otidotid/alke/data/WhoopRepository.kt
+      - android/app/src/test/java/com/otidotid/alke/analytics/SleepBreathingRegularityEngineTest.kt
+      - .github/workflows/alke-v617-whoop4-targeted.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alke-v617-whoop4-targeted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-and-export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      ALKE_CLOUD_COACH_URL: ${{ vars.ALKE_CLOUD_COACH_URL || 'https://alke-cloud-coach.anandhito-prakoso.workers.dev' }}
+      ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID || '542598370283-1gr0qq8ad4ga691k3lvrotma140hcu5r.apps.googleusercontent.com' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Verify version and unchanged app identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'versionCode = 617' android/app/build.gradle.kts
+          grep -Fq 'versionName = "1.0.0-alpha.22.27-sleep-breathing"' android/app/build.gradle.kts
+          grep -Fq 'applicationIdSuffix = ".personal"' android/app/build.gradle.kts
+      - name: Focused respiratory, sleep-staging and UI layout regression suite + Personal APK
+        shell: bash
+        working-directory: android
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest \
+            --tests 'com.otidotid.alke.analytics.SleepBreathingRegularityEngineTest' \
+            --tests 'com.otidotid.alke.analytics.RespRateGapAwareTest' \
+            --tests 'com.otidotid.alke.analytics.RespRateRsaTest' \
+            --tests 'com.otidotid.alke.analytics.SleepStagerRespEvidenceTest' \
+            --tests 'com.otidotid.alke.ui.SleepLayoutPrefsTest' \
+            --tests 'com.otidotid.alke.ui.SleepSectionReorderTest'
+          ./gradlew -PstagingRelease --no-daemon :app:assemblePersonalDebug
+      - name: Validate Personal signing base
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+          test -s "$apk"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          test -x "$aapt"
+          "$aapt" dump badging "$apk" | head -1 | tee "$RUNNER_TEMP/v617-badging.txt"
+          grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v617-badging.txt"
+          grep -Fq "versionCode='617'" "$RUNNER_TEMP/v617-badging.txt"
+          unzip -t "$apk" >/dev/null
+          if unzip -Z1 "$apk" | grep -Eq '(\.alkebak$|\.noopbak$|\.keystore$|\.jks$|\.p12$|local\.properties$)'; then
+            echo "::error::Private content in APK"
+            exit 1
+          fi
+          sha256sum "$apk" > android/app/build/outputs/apk/personal/debug/app-personal-debug.apk.sha256
+      - name: Upload validated base for private original F34C signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-v617-WHOOP4-Base-for-Original-F34C-Signer
+          path: |
+            android/app/build/outputs/apk/personal/debug/app-personal-debug.apk
+            android/app/build/outputs/apk/personal/debug/app-personal-debug.apk.sha256
+          retention-days: 30
+          if-no-files-found: error
+      - name: Upload test failure report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-v617-WHOOP4-Targeted-Test-Reports
+          path: android/app/build/reports/tests/testPersonalDebugUnitTest/**
+          if-no-files-found: ignore
+          retention-days: 14

@@ -125,7 +125,7 @@ internal fun SleepBreathingQualityCard(
                                     when {
                                         historical == null -> "Analyzing..."
                                         historical.hasEvidence -> formatRate(historical) + " · " + trustText(historical.trust)
-                                        else -> "No reliable respiratory rate",
+                                        else -> "No reliable respiratory rate"
                                     },
                                     style = AlkeType.footnote, color = Palette.textPrimary,
                                 )

@@ -2860,4 +2860,17 @@
     <string name="l10n_settings_screen_use_weight_from_health_connect_c1fe3e2a">Gewicht aus Health Connect verwenden</string>
     <string name="l10n_settings_screen_use_weight_from_health_connect_detail_40238f8a">Nach jeder Synchronisierung übernimmt dein Profil das neueste Gewicht aus Health Connect. Deaktiviere diese Option, um es manuell festzulegen.</string>
     <string name="today_card_total_calories_subtitle">Gesamtkalorien</string>
+    <!-- ALKE v617: Schlafatmungs-Screening nach abgeschlossener Schlafphase. -->
+    <string name="sleep_hypopnea_title">SCHLAFATMUNGSQUALITÄT</string>
+    <string name="sleep_hypopnea_risk_title">HYPOPNOE-RISIKO</string>
+    <string name="sleep_hypopnea_low">GERING</string>
+    <string name="sleep_hypopnea_medium">MITTEL</string>
+    <string name="sleep_hypopnea_high">HOCH</string>
+    <string name="sleep_hypopnea_waiting">AUSSTEHEND</string>
+    <string name="sleep_hypopnea_unavailable">NICHT VERFÜGBAR</string>
+    <string name="sleep_hypopnea_waiting_hint">Verfügbar, nachdem der Schlaf beendet und die Synchronisierung abgeschlossen ist.</string>
+    <string name="sleep_hypopnea_unavailable_hint">Für eine verlässliche Screening-Schätzung liegen nicht genügend verwertbare nächtliche Pulssignale vor.</string>
+    <string name="sleep_hypopnea_method">Das Risiko wird anhand zyklischer Herzfrequenzmuster (CVHR) geschätzt, in Anlehnung an Hayano/ACAT. Diese sensorbasierte Methode ist explorativ und wurde für ALKE nicht klinisch validiert. Bewegungssignale können Artefakte ausfiltern; rohe Atemsignale gelten nicht als kalibrierte Luftstrommessung.</string>
+    <string name="sleep_hypopnea_disclaimer">ALKE ist kein Medizinprodukt. Diese Schätzung ist keine Diagnose von Hypopnoe oder Schlafapnoe. Bei medizinischen Fragen wenden Sie sich an qualifiziertes medizinisches Fachpersonal.</string>
+    <string name="sleep_hypopnea_low_caution">Ein GERINGES Musterrisiko schließt Schlafapnoe oder andere Atemstörungen nicht aus.</string>
 </resources>

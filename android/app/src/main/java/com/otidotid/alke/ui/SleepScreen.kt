@@ -605,41 +605,53 @@ fun SleepScreen(
         model ?: fallbackSleepModel(days, imported, napSleepMinByDay, sessions = sleeps)
     }
 
-    // v617: one read-only CVHR screen per *completed* navigated sleep window.
-    // Only sync/analysis completion or changing night triggers another read; 1Hz live HR
-    // updates never run this model. Do not infer a LOW risk from missing pulse data.
-    var hypopneaAssessment by remember { mutableStateOf(
-        com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
-        ),
-    ) }
+    // v618: a completed wake-day's LOW/MEDIUM/HIGH verdict is pinned. Never
+    // overwrite it with PENDING while BLE history offloads again in daytime.
+    // A DIFFERENT selected wake-day gets its own fresh cache/result.
+    var hypopneaAssessment by remember(vm.activeStrapId, night?.heroWakeTs, night?.session?.endTs) {
+        mutableStateOf(
+            (night?.heroWakeTs ?: night?.session?.endTs)?.let {
+                SleepHypopneaData.cached(context, vm.activeStrapId, it)
+            } ?: com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+            )
+        )
+    }
     var showHypopneaDetail by remember { mutableStateOf(false) }
     LaunchedEffect(
         days, vm.activeStrapId, night?.session?.startTs, night?.session?.endTs,
+        night?.heroOnsetTs, night?.heroWakeTs,
         sleepRowsReady, freshnessLive.backfilling, freshnessLive.analyzing,
     ) {
         val selected = night
-        hypopneaAssessment = when {
-            !sleepRowsReady || freshnessLive.backfilling || freshnessLive.analyzing ->
-                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
-                )
-            selected == null ->
-                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
-                )
-            else -> try {
-                SleepHypopneaData.forWindow(
-                    vm.repo, vm.activeStrapId,
-                    selected.heroOnsetTs ?: selected.session.effectiveStartTs,
-                    selected.heroWakeTs ?: selected.session.endTs,
-                )
-            } catch (cancel: kotlinx.coroutines.CancellationException) {
-                throw cancel
-            } catch (_: Exception) {
+        val wake = selected?.heroWakeTs ?: selected?.session?.endTs
+        val saved = wake?.let { SleepHypopneaData.cached(context, vm.activeStrapId, it) }
+        when {
+            saved != null -> hypopneaAssessment = saved
+            // Only WAIT for an unassessed night. A scored night cannot flip to
+            // PENDING because a new sync or a background analysis has started.
+            !sleepRowsReady || freshnessLive.backfilling || freshnessLive.analyzing -> Unit
+            selected == null -> hypopneaAssessment =
                 com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
                     com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
                 )
+            else -> {
+                val result = try {
+                    SleepHypopneaData.forWindow(
+                        context, vm.repo, vm.activeStrapId,
+                        selected.heroOnsetTs ?: selected.session.effectiveStartTs,
+                        selected.heroWakeTs ?: selected.session.endTs,
+                    )
+                } catch (cancel: kotlinx.coroutines.CancellationException) {
+                    throw cancel
+                } catch (_: Exception) {
+                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                        com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
+                    )
+                }
+                if (result.isReady || !hypopneaAssessment.isReady) {
+                    hypopneaAssessment = result
+                }
             }
         }
     }

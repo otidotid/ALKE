@@ -1,0 +1,35 @@
+name: ALKE temporary verified Android signing-tool toolbox
+on:
+  push:
+    branches: [alke/ci-android-toolbox-v617]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  toolchain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check local Google Android SDK build-tools binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 3 -name apksigner.jar -type f | sort -V | tail -n 1)"
+          align="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name zipalign -type f | sort -V | tail -n 1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -n 1)"
+          test -s "$signer" && test -x "$align" && test -x "$aapt"
+          mkdir -p toolchain
+          cp "$signer" toolchain/apksigner.jar
+          cp "$align" toolchain/zipalign
+          cp "$aapt" toolchain/aapt
+          (cd toolchain && sha256sum apksigner.jar zipalign aapt > SHA256SUMS)
+          ls -lh toolchain
+      - name: Export official Google SDK build tools (no signing keys)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-Android-SDK-signing-tools-v617
+          path: toolchain/
+          retention-days: 1
+          if-no-files-found: error

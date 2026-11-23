@@ -50,9 +50,9 @@ internal fun SleepBreathingQualityCard(
                 }
                 Text(valueLabel, style = AlkeType.headline, color = Palette.textPrimary)
 
-                if (hasValue) {
+                if (report != null && report.hasEvidence) {
                     Text(
-                        "Data trust: ${trustText(report!!.trust)} · ${sourceText(report.source)}",
+                        "Data trust: ${trustText(report.trust)} · ${sourceText(report.source)}",
                         style = AlkeType.footnote, color = Palette.textSecondary,
                     )
                     Text(

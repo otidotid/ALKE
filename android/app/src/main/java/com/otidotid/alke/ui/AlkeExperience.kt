@@ -678,6 +678,56 @@ private fun AlkeLinkRow(
     }
 }
 
+/**
+ * One-line Today shortcut in the SAME frosted-card language as ALKE's Key signals.
+ * The label is deliberately NOT a diagnostic result. LOW/MEDIUM/HIGH will only be
+ * displayed after a validated, completed-night hypopnea screening signal exists.
+ */
+@Composable
+private fun AlkeHypopneaRiskShortcut(onClick: () -> Unit) {
+    AlkePanel(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier = Modifier.size(34.dp).clip(CircleShape)
+                    .background(A.blue.copy(alpha = 0.17f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Bedtime,
+                    contentDescription = null,
+                    tint = A.cyan,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+            Text(
+                "HYPOPNEA RISK",
+                modifier = Modifier.weight(1f),
+                color = A.white,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.7.sp,
+                maxLines = 1,
+            )
+            Text(
+                "NOT ASSESSED",
+                color = A.muted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = "View Sleep Breathing Quality details",
+                tint = A.cyan,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
 private fun niceMinutes(value: Double?): String {
     if (value == null || !value.isFinite() || value < 0) return "—"
     val mins = value.roundToInt()
@@ -762,6 +812,7 @@ fun AlkeTodayExperience(
     onMetric: (String) -> Unit,
     onSteps: () -> Unit,
     onHeartRateTimeline: () -> Unit,
+    onSleepBreathing: () -> Unit = {},
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
@@ -871,6 +922,9 @@ fun AlkeTodayExperience(
             AlkeMetricTile("RHR", day?.restingHr?.let { "$it bpm" } ?: "—", Icons.Filled.Favorite, Modifier.weight(1f), A.gold, { onMetric("rhr") })
             AlkeMetricTile("Sleep time", niceMinutes(day?.totalSleepMin), Icons.Filled.Bedtime, Modifier.weight(1f), A.blue, onSleep)
         }
+        // A compact navigation preview only. Never synthesize a LOW risk category from
+        // ordinary respiratory rate/variability: the WHOOP 4 hypopnea model is under validation.
+        AlkeHypopneaRiskShortcut(onClick = onSleepBreathing)
         AlkePanel(Modifier.fillMaxWidth(), onClick = onCoach) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.size(44.dp).clip(CircleShape).background(A.gold.copy(alpha = 0.15f)),

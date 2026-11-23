@@ -762,9 +762,32 @@ fun AlkeTodayExperience(
     onMetric: (String) -> Unit,
     onSteps: () -> Unit,
     onHeartRateTimeline: () -> Unit,
+    onHypopneaDetail: () -> Unit = {},
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
+    // The REAL ALKE Today view reads the SAME completed main-night risk as Sleep.
+    // Never replace an already calculated LOW/MEDIUM/HIGH with a transient
+    // PENDING when further daytime history syncs or the view re-composes.
+    val hypopneaRevision by SleepHypopneaData.revision.collectAsStateWithLifecycle()
+    val hypopneaContext = LocalContext.current
+    var hypopneaToday by remember(vm.activeStrapId) {
+        mutableStateOf(com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+        ))
+    }
+    LaunchedEffect(vm.activeStrapId, recentDays, hypopneaRevision) {
+        val result = try {
+            SleepHypopneaData.latest(hypopneaContext, vm.repo, vm.activeStrapId)
+        } catch (cancel: kotlinx.coroutines.CancellationException) {
+            throw cancel
+        } catch (_: Exception) {
+            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
+            )
+        }
+        if (result.isReady || !hypopneaToday.isReady) hypopneaToday = result
+    }
     // The existing Steps detail resolver provides real, imported, and estimated
     // readings with the same precedence as Progress. Show ONLY today's reading
     // in the Today tile; a prior date must never masquerade as today's steps.
@@ -909,6 +932,25 @@ fun AlkeTodayExperience(
         // Tapping this compact real/latest BPM card retains the existing detailed
         // Heart Rate Timeline route, chart, workout icons, sleep bands and gestures.
         AlkeHeartRatePreview(vm, onHeartRateTimeline)
+        // Fixed ALKE Today order: HEART RATE -> HYPOPNEA -> EXPLORE TRENDS.
+        // The card reflects a completed night; an unclassified/in-progress
+        // window never makes a false clinical claim or shows "Risk PENDING".
+        if (hypopneaToday.isReady) {
+            val risk = hypopneaToday.risk
+            val riskTone = when (risk) {
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.LOW -> A.green
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.MEDIUM -> A.gold
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.HIGH -> Color(0xFFF08283)
+                else -> A.muted
+            }
+            AlkeLinkRow(
+                title = "Hypopnea Risk ${risk.name}",
+                subtitle = "Last completed sleep · Open Sleep details",
+                icon = Icons.Filled.Bedtime,
+                onClick = onHypopneaDetail,
+                accent = riskTone,
+            )
+        }
         // Sleep and Train are already available in the metric tiles above.
         // The old three-row "My Day" recap repeated the same readings and was
         // removed from the presentation only; all source data and detail routes stay.

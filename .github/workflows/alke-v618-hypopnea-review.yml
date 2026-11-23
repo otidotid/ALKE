@@ -37,6 +37,18 @@ jobs:
           grep -Fq 'SleepHypopneaData.cached(' android/app/src/main/java/com/otidotid/alke/ui/SleepScreen.kt
           grep -Fq 'key = "today-hypopnea-main-night"' android/app/src/main/java/com/otidotid/alke/ui/TodayScreen.kt
           grep -Fq 'completedRevision' android/app/src/main/java/com/otidotid/alke/ui/SleepHypopneaData.kt
+          # Contract for the REAL fixed ALKE home (not the legacy TodayScreen).
+          python3 - <<'PY'
+          from pathlib import Path
+          code = Path("android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt").read_text()
+          home = code.split("fun AlkeTodayExperience(", 1)[1].split("fun AlkeTrainingExperience(", 1)[0]
+          assert home.index("AlkeHeartRatePreview(vm, onHeartRateTimeline)") < home.index("title = \"Hypopnea Risk") < home.index("\"Explore your trends\"")
+          assert "onHypopneaDetail: () -> Unit" in home
+          assert "if (hypopneaToday.isReady)" in home
+          root = Path("android/app/src/main/java/com/otidotid/alke/ui/AppRoot.kt").read_text()
+          assert "SleepHypopneaNavigation.requestDetail()" in root
+          assert "nav.navigate(Destination.Sleep.route)" in root
+          PY
       - name: Full Personal unit tests and testable staging + signing-base builds
         shell: bash
         working-directory: android

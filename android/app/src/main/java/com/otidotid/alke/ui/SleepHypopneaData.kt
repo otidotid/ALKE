@@ -21,6 +21,15 @@ internal object SleepHypopneaData {
     private val completedRevision = MutableStateFlow(0)
     val revision: StateFlow<Int> = completedRevision
 
+    // A morning's first computed verdict stays locked on purpose. The recorded
+    // canonical span is provenance, NOT a reason to recalculate after an edit.
+    internal data class LatestNight(
+        val wakeDay: String?,
+        val startTs: Long?,
+        val endTs: Long?,
+        val assessment: SleepHypopneaRiskEngine.Assessment,
+    )
+
     private fun resultKey(activeStrapId: String, wakeTs: Long): String =
         "completed:" + activeStrapId + ":" + localDayString(wakeTs)
 
@@ -32,7 +41,7 @@ internal object SleepHypopneaData {
         if (wakeTs <= 0L) return null
         val saved = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(resultKey(activeStrapId, wakeTs), null) ?: return null
-        val risk = runCatching { SleepHypopneaRiskEngine.Risk.valueOf(saved) }.getOrNull()
+        val risk = runCatching { SleepHypopneaRiskEngine.Risk.valueOf(saved.substringBefore('|')) }.getOrNull()
             ?: return null
         return if (risk == SleepHypopneaRiskEngine.Risk.LOW ||
                    risk == SleepHypopneaRiskEngine.Risk.MEDIUM ||
@@ -46,6 +55,7 @@ internal object SleepHypopneaData {
         activeStrapId: String,
         wakeTs: Long,
         assessment: SleepHypopneaRiskEngine.Assessment,
+        startTs: Long,
     ) {
         if (!assessment.isReady) return
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -53,38 +63,67 @@ internal object SleepHypopneaData {
         // Never revise a completed wake-day during an unrelated sync. Only the
         // following morning (a different key) can produce a new classification.
         if (prefs.contains(key)) return
-        if (prefs.edit().putString(key, assessment.risk.name).commit()) {
+        if (prefs.edit().putString(key, "${assessment.risk.name}|$startTs|$wakeTs").commit()) {
             completedRevision.value = completedRevision.value + 1
         }
     }
 
+    // Keep the historical Assessment API for legacy callers; the REAL ALKE
+    // Today uses latestNight() to avoid carrying yesterday's risk into a new
+    // wake-day with missing/insufficient records.
     suspend fun latest(
         context: Context,
         repo: WhoopRepository,
         activeStrapId: String,
         nowTs: Long = System.currentTimeMillis() / 1000L,
-    ): SleepHypopneaRiskEngine.Assessment = withContext(Dispatchers.IO) {
+    ): SleepHypopneaRiskEngine.Assessment =
+        latestNight(context, repo, activeStrapId, nowTs = nowTs).assessment
+
+    suspend fun latestNight(
+        context: Context,
+        repo: WhoopRepository,
+        activeStrapId: String,
+        habitualMidsleepSec: Long? = null,
+        nowTs: Long = System.currentTimeMillis() / 1000L,
+    ): LatestNight = withContext(Dispatchers.IO) {
         val from = nowTs - 7L * 86_400L
         val imported = repo.sleepSessionsUnion(activeStrapId, from, nowTs)
         val computed = repo.computedSleepSessionsUnion(activeStrapId, from, nowTs)
         val merged = WhoopRepository.mergeSleepRichness(imported, computed) {
             localDayString(it.endTs)
         }
-        // The latest ENDING block can be an afternoon nap. Sleep's own hero
-        // resolves the MAIN night and bridges interrupted blocks via
-        // mainSleepSpan; Today must use the same selection, not max(endTs).
-        val mainNight = merged.asSequence()
+        val latestDay = merged.asSequence()
             .filter { it.endTs <= nowTs && it.endTs > it.effectiveStartTs }
             .groupBy { localDayString(it.endTs) }
             .toSortedMap(reverseOrder())
-            .values.asSequence()
-            .mapNotNull { blocks -> mainSleepSpan(blocks) }
-            .firstOrNull { (onset, wake) ->
-                wake - onset in 3L * 3600L..16L * 3600L && wake <= nowTs - 600L
-            }
-        if (mainNight == null) SleepHypopneaRiskEngine.Assessment(
-            SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
-        ) else forWindow(context, repo, activeStrapId, mainNight.first, mainNight.second, nowTs)
+            .entries.firstOrNull()
+        if (latestDay == null) {
+            return@withContext LatestNight(
+                null, null, null,
+                SleepHypopneaRiskEngine.Assessment(SleepHypopneaRiskEngine.Risk.UNAVAILABLE),
+            )
+        }
+        // Critically: DO NOT skip an invalid new morning and silently fall
+        // back to a prior day's successful LOW/MEDIUM/HIGH assessment.
+        // Main-night selection uses the same learned midsleep as Sleep's hero.
+        val mainNight = mainSleepSpan(
+            latestDay.value.sortedBy { it.effectiveStartTs },
+            habitualMidsleepSec,
+        )
+        val risk = if (mainNight == null) {
+            SleepHypopneaRiskEngine.Assessment(SleepHypopneaRiskEngine.Risk.UNAVAILABLE)
+        } else {
+            forWindow(
+                context, repo, activeStrapId,
+                mainNight.first, mainNight.second, nowTs,
+            )
+        }
+        LatestNight(
+            latestDay.key,
+            mainNight?.first,
+            mainNight?.second,
+            risk,
+        )
     }
 
     suspend fun forWindow(
@@ -116,7 +155,7 @@ internal object SleepHypopneaData {
         val result = withContext(Dispatchers.Default) {
             SleepHypopneaRiskEngine.assess(startTs, endTs, nowTs, rr, hr, resp, gravity)
         }
-        pinCompleted(context, activeStrapId, endTs, result)
+        pinCompleted(context, activeStrapId, endTs, result, startTs)
         cached(context, activeStrapId, endTs) ?: result
     }
 }

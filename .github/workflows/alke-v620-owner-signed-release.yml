@@ -110,15 +110,15 @@ jobs:
           unzip -t "$apk" >/dev/null
           mkdir -p "$RUNNER_TEMP/v620/previous"
           gh release download v1.0.0-alpha.22.29-quality-hypopnea.619 --repo "$GITHUB_REPOSITORY" \
-            --pattern 'ALKE-v620-Hypopnea-Quality-F34C.apk' --dir "$RUNNER_TEMP/v620/previous"
-          "$signer" verify --min-sdk-version 26 --print-certs "$RUNNER_TEMP/v620/previous/ALKE-v620-Hypopnea-Quality-F34C.apk" > "$RUNNER_TEMP/v620/previous-signer.txt"
+            --pattern 'ALKE-v619-Hypopnea-Quality-F34C.apk' --dir "$RUNNER_TEMP/v620/previous"
+          "$signer" verify --min-sdk-version 26 --print-certs "$RUNNER_TEMP/v620/previous/ALKE-v619-Hypopnea-Quality-F34C.apk" > "$RUNNER_TEMP/v620/previous-signer.txt"
           old_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v620/previous-signer.txt" | head -1)"
           new_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v620/signer-report.txt" | head -1)"
           test -n "$old_cert" && test "$old_cert" = "$new_cert"
           aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -1)"
           "$aapt" dump badging "$apk" > "$RUNNER_TEMP/v620/signed-badging.txt"
           grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v620/signed-badging.txt"
-          grep -Fq "versionCode='619'" "$RUNNER_TEMP/v620/signed-badging.txt"
+          grep -Fq "versionCode='620'" "$RUNNER_TEMP/v620/signed-badging.txt"
           (cd "$RUNNER_TEMP/v620/final"; sha256sum ALKE-v620-Premium-Header-F34C.apk > ALKE-v620-Premium-Header-F34C.apk.sha256)
           rm -rf "$RUNNER_TEMP/v620/kit" "$RUNNER_TEMP/v620/kit.tar" "$RUNNER_TEMP/v620/sealed.cms" "$RUNNER_TEMP/v620/ephemeral.key" "$RUNNER_TEMP/v620/exchange-file.b64"
 
@@ -155,13 +155,13 @@ jobs:
               "$RUNNER_TEMP/v620/final/ALKE-v620-Premium-Header-F34C.apk.sha256" \
               --clobber --repo "$GITHUB_REPOSITORY"
             gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-              --title 'ALKE v620 — Main Source & Morning Hypopnea Fix (Personal F34C)' --notes-file "$RUNNER_TEMP/v620/notes.md" --prerelease
+              --title 'ALKE v620 — Premium Global Header (Original F34C Personal)' --notes-file "$RUNNER_TEMP/v620/notes.md" --prerelease
           else
             gh release create "$RELEASE_TAG" \
               "$RUNNER_TEMP/v620/final/ALKE-v620-Premium-Header-F34C.apk" \
               "$RUNNER_TEMP/v620/final/ALKE-v620-Premium-Header-F34C.apk.sha256" \
               --repo "$GITHUB_REPOSITORY" --target "$RELEASE_SOURCE" \
-              --title 'ALKE v620 — Main Source & Morning Hypopnea Fix (Personal F34C)' --notes-file "$RUNNER_TEMP/v620/notes.md" --prerelease
+              --title 'ALKE v620 — Premium Global Header (Original F34C Personal)' --notes-file "$RUNNER_TEMP/v620/notes.md" --prerelease
           fi
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets \
             --jq '{tag:.tagName,url:.url,files:[.assets[].name]}'

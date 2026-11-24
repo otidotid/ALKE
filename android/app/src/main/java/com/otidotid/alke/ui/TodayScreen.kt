@@ -70,7 +70,6 @@ import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -2900,77 +2899,29 @@ private fun ChipCapsule(
     }
 }
 
-/** The liquid header active-device battery ring: when connected + a reading exists it draws a trimmed
- *  ring in the charge/warning/critical hue plus the % inside, else a bolt-slash glyph. [isRing] names the
- *  device in the label — "Strap battery" over a ring's charge would be the #2208 misattribution again, in
- *  the label instead of the number. Tap → Devices. Mirrors the iOS liquid header battery ring. */
+/** Compact form of the same Option A glyph; keep the existing detailed-page device action. */
 @Composable
 private fun LiquidBatteryRing(batteryPct: Double?, isRing: Boolean, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
-    val label = batteryPct?.let {
-        uiString(if (isRing) R.string.today_ring_battery_percent else R.string.today_strap_battery_percent, it.roundToInt())
+    val pct = batteryPct?.takeIf { it.isFinite() && it in 0.0..100.0 }?.roundToInt()
+    val label = pct?.let {
+        uiString(if (isRing) R.string.today_ring_battery_percent else R.string.today_strap_battery_percent, it)
     } ?: uiString(R.string.today_strap_battery)
-    Box(
+    Column(
         modifier = Modifier
             .size(HeaderClusterControl)
             .liquidPress(interaction)
-            .clip(CircleShape)
-            // A translucent near-black disc + faint white rim, matching iOS (rgba(10,11,16,.5) + white@.15).
-            .background(Color(red = 10f / 255f, green = 11f / 255f, blue = 16f / 255f, alpha = 0.5f))
-            .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                onClick = onClick,
-            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF1B222D))
+            .border(1.dp, Color(0xFF303B48), RoundedCornerShape(18.dp))
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        if (batteryPct != null) {
-            val pct = batteryPct.coerceIn(0.0, 100.0)
-            val ringColor = when {
-                pct <= 25.0 -> Palette.statusCritical
-                pct < 80.0 -> Palette.statusWarning
-                else -> Palette.chargeColor
-            }
-            Canvas(modifier = Modifier.size(HeaderClusterControl).padding(2.5.dp)) {
-                val strokePx = 3.dp.toPx()
-                val d = size.minDimension - strokePx
-                val topLeft = Offset((size.width - d) / 2f, (size.height - d) / 2f)
-                // Track.
-                drawArc(
-                    color = Color.White.copy(alpha = 0.10f),
-                    startAngle = -90f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = Size(d, d),
-                    style = Stroke(width = strokePx, cap = StrokeCap.Round),
-                )
-                // Fill arc (min 2% so a near-flat battery still shows a cap), clockwise from 12 o'clock.
-                drawArc(
-                    color = ringColor,
-                    startAngle = -90f,
-                    sweepAngle = (360f * (pct / 100.0).coerceIn(0.02, 1.0)).toFloat(),
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = Size(d, d),
-                    style = Stroke(width = strokePx, cap = StrokeCap.Round),
-                )
-            }
-            Text(
-                uiString(R.string.l10n_today_screen_pct_roundtoint_05ba4549, pct.roundToInt()),
-                style = AlkeType.number(9f, weight = FontWeight.Bold),
-                color = Color.White.copy(alpha = 0.9f),
-            )
-        } else {
-            Icon(
-                Icons.AutoMirrored.Filled.BatteryUnknown,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.5f),
-                modifier = Modifier.size(15.dp),
-            )
-        }
+        AlkeBatteryGlyph(pct, charging = false, modifier = Modifier.size(width = 21.dp, height = 12.dp))
+        Text(pct?.let { "$it%" } ?: "—", style = AlkeType.number(9f, weight = FontWeight.Bold),
+            color = Color.White, maxLines = 1)
     }
 }
 

@@ -3124,7 +3124,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
             collapsible = true,
             icon = Icons.Filled.Info,
             title = uiString(R.string.l10n_settings_screen_about_6b21fb79),
-            blurb = "ALKE · The Intelligence Within.",
+            blurb = uiString(R.string.alke_brand_tagline),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 AlkeCard {

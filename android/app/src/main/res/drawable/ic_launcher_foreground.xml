@@ -1,19 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ALKE app icon: flat vector adaptation of user-approved Option D (cyan upper arc,
-     gold lower arc, horizontal balance line). Centered in Android adaptive safe zone. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
-    <path android:pathData="M20,56 C30,34 45,31 57,40 C62,44 64,47 66,50"
-        android:strokeColor="#39D8E6" android:strokeWidth="1.15"
-        android:strokeLineCap="round" android:fillColor="#00000000" />
-    <path android:pathData="M24,55.3 C45,55.2 66,55.2 85,55.3"
-        android:strokeColor="#EAC06B" android:strokeWidth="0.85"
-        android:strokeLineCap="round" android:fillColor="#00000000" />
-    <path android:pathData="M66,53.7 C74,50.2 79,51.3 85,55.3"
-        android:strokeColor="#EAC06B" android:strokeWidth="1.15"
-        android:strokeLineCap="round" android:fillColor="#00000000" />
-    <path android:pathData="M41,57.1 C50,71.8 61,75.9 71,70.3 C78,66.8 82.5,60.4 85,55.3"
-        android:strokeColor="#EAC06B" android:strokeWidth="1.25"
-        android:strokeLineCap="round" android:fillColor="#00000000" />
+<!-- Same canonical ALKE geometry, fitted within the Android adaptive icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <group android:scaleX="0.68" android:scaleY="0.68" android:translateX="21.36" android:translateY="21.36">
+        <path android:fillColor="#00000000" android:strokeColor="#26DEEB" android:strokeWidth="11" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M18,78 L48,21" />
+        <path android:fillColor="#00000000" android:strokeColor="#12C9EB" android:strokeWidth="11" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M56,47 L80,78" />
+    </group>
 </vector>

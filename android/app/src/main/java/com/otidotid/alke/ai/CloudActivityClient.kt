@@ -20,6 +20,23 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
+/** Duration policy only; confidence and sensor quality remain strict in every mode. */
+internal enum class ActivitySensitivity(val label: String, val description: String, val gaitBins: Int, val workoutBins: Int) {
+    LOW("Low", "Prioritizes sustained activities and workouts.", 6, 20),
+    MEDIUM("Medium", "Balanced detection with the original v621 thresholds.", 3, 10),
+    HIGH("High", "Recognizes shorter activities with the same evidence checks.", 2, 6);
+
+    fun minBins(type: String): Int = when(type) {
+        "CLIMBING_STAIRS" -> 2
+        "WALKING", "RUNNING" -> gaitBins
+        else -> workoutBins
+    }
+
+    companion object {
+        fun fromStored(value: String?): ActivitySensitivity = entries.firstOrNull { it.name == value } ?: MEDIUM
+    }
+}
+
 /** Transport and numeric snapshot compression only. No local classifier or fallback. */
 internal object CloudActivityProtocol {
     const val SCHEMA = "activity-detection-v1"
@@ -36,11 +53,13 @@ internal object CloudActivityProtocol {
         val sport: String get() = types.getValue(type)
     }
     data class Snapshot(val start: Long, val bins: List<List<Number?>>, val restingHr: Int?,
-        val excluded: List<Pair<Long, Long>>) {
+        val excluded: List<Pair<Long, Long>>, val sensitivity: ActivitySensitivity = ActivitySensitivity.MEDIUM) {
         val end get() = start + bins.size * BIN
         fun body(): JSONObject = JSONObject().apply {
             put("schemaVersion", SCHEMA)
             put("activityConsent", true)
+            // Medium omits the optional field for compatibility with the v621 Worker.
+            if (sensitivity != ActivitySensitivity.MEDIUM) put("sensitivity", sensitivity.name)
             put("startTs", start)
             put("restingHr", restingHr?.takeIf { it in 30..120 } ?: JSONObject.NULL)
             put("bins", JSONArray(bins.map { b -> JSONArray(b.map { it ?: JSONObject.NULL }) }))
@@ -106,6 +125,7 @@ internal object CloudActivityProtocol {
         val obj = JSONObject(raw).getJSONObject("activityDetection")
         require(obj.getString("schemaVersion") == SCHEMA && obj.getString("requestId") == requestId)
         require(obj.getLong("startTs") == expected.start && obj.getLong("endTs") == expected.end)
+        require(obj.optString("sensitivity", "MEDIUM") == expected.sensitivity.name)
         require(obj.getString("model") in setOf("openai/gpt-oss-20b","openai/gpt-oss-120b"))
         val status = obj.getString("status")
         require(status in setOf("COMPLETE","INSUFFICIENT_DATA"))
@@ -126,7 +146,7 @@ internal object CloudActivityProtocol {
             require(expected.excluded.none { overlap(a,b,it.first,it.second) })
             val slice = expected.bins.subList(((a-expected.start)/BIN).toInt(),((b-expected.start)/BIN).toInt())
             require(slice.all(::usable))
-            val minBins = when(type) { "CLIMBING_STAIRS" -> 2; "WALKING","RUNNING" -> 3; else -> 10 }
+            val minBins = expected.sensitivity.minBins(type)
             require(slice.size >= minBins)
             if (type == "CLIMBING_STAIRS") require(slice.count { it[3] != null } >= kotlin.math.ceil(slice.size*0.8).toInt())
             Event(expectedId,type,a,b,workout)

@@ -7,6 +7,16 @@ import com.otidotid.alke.data.GravitySample
 import java.io.File
 
 class CloudActivityContractTest {
+    @Test fun sensitivityChangesOnlyDurationPolicy() {
+        val modes = ActivitySensitivity.entries
+        assertEquals(listOf(6,3,2), modes.map { it.minBins("WALKING") })
+        assertEquals(listOf(6,3,2), modes.map { it.minBins("RUNNING") })
+        assertEquals(listOf(20,10,6), modes.map { it.minBins("WORKOUT") })
+        assertTrue(modes.all { it.minBins("CLIMBING_STAIRS") == 2 })
+        assertEquals(ActivitySensitivity.MEDIUM, ActivitySensitivity.fromStored(null))
+        assertEquals(ActivitySensitivity.MEDIUM, ActivitySensitivity.fromStored("invalid"))
+        assertEquals(ActivitySensitivity.HIGH, ActivitySensitivity.fromStored("HIGH"))
+    }
     @Test fun absentSamplesStayUnknown() {
         val bins = CloudActivityProtocol.bins(900L,emptyList(),emptyList(),emptyList(),1.0)
         assertEquals(30,bins.size)

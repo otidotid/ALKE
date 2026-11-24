@@ -36,6 +36,14 @@ internal object CloudActivitySettings {
         secure(c).takeIf { it.getBoolean("consent",false) }?.getString("token",null)?.takeIf { it.length >= 32 }
     }.getOrNull()
     fun enabled(c: Context) = token(c) != null
+    fun sensitivity(c: Context) = ActivitySensitivity.fromStored(state(c).getString("sensitivity",null))
+    fun setSensitivity(c: Context, value: ActivitySensitivity) {
+        if (sensitivity(c) != value) {
+            check(state(c).edit().putString("sensitivity",value.name).commit())
+            configChanged()
+            CloudActivityScheduler.request(c)
+        }
+    }
     fun configure(c: Context, token: String) {
         require(token.trim().length >= 32 && token.trim().none { it.isWhitespace() })
         check(secure(c).edit().putString("token",token.trim()).putBoolean("consent",true).commit())
@@ -141,13 +149,15 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                         CloudActivitySettings.advance(c,to)
                         from = to
                     } else {
-                        val snapshot = CloudActivityProtocol.Snapshot(from,bins,resting,excluded)
+                        val sensitivity = CloudActivitySettings.sensitivity(c)
+                        val snapshot = CloudActivityProtocol.Snapshot(from,bins,resting,excluded,sensitivity)
                         if (CloudActivitySettings.token(c) != token) return@withContext Result.success()
                         val result = CloudActivityClient().detect(snapshot,token)
                         if (CloudActivitySettings.token(c) != token) return@withContext Result.success()
                         val reply = result.response
                         if (reply == null) {
                             val message = when(result.code) {
+                                400 -> if (sensitivity != ActivitySensitivity.MEDIUM) "Sensitivity requires updated cloud Worker" else "Cloud snapshot unavailable"
                                 401,403 -> "Check Activity access token"
                                 429 -> "Cloud quota reached · retry later"
                                 503 -> "Cloud unavailable or disabled"
@@ -161,7 +171,7 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                             CloudActivitySettings.status(c,"Waiting for wearable data")
                             return@withContext Result.success()
                         }
-                        if (CloudActivitySettings.token(c) != token || manualRecordingActive()) return@withContext Result.success()
+                        if (CloudActivitySettings.token(c) != token || CloudActivitySettings.sensitivity(c) != sensitivity || manualRecordingActive()) return@withContext Result.success()
                         val added = repo.saveCloudActivityEvents(id,reply.events)
                         CloudActivitySettings.advance(c,to)
                         CloudActivitySettings.status(c,if (reply.status == "COMPLETE")

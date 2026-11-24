@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.otidotid.alke.ai.ActivitySensitivity
 import com.otidotid.alke.ai.CloudActivitySettings
 import com.otidotid.alke.ai.CloudActivityProtocol
 import com.otidotid.alke.data.WorkoutRow
@@ -56,15 +57,33 @@ private val cloudMuted = Color(0xFF9BB9C5)
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(false) }
     val configured = remember { CloudActivitySettings.enabled(c) }
+    var replaceToken by remember { mutableStateOf(!configured) }
+    var sensitivity by remember { mutableStateOf(CloudActivitySettings.sensitivity(c)) }
     AlertDialog(onDismissRequest={ if(!busy) onDismiss() },title={Text("Activity Intelligence")},
         text={
             Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text("ALKE sends compact heart-rate and motion summaries, estimated steps when available, and known activity time ranges to your Cloudflare Worker and Groq. No AI model runs on this phone. Results are logged automatically; no approval per activity.")
-                OutlinedTextField(value=token,onValueChange={token=it},singleLine=true,
-                    label={Text("Activity access token")},visualTransformation=PasswordVisualTransformation())
-                Row(verticalAlignment=Alignment.CenterVertically) {
-                    Checkbox(checked=consent,onCheckedChange={consent=it})
-                    Text("I allow cloud activity analysis",modifier=Modifier.weight(1f))
+                Text("Detection Sensitivity",fontWeight=FontWeight.SemiBold)
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                    ActivitySensitivity.entries.forEach { mode ->
+                        FilterChip(selected=sensitivity==mode,onClick={sensitivity=mode},
+                            label={Text(mode.label)},modifier=Modifier.weight(1f),enabled=!busy)
+                    }
+                }
+                Text(sensitivity.description,style=MaterialTheme.typography.bodySmall)
+                Text("Analysis every 15 minutes. High confidence and sensor evidence required in every mode.",
+                    style=MaterialTheme.typography.bodySmall)
+                if(configured && !replaceToken) {
+                    Text("Connected · access token stored securely")
+                    TextButton(enabled=!busy,onClick={replaceToken=true}) {Text("Change access token")}
+                }
+                if(replaceToken) {
+                    OutlinedTextField(value=token,onValueChange={token=it},singleLine=true,
+                        label={Text("Activity access token")},visualTransformation=PasswordVisualTransformation())
+                    Row(verticalAlignment=Alignment.CenterVertically) {
+                        Checkbox(checked=consent,onCheckedChange={consent=it})
+                        Text("I allow cloud activity analysis",modifier=Modifier.weight(1f))
+                    }
                 }
                 if(error) Text("Could not save securely. Please try again.",color=MaterialTheme.colorScheme.error)
                 if(configured) TextButton(enabled=!busy,onClick={
@@ -77,14 +96,17 @@ private val cloudMuted = Color(0xFF9BB9C5)
                 }) {Text("Turn off cloud detection")}
             }
         },confirmButton={
-            TextButton(enabled=!busy && consent && token.trim().length>=32 && token.trim().none{it.isWhitespace()},onClick={
+            TextButton(enabled=!busy && ((configured && !replaceToken) || (consent && token.trim().length>=32 && token.trim().none{it.isWhitespace()})),onClick={
                 busy=true
                 scope.launch {
-                    val ok=withContext(Dispatchers.IO){runCatching{CloudActivitySettings.configure(c,token)}.isSuccess}
+                    val ok=withContext(Dispatchers.IO){runCatching{
+                        CloudActivitySettings.setSensitivity(c,sensitivity)
+                        if(replaceToken) CloudActivitySettings.configure(c,token)
+                    }.isSuccess}
                     token="";busy=false
                     if(ok) onDismiss() else error=true
                 }
-            }) {Text("Connect")}
+            }) {Text(if(configured) "Save" else "Connect")}
         },dismissButton={TextButton(onClick=onDismiss,enabled=!busy){Text("Cancel")}})
 }
 
@@ -118,6 +140,7 @@ private val cloudMuted = Color(0xFF9BB9C5)
             TextButton(onClick={show=true}){Text(if(enabled)"Manage" else "Connect",color=cloudCyan)}
         }
         Text(if(enabled) CloudActivitySettings.status(c) else "Cloud AI · automatic activity detection",color=cloudMuted,fontSize=12.sp)
+        if(enabled) Text("Detection sensitivity · "+CloudActivitySettings.sensitivity(c).label,color=cloudCyan,fontSize=12.sp)
         Row(Modifier.fillMaxWidth().background(Color(0xFF0A2031),RoundedCornerShape(16.dp)).padding(12.dp),
             horizontalArrangement=Arrangement.SpaceBetween) {
             Column {Text(rows.size.toString(),color=cloudCyan,fontSize=24.sp,fontWeight=FontWeight.Bold);Text("Activities",color=cloudMuted,fontSize=11.sp)}

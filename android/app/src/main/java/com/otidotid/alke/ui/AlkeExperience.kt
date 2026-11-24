@@ -298,55 +298,36 @@ private fun AlkeHeader(
             )
         }
 
-        // Battery number still comes from the CURRENT connected device.
-        // No stale charge value after disconnect, and no second battery shortcut.
+        // Option A: one matte battery chip, icon first, percentage second.
+        // The value still comes from the currently connected device, never cached charge.
         val batteryChipShape = RoundedCornerShape(50.dp)
         Row(
             modifier = Modifier
                 .clip(batteryChipShape)
-                .background(A.cardDark.copy(alpha = 0.76f))
-                .border(1.dp, A.stroke.copy(alpha = 0.68f), batteryChipShape)
+                .background(Color(0xFF1B222D))
+                .border(1.dp, Color(0xFF303B48), batteryChipShape)
                 .semantics {
                     stateDescription = when {
                         battery == null -> "Wearable battery unavailable"
-                        live.charging == true -> "Wearable battery $battery percent, charging"
+                        !activeIsOura && live.charging == true -> "Wearable battery $battery percent, charging"
                         else -> "Wearable battery $battery percent"
                     }
                 }
-                .padding(start = 13.dp, end = 11.dp, top = 7.dp, bottom = 7.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
+            AlkeBatteryGlyph(
+                battery = battery,
+                charging = !activeIsOura && live.charging == true,
+                modifier = Modifier.size(width = 29.dp, height = 17.dp),
+            )
             Text(
                 battery?.let { "$it%" } ?: "—",
-                color = if (battery == null) A.muted
-                        else if (battery <= 20) A.gold else A.white,
-                fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                color = if (battery == null) A.muted else A.white,
+                fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
                 maxLines = 1,
             )
-            Box(
-                Modifier.width(1.dp).height(21.dp)
-                    .background(A.muted.copy(alpha = 0.34f)),
-            )
-            Box(Modifier.size(31.dp), contentAlignment = Alignment.Center) {
-                Icon(
-                    painter = painterResource(R.drawable.alke_header_wearable_outline),
-                    contentDescription = null,
-                    tint = if (battery == null) A.muted else Color.Unspecified,
-                    modifier = Modifier.size(31.dp),
-                )
-                Box(
-                    Modifier.align(Alignment.TopEnd).size(8.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                battery == null -> A.muted.copy(alpha = 0.45f)
-                                battery <= 20 || live.charging == true -> A.gold
-                                else -> A.cyan
-                            },
-                        ),
-                )
-            }
         }
     }
     if (showSyncHub) {

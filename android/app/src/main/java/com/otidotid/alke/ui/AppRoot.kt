@@ -1561,13 +1561,12 @@ private val NavEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 private val navFadeSpec = tween<Float>(durationMillis = 240, easing = NavEasing)
 
 /**
- * ALKE's approved main brand mark (Option 2), shown in app chrome.
- * The Android launcher icon is the separate, approved flat Option D.
+ * ALKE's single cyan A mark, shared by all in-app branding.
  */
 @Composable
 internal fun BrandMark(size: Dp = 22.dp) {
     Icon(
-        painter = androidx.compose.ui.res.painterResource(R.drawable.alke_brand_mark),
+        painter = androidx.compose.ui.res.painterResource(R.drawable.alke_header_minimal_mark),
         contentDescription = null,
         tint = Color.Unspecified,
         modifier = Modifier.size(size),

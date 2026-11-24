@@ -204,7 +204,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AlkeTheme {
-                AlkeRoot(widgetEntryRequest = widgetEntryRequest)
+                AlkeBrandLaunch(showOnLaunch = savedInstanceState == null && widgetEntryRequest.first == null) {
+                    AlkeRoot(widgetEntryRequest = widgetEntryRequest)
+                }
             }
         }
     }

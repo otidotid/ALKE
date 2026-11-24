@@ -32,7 +32,7 @@ jobs:
           grep -Fq 'versionCode = 620' android/app/build.gradle.kts
           grep -Fq 'versionName = "1.0.0-alpha.22.30-wearable-header"' android/app/build.gradle.kts
           test -s android/app/src/main/res/drawable/alke_header_minimal_mark.xml
-          test -s android/app/src/main/res/drawable/alke_header_wearable_outline.xml
+          test -s android/app/src/main/java/com/otidotid/alke/ui/AlkeBatteryGlyph.kt
           python3 - <<'PY'
           from pathlib import Path
           s = Path("android/app/src/main/java/com/otidotid/alke/ui/AlkeExperience.kt").read_text()
@@ -40,11 +40,19 @@ jobs:
           root = Path("android/app/src/main/java/com/otidotid/alke/ui/AppRoot.kt").read_text()
           assert "AlkeGlobalHeader(" in root and "topBar = {" in root
           assert "R.drawable.alke_header_minimal_mark" in h
-          assert "R.drawable.alke_header_wearable_outline" in h
+          assert "AlkeBatteryGlyph(" in h
+          assert "R.drawable.alke_header_wearable_outline" not in h
+          glyph = Path("android/app/src/main/java/com/otidotid/alke/ui/AlkeBatteryGlyph.kt").read_text()
+          assert "0xFF26DEEB" in glyph and "battery <= 20" in glyph and "24f*x*fraction" in glyph
+          res = Path("android/app/src/main/res")
+          for n in ["alke_header_minimal_mark", "alke_brand_mark", "ic_launcher_foreground", "ic_launcher_monochrome", "ic_launcher_metal", "ic_launcher_metal_navy"]:
+              v = (res / "drawable" / (n + ".xml")).read_text()
+              assert "M18,78 L48,21" in v and "M56,47 L80,78" in v
+          assert "Your Strength and Rest Companion" in (res / "values/alke_brand.xml").read_text()
           assert "if (syncing)" in h and "alke-global-sync" in h
           assert "showSyncHub = true" in h
           assert "if (live.connected)" in h and "live.batteryPct" in h
-          assert "ringBattery" in h and "battery <= 20" in h
+          assert "ringBattery" in h and "stateDescription" in h
           assert "persistent-battery-breathe" not in h
           assert '"SYNCING DEVICE"' not in h
           assert '"THE INTELLIGENCE WITHIN"' not in h

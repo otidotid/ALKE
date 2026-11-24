@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same canonical ALKE geometry, fitted within the Android adaptive icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#14283B" android:pathData="M0,0h108v108h-108z" />
+    <group android:scaleX="0.68" android:scaleY="0.68" android:translateX="21.36" android:translateY="21.36">
+        <path android:fillColor="#00000000" android:strokeColor="#26DEEB" android:strokeWidth="11" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M18,78 L48,21" />
+        <path android:fillColor="#00000000" android:strokeColor="#12C9EB" android:strokeWidth="11" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M56,47 L80,78" />
+    </group>
+</vector>

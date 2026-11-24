@@ -772,21 +772,26 @@ fun AlkeTodayExperience(
     val hypopneaRevision by SleepHypopneaData.revision.collectAsStateWithLifecycle()
     val hypopneaContext = LocalContext.current
     var hypopneaToday by remember(vm.activeStrapId) {
-        mutableStateOf(com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
-        ))
+        mutableStateOf<SleepHypopneaData.NightResult?>(null)
     }
-    LaunchedEffect(vm.activeStrapId, recentDays, hypopneaRevision) {
-        val result = try {
-            SleepHypopneaData.latest(hypopneaContext, vm.repo, vm.activeStrapId)
+    // Refresh when a completed sync changes the recorded sleep, not per-HR
+    // sample. The result carries the night identity: a fresh UNAVAILABLE night
+    // may replace yesterday's LOW, but an in-flight refresh of the SAME
+    // night must not flash PENDING.
+    val hypopneaLive by vm.live.collectAsStateWithLifecycle()
+    LaunchedEffect(vm.activeStrapId, recentDays, hypopneaLive.lastSyncAt, hypopneaRevision) {
+        val next = try {
+            SleepHypopneaData.latestNight(hypopneaContext, vm.repo, vm.activeStrapId)
         } catch (cancel: kotlinx.coroutines.CancellationException) {
             throw cancel
         } catch (_: Exception) {
-            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
+            SleepHypopneaData.NightResult(
+                null, com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
+                ),
             )
         }
-        if (result.isReady || !hypopneaToday.isReady) hypopneaToday = result
+        hypopneaToday = SleepHypopneaData.visibleResult(hypopneaToday, next)
     }
     // The existing Steps detail resolver provides real, imported, and estimated
     // readings with the same precedence as Progress. Show ONLY today's reading
@@ -935,8 +940,8 @@ fun AlkeTodayExperience(
         // Fixed ALKE Today order: HEART RATE -> HYPOPNEA -> EXPLORE TRENDS.
         // The card reflects a completed night; an unclassified/in-progress
         // window never makes a false clinical claim or shows "Risk PENDING".
-        if (hypopneaToday.isReady) {
-            val risk = hypopneaToday.risk
+        if (hypopneaToday?.assessment?.isReady == true) {
+            val risk = hypopneaToday!!.assessment.risk
             val riskTone = when (risk) {
                 com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.LOW -> A.green
                 com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.MEDIUM -> A.gold

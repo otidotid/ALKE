@@ -27,6 +27,13 @@ class CloudActivityContractTest {
         assertNull(b[0][2]);assertNull(b[0][3])
         assertTrue(CloudActivityProtocol.usable(b[0]))
     }
+    @Test fun hrBadgeTracksFinalSourceNotSport() {
+        assertTrue(com.otidotid.alke.ui.isCloudAiHrEvent(CloudActivityProtocol.WORKOUT_SOURCE))
+        assertTrue(com.otidotid.alke.ui.isCloudAiHrEvent(CloudActivityProtocol.DAILY_SOURCE))
+        listOf("manual", "health-connect", "whoop", "my-whoop", "auto-detected", "my-whoop-alke", "apple-health").forEach {
+            assertFalse(com.otidotid.alke.ui.isCloudAiHrEvent(it))
+        }
+    }
     @Test fun sourceDesignLock() {
         var root=File(System.getProperty("user.dir") ?: ".").canonicalFile
         repeat(5){if(!File(root,"settings.gradle.kts").exists())root=root.parentFile ?: root}

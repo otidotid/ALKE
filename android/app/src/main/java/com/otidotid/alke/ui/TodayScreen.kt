@@ -7404,7 +7404,7 @@ private fun HrEventTimelineStrip(
         }
         workouts.filter { it.endTs >= windowStart && it.startTs <= windowEnd }.forEach { workout ->
             val visual = hrEventVisual(workout.sport)
-            add(HrTimelineEvent(visual.label, visual.icon, visual.color, workout.startTs, workout.endTs, visual.iconRotationDegrees))
+            add(HrTimelineEvent(visual.label, visual.icon, visual.color, workout.startTs, workout.endTs, visual.iconRotationDegrees, isCloudAiHrEvent(workout.source)))
         }
     }.sortedBy { it.startTs }
     if (events.isEmpty()) return
@@ -7434,6 +7434,7 @@ private data class HrTimelineEvent(
     val startTs: Long,
     val endTs: Long,
     val iconRotationDegrees: Float = 0f,
+    val isCloudAi: Boolean = false,
 )
 
 private data class HrTimelineEventGroup(
@@ -7487,8 +7488,8 @@ private fun HrTimelineEventMarker(
             .clip(RoundedCornerShape(9.dp))
             .background(dominant.color.copy(alpha = 0.14f))
             .semantics {
-                contentDescription = if (group.events.size == 1) dominant.label
-                else "${group.events.size} activities"
+                contentDescription = (if (group.events.size == 1) dominant.label
+                else "${group.events.size} activities") + if (dominant.isCloudAi) ", AI detected" else ""
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -7498,6 +7499,21 @@ private fun HrTimelineEventMarker(
             tint = dominant.color,
             modifier = Modifier.size(16.dp).rotate(dominant.iconRotationDegrees),
         )
+        // Only the displayed AI-origin glyph receives this small source badge.
+        // Keep the existing cluster counter and every manual/Health Connect glyph unchanged.
+        if (dominant.isCloudAi) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(13.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF26DEEB)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("AI", color = Color(0xFF061523), fontSize = 7.sp,
+                    lineHeight = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+        }
         if (group.events.size > 1) {
             Box(
                 modifier = Modifier

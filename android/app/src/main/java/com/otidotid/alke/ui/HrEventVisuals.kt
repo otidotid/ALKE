@@ -71,3 +71,8 @@ internal fun hrEventVisual(raw: String): HrEventVisual {
         HrEventKind.OTHER -> HrEventVisual(kind, Icons.Filled.TrackChanges, label, Color(0xFF99A4B2))
     }
 }
+
+/** Source-only badge: never infer AI provenance from the sport or device ID. */
+internal fun isCloudAiHrEvent(source: String): Boolean =
+    source == com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE ||
+        source == com.otidotid.alke.ai.CloudActivityProtocol.DAILY_SOURCE

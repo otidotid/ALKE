@@ -88,13 +88,17 @@ jobs:
           tar -xf "$RUNNER_TEMP/v619/kit.tar" -C "$RUNNER_TEMP/v619/kit" --no-same-owner
           test -s "$RUNNER_TEMP/v619/kit/ALKE-personal-update-key.p12"
           test -s "$RUNNER_TEMP/v619/kit/signing-pass.txt"
+          # apksigner consumes file: passwords as streams; a second separate file
+          # prevents the key-password read from hitting EOF after the store read.
+          cp "$RUNNER_TEMP/v619/kit/signing-pass.txt" "$RUNNER_TEMP/v619/kit/signing-key-pass.txt"
+          chmod 600 "$RUNNER_TEMP/v619/kit/signing-key-pass.txt"
           signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -1)"
           apk="$RUNNER_TEMP/v619/final/ALKE-v619-Hypopnea-Quality-F34C.apk"
           "$signer" sign \
             --ks "$RUNNER_TEMP/v619/kit/ALKE-personal-update-key.p12" \
             --ks-type PKCS12 --ks-key-alias alke-private \
             --ks-pass "file:$RUNNER_TEMP/v619/kit/signing-pass.txt" \
-            --key-pass "file:$RUNNER_TEMP/v619/kit/signing-pass.txt" \
+            --key-pass "file:$RUNNER_TEMP/v619/kit/signing-key-pass.txt" \
             --min-sdk-version 26 \
             --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
             --out "$apk" "$RUNNER_TEMP/v619/unsigned/ALKE-personal-v619-unsigned.apk"
@@ -167,6 +171,8 @@ jobs:
         if: always()
         shell: bash
         run: |
+          # Best-effort runner-side removal even after a failed signing command.
+          rm -rf "$RUNNER_TEMP/v619/kit" "$RUNNER_TEMP/v619/kit.tar" "$RUNNER_TEMP/v619/sealed.cms" "$RUNNER_TEMP/v619/ephemeral.key" || true
           for file in "release-exchange/v619-${GITHUB_RUN_ID}-sealed.cms.b64" "release-exchange/v619-${GITHUB_RUN_ID}-ephemeral.pem"; do
             sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/$file?ref=$EXCHANGE_BRANCH" --jq .sha 2>/dev/null || true)"
             if [ -n "$sha" ]; then

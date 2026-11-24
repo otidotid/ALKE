@@ -115,7 +115,15 @@ internal object SleepHypopneaData {
         }
         // Read the SAME learned midsleep used by the Sleep hero. A shift worker
         // must not have one main-night candidate on Today and another on Sleep.
-        val habitualMidsleep = repo.habitualMidsleepSec(activeStrapId)
+        val habitualMidsleep = try {
+            repo.habitualMidsleepSec(activeStrapId)
+        } catch (cancel: kotlinx.coroutines.CancellationException) {
+            throw cancel
+        } catch (_: Exception) {
+            // Same cold-start fallback as SleepScreen; missing learned pattern
+            // must never suppress a completed night entirely.
+            null
+        }
         val selected = merged.asSequence()
             .filter { it.endTs <= nowTs && it.endTs > it.effectiveStartTs }
             .groupBy { localDayString(it.endTs) }

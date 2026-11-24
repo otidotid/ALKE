@@ -34,7 +34,7 @@ internal object SleepHypopneaData {
         if (previous?.identity != incoming.identity) return incoming
         // Background refreshes for the SAME identified night cannot flash
         // LOW -> PENDING. A new ready result can still publish its first label.
-        return if (previous.assessment.isReady && !incoming.assessment.isReady) previous else incoming
+        return if (previous?.assessment?.isReady == true && !incoming.assessment.isReady) previous else incoming
     }
 
     private fun dayKey(activeStrapId: String, wakeTs: Long): String =

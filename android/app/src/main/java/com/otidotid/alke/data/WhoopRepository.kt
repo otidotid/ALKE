@@ -1243,17 +1243,21 @@ class WhoopRepository(
     ): List<WorkoutRow> = transactor.run {
         if (rows.isEmpty()) return@run emptyList()
         val accepted = ArrayList<WorkoutRow>()
+        val supersededCloud = ArrayList<WorkoutRow>()
         for (candidate in rows.sortedBy { it.startTs }) {
             if (candidate.endTs <= candidate.startTs) continue
 
-            val workoutConflict = (dao.workoutsOverlapping(candidate.startTs, candidate.endTs) + accepted)
-                .any { existing ->
+            val overlaps = dao.workoutsOverlapping(candidate.startTs, candidate.endTs) + accepted
+            val cloudReplacements = if (candidate.source.equals("health-connect", ignoreCase = true))
+                overlaps.filter { it.source == com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE }
+                else emptyList()
+            val workoutConflict = overlaps.any { existing ->
                     val isOriginalBeingEdited = replacing.any { original ->
                         existing.deviceId == original.deviceId &&
                             existing.startTs == original.startTs &&
                             existing.sport == original.sport
                     }
-                    !isOriginalBeingEdited &&
+                    !isOriginalBeingEdited && existing !in cloudReplacements &&
                         candidate.startTs < existing.endTs && existing.startTs < candidate.endTs
                 }
             if (workoutConflict) continue
@@ -1265,9 +1269,91 @@ class WhoopRepository(
             if (sleepOrNapConflict) continue
 
             accepted += candidate
+            supersededCloud += cloudReplacements
         }
         if (accepted.isNotEmpty()) dao.upsertWorkouts(accepted)
+        supersededCloud.distinct().forEach { old -> dao.deleteWorkoutByKey(old.deviceId,old.startTs,old.sport) }
+        if (accepted.isNotEmpty()) com.otidotid.alke.ai.CloudActivitySettings.changed()
         accepted
+    }
+
+    /** Cloud activity data is namespaced away from raw wearable events and training totals. */
+    internal suspend fun cloudActivityExclusions(activeId: String, from: Long, to: Long): List<Pair<Long, Long>> {
+        val p = com.otidotid.alke.ai.CloudActivityProtocol
+        val workouts = dao.workoutsOverlapping(from,to).map { it.startTs to it.endTs }
+        val sleeps = dao.sleepSessionsOverlapping(from,to).map { it.effectiveStartTs to it.endTs }
+        val dismissed = dismissedDetectedUnion(activeId).map { it.startTs to it.endTs }
+        val daily = rawCloudDailyRows(from,to).map { it.startTs to it.endTs }
+        val hidden = dao.eventsByKind(p.DAILY_SOURCE,p.DISMISSED_KIND,from-86400L,to,10000)
+            .mapNotNull { event -> runCatching { event.ts to org.json.JSONObject(event.payloadJSON).getLong("endTs") }.getOrNull() }
+        return p.excludes(workouts+sleeps+dismissed+daily+hidden,from,to)
+    }
+
+    private suspend fun rawCloudDailyRows(from: Long,to: Long): List<WorkoutRow> {
+        val p = com.otidotid.alke.ai.CloudActivityProtocol
+        return dao.eventsByKind(p.DAILY_SOURCE,p.DAILY_KIND,from-86400L,to,10000).mapNotNull { event ->
+            runCatching {
+                val obj = org.json.JSONObject(event.payloadJSON)
+                val end = obj.getLong("endTs")
+                val type = obj.getString("type")
+                if (end <= event.ts || !p.overlap(event.ts,end,from,to) || type !in setOf("WALKING","CLIMBING_STAIRS")) null
+                else WorkoutRow(obj.getString("deviceId"),event.ts,end,p.types.getValue(type),p.DAILY_SOURCE,
+                    durationS=(end-event.ts).toDouble(),notes=obj.getString("id"))
+            }.getOrNull()
+        }
+    }
+
+    /** Daily movements are display adapters, NOT workout rows. Late Zepp/manual imports hide matching
+     *  activity evidence without deleting the original raw evidence or counting it as training. */
+    internal suspend fun cloudDailyActivityRows(from: Long,to: Long): List<WorkoutRow> {
+        val p = com.otidotid.alke.ai.CloudActivityProtocol
+        val real = dao.workoutsOverlapping(from,to)
+        val sleeps = dao.sleepSessionsOverlapping(from,to)
+        val hidden = dao.eventsByKind(p.DAILY_SOURCE,p.DISMISSED_KIND,from-86400L,to,10000).mapNotNull { e ->
+            runCatching { e.ts to org.json.JSONObject(e.payloadJSON).getLong("endTs") }.getOrNull()
+        }
+        return rawCloudDailyRows(from,to).filter { row ->
+            real.none { p.overlap(row.startTs,row.endTs,it.startTs,it.endTs) } &&
+                sleeps.none { p.overlap(row.startTs,row.endTs,it.effectiveStartTs,it.endTs) } &&
+                hidden.none { p.overlap(row.startTs,row.endTs,it.first,it.second) }
+        }
+    }
+
+    internal suspend fun dismissCloudDailyActivity(row: WorkoutRow) {
+        val p = com.otidotid.alke.ai.CloudActivityProtocol
+        if (row.source != p.DAILY_SOURCE) return
+        dao.insertEvents(listOf(EventRow(p.DAILY_SOURCE,row.startTs,p.DISMISSED_KIND,
+            org.json.JSONObject().put("endTs",row.endTs).toString())))
+        com.otidotid.alke.ai.CloudActivitySettings.changed()
+    }
+
+    /** Recheck under the same Room transaction as Health Connect imports. No second write of a
+     *  duplicate workout; adjacent high-evidence cloud workout fragments are joined across batches. */
+    internal suspend fun saveCloudActivityEvents(activeId: String,
+        events: List<com.otidotid.alke.ai.CloudActivityProtocol.Event>): Int = transactor.run {
+        val p = com.otidotid.alke.ai.CloudActivityProtocol
+        var added = 0
+        for (event in events.sortedBy { it.start }) {
+            if (event.end <= event.start || event.type !in p.types) continue
+            if (cloudActivityExclusions(activeId,event.start,event.end).isNotEmpty()) continue
+            if (!event.workout) {
+                val payload = org.json.JSONObject().put("id",event.id).put("type",event.type)
+                    .put("endTs",event.end).put("deviceId",activeId).toString()
+                if (dao.insertEvents(listOf(EventRow(p.DAILY_SOURCE,event.start,p.DAILY_KIND,payload))).any { it != -1L }) added++
+            } else {
+                val device = "$activeId-alke"
+                val previous = dao.workouts(device,event.start-86400L,event.start,1000)
+                    .lastOrNull { it.source == p.WORKOUT_SOURCE && it.sport == event.sport && it.endTs == event.start }
+                val row = if (previous == null) WorkoutRow(device,event.start,event.end,event.sport,p.WORKOUT_SOURCE,
+                    durationS=(event.end-event.start).toDouble())
+                else previous.copy(endTs=event.end,durationS=(event.end-previous.startTs).toDouble(),
+                    avgHr=null,maxHr=null,energyKcal=null,strain=null,zonesJSON=null)
+                dao.upsertWorkouts(listOf(row))
+                added++
+            }
+        }
+        if (added > 0) com.otidotid.alke.ai.CloudActivitySettings.changed()
+        added
     }
 
     /**

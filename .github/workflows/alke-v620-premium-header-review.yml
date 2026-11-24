@@ -3,8 +3,7 @@ name: ALKE v620 - Premium Global Header Review APK
 on:
   push:
     branches: [alke/v620-wearable-header-premium]
-  pull_request:
-    branches: [main]
+  # Historical v620 review; subsequent versions use Personal Quality Gate.
   workflow_dispatch:
 
 permissions:

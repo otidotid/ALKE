@@ -2558,6 +2558,7 @@ internal fun workoutSourceLabel(deviceId: String, source: String): String {
     val id = deviceId.lowercase()
     val src = source.lowercase()
     return when {
+        src == "cloud-ai-alke" -> "AI"
         id == "health-connect" || src.contains("health-connect") -> "HC"
         id.contains("whoop") || src.contains("whoop") -> "Whoop"
         else -> "Apple"

@@ -70,6 +70,7 @@ class AlkeApplication : Application() {
             com.otidotid.alke.notif.StaleBatteryWorker.ensureScheduled(this)
             // Rolling offline snapshots and, after one-time secure setup, encrypted daily cloud archives.
             com.otidotid.alke.data.AutomaticHybridHistoryScheduler.ensureScheduled(this)
+            com.otidotid.alke.ai.CloudActivityScheduler.ensure(this)
         }
     }
 

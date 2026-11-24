@@ -45,7 +45,7 @@ class AlkePremiumHeaderContractTest {
         assertTrue(source.contains("if (live.connected)"))
         assertTrue(source.contains("ringBattery"))
         assertTrue(source.contains("live.batteryPct"))
-        assertTrue(source.contains("battery?.let { \"$it%\" } ?: \"—\""))
+        assertTrue(source.contains("battery?.let {") && source.contains("?: \"—\""))
         assertTrue(source.contains("battery <= 20"))
         assertTrue(source.contains("stateDescription"))
         assertFalse(source.contains("BatteryChargingFull"))

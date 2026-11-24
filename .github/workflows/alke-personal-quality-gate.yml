@@ -2,7 +2,7 @@
 
 on:
   pull_request:
-    branches: [alke/alpha20-insight-cleanup]
+    branches: [main, alke/v619-quality-main-hypopnea, alke/alpha20-insight-cleanup]
   push:
     branches: [alke/alpha20-insight-cleanup]
     tags: ['v1.0.0-alpha.*']
@@ -43,12 +43,31 @@ jobs:
           set -euo pipefail
           grep -Eq 'versionCode = [0-9]+' android/app/build.gradle.kts
           grep -Eq 'versionName = "1\.0\.0-alpha\.[^"]+"' android/app/build.gradle.kts
-          test "${{ github.ref_name }}" = "alke/alpha20-insight-cleanup" || test "${{ github.event_name }}" = "pull_request" || [[ "$GITHUB_REF" == refs/tags/v1.0.0-alpha.* ]]
+          test "${{ github.ref_name }}" = "main" || test "${{ github.ref_name }}" = "alke/v619-quality-main-hypopnea" || test "${{ github.ref_name }}" = "alke/alpha20-insight-cleanup" || test "${{ github.event_name }}" = "pull_request" || [[ "$GITHUB_REF" == refs/tags/v1.0.0-alpha.* ]]
           if [[ "$GITHUB_REF" == refs/tags/v1.0.0-alpha.* ]]; then
             tag_version="${GITHUB_REF##*.}"
             source_version="$(grep -Eo 'versionCode = [0-9]+' android/app/build.gradle.kts | head -1 | grep -Eo '[0-9]+')"
             test "$tag_version" = "$source_version" || { echo "Release tag version does not match source: $tag_version != $source_version"; exit 1; }
           fi
+      - name: Resolve Gradle/KSP plugins (retry transient Maven outages)
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          # KSP resolution occasionally returns an upstream Maven/Gradle Plugin
+          # repository error on a cold runner. Retry dependency configuration;
+          # the actual tests below remain strict and are never ignored.
+          for attempt in 1 2 3 4; do
+            if ./gradlew -PstagingRelease --no-daemon help; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "::error::Gradle plugin resolution failed after four attempts."
+              exit 1
+            fi
+            sleep $((attempt * 8))
+          done
       - name: Targeted Personal release tests
         working-directory: android
         run: |
@@ -60,7 +79,8 @@ jobs:
             --tests 'com.otidotid.alke.ai.StepsAiValidatorClientTest' \
             --tests 'com.otidotid.alke.analytics.StepsFusionProductionTest' \
             --tests 'com.otidotid.alke.analytics.StepsEstimateEngineTest' \
-            --tests 'com.otidotid.alke.analytics.StepsCounterTest'
+            --tests 'com.otidotid.alke.analytics.StepsCounterTest' \
+            --tests 'com.otidotid.alke.ui.HypopneaTodaySelectionTest'
       - name: Save rendered HR widget previews for visual regression review
         if: always()
         uses: actions/upload-artifact@v4

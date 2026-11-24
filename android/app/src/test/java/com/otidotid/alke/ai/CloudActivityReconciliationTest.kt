@@ -28,7 +28,7 @@ class CloudActivityReconciliationTest {
     }
     @After fun close(){db.close()}
     private fun e(a:Long,b:Long,t:String,workout:Boolean) =
-        p.Event(p.sha256("${p.SCHEMA}:$a:$b:$t"),t,a,b,workout)
+        CloudActivityProtocol.Event(p.sha256("${p.SCHEMA}:$a:$b:$t"),t,a,b,workout)
     @Test fun delayedHealthConnectSupersedesOnlyCloudWorkout() = runBlocking {
         val cloud=e(start,start+600,"RUNNING",true)
         assertEquals(1,repo.saveCloudActivityEvents(device,listOf(cloud)))

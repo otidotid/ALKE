@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, alke/v619-quality-main-hypopnea, alke/alpha20-insight-cleanup]
   push:
-    branches: [alke/alpha20-insight-cleanup]
+    branches: [main, alke/v619-quality-main-hypopnea, alke/alpha20-insight-cleanup]
     tags: ['v1.0.0-alpha.*']
   workflow_dispatch:
     inputs:

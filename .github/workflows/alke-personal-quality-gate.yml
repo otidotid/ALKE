@@ -2,9 +2,9 @@
 
 on:
   pull_request:
-    branches: [alke/alpha20-insight-cleanup]
+    branches: [main, alke/v619-hypopnea-ci-main-consistency]
   push:
-    branches: [alke/alpha20-insight-cleanup]
+    branches: [main, alke/v619-hypopnea-ci-main-consistency]
     tags: ['v1.0.0-alpha.*']
   workflow_dispatch:
     inputs:
@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           grep -Eq 'versionCode = [0-9]+' android/app/build.gradle.kts
           grep -Eq 'versionName = "1\.0\.0-alpha\.[^"]+"' android/app/build.gradle.kts
-          test "${{ github.ref_name }}" = "alke/alpha20-insight-cleanup" || test "${{ github.event_name }}" = "pull_request" || [[ "$GITHUB_REF" == refs/tags/v1.0.0-alpha.* ]]
+          test "${{ github.ref_name }}" = "main" || test "${{ github.ref_name }}" = "alke/v619-hypopnea-ci-main-consistency" || test "${{ github.event_name }}" = "pull_request" || [[ "$GITHUB_REF" == refs/tags/v1.0.0-alpha.* ]]
           if [[ "$GITHUB_REF" == refs/tags/v1.0.0-alpha.* ]]; then
             tag_version="${GITHUB_REF##*.}"
             source_version="$(grep -Eo 'versionCode = [0-9]+' android/app/build.gradle.kts | head -1 | grep -Eo '[0-9]+')"
@@ -60,7 +60,8 @@ jobs:
             --tests 'com.otidotid.alke.ai.StepsAiValidatorClientTest' \
             --tests 'com.otidotid.alke.analytics.StepsFusionProductionTest' \
             --tests 'com.otidotid.alke.analytics.StepsEstimateEngineTest' \
-            --tests 'com.otidotid.alke.analytics.StepsCounterTest'
+            --tests 'com.otidotid.alke.analytics.StepsCounterTest' \
+            --tests 'com.otidotid.alke.ui.SleepHypopneaNightStateTest'
       - name: Save rendered HR widget previews for visual regression review
         if: always()
         uses: actions/upload-artifact@v4

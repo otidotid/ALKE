@@ -3,8 +3,8 @@ name: ALKE v619 - Hypopnea Risk Review APK
 on:
   push:
     branches: [alke/v619-quality-main-hypopnea]
-  pull_request:
-    branches: [main]
+  # Historical v619 workflow only. Do not run its hardcoded v619 checks
+  # on unrelated future PRs targeting main.
   workflow_dispatch:
 
 permissions:

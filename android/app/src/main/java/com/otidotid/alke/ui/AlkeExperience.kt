@@ -34,8 +34,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.BatteryFull
-import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.ChevronRight
@@ -61,6 +59,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
+import com.otidotid.alke.R
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -204,17 +204,8 @@ private fun AlkeHeader(
     val ringBattery by vm.ouraBatteryPct.collectAsStateWithLifecycle()
     val activeName by vm.activeDeviceName.collectAsStateWithLifecycle()
     val syncing = live.backfilling || live.analyzingHistory
-    // Avoid infinite idle frame loops in battery-saver / Remove animations mode.
-    // Active device sync is a progress indicator, not idle decoration.
-    val poseStill = rememberPoseStill()
-    val batteryPulse = if (!poseStill) {
-        rememberInfiniteTransition(label = "alke-header-battery").animateFloat(
-            initialValue = 0f, targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse),
-            label = "persistent-battery-breathe",
-        ).value
-    } else 0f
+    // No perpetual battery pulse while idle. The ALKE sync halo below is
+    // driven solely by the real BLE/history-sync state.
     val hasSyncError = !syncing && !live.lastSyncError.isNullOrBlank()
     val battery = if (live.connected) {
         if (activeIsOura) ringBattery?.takeIf { it in 0..100 }
@@ -247,22 +238,27 @@ private fun AlkeHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // This is the single global header, shared by Today and every module.
+        // The icon/wordmark follow the approved minimal cyan ALKE identity.
         Row(
-            modifier = Modifier.clip(RoundedCornerShape(15.dp)).clickable { showSyncHub = true }
-                .padding(end = 5.dp),
+            modifier = Modifier.clip(RoundedCornerShape(15.dp))
+                .clickable { showSyncHub = true }
+                .padding(end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
                 if (syncing) {
-                    // Two luminous, thick rotating arc segments plus a breathing halo.
-                    // The parent header outlives the NavHost, so module changes do not reset sync.
+                    // Preserve the original live syncing animation around the NEW mark.
+                    // It is hosted above NavHost, so changing screens cannot restart it.
                     Canvas(Modifier.fillMaxSize().graphicsLayer { rotationZ = spin }) {
-                        val ring = 4.5.dp.toPx()
+                        val ring = 3.7.dp.toPx()
                         val inset = ring / 2f + 3.dp.toPx()
                         val ringSize = Size(size.width - inset * 2f, size.height - inset * 2f)
                         val top = Offset(inset, inset)
-                        drawCircle(A.cyan.copy(alpha = 0.10f + 0.14f * syncPulse),
-                            radius = size.minDimension * 0.48f)
+                        drawCircle(
+                            A.cyan.copy(alpha = 0.10f + 0.14f * syncPulse),
+                            radius = size.minDimension * 0.48f,
+                        )
                         drawArc(
                             brush = Brush.sweepGradient(listOf(A.cyan, A.gold, A.white, A.cyan)),
                             startAngle = 0f, sweepAngle = 215f, useCenter = false,
@@ -277,52 +273,78 @@ private fun AlkeHeader(
                         )
                     }
                 }
-                Box(Modifier.graphicsLayer {
-                    val sizePulse = if (syncing) 1f + syncPulse * 0.09f else 1f
-                    scaleX = sizePulse
-                    scaleY = sizePulse
-                }) { BrandMark(38.dp) }
+                Icon(
+                    painter = painterResource(R.drawable.alke_header_minimal_mark),
+                    contentDescription = null,
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(39.dp).graphicsLayer {
+                        val scale = if (syncing) 1f + syncPulse * 0.07f else 1f
+                        scaleX = scale
+                        scaleY = scale
+                    },
+                )
                 if (hasSyncError || unreadCount > 0) {
                     Box(
-                        Modifier.align(Alignment.TopEnd).size(9.dp).clip(CircleShape)
+                        Modifier.align(Alignment.TopEnd).size(8.dp).clip(CircleShape)
                             .background(if (hasSyncError) A.gold else A.cyan),
                     )
                 }
             }
-            Spacer(Modifier.width(5.dp))
-            Column {
-                Text("ALKE", color = A.white, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-                Text(
-                    if (syncing) "SYNCING DEVICE" else "THE INTELLIGENCE WITHIN",
-                    color = if (syncing) A.cyan.copy(alpha = 0.70f + 0.30f * syncPulse) else A.muted,
-                    fontSize = if (syncing) 9.sp else 7.sp,
-                    fontWeight = if (syncing) FontWeight.Bold else FontWeight.Normal,
-                    letterSpacing = if (syncing) 1.7.sp else 1.5.sp,
-                )
-            }
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "ALKE", color = A.white, fontSize = 19.sp,
+                fontWeight = FontWeight.SemiBold, letterSpacing = 4.sp,
+                maxLines = 1,
+            )
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Row(
-                modifier = Modifier.clip(RoundedCornerShape(15.dp))
-                    .padding(horizontal = 3.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+
+        // Battery number still comes from the CURRENT connected device.
+        // No stale charge value after disconnect, and no second battery shortcut.
+        val batteryChipShape = RoundedCornerShape(50.dp)
+        Row(
+            modifier = Modifier
+                .clip(batteryChipShape)
+                .background(A.cardDark.copy(alpha = 0.76f))
+                .border(1.dp, A.stroke.copy(alpha = 0.68f), batteryChipShape)
+                .semantics {
+                    stateDescription = when {
+                        battery == null -> "Wearable battery unavailable"
+                        live.charging == true -> "Wearable battery $battery percent, charging"
+                        else -> "Wearable battery $battery percent"
+                    }
+                }
+                .padding(start = 13.dp, end = 11.dp, top = 7.dp, bottom = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                battery?.let { "$it%" } ?: "—",
+                color = if (battery == null) A.muted
+                        else if (battery <= 20) A.gold else A.white,
+                fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                maxLines = 1,
+            )
+            Box(
+                Modifier.width(1.dp).height(21.dp)
+                    .background(A.muted.copy(alpha = 0.34f)),
+            )
+            Box(Modifier.size(31.dp), contentAlignment = Alignment.Center) {
                 Icon(
-                    if (live.charging == true) Icons.Filled.BatteryChargingFull else Icons.Filled.BatteryFull,
-                    contentDescription = "Wearable battery and connection",
-                    tint = if (battery != null && battery <= 20) A.gold else A.cyan,
-                    modifier = Modifier.size(22.dp).graphicsLayer {
-                        alpha = 0.82f + 0.18f * batteryPulse
-                        scaleX = 0.94f + 0.06f * batteryPulse
-                        scaleY = 0.94f + 0.06f * batteryPulse
-                    },
+                    painter = painterResource(R.drawable.alke_header_wearable_outline),
+                    contentDescription = null,
+                    tint = if (battery == null) A.muted else Color.Unspecified,
+                    modifier = Modifier.size(31.dp),
                 )
-                Spacer(Modifier.width(3.dp))
-                Text(
-                    battery?.let { "$it%" } ?: "—",
-                    color = if (battery == null) A.muted else A.white,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 12.sp,
+                Box(
+                    Modifier.align(Alignment.TopEnd).size(8.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                battery == null -> A.muted.copy(alpha = 0.45f)
+                                battery <= 20 || live.charging == true -> A.gold
+                                else -> A.cyan
+                            },
+                        ),
                 )
             }
         }

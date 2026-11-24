@@ -613,7 +613,7 @@ fun SleepScreen(
             com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
         ),
     ) }
-    var hypopneaWakeTs by remember(vm.activeStrapId) { mutableStateOf<Long?>(null) }
+    var hypopneaNightIdentity by remember(vm.activeStrapId) { mutableStateOf<String?>(null) }
     var showHypopneaDetail by remember { mutableStateOf(false) }
     LaunchedEffect(
         days, vm.activeStrapId, night?.session?.startTs, night?.session?.endTs,
@@ -622,15 +622,24 @@ fun SleepScreen(
     ) {
         val selected = night
         val wake = selected?.heroWakeTs ?: selected?.session?.endTs
-        if (wake != null && hypopneaWakeTs != wake) {
-            hypopneaWakeTs = wake
-            // This is a new navigated night, not an intermediate sync state.
-            hypopneaAssessment = SleepHypopneaData.cached(context, vm.activeStrapId, wake)
-                ?: com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
-                )
+        // The detected startTs stays stable across user-adjusted bedtime on
+        // the same main night, but changes for an actually different session.
+        val detectedStart = selected?.session?.startTs
+        val nightIdentity = if (wake != null && detectedStart != null) {
+            SleepHypopneaData.identity(vm.activeStrapId, wake, detectedStart)
+        } else null
+        if (nightIdentity != null && hypopneaNightIdentity != nightIdentity) {
+            hypopneaNightIdentity = nightIdentity
+            // A NEW night has no right to inherit yesterday's LOW.
+            hypopneaAssessment = SleepHypopneaData.cached(
+                context, vm.activeStrapId, wake!!, detectedStart!!,
+            ) ?: com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+            )
         }
-        val saved = wake?.let { SleepHypopneaData.cached(context, vm.activeStrapId, it) }
+        val saved = if (wake != null && detectedStart != null) {
+            SleepHypopneaData.cached(context, vm.activeStrapId, wake, detectedStart)
+        } else null
         when {
             saved != null -> hypopneaAssessment = saved
             // Sleep rows may temporarily disappear during a sync. Never flash
@@ -650,6 +659,7 @@ fun SleepScreen(
                         context, vm.repo, vm.activeStrapId,
                         selected.heroOnsetTs ?: selected.session.effectiveStartTs,
                         selected.heroWakeTs ?: selected.session.endTs,
+                        detectedStartTs = selected.session.startTs,
                     )
                 } catch (cancel: kotlinx.coroutines.CancellationException) {
                     throw cancel

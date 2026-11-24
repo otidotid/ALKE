@@ -1,0 +1,177 @@
+name: ALKE v619 Verified Personal F34C Automatic Release
+
+on:
+  push:
+    branches: [alke/v619-publish-exchange]
+    paths: [.github/workflows/alke-v619-owner-signed-release.yml]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: alke-v619-owner-personal-signed
+  cancel-in-progress: false
+
+jobs:
+  sign-and-publish:
+    if: github.repository == 'otidotid/ALKE'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v1.0.0-alpha.22.29-quality-hypopnea.619
+      VERIFIED_RUN: '45318155163'
+      VERIFIED_HEAD: 98030523313adf40c6127669be135892244a4cc4
+      EXCHANGE_BRANCH: alke/v619-publish-exchange
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require same source as validated v619 Personal tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git diff --name-only "$VERIFIED_HEAD" HEAD -- android | wc -l)" -eq 0
+          for i in $(seq 1 240); do
+            status="$(gh run view "$VERIFIED_RUN" --repo "$GITHUB_REPOSITORY" --json status --jq .status)"
+            if [ "$status" = completed ]; then break; fi
+            sleep 10
+          done
+          test "$(gh run view "$VERIFIED_RUN" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+          test "$(gh run view "$VERIFIED_RUN" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)" = "$VERIFIED_HEAD"
+          mkdir -p "$RUNNER_TEMP/v619/unsigned"
+          gh run download "$VERIFIED_RUN" --repo "$GITHUB_REPOSITORY" --name ALKE-Personal-Validated-Unsigned --dir "$RUNNER_TEMP/v619/unsigned"
+          test -s "$RUNNER_TEMP/v619/unsigned/ALKE-personal-v619-unsigned.apk"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -1)"
+          "$aapt" dump badging "$RUNNER_TEMP/v619/unsigned/ALKE-personal-v619-unsigned.apk" > "$RUNNER_TEMP/v619/badging.txt"
+          grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v619/badging.txt"
+          grep -Fq "versionCode='619'" "$RUNNER_TEMP/v619/badging.txt"
+
+      - name: Create short-lived certificate for in-run private credential delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          openssl req -x509 -newkey rsa:3072 -noenc -nodes -days 1 -subj "/CN=ALKE-v619-one-run-${GITHUB_RUN_ID}" \
+            -keyout "$RUNNER_TEMP/v619/ephemeral.key" -out "$RUNNER_TEMP/v619/ephemeral.pem" >/dev/null 2>&1
+          public="release-exchange/v619-${GITHUB_RUN_ID}-ephemeral.pem"
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$public" \
+            -f branch="$EXCHANGE_BRANCH" \
+            -f message="chore(v619): ephemeral public certificate for isolated APK signing" \
+            -f content="$(base64 -w0 "$RUNNER_TEMP/v619/ephemeral.pem")" >/dev/null
+          echo "Ephemeral signing exchange ready; run id: $GITHUB_RUN_ID"
+
+      - name: Receive sealed signing kit and create original-certificate signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          private="release-exchange/v619-${GITHUB_RUN_ID}-sealed.cms.b64"
+          ready=0
+          for i in $(seq 1 240); do
+            if gh api "repos/$GITHUB_REPOSITORY/contents/$private?ref=$EXCHANGE_BRANCH" --jq .content > "$RUNNER_TEMP/v619/exchange-file.b64" 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ready" -eq 1 || { echo "::error::No encrypted kit received for this run"; exit 1; }
+          base64 -d "$RUNNER_TEMP/v619/exchange-file.b64" | base64 -d > "$RUNNER_TEMP/v619/sealed.cms"
+          openssl cms -decrypt -binary -inform DER \
+            -recip "$RUNNER_TEMP/v619/ephemeral.pem" \
+            -inkey "$RUNNER_TEMP/v619/ephemeral.key" \
+            -in "$RUNNER_TEMP/v619/sealed.cms" -out "$RUNNER_TEMP/v619/kit.tar"
+          mkdir -p "$RUNNER_TEMP/v619/kit" "$RUNNER_TEMP/v619/final"
+          tar -xf "$RUNNER_TEMP/v619/kit.tar" -C "$RUNNER_TEMP/v619/kit" --no-same-owner
+          test -s "$RUNNER_TEMP/v619/kit/ALKE-personal-update-key.p12"
+          test -s "$RUNNER_TEMP/v619/kit/signing-pass.txt"
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -1)"
+          apk="$RUNNER_TEMP/v619/final/ALKE-v619-Hypopnea-Quality-F34C.apk"
+          "$signer" sign \
+            --ks "$RUNNER_TEMP/v619/kit/ALKE-personal-update-key.p12" \
+            --ks-type PKCS12 --ks-key-alias alke-private \
+            --ks-pass "file:$RUNNER_TEMP/v619/kit/signing-pass.txt" \
+            --key-pass "file:$RUNNER_TEMP/v619/kit/signing-pass.txt" \
+            --min-sdk-version 26 \
+            --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+            --out "$apk" "$RUNNER_TEMP/v619/unsigned/ALKE-personal-v619-unsigned.apk"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" | tee "$RUNNER_TEMP/v619/signer-report.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/v619/signer-report.txt"
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$RUNNER_TEMP/v619/signer-report.txt"
+          grep -Fq 'certificate SHA-256 digest: f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877' "$RUNNER_TEMP/v619/signer-report.txt"
+          unzip -t "$apk" >/dev/null
+          mkdir -p "$RUNNER_TEMP/v619/previous"
+          gh release download v1.0.0-alpha.22.28-hypopnea-pinned.618 --repo "$GITHUB_REPOSITORY" \
+            --pattern 'ALKE-v618-Hypopnea-Today-F34C.apk' --dir "$RUNNER_TEMP/v619/previous"
+          "$signer" verify --min-sdk-version 26 --print-certs "$RUNNER_TEMP/v619/previous/ALKE-v618-Hypopnea-Today-F34C.apk" > "$RUNNER_TEMP/v619/previous-signer.txt"
+          old_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v619/previous-signer.txt" | head -1)"
+          new_cert="$(sed -n 's/^.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/v619/signer-report.txt" | head -1)"
+          test -n "$old_cert" && test "$old_cert" = "$new_cert"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -1)"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/v619/signed-badging.txt"
+          grep -Fq "name='com.otidotid.alke.personal.debug'" "$RUNNER_TEMP/v619/signed-badging.txt"
+          grep -Fq "versionCode='619'" "$RUNNER_TEMP/v619/signed-badging.txt"
+          (cd "$RUNNER_TEMP/v619/final"; sha256sum ALKE-v619-Hypopnea-Quality-F34C.apk > ALKE-v619-Hypopnea-Quality-F34C.apk.sha256)
+          rm -rf "$RUNNER_TEMP/v619/kit" "$RUNNER_TEMP/v619/kit.tar" "$RUNNER_TEMP/v619/sealed.cms" "$RUNNER_TEMP/v619/ephemeral.key" "$RUNNER_TEMP/v619/exchange-file.b64"
+
+      - name: Publish verified original-certificate Personal APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/v619/notes.md" <<'NOTES'
+          # ALKE v619 — Stable Hypopnea Today & Verified Main
+
+          Verified signed Personal update from ALKE v618. Original certificate
+          F34C retained. Package com.otidotid.alke.personal.debug, versionCode 619.
+          Install directly over the previous Personal build, WITHOUT uninstalling
+          or clearing local health/sleep history.
+
+          - Fixed Today retaining yesterday's LOW/MEDIUM/HIGH when a completed
+            new wake-day has insufficient evidence; only valid current-day
+            Hypopnea labels appear, never a false clinical risk category.
+          - Kept same wake-day result pinned during BLE sync; edits on the same
+            day do NOT trigger a re-score, by owner decision.
+          - Today resolves the same canonical main-night selection with learned
+            habitual midsleep as the Sleep tab. Existing calculation thresholds
+            and all other ALKE algorithms are unchanged.
+          - Pinned result retains session onset/wake provenance in local cache
+            while remaining backward-compatible with v618.
+          - Main branch now contains the full verified Android source tree;
+            CI Quality Gate has dependency resolution retries and new regressions.
+
+          Android unit tests, CI Quality Gate, signing and APK compatibility
+          verified. On-device smoke testing is distinct. Hypopnea is an
+          exploratory wellness indicator, NOT a medical diagnosis.
+          NOTES
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" \
+              "$RUNNER_TEMP/v619/final/ALKE-v619-Hypopnea-Quality-F34C.apk" \
+              "$RUNNER_TEMP/v619/final/ALKE-v619-Hypopnea-Quality-F34C.apk.sha256" \
+              --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --title 'ALKE v619 — Main Source & Morning Hypopnea Fix (Personal F34C)' --notes-file "$RUNNER_TEMP/v619/notes.md" --prerelease
+          else
+            gh release create "$RELEASE_TAG" \
+              "$RUNNER_TEMP/v619/final/ALKE-v619-Hypopnea-Quality-F34C.apk" \
+              "$RUNNER_TEMP/v619/final/ALKE-v619-Hypopnea-Quality-F34C.apk.sha256" \
+              --repo "$GITHUB_REPOSITORY" --target "$VERIFIED_HEAD" \
+              --title 'ALKE v619 — Main Source & Morning Hypopnea Fix (Personal F34C)' --notes-file "$RUNNER_TEMP/v619/notes.md" --prerelease
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets \
+            --jq '{tag:.tagName,url:.url,files:[.assets[].name]}'
+
+      - name: Remove one-run encrypted signing exchange
+        if: always()
+        shell: bash
+        run: |
+          for file in "release-exchange/v619-${GITHUB_RUN_ID}-sealed.cms.b64" "release-exchange/v619-${GITHUB_RUN_ID}-ephemeral.pem"; do
+            sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/$file?ref=$EXCHANGE_BRANCH" --jq .sha 2>/dev/null || true)"
+            if [ -n "$sha" ]; then
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/contents/$file" \
+                -f branch="$EXCHANGE_BRANCH" -f sha="$sha" \
+                -f message='chore(v619): remove one-run encrypted signing exchange' >/dev/null || true
+            fi
+          done

@@ -1240,7 +1240,8 @@ class WhoopRepository(
     suspend fun saveCandidateWorkoutsNoOverlap(
         rows: List<WorkoutRow>,
         replacing: List<WorkoutRow> = emptyList(),
-    ): List<WorkoutRow> = transactor.run {
+    ): List<WorkoutRow> {
+        val saved = transactor.run {
         if (rows.isEmpty()) return@run emptyList()
         val accepted = ArrayList<WorkoutRow>()
         val supersededCloud = ArrayList<WorkoutRow>()
@@ -1273,8 +1274,10 @@ class WhoopRepository(
         }
         if (accepted.isNotEmpty()) dao.upsertWorkouts(accepted)
         supersededCloud.distinct().forEach { old -> dao.deleteWorkoutByKey(old.deviceId,old.startTs,old.sport) }
-        if (accepted.isNotEmpty()) com.otidotid.alke.ai.CloudActivitySettings.changed()
         accepted
+        }
+        if (saved.isNotEmpty()) com.otidotid.alke.ai.CloudActivitySettings.changed()
+        return saved
     }
 
     /** Cloud activity data is namespaced away from raw wearable events and training totals. */
@@ -1330,7 +1333,8 @@ class WhoopRepository(
     /** Recheck under the same Room transaction as Health Connect imports. No second write of a
      *  duplicate workout; adjacent high-evidence cloud workout fragments are joined across batches. */
     internal suspend fun saveCloudActivityEvents(activeId: String,
-        events: List<com.otidotid.alke.ai.CloudActivityProtocol.Event>): Int = transactor.run {
+        events: List<com.otidotid.alke.ai.CloudActivityProtocol.Event>): Int {
+        val saved = transactor.run {
         val p = com.otidotid.alke.ai.CloudActivityProtocol
         var added = 0
         for (event in events.sortedBy { it.start }) {
@@ -1352,8 +1356,10 @@ class WhoopRepository(
                 added++
             }
         }
-        if (added > 0) com.otidotid.alke.ai.CloudActivitySettings.changed()
         added
+        }
+        if (saved > 0) com.otidotid.alke.ai.CloudActivitySettings.changed()
+        return saved
     }
 
     /**

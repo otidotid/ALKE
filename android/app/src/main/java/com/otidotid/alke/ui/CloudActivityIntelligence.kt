@@ -91,6 +91,7 @@ private val cloudMuted = Color(0xFF9BB9C5)
 @Composable internal fun CloudActivityIntelligencePanel(vm: AppViewModel) {
     val c=LocalContext.current
     val rev by CloudActivitySettings.revision.collectAsStateWithLifecycle()
+    val dataRev by CloudActivitySettings.dataRevision.collectAsStateWithLifecycle()
     val sessions by vm.workouts.collectAsStateWithLifecycle()
     val live by vm.live.collectAsStateWithLifecycle()
     val enabled=remember(rev){CloudActivitySettings.enabled(c)}
@@ -101,14 +102,13 @@ private val cloudMuted = Color(0xFF9BB9C5)
     val day=java.time.LocalDate.now(zone)
     val start=day.atStartOfDay(zone).toEpochSecond()
     val end=day.plusDays(1).atStartOfDay(zone).toEpochSecond()
-    LaunchedEffect(rev,live.lastSyncAt,sessions,day){
+    LaunchedEffect(dataRev,live.lastSyncAt,sessions,day){
         daily=withContext(Dispatchers.IO){vm.repo.cloudDailyActivityRows(start,end)}
     }
-    LaunchedEffect(rev){vm.loadWorkouts()}
     val workouts=sessions.filter{it.startTs<end && it.endTs>start}
     val rows=(workouts+daily).sortedByDescending{it.startTs}
     val fmt=remember {DateTimeFormatter.ofPattern("HH:mm")}
-    val unique=CloudActivityProtocol.excludes(rows.map{it.startTs to it.endTs},start,end)
+    val unique=CloudActivityProtocol.mergeSpans(rows.map{it.startTs to it.endTs},start,end)
     val mins=(unique.sumOf{it.second-it.first}/60L)
     AlkePanel(Modifier.fillMaxWidth()) {
         Row(verticalAlignment=Alignment.CenterVertically){
@@ -145,6 +145,7 @@ private val cloudMuted = Color(0xFF9BB9C5)
             }
         }
         Text("Automatically detected. Intelligently reconciled.",color=cloudMuted,fontSize=11.sp)
+        Text("Activity labels are estimates. Stairs require elevation evidence; missing sensor data stays unknown.",color=cloudMuted,fontSize=11.sp)
     }
     if(show) CloudActivitySetupDialog {show=false}
 }

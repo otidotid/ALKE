@@ -53,7 +53,7 @@ internal object CloudActivityProtocol {
         .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     fun overlap(a: Long, b: Long, c: Long, d: Long): Boolean = a < d && c < b
-    fun excludes(spans: List<Pair<Long, Long>>, from: Long, to: Long): List<Pair<Long, Long>> {
+    fun mergeSpans(spans: List<Pair<Long, Long>>, from: Long, to: Long): List<Pair<Long, Long>> {
         val result = ArrayList<Pair<Long, Long>>()
         for ((a,b) in spans.filter { it.first < it.second && overlap(it.first,it.second,from,to) }
             .map { maxOf(it.first,from) to minOf(it.second,to) }.sortedBy { it.first }) {
@@ -61,8 +61,12 @@ internal object CloudActivityProtocol {
             if (prior != null && a <= prior.second) result[result.lastIndex] = prior.first to maxOf(prior.second,b)
             else result.add(a to b)
         }
+        return result
+    }
+    fun excludes(spans: List<Pair<Long,Long>>,from: Long,to: Long): List<Pair<Long,Long>> {
+        val merged = mergeSpans(spans,from,to)
         // Fail closed rather than omit known exclusion intervals if pathological input exceeds protocol.
-        return if (result.size <= 64) result else listOf(from to to)
+        return if (merged.size <= 64) merged else listOf(from to to)
     }
     fun bins(start: Long, hr: List<HrSample>, motion: List<GravitySample>, steps: List<StepSample>,
         ticksPerStep: Double): List<List<Number?>> {

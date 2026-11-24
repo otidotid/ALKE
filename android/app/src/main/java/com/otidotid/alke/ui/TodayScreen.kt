@@ -6662,7 +6662,7 @@ internal fun HeartRateTrendCard(
     val live by viewModel.live.collectAsStateWithLifecycle()
     // Re-load when the day list changes (an import updates it), when the day selector moves, and, via the
     // sync tokens, when a strap offload banks fresh HR samples for the current window. Also on first compose.
-    val activityRevision by com.otidotid.alke.ai.CloudActivitySettings.revision.collectAsStateWithLifecycle()
+    val activityRevision by com.otidotid.alke.ai.CloudActivitySettings.dataRevision.collectAsStateWithLifecycle()
     LaunchedEffect(days, selectedDay, today, live.lastSyncAt, live.syncChunksThisSession, dayCycleMode, activityRevision) {
         val zone = ZoneId.systemDefault()
         val calendarStart = selectedDay.atStartOfDay(zone).toEpochSecond()

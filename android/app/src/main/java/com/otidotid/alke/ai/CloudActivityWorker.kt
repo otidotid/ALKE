@@ -26,7 +26,10 @@ internal object CloudActivitySettings {
     private fun state(c: Context) = c.applicationContext.getSharedPreferences(STATE,Context.MODE_PRIVATE)
     private val _revision = MutableStateFlow(0L)
     val revision = _revision.asStateFlow()
-    fun changed() { _revision.value = _revision.value + 1 }
+    private val _dataRevision = MutableStateFlow(0L)
+    val dataRevision = _dataRevision.asStateFlow()
+    fun changed() { _dataRevision.value = _dataRevision.value + 1 }
+    private fun configChanged() { _revision.value = _revision.value + 1 }
     fun token(c: Context): String? = runCatching {
         secure(c).takeIf { it.getBoolean("consent",false) }?.getString("token",null)?.takeIf { it.length >= 32 }
     }.getOrNull()
@@ -36,7 +39,7 @@ internal object CloudActivitySettings {
         check(secure(c).edit().putString("token",token.trim()).putBoolean("consent",true).commit())
         val now = System.currentTimeMillis()/1000L
         check(state(c).edit().putLong("cursor",now/900L*900L-900L).putString("status","Waiting for cloud analysis").commit())
-        changed()
+        configChanged()
         CloudActivityScheduler.ensure(c)
         CloudActivityScheduler.request(c)
     }
@@ -44,11 +47,14 @@ internal object CloudActivitySettings {
         check(secure(c).edit().remove("token").putBoolean("consent",false).commit())
         CloudActivityScheduler.cancel(c)
         status(c,"Cloud detection off")
+        configChanged()
     }
     fun cursor(c: Context) = state(c).getLong("cursor",System.currentTimeMillis()/900000L*900L-900L)
     fun advance(c: Context, next: Long) { check(state(c).edit().putLong("cursor",next).commit()) }
     fun status(c: Context) = state(c).getString("status","Cloud detection off") ?: "Cloud detection off"
-    fun status(c: Context, value: String) { state(c).edit().putString("status",value).apply(); changed() }
+    fun status(c: Context, value: String) {
+        if (status(c) != value) { state(c).edit().putString("status",value).apply(); configChanged() }
+    }
 }
 
 internal object CloudActivityScheduler {
@@ -100,9 +106,22 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                         repo.gravitySamplesUnion(id,from-1,to-1,1800),
                         repo.stepSamples(id,from-1,to-1,1800),profile.stepTicksPerStep)
                     val excluded = CloudActivityProtocol.excludes(known,from,to)
+                    if (excluded.size == 1 && excluded[0].first <= from && excluded[0].second >= to) {
+                        CloudActivitySettings.advance(c,to)
+                        from = to
+                        return@repeat
+                    }
+                    val eligible = bins.indices.count { index ->
+                        val a = from+index*30L
+                        excluded.none { CloudActivityProtocol.overlap(a,a+30,it.first,it.second) }
+                    }
                     val usable = bins.indices.count { index ->
                         val a = from+index*30L
                         CloudActivityProtocol.usable(bins[index]) && excluded.none { CloudActivityProtocol.overlap(a,a+30,it.first,it.second) }
+                    }
+                    if (usable < kotlin.math.ceil(eligible*0.7).toInt() && now-to < 7200L) {
+                        CloudActivitySettings.status(c,"Waiting for wearable data")
+                        return@withContext Result.success()
                     }
                     if (usable < 2) {
                         // An offload can arrive late. Leave the current cursor pending for two hours.

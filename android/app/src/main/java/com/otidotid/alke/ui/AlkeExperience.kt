@@ -1016,7 +1016,8 @@ fun AlkeTrainingExperience(
         sortedSessions.mapNotNull { it.energyKcal?.takeIf { value -> value.isFinite() && value >= 0.0 } }
     }
     var showAddDialog by remember { mutableStateOf(false) }
-    LaunchedEffect(vm) { vm.loadWorkouts() }
+    val activityDataRevision by com.otidotid.alke.ai.CloudActivitySettings.dataRevision.collectAsStateWithLifecycle()
+    LaunchedEffect(vm, activityDataRevision) { vm.loadWorkouts() }
 
     AlkePage {
         Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)

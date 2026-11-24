@@ -11,6 +11,14 @@ pluginManagement {
         }
     }
     repositories {
+        // Independent Google Cloud mirror of Maven Central (documented by Google).
+        // Prevents a transient Maven Central outage from blocking clean CI runners.
+        // Restrict the mirror to KSP coordinates; all other dependencies follow
+        // the existing official Maven Central/Google repository precedence.
+        maven {
+            url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
+            content { includeGroup("com.google.devtools.ksp") }
+        }
         // KSP plugin markers are published on Maven Central. Prefer it before
         // Google's plugin mirror to avoid transient Google Maven misses in CI.
         mavenCentral()
@@ -29,6 +37,10 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
+        maven {
+            url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
+            content { includeGroup("com.google.devtools.ksp") }
+        }
         mavenCentral()
     }
 }

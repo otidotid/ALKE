@@ -766,28 +766,51 @@ fun AlkeTodayExperience(
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
-    // The REAL ALKE Today view reads the SAME completed main-night risk as Sleep.
-    // Never replace an already calculated LOW/MEDIUM/HIGH with a transient
-    // PENDING when further daytime history syncs or the view re-composes.
+    // Hypopnea is a FIXED card between Heart Rate and Explore Your Trends.
+    // The morning verdict remains stable within one wake-day but cannot leak
+    // into the next day's UNAVAILABLE or WAITING assessment.
     val hypopneaRevision by SleepHypopneaData.revision.collectAsStateWithLifecycle()
     val hypopneaContext = LocalContext.current
-    var hypopneaToday by remember(vm.activeStrapId) {
-        mutableStateOf(com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+    var todayHypopneaState by remember(vm.activeStrapId) {
+        mutableStateOf(HypopneaTodaySelection.State(
+            null,
+            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.WAITING,
+            ),
         ))
     }
-    LaunchedEffect(vm.activeStrapId, recentDays, hypopneaRevision) {
-        val result = try {
-            SleepHypopneaData.latest(hypopneaContext, vm.repo, vm.activeStrapId)
+    var todayHabitualMidsleep by remember(vm.activeStrapId) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(vm.activeStrapId) {
+        todayHabitualMidsleep = try {
+            vm.repo.habitualMidsleepSec(vm.activeStrapId)
         } catch (cancel: kotlinx.coroutines.CancellationException) {
             throw cancel
         } catch (_: Exception) {
-            com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
-                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
+            null
+        }
+    }
+    LaunchedEffect(vm.activeStrapId, recentDays, hypopneaRevision, todayHabitualMidsleep) {
+        val nextNight = try {
+            SleepHypopneaData.latestNight(
+                hypopneaContext, vm.repo, vm.activeStrapId,
+                habitualMidsleepSec = todayHabitualMidsleep,
+            )
+        } catch (cancel: kotlinx.coroutines.CancellationException) {
+            throw cancel
+        } catch (_: Exception) {
+            SleepHypopneaData.LatestNight(
+                null, null, null,
+                com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Assessment(
+                    com.otidotid.alke.analytics.SleepHypopneaRiskEngine.Risk.UNAVAILABLE,
+                ),
             )
         }
-        if (result.isReady || !hypopneaToday.isReady) hypopneaToday = result
+        todayHypopneaState = HypopneaTodaySelection.choose(
+            todayHypopneaState,
+            HypopneaTodaySelection.State(nextNight.wakeDay, nextNight.assessment),
+        )
     }
+    val hypopneaToday = todayHypopneaState.assessment
     // The existing Steps detail resolver provides real, imported, and estimated
     // readings with the same precedence as Progress. Show ONLY today's reading
     // in the Today tile; a prior date must never masquerade as today's steps.

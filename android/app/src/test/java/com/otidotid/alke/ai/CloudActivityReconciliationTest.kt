@@ -19,7 +19,9 @@ class CloudActivityReconciliationTest {
     private lateinit var db: WhoopDatabase
     private lateinit var repo: WhoopRepository
     private val device = "my-whoop"
-    private val start = 1_700_000_100L
+    // Exercise the actual 90-day local read policy with recent fixtures, not an expired 2023 date.
+    private val start = java.time.LocalDate.now().minusDays(2)
+        .atStartOfDay(java.time.ZoneId.systemDefault()).toEpochSecond().let { it / 30L * 30L } + 3600L
     private val p = CloudActivityProtocol
     @Before fun setup() {
         db=Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(),WhoopDatabase::class.java)

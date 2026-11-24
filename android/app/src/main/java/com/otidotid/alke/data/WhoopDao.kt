@@ -1322,7 +1322,7 @@ interface WhoopDao : DeviceRegistryDao {
     @Query("DELETE FROM workout WHERE deviceId = :deviceId AND startTs = :startTs AND sport = :sport")
     suspend fun deleteWorkoutByKey(deviceId: String, startTs: Long, sport: String)
 
-    @Query("DELETE FROM workout WHERE deviceId = :deviceId AND source = 'auto-detected' AND startTs < :endTs AND endTs > :startTs")
+    @Query("DELETE FROM workout WHERE deviceId = :deviceId AND source IN ('auto-detected', 'cloud-ai-alke') AND startTs < :endTs AND endTs > :startTs")
     suspend fun deleteAutoDetectedWorkoutOverlap(deviceId: String, startTs: Long, endTs: Long): Int
 
     // MARK: - Dismissed detected bouts (durable #107 marker; retained for legacy history/suggestions)

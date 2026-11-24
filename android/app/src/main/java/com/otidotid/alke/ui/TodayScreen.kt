@@ -2027,12 +2027,7 @@ fun TodayScreen(
                 }
             }
         }
-        // Auto-detect workouts (MVP, opt-in, default OFF), a NON-DESTRUCTIVE "looks like a workout?"
-        // card that suggests logging a detected sustained-elevated-HR bout. Renders nothing when the
-        // toggle is off or there's nothing to suggest. Save → a manual "Workout" row; × → dismissed forever.
-        if (selectedDayOffset == 0) {
-            item { AutoWorkoutNudgeCard(viewModel = viewModel, days = days) }
-        }
+        // Automatic cloud activity detection now lives in Train; no approval card.
         // Strap battery only while the link is up AND a real reading exists, a stale % from a
         // dropped connection must not present as live (#159).
         item {
@@ -6667,7 +6662,8 @@ internal fun HeartRateTrendCard(
     val live by viewModel.live.collectAsStateWithLifecycle()
     // Re-load when the day list changes (an import updates it), when the day selector moves, and, via the
     // sync tokens, when a strap offload banks fresh HR samples for the current window. Also on first compose.
-    LaunchedEffect(days, selectedDay, today, live.lastSyncAt, live.syncChunksThisSession, dayCycleMode) {
+    val activityRevision by com.otidotid.alke.ai.CloudActivitySettings.dataRevision.collectAsStateWithLifecycle()
+    LaunchedEffect(days, selectedDay, today, live.lastSyncAt, live.syncChunksThisSession, dayCycleMode, activityRevision) {
         val zone = ZoneId.systemDefault()
         val calendarStart = selectedDay.atStartOfDay(zone).toEpochSecond()
         val nextStart = selectedDay.plusDays(1).atStartOfDay(zone).toEpochSecond()
@@ -6713,7 +6709,11 @@ internal fun HeartRateTrendCard(
         // "Last Workouts" feed below showed them (#34/#53). The glyph self-hides when no strap HR
         // overlaps, so an import with no matching strap curve simply draws nothing.
         workoutsToday = runCatching {
-            viewModel.repo.workoutsAllSources(viewModel.deviceId, start - 6 * 3600L, end)
+            val workouts = viewModel.repo.workoutsAllSources(viewModel.deviceId, start - 6 * 3600L, end) +
+                viewModel.repo.detectedWorkoutsUnion(viewModel.deviceId,start-6*3600L,end)
+                    .filter { it.source == com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE }
+            val canonical = WorkoutEditing.dedupCrossSource(workouts)
+            (canonical + viewModel.repo.cloudDailyActivityRows(start,end))
                 .filter { it.startTs <= end && it.endTs >= start }
         }.getOrDefault(emptyList())
     }
@@ -7404,7 +7404,7 @@ private fun HrEventTimelineStrip(
         }
         workouts.filter { it.endTs >= windowStart && it.startTs <= windowEnd }.forEach { workout ->
             val visual = hrEventVisual(workout.sport)
-            add(HrTimelineEvent(visual.label, visual.icon, visual.color, workout.startTs, workout.endTs, visual.iconRotationDegrees))
+            add(HrTimelineEvent(visual.label, visual.icon, visual.color, workout.startTs, workout.endTs, visual.iconRotationDegrees, isCloudAiHrEvent(workout.source)))
         }
     }.sortedBy { it.startTs }
     if (events.isEmpty()) return
@@ -7434,6 +7434,7 @@ private data class HrTimelineEvent(
     val startTs: Long,
     val endTs: Long,
     val iconRotationDegrees: Float = 0f,
+    val isCloudAi: Boolean = false,
 )
 
 private data class HrTimelineEventGroup(
@@ -7487,8 +7488,8 @@ private fun HrTimelineEventMarker(
             .clip(RoundedCornerShape(9.dp))
             .background(dominant.color.copy(alpha = 0.14f))
             .semantics {
-                contentDescription = if (group.events.size == 1) dominant.label
-                else "${group.events.size} activities"
+                contentDescription = (if (group.events.size == 1) dominant.label
+                else "${group.events.size} activities") + if (dominant.isCloudAi) ", AI detected" else ""
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -7498,6 +7499,21 @@ private fun HrTimelineEventMarker(
             tint = dominant.color,
             modifier = Modifier.size(16.dp).rotate(dominant.iconRotationDegrees),
         )
+        // Only the displayed AI-origin glyph receives this small source badge.
+        // Keep the existing cluster counter and every manual/Health Connect glyph unchanged.
+        if (dominant.isCloudAi) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(13.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF26DEEB)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("AI", color = Color(0xFF061523), fontSize = 7.sp,
+                    lineHeight = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+        }
         if (group.events.size > 1) {
             Box(
                 modifier = Modifier

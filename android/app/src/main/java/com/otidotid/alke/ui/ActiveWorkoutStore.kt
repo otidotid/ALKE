@@ -29,6 +29,8 @@ class ActiveWorkoutStore(private val prefs: SharedPreferences) {
     }
 
     /** Read the persisted snapshot, or null if none is stored (or it was corrupt). */
+    fun hasSnapshot(): Boolean = !prefs.getString(KEY_SNAPSHOT, null).isNullOrBlank()
+
     fun load(): ActiveWorkoutPersistence.Snapshot? =
         ActiveWorkoutPersistence.decode(prefs.getString(KEY_SNAPSHOT, null))
 

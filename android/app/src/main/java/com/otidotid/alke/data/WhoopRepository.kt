@@ -825,7 +825,9 @@ class WhoopRepository(
         return workouts.any { existing ->
             val sameAsReplacement = replacing != null && existing.deviceId == replacing.deviceId &&
                 existing.startTs == replacing.startTs && existing.sport == replacing.sport
-            !sameAsReplacement && existing.startTs < to && existing.endTs > from
+            !sameAsReplacement && !(row.source.equals("manual", ignoreCase = true) &&
+                existing.source == com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE) &&
+                existing.startTs < to && existing.endTs > from
         }
     }
 
@@ -1249,8 +1251,10 @@ class WhoopRepository(
             if (candidate.endTs <= candidate.startTs) continue
 
             val overlaps = dao.workoutsOverlapping(candidate.startTs, candidate.endTs) + accepted
-            val cloudReplacements = if (candidate.source.equals("health-connect", ignoreCase = true))
-                overlaps.filter { it.source == com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE }
+            val cloudReplacements = if (candidate.source.equals("health-connect", ignoreCase = true) ||
+                candidate.source.equals("manual", ignoreCase = true))
+                overlaps.filter { it.source == com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE &&
+                    replacing.none { original -> original.deviceId == it.deviceId && original.startTs == it.startTs && original.sport == it.sport } }
                 else emptyList()
             val workoutConflict = overlaps.any { existing ->
                     val isOriginalBeingEdited = replacing.any { original ->
@@ -1829,19 +1833,17 @@ class WhoopRepository(
      */
     suspend fun saveManualWorkout(row: WorkoutRow, replacing: WorkoutRow? = null) {
         if (workoutOverlapsExistingSession(row.deviceId, row, replacing)) return
+        // The same transactional gate used by live workouts and Health Connect ensures a late
+        // cloud prediction never blocks a deliberate manual recording or edit.
+        if (saveCandidateWorkoutsNoOverlap(listOf(row), listOfNotNull(replacing)).isEmpty()) return
         if (replacing != null && replacing.source.lowercase().endsWith("-alke")) {
-            dao.upsertWorkouts(listOf(row))
             dismissDetected(replacing)
             return
         }
         if (replacing != null && supersedesStoredRow(replacing, row)) {
-            // A failed insert must not erase history. If the later delete fails, retaining both rows is
-            // safer and recoverable; the caller can retry the edit.
-            dao.upsertWorkouts(listOf(row))
+            // Only retire the original after the replacement has been persisted successfully.
             dao.deleteWorkoutByKey(replacing.deviceId, replacing.startTs, replacing.sport)
-            return
         }
-        dao.upsertWorkouts(listOf(row))
     }
 
     /**

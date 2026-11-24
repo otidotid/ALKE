@@ -7,6 +7,8 @@ import com.otidotid.alke.data.PersonalBackupBootstrap
 import com.otidotid.alke.data.SecurePrefs
 import com.otidotid.alke.data.WorkoutRow
 import com.otidotid.alke.ui.ProfileStore
+import com.otidotid.alke.ui.ActiveWorkoutStore
+import com.otidotid.alke.location.GpsSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,6 +88,13 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
             val token = CloudActivitySettings.token(c) ?: return@withContext Result.success()
             if (PersonalBackupBootstrap.needsInitialRestore(c)) return@withContext Result.success()
             val app = c as? AlkeApplication ?: return@withContext Result.failure()
+            fun manualRecordingActive(): Boolean =
+                ActiveWorkoutStore.from(c).hasSnapshot() || GpsSession.state.value.active
+            // Leave pending sensor windows untouched until the existing manual recorder finishes.
+            if (manualRecordingActive()) {
+                CloudActivitySettings.status(c,"Manual recording in progress · cloud analysis paused")
+                return@withContext Result.success()
+            }
             val repo = app.repository
             val id = app.activeDeviceId
             if (id.isBlank()) return@withContext Result.success()
@@ -152,6 +161,7 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                             CloudActivitySettings.status(c,"Waiting for wearable data")
                             return@withContext Result.success()
                         }
+                        if (CloudActivitySettings.token(c) != token || manualRecordingActive()) return@withContext Result.success()
                         val added = repo.saveCloudActivityEvents(id,reply.events)
                         CloudActivitySettings.advance(c,to)
                         CloudActivitySettings.status(c,if (reply.status == "COMPLETE")

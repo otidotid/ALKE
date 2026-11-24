@@ -43,6 +43,20 @@ class CloudActivityReconciliationTest {
         assertTrue(repo.saveCandidateWorkoutsNoOverlap(listOf(collision)).isEmpty())
         assertEquals(listOf(manual),repo.workouts(device,start+3500,start+4300))
     }
+    @Test fun deliberateManualWorkoutSupersedesPredictionWithoutTouchingRealHistory()=runBlocking{
+        val cloud=e(start,start+600,"RUNNING",true)
+        assertEquals(1,repo.saveCloudActivityEvents(device,listOf(cloud)))
+        val manual=WorkoutRow(device,start-30,start+630,"Cycling","manual")
+        assertEquals(listOf(manual),repo.saveCandidateWorkoutsNoOverlap(listOf(manual)))
+        assertTrue(repo.detectedWorkoutsUnion(device,start-100,start+1000).isEmpty())
+        assertEquals(listOf(manual),repo.workouts(device,start-100,start+1000))
+        val other=e(start+1800,start+2400,"RUNNING",true)
+        assertEquals(1,repo.saveCloudActivityEvents(device,listOf(other)))
+        val retro=WorkoutRow(device,start+1770,start+2430,"Strength training","manual")
+        repo.saveManualWorkout(retro)
+        assertTrue(repo.detectedWorkoutsUnion(device,start+1600,start+2600).isEmpty())
+        assertEquals(listOf(retro),repo.workouts(device,start+1600,start+2600))
+    }
     @Test fun dailyMovementNeverCreatesTrainingWorkoutAndLaterImportHidesIt()=runBlocking{
         val walking=e(start,start+180,"WALKING",false)
         assertEquals(1,repo.saveCloudActivityEvents(device,listOf(walking)))

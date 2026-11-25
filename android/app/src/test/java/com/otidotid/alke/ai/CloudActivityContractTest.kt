@@ -7,6 +7,30 @@ import com.otidotid.alke.data.GravitySample
 import java.io.File
 
 class CloudActivityContractTest {
+    @Test fun retryWindowsAreBoundedAndPersistable() {
+        val start=900L
+        val now=1800L
+        var item=ActivityRetryPolicy.fail(null,start,now)
+        assertEquals(2700L,item.nextAt)
+        assertNull(ActivityRetryPolicy.due(listOf(item),now,now))
+        assertEquals(item,ActivityRetryPolicy.due(listOf(item),2700L,2700L))
+        repeat(5) { item=ActivityRetryPolicy.fail(item,start,now) }
+        assertEquals(ActivityRetryPolicy.MAX_FAILURES,item.failures)
+        assertNull(ActivityRetryPolicy.due(listOf(item),now,now))
+        assertEquals(listOf(item),ActivityRetryPolicy.decode(ActivityRetryPolicy.encode(listOf(item)),now))
+        assertTrue(ActivityRetryPolicy.decode(ActivityRetryPolicy.encode(listOf(item)),now+7*86400L).isEmpty())
+        assertEquals(now,ActivityRetryPolicy.retryParked(listOf(item),now).single().nextAt)
+        assertTrue(ActivityRetryPolicy.isWindowFailure(502))
+        assertTrue(ActivityRetryPolicy.isWindowFailure(200))
+        listOf(400,401,403,429,503).forEach { assertFalse(ActivityRetryPolicy.isWindowFailure(it)) }
+    }
+    @Test fun publicStatusDoesNotExposeTechnicalDetails() {
+        assertEquals("AI Detection Running",ActivityRetryPolicy.displayStatus(true,true,"Cloud analysis complete · 0 new activities"))
+        assertEquals("AI Detection Offline",ActivityRetryPolicy.displayStatus(true,false,"Cloud analysis complete · 0 new activities"))
+        assertEquals("AI Detection Off",ActivityRetryPolicy.displayStatus(false,true,"Cloud analysis complete"))
+        assertEquals("AI Detection Unavailable",ActivityRetryPolicy.displayStatus(true,true,"Cloud response unavailable"))
+        assertEquals("AI Detection Waiting",ActivityRetryPolicy.displayStatus(true,true,"Waiting for wearable data"))
+    }
     @Test fun sensitivityChangesOnlyDurationPolicy() {
         val modes = ActivitySensitivity.entries
         assertEquals(listOf(6,3,2), modes.map { it.minBins("WALKING") })

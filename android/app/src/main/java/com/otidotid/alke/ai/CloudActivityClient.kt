@@ -159,7 +159,7 @@ internal object CloudActivityProtocol {
 internal class CloudActivityClient(
     private val base: String = BuildConfig.CLOUD_COACH_BASE_URL,
     private val http: OkHttpClient = OkHttpClient.Builder().connectTimeout(8,TimeUnit.SECONDS)
-        .readTimeout(30,TimeUnit.SECONDS).writeTimeout(8,TimeUnit.SECONDS)
+        .readTimeout(40,TimeUnit.SECONDS).writeTimeout(8,TimeUnit.SECONDS)
         .followRedirects(false).followSslRedirects(false).build(),
 ) {
     data class Outcome(val response: CloudActivityProtocol.Response? = null, val code: Int = 0)

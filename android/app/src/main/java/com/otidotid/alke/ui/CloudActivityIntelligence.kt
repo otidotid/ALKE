@@ -1,5 +1,9 @@
 package com.otidotid.alke.ui
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +21,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.otidotid.alke.ai.ActivityRetryPolicy
 import com.otidotid.alke.ai.ActivitySensitivity
 import com.otidotid.alke.ai.CloudActivitySettings
 import com.otidotid.alke.ai.CloudActivityProtocol
@@ -33,6 +38,34 @@ private val cloudCyan = Color(0xFF26DEEB)
 private val cloudWhite = Color(0xFFF5FCFF)
 private val cloudMuted = Color(0xFF9BB9C5)
 
+@Composable private fun CloudActivityStatus(enabled: Boolean, raw: String) {
+    val context = LocalContext.current
+    val cm = remember(context) { context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
+    fun online() = cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+    var connected by remember(cm) { mutableStateOf(online()) }
+    DisposableEffect(cm) {
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { connected = online() }
+            override fun onLost(network: Network) { connected = online() }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { connected = online() }
+        }
+        connected = online()
+        val registered = runCatching { cm.registerDefaultNetworkCallback(callback) }.isSuccess
+        onDispose { if (registered) runCatching { cm.unregisterNetworkCallback(callback) } }
+    }
+    val label = ActivityRetryPolicy.displayStatus(enabled,connected,raw)
+    val color = when(label) {
+        "AI Detection Running" -> Color(0xFF38D996)
+        "AI Detection Unavailable", "AI Detection Offline" -> Color(0xFFF0B86B)
+        else -> cloudMuted
+    }
+    Row(verticalAlignment=Alignment.CenterVertically) {
+        Box(Modifier.size(7.dp).background(color,RoundedCornerShape(50)))
+        Spacer(Modifier.width(6.dp))
+        Text(label,color=color,fontSize=12.sp)
+    }
+}
+
 @Composable internal fun CloudActivitySetupRow() {
     val context = LocalContext.current
     val rev by CloudActivitySettings.revision.collectAsStateWithLifecycle()
@@ -41,8 +74,7 @@ private val cloudMuted = Color(0xFF9BB9C5)
     Row(Modifier.fillMaxWidth().padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("Activity Intelligence",color=Palette.textPrimary,style=AlkeType.headline)
-            Text(if (enabled) CloudActivitySettings.status(context) else "Cloud-only automatic detection",
-                color=Palette.textSecondary,style=AlkeType.caption)
+            CloudActivityStatus(enabled,CloudActivitySettings.status(context))
         }
         TextButton(onClick={show=true}) { Text(if (enabled) "Manage" else "Connect",color=cloudCyan) }
     }
@@ -74,7 +106,15 @@ private val cloudMuted = Color(0xFF9BB9C5)
                 Text("Analysis every 15 minutes. High confidence and sensor evidence required in every mode.",
                     style=MaterialTheme.typography.bodySmall)
                 if(configured && !replaceToken) {
-                    Text("Connected · access token stored securely")
+                    Text("Access token stored securely")
+                    if (CloudActivitySettings.hasParked(c)) TextButton(enabled=!busy,onClick={
+                        busy=true
+                        scope.launch {
+                            val ok=withContext(Dispatchers.IO){runCatching{CloudActivitySettings.retryParked(c)}.isSuccess}
+                            busy=false
+                            if(ok) onDismiss() else error=true
+                        }
+                    }) {Text("Retry pending analysis")}
                     TextButton(enabled=!busy,onClick={replaceToken=true}) {Text("Change access token")}
                 }
                 if(replaceToken) {
@@ -139,7 +179,7 @@ private val cloudMuted = Color(0xFF9BB9C5)
             Text("Activity Intelligence",color=cloudWhite,fontSize=20.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f))
             TextButton(onClick={show=true}){Text(if(enabled)"Manage" else "Connect",color=cloudCyan)}
         }
-        Text(if(enabled) CloudActivitySettings.status(c) else "Cloud AI · automatic activity detection",color=cloudMuted,fontSize=12.sp)
+        CloudActivityStatus(enabled,CloudActivitySettings.status(c))
         if(enabled) Text("Detection sensitivity · "+CloudActivitySettings.sensitivity(c).label,color=cloudCyan,fontSize=12.sp)
         Row(Modifier.fillMaxWidth().background(Color(0xFF0A2031),RoundedCornerShape(16.dp)).padding(12.dp),
             horizontalArrangement=Arrangement.SpaceBetween) {

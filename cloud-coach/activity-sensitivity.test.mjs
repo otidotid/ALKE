@@ -39,3 +39,20 @@ test('duration policies, compatibility and strict evidence checks',async t=>{
   const bad=Array.from({length:30},()=>bin);bad[0]=[110,0.4,22,null,1,0.1];assert.equal((await result('HIGH',bad)).activities.length,0);
   const invalid=await worker.fetch(req('INVALID'),env);assert.equal(invalid.status,400);
 });
+
+test('R2 increases completion allowance and records fixed diagnostic on truncated reply',async t=>{
+  const originalFetch=globalThis.fetch, originalWarn=console.warn;
+  const logs=[];
+  t.after(()=>{globalThis.fetch=originalFetch;console.warn=originalWarn;});
+  console.warn=message=>logs.push(String(message));
+  globalThis.fetch=async (url,options)=>{
+    const body=JSON.parse(options.body);
+    assert.equal(body.max_completion_tokens,2048);
+    assert.equal(body.reasoning_effort,'low');
+    return new Response(JSON.stringify({choices:[{finish_reason:'length',message:{content:'PRIVATE_TEST_MARKER'}}],usage:{total_tokens:2500,completion_tokens:2048}}),{status:200});
+  };
+  const response=await worker.fetch(req('HIGH'),env);
+  assert.equal(response.status,502);
+  assert.ok(logs.some(x=>x.includes('completion_token_limit')));
+  assert.ok(logs.every(x=>!x.includes('PRIVATE_TEST_MARKER')&&!x.includes(token)));
+});

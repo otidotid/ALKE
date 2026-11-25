@@ -24,3 +24,9 @@ Baseline: v624 / 4df12bc38f66338218bf564aeb1fe25bad11559d. User approved two rel
 | Design system | Shared v624 navy/cyan/gold typography, spacing and component states | New shared surface/link/selector; full styling pending |
 
 Source-based work does not establish on-device fidelity. Do not call the matrix complete until screenshot comparison and functional navigation tests succeed.
+
+## Implementation checkpoints
+- Added real weekly age sparkline, compact journal/mood/caffeine cards, selected-night sleep readouts and header alarms; no illustrative data used.
+- Consolidated Train activity overview, added contextual HRV/RHR readouts and actual device connectivity, and reduced duplicate headings in tab hosts.
+- Kept original sub-screen implementations for full functional depth. Saved pins are not rewritten.
+- Remaining: verify visual fidelity on a real device; review actual Sleep architecture ordering, skin-temperature/charge contributor ownership and deep settings styling against the mockups. CI tests and signed APK release not yet verified.

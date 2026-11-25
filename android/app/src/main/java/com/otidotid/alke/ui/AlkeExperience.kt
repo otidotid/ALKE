@@ -1025,34 +1025,34 @@ fun AlkeTrainingExperience(
         // Keep the frequent workout controls and Activity Calories visible.
         AlkeTrainWorkoutActions(vm, onAdd = { showAddDialog = true })
         AlkeLinkRow("Intervals", "Haptic-guided interval training", Icons.Filled.DirectionsRun, onIntervals, A.gold)
-        AlkeActiveCaloriesCalendar(vm, days)
-        // Both original workout sections stay immediately below Active Calories.
-        AlkeTrainHistorySections(vm)
-        // Lifetime totals are available on demand, not repeated as primary KPIs.
-        AlkeExpandableSection("Activity Overview", "Lifetime recorded calories and most active sport") {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AlkePanel(Modifier.weight(1f)) {
-                    Text("CALORIES", color = A.gold, fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
-                    Text(if (validCalories.isEmpty()) "—"
-                        else String.format(Locale.US, "%,.0f", validCalories.sum()),
-                        color = A.white, fontSize = 27.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 1)
-                    Text("Workout kcal · all sessions", color = A.muted, fontSize = 10.sp,
-                        maxLines = 1)
-                }
-                AlkePanel(Modifier.weight(1f)) {
-                    Text("MOST ACTIVE SPORTS", color = A.gold, fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp, maxLines = 1)
-                    Text(rankedSports.firstOrNull()?.first ?: "—",
-                        color = A.white, fontSize = 19.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(rankedSports.firstOrNull()?.let {
-                        "${it.second} recorded sessions"
-                    } ?: "No sessions yet", color = A.muted, fontSize = 10.sp, maxLines = 1)
+        AlkeActiveCaloriesCalendar(vm, days) {
+            AlkeExpandableSection("Lifetime totals", "Recorded workout calories and most active sport") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AlkePanel(Modifier.weight(1f)) {
+                        Text("CALORIES", color = A.gold, fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                        Text(if (validCalories.isEmpty()) "—"
+                            else String.format(Locale.US, "%,.0f", validCalories.sum()),
+                            color = A.white, fontSize = 27.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1)
+                        Text("Workout kcal · all sessions", color = A.muted, fontSize = 10.sp,
+                            maxLines = 1)
+                    }
+                    AlkePanel(Modifier.weight(1f)) {
+                        Text("MOST ACTIVE SPORTS", color = A.gold, fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp, maxLines = 1)
+                        Text(rankedSports.firstOrNull()?.first ?: "—",
+                            color = A.white, fontSize = 19.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(rankedSports.firstOrNull()?.let {
+                            "${it.second} recorded sessions"
+                        } ?: "No sessions yet", color = A.muted, fontSize = 10.sp, maxLines = 1)
+                    }
                 }
             }
         }
+        // Activity Breakdown and the exact v624 All Sessions component follow the overview.
+        AlkeTrainHistorySections(vm)
     }
     if (showAddDialog) {
         ManualWorkoutDialog(vm, editing = null, onDismiss = { showAddDialog = false },
@@ -1101,7 +1101,7 @@ private fun AlkeTrainWorkoutActions(vm: AppViewModel, onAdd: () -> Unit) {
 
 /** ALKE native presentation of the EXISTING, parity-tested ActivityHeatmap model. */
 @Composable
-private fun AlkeActiveCaloriesCalendar(vm: AppViewModel, days: List<DailyMetric>) {
+private fun AlkeActiveCaloriesCalendar(vm: AppViewModel, days: List<DailyMetric>, extraContent: @Composable ColumnScope.() -> Unit = {}) {
     // The original workout calendar core uses daily active calories. Those may
     // come from imported Apple/Health Connect (AppleDaily), not only on-device
     // DailyMetric.activeKcalEst. Prior ALKE demos already seeded 120 days of
@@ -1146,6 +1146,7 @@ private fun AlkeActiveCaloriesCalendar(vm: AppViewModel, days: List<DailyMetric>
         A.gold,
     )
     AlkePanel(Modifier.fillMaxWidth()) {
+        AlkeSectionTitle("Activity Overview")
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("ACTIVE CALORIES", color = A.gold, fontSize = 10.sp,
@@ -1196,6 +1197,7 @@ private fun AlkeActiveCaloriesCalendar(vm: AppViewModel, days: List<DailyMetric>
                 Text("More", color = A.muted, fontSize = 10.sp)
             }
         }
+        extraContent()
     }
 }
 
@@ -1940,6 +1942,7 @@ fun AlkeHeartRateTimelineExperience(
     onBack: () -> Unit,
     onLive: () -> Unit,
     onWorkouts: () -> Unit,
+    embedded: Boolean = false,
 ) {
     val todayMetric by vm.today.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
@@ -1951,6 +1954,7 @@ fun AlkeHeartRateTimelineExperience(
         else recentDays.lastOrNull { it.day == selectedDay.toString() }
 
     AlkePage {
+        if (!embedded) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -1966,6 +1970,8 @@ fun AlkeHeartRateTimelineExperience(
             "Heart Rate Timeline",
             "Your daily heart-rate story, with sleep and workouts in context.",
         )
+        }
+        if (daysBack == 0) AlkeHeartRatePreview(vm, onLive)
         AlkePanel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Filled.MonitorHeart, contentDescription = null, tint = A.cyan)
@@ -2008,7 +2014,6 @@ fun AlkeHeartRateTimelineExperience(
                 }
             }
         }
-        if (daysBack == 0) AlkeHeartRatePreview(vm, onLive)
         // The chart retains the inherited 5-minute HR buckets, zoom/scrub, sleep
         // bands and aligned workout sport glyphs, now styled with ALKE colors.
         HeartRateTrendCard(
@@ -2020,9 +2025,15 @@ fun AlkeHeartRateTimelineExperience(
             dayCycleMode = AlkePrefs.dayCycleMode(context),
             alkeStyle = true,
         )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AlkeMetricTile("Resting HR", metric?.restingHr?.let { "$it bpm" } ?: "—", Icons.Filled.Favorite,
+                Modifier.weight(1f), A.gold, onLive)
+            AlkeMetricTile("HRV", niceOne(metric?.avgHrv, " ms"), Icons.Filled.FavoriteBorder,
+                Modifier.weight(1f), A.cyan, onLive)
+        }
         AlkeLinkRow(
-            "Live HR",
-            "Real-time BPM, HR zones and training controls",
+            "Live HR & HR Zones",
+            "Real-time BPM, HRV snapshot and signal quality",
             Icons.Filled.Favorite, onLive, A.cyan,
         )
         AlkeLinkRow(
@@ -2128,22 +2139,36 @@ internal fun AlkeMeExperience(
         showSettingsBody = personalSettingsExpanded,
         meHeader = {
             profileRevision
-            AlkeLinkRow("Your Profile", "Personal details, photo and Google account",
-                Icons.Filled.AccountCircle, { onNavigate(Destination.Profile) })
+            AlkePanel(Modifier.fillMaxWidth(), onClick = { onNavigate(Destination.Profile) }) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ProfileAvatar(size = 54.dp, contentDescription = "Profile photo")
+                    Column(Modifier.weight(1f)) {
+                        Text("Your Profile", color = A.white, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Personal details & Google account", color = A.muted, fontSize = 12.sp)
+                    }
+                    Icon(Icons.Filled.ChevronRight, "Open profile", tint = A.cyan)
+                }
+            }
             AlkePanel(Modifier.fillMaxWidth()) {
                 AlkeSectionTitle("Connected Sources")
-                PremiumLink("Wearable devices", "Pair, connect and manage sensors", onDevices)
+                PremiumWearableLink(vm,onDevices)
                 PremiumLink("Health Connect & imports", "Manage external data and provenance", onSources)
-                PremiumLink("Google Drive / Local Folder", "Backup, restore and verified archive", onBackupRestore)
+                PremiumLink("Google Drive / Local Folder",
+                    if (BackupSyncPrefs.autoEnabled(context)) "Automatic backup enabled" else "Backup, restore and verified archive",
+                    onBackupRestore)
                 PremiumLink("Fused Record", "Review source provenance", { onNavigate(Destination.FusedRecord) })
                 PremiumLink("Device capabilities", "Supported readings and limitations", { onNavigate(Destination.AlkeLimitations) })
             }
             AlkePanel(Modifier.fillMaxWidth()) {
                 AlkeSectionTitle("Preferences")
                 PremiumLink("Customize Dock", "Choose and reorder your navigation", { showDockEditor = true })
-                PremiumLink("Smart Settings", "Automations and device controls", { onNavigate(Destination.Automations) })
-                PremiumLink("Power saving", "Manage battery and sync policy", { onNavigate(Destination.PowerSaving) })
-                PremiumLink("Notification preferences", "Alerts and reminders", { onNavigate(Destination.Notifications) })
+                var smartExpanded by rememberSaveable { mutableStateOf(false) }
+                PremiumLink("Smart Settings", if(smartExpanded) "Collapse" else "Automations · notifications · power saving", { smartExpanded = !smartExpanded })
+                if(smartExpanded) {
+                    PremiumLink("Automations", "Wearable actions and detection", { onNavigate(Destination.Automations) })
+                    PremiumLink("Power saving", "Manage battery and sync policy", { onNavigate(Destination.PowerSaving) })
+                    PremiumLink("Notification preferences", "Alerts and reminders", { onNavigate(Destination.Notifications) })
+                }
             }
             AlkeMeDisclosureHeader(
                 title = "More Tools",

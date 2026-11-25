@@ -387,7 +387,7 @@ val expCandidates = experimentCandidates(
         dayKey = insightDay?.day, recovery = insightDay?.recovery,
         hrvMs = insightDay?.avgHrv, restingHrBpm = insightDay?.restingHr,
         skinAbsoluteC = absoluteSkin, skinDeviationC = deviationSkin,
-        sleepPerformance = insightDay?.efficiency,
+        sleepPerformance = insightDay?.let { com.otidotid.alke.analytics.RestScorer.restFromDaily(it) },
         journalEntries = journalEvidence.take(32),
         moodEvidence = moodInsightsEvidence(days, moodSeries),
         caffeineEvidence = caffeineEvidence,
@@ -476,7 +476,7 @@ val expCandidates = experimentCandidates(
                         caffeineExpanded = !caffeineExpanded; journalExpanded=false; moodExpanded=false
                     }
                 }
-                PremiumLink("Hydration", "Fluid intake", onHydration)
+                if (AlkePrefs.hydrationTracking(ctx)) PremiumLink("Hydration", "Fluid intake", onHydration)
             }
         }
         if (journalExpanded && preFilledFromYesterday) {
@@ -673,7 +673,7 @@ private fun ConsolidatedInsightSignals(day: DailyMetric?) {
             Triple("HRV", "RECORDED", day?.avgHrv?.takeIf { it.isFinite() }?.let {
                 String.format(Locale.US, "%.1f ms", it) }),
             Triple("Resting HR", "RECORDED", day?.restingHr?.takeIf { it > 0 }?.let { "$it bpm" }),
-            Triple("Sleep performance", "CALCULATED", day?.efficiency?.takeIf { it.isFinite() }?.let {
+            Triple("Sleep performance", "CALCULATED", day?.let { com.otidotid.alke.analytics.RestScorer.restFromDaily(it) }?.takeIf { it.isFinite() }?.let {
                 String.format(Locale.US, "%.0f%%", it) }),
             Triple("Skin Temperature", "RECORDED", skin?.let { String.format(Locale.US, "%.1f C", it) }),
         )

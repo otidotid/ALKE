@@ -893,6 +893,7 @@ fun SleepScreen(
                             emptyList()
                         }
                     }
+                    Text("Sleep Architecture",style=AlkeType.headline,color=Palette.textPrimary)
                     Hero(
                 display = display,
                 activeIsOura = activeIsOura,
@@ -1038,6 +1039,7 @@ fun SleepScreen(
                         SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                             Column {
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
+                                Text("Night Physiology",style=AlkeType.headline,color=Palette.textPrimary)
                                 NightDetailHostCard(m, onMetricClick = { detailMetricKey = it })
                             }
                         }
@@ -1380,12 +1382,10 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
                         verticalArrangement = Arrangement.spacedBy(Metrics.space4),
                         modifier = Modifier.padding(vertical = Metrics.space16),
                     ) {
-                        CountUpText(
-                            value = asleepMin ?: 0.0,
-                            format = { durationText(it) },
-                            style = AlkeType.number(46f),
-                            color = Palette.restBright,
-                        )
+                        if (asleepMin != null && asleepMin.isFinite() && asleepMin > 0) {
+                            CountUpText(value = asleepMin, format = { durationText(it) },
+                                style = AlkeType.number(46f), color = Palette.restBright)
+                        } else Text("—",style=AlkeType.number(46f),color=Palette.restBright)
                         Text(uiString(R.string.l10n_sleep_screen_asleep_last_night_b969b068), style = AlkeType.subhead, color = Palette.textSecondary)
                     }
                 }

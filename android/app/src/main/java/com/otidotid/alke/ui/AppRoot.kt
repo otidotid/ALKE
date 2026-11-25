@@ -866,7 +866,7 @@ fun AppRoot(
                         onOpenHydration = { nav.navigate(Destination.Hydration.route) },
                         // #706/#684: the dashboard cards draw a tappable chevron; wire each to its detail,
                         // matching iOS. Stress + the vitals are pushes; Sleep is a top-level tab switch.
-                        onOpenStress = { nav.navigate(Destination.Breathe.route) },
+                        onOpenStress = { nav.navigate(Destination.Stress.route) },
                         onOpenHealth = { nav.navigate(Destination.Health.route) },
                         // Every metric/vital card opens its OWN focused detail trend (vital_detail/<key>),
                         // not the shared Health hub (2026-07-03). Mirrors the iOS liquidCard metricDetail.
@@ -1068,7 +1068,9 @@ fun AppRoot(
                     )
                 }
                 composable(Destination.AlkeAllModules.route) {
-                    AlkeAllModulesExperience(onNavigate = { nav.navigate(it) })
+                    AlkeAllModulesExperience(onNavigate = { route ->
+                        nav.navigate(if(route == Destination.Breathe.route) Destination.Stress.route else route)
+                    })
                 }
             }
         }

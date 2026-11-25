@@ -100,7 +100,7 @@ import kotlinx.coroutines.withContext
 // internally comparable.
 
 @Composable
-fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
+fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}, embedded: Boolean = false) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
 
     // #698: the liquid day-of-sky backdrop is gated on the same "Day-cycle background" setting as Today,
@@ -188,8 +188,8 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
     val model = remember(days, stored) { StressModel.build(days, stored) }
 
     LazyScreenScaffold(
-        title = uiString(R.string.l10n_stress_screen_stress_bad33342),
-        subtitle = uiString(R.string.stress_screen_subtitle),
+        title = if(embedded) null else uiString(R.string.l10n_stress_screen_stress_bad33342),
+        subtitle = if(embedded) null else uiString(R.string.stress_screen_subtitle),
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky settles
         // into the theme canvas behind the header + hero vessel, full-bleed (full-width, up behind the
         // status bar via the scaffold's topBackground plumbing), and the cards float OVER it on the flat

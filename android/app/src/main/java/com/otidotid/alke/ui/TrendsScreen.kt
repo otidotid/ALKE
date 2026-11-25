@@ -96,7 +96,7 @@ import kotlin.math.roundToInt
 private val LIQUID_HERO_RADIUS: Dp = 26.dp
 
 @Composable
-fun TrendsScreen(vm: AppViewModel) {
+fun TrendsScreen(vm: AppViewModel, embedded: Boolean = false) {
     // Reactive cache (oldest → newest) as the immediate backing.
     val reactiveDays by vm.recentDays.collectAsStateWithLifecycle()
 
@@ -174,8 +174,8 @@ fun TrendsScreen(vm: AppViewModel) {
     } ?: stringResource(R.string.trends_all_history)
 
     LazyScreenScaffold(
-        title = stringResource(R.string.nav_trends),
-        subtitle = stringResource(R.string.trends_subtitle),
+        title = if(embedded) null else stringResource(R.string.nav_trends),
+        subtitle = if(embedded) null else stringResource(R.string.trends_subtitle),
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky settles
         // into the theme canvas behind the header + top rows, full-bleed via the scaffold's topBackground
         // plumbing. Static (LiquidSkyStatic, inside the helper) — never an animated sky behind a scrolling

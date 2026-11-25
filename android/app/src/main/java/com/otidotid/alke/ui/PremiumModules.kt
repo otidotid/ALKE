@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /** Shared v624-derived surface tokens for consolidated premium modules. */
 internal object PremiumSurface {
@@ -49,6 +50,7 @@ internal fun PremiumLink(title:String,subtitle:String,onClick:()->Unit) {
 /** Compose only the visible tool. Saved state is isolated per tool; no parallel sensor charts. */
 @Composable
 private fun PremiumModeHost(title:String,modes:List<String>,initialMode:String,
+    onBack:(()->Unit)?=null,
     content:@Composable (String,(String)->Unit)->Unit) {
     var selected by rememberSaveable(initialMode) { mutableStateOf(initialMode.takeIf { it in modes } ?: modes.first()) }
     val stateHolder=rememberSaveableStateHolder()
@@ -56,7 +58,10 @@ private fun PremiumModeHost(title:String,modes:List<String>,initialMode:String,
     Column(Modifier.fillMaxSize().background(PremiumSurface.canvas)) {
         Column(Modifier.fillMaxWidth().background(PremiumSurface.surface).padding(horizontal=16.dp,vertical=8.dp),
             verticalArrangement=Arrangement.spacedBy(8.dp)) {
-            Text(title,color=PremiumSurface.white,fontSize=23.sp,fontWeight=FontWeight.Bold)
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                if(onBack!=null) androidx.compose.material3.TextButton(onClick=onBack) { Text("Back",color=PremiumSurface.cyan) }
+                Text(title,color=PremiumSurface.white,fontSize=23.sp,fontWeight=FontWeight.Bold)
+            }
             Row(Modifier.fillMaxWidth().background(PremiumSurface.canvas,RoundedCornerShape(12.dp)).padding(4.dp),
                 horizontalArrangement=Arrangement.spacedBy(4.dp)) {
                 modes.forEach { mode ->
@@ -81,9 +86,9 @@ private fun PremiumModeHost(title:String,modes:List<String>,initialMode:String,
 internal fun PremiumTrendsStudio(vm:AppViewModel,initialMode:String) {
     PremiumModeHost("Trends Studio",listOf("Trends","Explore","Compare"),initialMode) { mode,_ ->
         when(mode) {
-            "Explore" -> TrendsExploreScreen(vm)
-            "Compare" -> CompareScreen(vm)
-            else -> TrendsScreen(vm)
+            "Explore" -> TrendsExploreScreen(vm,embedded=true)
+            "Compare" -> CompareScreen(vm,embedded=true)
+            else -> TrendsScreen(vm,embedded=true)
         }
     }
 }
@@ -91,19 +96,19 @@ internal fun PremiumTrendsStudio(vm:AppViewModel,initialMode:String) {
 @Composable
 internal fun PremiumStressBreathe(vm:AppViewModel,initialMode:String) {
     PremiumModeHost("Stress & Breathe",listOf("Stress","Breathe"),initialMode) { mode,choose ->
-        if(mode=="Stress") StressScreen(vm,onBreathe={choose("Breathe")})
-        else BreatheScreen(vm,onOpenStress={choose("Stress")})
+        if(mode=="Stress") StressScreen(vm,onBreathe={choose("Breathe")},embedded=true)
+        else BreatheScreen(vm,onOpenStress={choose("Stress")},embedded=true)
     }
 }
 
 @Composable
 internal fun PremiumHeartRateCenter(vm:AppViewModel,initialMode:String,onBack:()->Unit,
     onDevices:()->Unit,onWorkouts:()->Unit) {
-    PremiumModeHost("Heart Rate",listOf("Timeline","Live HR","Rhythm"),initialMode) { mode,choose ->
+    PremiumModeHost("Heart Rate",listOf("Timeline","Live HR","Rhythm"),initialMode,onBack=onBack) { mode,choose ->
         when(mode) {
-            "Live HR" -> LiveScreen(vm,onManageDevices=onDevices)
+            "Live HR" -> LiveScreen(vm,onManageDevices=onDevices,embedded=true)
             "Rhythm" -> RhythmRoute(vm)
-            else -> AlkeHeartRateTimelineExperience(vm,onBack=onBack,onLive={choose("Live HR")},onWorkouts=onWorkouts)
+            else -> AlkeHeartRateTimelineExperience(vm,onBack=onBack,onLive={choose("Live HR")},onWorkouts=onWorkouts,embedded=true)
         }
     }
 }
@@ -139,4 +144,12 @@ internal fun PremiumSparkline(values:List<Double>,color:Color,modifier:Modifier)
                 cap=androidx.compose.ui.graphics.StrokeCap.Round)
         }
     }
+}
+
+/** Scope fast BLE state to the leaf, not all of Me. */
+@Composable
+internal fun PremiumWearableLink(vm:AppViewModel,onClick:()->Unit) {
+    val live by vm.live.collectAsStateWithLifecycle()
+    val status=if(live.connected) if(live.bonded) "Connected" else "Pairing" else "Not connected"
+    PremiumLink("Wearable devices",status,onClick)
 }

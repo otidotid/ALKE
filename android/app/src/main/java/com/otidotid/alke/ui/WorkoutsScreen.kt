@@ -60,6 +60,9 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Pool
 import androidx.compose.material.icons.filled.Rowing
 import androidx.compose.material.icons.filled.SelfImprovement
@@ -124,6 +127,12 @@ import com.otidotid.alke.analytics.RouteMath
 import com.otidotid.alke.analytics.WorkoutPaceVo2Engine
 import com.otidotid.alke.ingest.RouteExport
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.otidotid.alke.ai.CloudActivityProtocol
+import com.otidotid.alke.ai.CloudActivitySettings
+import com.otidotid.alke.data.SessionCorrection
+import com.otidotid.alke.data.SessionCorrectionKey
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -401,8 +410,24 @@ fun WorkoutsScreen(vm: AppViewModel) {
 internal fun AlkeTrainHistorySections(vm: AppViewModel) {
     val allRows by vm.workouts.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
+    val revision by CloudActivitySettings.dataRevision.collectAsStateWithLifecycle()
+    val sync by vm.lastHistorySyncAt.collectAsStateWithLifecycle()
+    var dailyRows by remember { mutableStateOf(emptyList<WorkoutRow>()) }
+    var corrections by remember { mutableStateOf(emptyMap<SessionCorrectionKey,SessionCorrection>()) }
+    LaunchedEffect(revision,sync,allRows) {
+        val result=withContext(Dispatchers.IO) {
+            vm.repo.cloudDailyActivityRows(0L,System.currentTimeMillis()/1000L) to vm.repo.sessionCorrections()
+        }
+        dailyRows=result.first
+        corrections=result.second
+    }
+    val combined=remember(allRows,dailyRows) { (allRows+dailyRows).sortedByDescending { it.startTs } }
+    val displayRows=remember(combined,corrections) {
+        combined.map { original -> UnifiedSession(original,corrections[SessionCorrectionKey.of(original)]?.applyTo(original) ?: original) }
+            .sortedByDescending { it.display.startTs }
+    }
+    var advanced by rememberSaveable { mutableStateOf(false) }
     // Train displays the complete session history; no redundant 7D/30D/90D selector.
-    val range = WorkoutRange.All
     var sportFilter by remember { mutableStateOf<String?>(null) }
     var sourceFilter by remember { mutableStateOf<WorkoutSource?>(null) }
     var searchText by remember { mutableStateOf("") }
@@ -414,10 +439,9 @@ internal fun AlkeTrainHistorySections(vm: AppViewModel) {
     var postLogNote by remember { mutableStateOf<String?>(null) }
 
     val filter = WorkoutFilter(sportFilter, sourceFilter, searchText)
-    val resolved = effectiveRange(allRows, range, filter)
-    val windowRows = filter.apply(sessions(allRows, resolved))
-    val availableSports = remember(allRows) {
-        allRows.groupingBy { WorkoutEditing.displaySport(it.sport) }.eachCount()
+    val windowRows=displayRows.filter { filter.matches(it.display) }
+    val availableSports = remember(displayRows) {
+        displayRows.groupingBy { WorkoutEditing.displaySport(it.display.sport) }.eachCount()
             .entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }
                 .thenBy { it.key })
             .map { it.key }
@@ -436,22 +460,11 @@ internal fun AlkeTrainHistorySections(vm: AppViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Activity Breakdown follows Train's existing Active Calories calendar.
         BreakdownSection(groups = sportGroups(allRows), rows = allRows, collapsible = true)
-        if (allRows.isEmpty()) {
-            Text("Recorded activities will appear here when workouts are available.",
-                style = AlkeType.footnote, color = Palette.textTertiary)
-        } else {
-            // Preserve sport/source/text filtering without another time-range selector.
-            FilterBar(
-                filter = filter, availableSports = availableSports,
-                onSport = { sportFilter = it }, onSource = { sourceFilter = it },
-                onSearch = { searchText = it },
-                onClear = { sportFilter = null; sourceFilter = null; searchText = "" },
-            )
-            postLogNote?.let { PostLogNoteBanner(it) }
-        }
-        SessionsSection(
+        postLogNote?.let { PostLogNoteBanner(it) }
+        UnifiedAllSessions(
             vm = vm,
             rows = windowRows,
+            summaryRows = displayRows.map { it.display },
             selectionMode = selectionMode,
             selectedKeys = selectedKeys,
             onToggleSelectMode = {
@@ -484,6 +497,13 @@ internal fun AlkeTrainHistorySections(vm: AppViewModel) {
             },
             onDismiss = { vm.dismissDetected(it) },
             onDelete = { vm.deleteWorkout(it) },
+            advancedFilters = {
+                TextButton(onClick={advanced=!advanced}) { Text(if(advanced) "Hide filters" else "Advanced filters") }
+                if(advanced) FilterBar(
+                    filter=filter,availableSports=availableSports,
+                    onSport={sportFilter=it},onSource={sourceFilter=it},onSearch={searchText=it},
+                    onClear={sportFilter=null;sourceFilter=null;searchText=""})
+            },
         )
     }
 
@@ -518,6 +538,243 @@ internal fun AlkeTrainHistorySections(vm: AppViewModel) {
  *  pure ADD and must not travel on as `replacing`. Source alone cannot express this - the copy claims
  *  "manual" precisely so the form treats it as editable. (#1488) */
 private data class DialogTarget(val editing: WorkoutRow?, val isCopy: Boolean = false)
+
+private data class UnifiedSession(val original: WorkoutRow,val display: WorkoutRow)
+private val sessionCyan=Color(0xFF26DEEB)
+private val sessionWhite=Color(0xFFF4FAFF)
+private val sessionMuted=Color(0xFF91B8C8)
+private fun isAiSession(row: WorkoutRow)=row.source==CloudActivityProtocol.WORKOUT_SOURCE || row.source==CloudActivityProtocol.DAILY_SOURCE
+private fun unifiedSource(row: WorkoutRow): String = when {
+    isAiSession(row) -> "AI Detected"
+    row.source.equals("health-connect",true) -> "Health Connect"
+    WorkoutEditing.classify(row.source)==WorkoutSource.MANUAL -> "Manual"
+    WorkoutEditing.classify(row.source)==WorkoutSource.DETECTED -> "Detected"
+    else -> when(WorkoutEditing.classify(row.source)) {
+        WorkoutSource.WHOOP -> "WHOOP"
+        WorkoutSource.LIFTING -> "Lifting"
+        WorkoutSource.ACTIVITY_FILE -> "Activity file"
+        else -> "Imported"
+    }
+}
+
+@Composable
+private fun UnifiedAllSessions(
+    vm: AppViewModel, rows: List<UnifiedSession>, summaryRows: List<WorkoutRow>,
+    selectionMode: Boolean, selectedKeys: Set<String>, onToggleSelectMode: () -> Unit,
+    onToggleRow: (WorkoutRow)->Unit, onMerge:(List<WorkoutRow>)->Unit,
+    onBulkDelete:(List<WorkoutRow>)->Unit, onCancelSelect:()->Unit,
+    onEdit:(WorkoutRow,Boolean)->Unit,onRelabel:(WorkoutRow,String)->Unit,
+    onDismiss:(WorkoutRow)->Unit,onDelete:(WorkoutRow)->Unit,
+    advancedFilters:@Composable ()->Unit,
+) {
+    val context=LocalContext.current
+    val revision by CloudActivitySettings.revision.collectAsStateWithLifecycle()
+    val enabled=remember(revision){CloudActivitySettings.enabled(context)}
+    var manage by remember {mutableStateOf(false)}
+    var filter by rememberSaveable {mutableStateOf("All")}
+    var correcting by remember {mutableStateOf<UnifiedSession?>(null)}
+    var detail by remember {mutableStateOf<WorkoutRow?>(null)}
+    var expanded by rememberSaveable {mutableStateOf(true)}
+    val zone=ZoneId.systemDefault()
+    val day=java.time.LocalDate.now(zone)
+    val from=day.atStartOfDay(zone).toEpochSecond()
+    val to=day.plusDays(1).atStartOfDay(zone).toEpochSecond()
+    val todays=summaryRows.filter { it.startTs<to && it.endTs>from }
+    val minutes=CloudActivityProtocol.mergeSpans(todays.map { it.startTs to it.endTs },from,to).sumOf { it.second-it.first }/60L
+    val filtered=remember(rows,filter) { rows.filter { entry ->
+        val row=entry.display
+        when(filter) {
+            "AI Detected" -> isAiSession(row)
+            "Imported" -> !isAiSession(row) && WorkoutEditing.classify(row.source) !in setOf(WorkoutSource.MANUAL,WorkoutSource.DETECTED)
+            "Manual" -> WorkoutEditing.classify(row.source)==WorkoutSource.MANUAL
+            else -> true
+        }
+    } }
+    var shown by remember(filtered) {mutableStateOf(SESSIONS_PAGE_SIZE)}
+    val grouped=remember(filtered,shown) { filtered.take(shown).groupBy { Instant.ofEpochSecond(it.display.startTs).atZone(zone).toLocalDate() }.toSortedMap(compareByDescending { it }) }
+    var expandedDays by remember(filtered) {mutableStateOf(setOfNotNull(grouped.keys.firstOrNull()))}
+    val scope=rememberCoroutineScope()
+    val shape=RoundedCornerShape(23.dp)
+    Column(Modifier.fillMaxWidth().clip(shape).background(Color(0xFF0B2433)).border(1.dp,Color(0xFF234655),shape).padding(16.dp),
+        verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment=Alignment.CenterVertically) {
+            Text("All Sessions",color=sessionWhite,fontSize=20.sp,fontWeight=FontWeight.Bold,
+                modifier=Modifier.weight(1f).clickable { expanded=!expanded })
+            TextButton(onClick={manage=true}) {Text(if(enabled) "Manage" else "Connect",color=sessionCyan)}
+        }
+        if(expanded) {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                CloudActivityStatus(enabled,CloudActivitySettings.status(context))
+                Spacer(Modifier.weight(1f))
+                if(enabled) Text(CloudActivitySettings.sensitivity(context).label+" sensitivity",color=sessionMuted,fontSize=11.sp)
+            }
+            Row(Modifier.fillMaxWidth().background(Color(0xFF091D2B),RoundedCornerShape(16.dp)).padding(12.dp),
+                horizontalArrangement=Arrangement.SpaceBetween) {
+                UnifiedSummary(todays.size.toString(),"Activities")
+                UnifiedSummary("$minutes min","Active time")
+                UnifiedSummary(todays.count(::isAiSession).toString(),"AI Detected")
+            }
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                listOf("All","AI Detected","Imported","Manual").forEach { label ->
+                    Box(Modifier.weight(if(label=="AI Detected") 1.35f else 1f).clip(RoundedCornerShape(10.dp))
+                        .background(if(filter==label) Color(0xFF1B4354) else Color.Transparent)
+                        .clickable { filter=label }.padding(vertical=8.dp),contentAlignment=Alignment.Center) {
+                        Text(label,fontSize=11.sp,color=if(filter==label) sessionCyan else sessionMuted,
+                            fontWeight=if(filter==label) FontWeight.SemiBold else FontWeight.Normal,maxLines=1)
+                    }
+                }
+            }
+            if(selectionMode) SelectionToolbar(rows.map { it.original }.filter { sessionSelectionKey(it) in selectedKeys && WorkoutMerge.isMergeable(it) },onMerge,onBulkDelete,onCancelSelect)
+            if(filtered.isEmpty()) Text("No recorded activities yet.",color=sessionMuted,fontSize=13.sp)
+            grouped.forEach { (date,entries) ->
+                val open=date in expandedDays
+                Row(Modifier.fillMaxWidth().clickable { expandedDays=if(open) expandedDays-date else expandedDays+date },verticalAlignment=Alignment.CenterVertically) {
+                    Text(if(date==day) "TODAY" else date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
+                        color=sessionMuted,fontSize=11.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f))
+                    if(date!=day || !open) Icon(Icons.Filled.KeyboardArrowDown,"Expand date",tint=sessionMuted,modifier=Modifier.size(16.dp).rotate(if(open) 180f else 0f))
+                }
+                if(open) entries.forEach { entry ->
+                    androidx.compose.runtime.key(SessionCorrectionKey.of(entry.original)) {
+                        UnifiedSessionCard(vm,entry,selectionMode,sessionSelectionKey(entry.original) in selectedKeys,
+                            onToggle={if(WorkoutMerge.isMergeable(entry.original)) onToggleRow(entry.original)},
+                            onDetail={detail=it},
+                            onCorrect={
+                                if(WorkoutEditing.classify(entry.original.source)==WorkoutSource.MANUAL) onEdit(entry.original,false)
+                                else correcting=entry
+                            },
+                            onLegacyEdit=onEdit,onRelabel=onRelabel,
+                            onDismiss={row ->
+                                if(row.source==CloudActivityProtocol.DAILY_SOURCE) scope.launch(Dispatchers.IO){vm.repo.dismissCloudDailyActivity(row)}
+                                else onDismiss(row)
+                            },onDelete=onDelete)
+                    }
+                }
+            }
+            if(filtered.size>shown) TextButton(onClick={shown+=SESSIONS_PAGE_SIZE},modifier=Modifier.fillMaxWidth()) {
+                Text("Show "+minOf(SESSIONS_PAGE_SIZE,filtered.size-shown)+" more ("+(filtered.size-shown)+" remaining)",color=sessionCyan)
+            }
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { advancedFilters() }
+                if(rows.any { WorkoutMerge.isMergeable(it.original) }) SelectPill(selectionMode,onToggleSelectMode)
+            }
+            val status=CloudActivitySettings.status(context)
+            if(enabled && status.startsWith("Cloud analysis complete")) {
+                val count=status.substringAfter("· ").substringBefore(" ").toIntOrNull()
+                if(count!=null) Text(if(count==0) "Last analysis · No new activities" else "Last analysis · $count added",color=sessionMuted,fontSize=11.sp)
+            }
+            Text("Activity labels are estimates. Stairs require elevation evidence.",color=sessionMuted,fontSize=10.sp)
+        }
+    }
+    if(manage) CloudActivitySetupDialog {manage=false}
+    detail?.let { row -> WorkoutDetailSheet(vm,row,onDismiss={detail=null},measuredOnly=true) }
+    correcting?.let { entry -> UnifiedCorrectionDialog(vm,entry,onDismiss={correcting=null}) }
+}
+
+@Composable private fun UnifiedSummary(value:String,label:String) {
+    Column {
+        Text(value,color=sessionCyan,fontSize=22.sp,fontWeight=FontWeight.Bold)
+        Text(label,color=sessionMuted,fontSize=11.sp)
+    }
+}
+
+@Composable
+private fun UnifiedSessionCard(vm:AppViewModel,entry:UnifiedSession,selectionMode:Boolean,selected:Boolean,onToggle:()->Unit,
+    onDetail:(WorkoutRow)->Unit,onCorrect:()->Unit,onLegacyEdit:(WorkoutRow,Boolean)->Unit,onRelabel:(WorkoutRow,String)->Unit,
+    onDismiss:(WorkoutRow)->Unit,onDelete:(WorkoutRow)->Unit) {
+    val row=entry.display
+    val sync by vm.lastHistorySyncAt.collectAsStateWithLifecycle()
+    var measured by remember(row) {mutableStateOf(row)}
+    LaunchedEffect(row,sync) {
+        measured=try { vm.activityCardMetrics(row) }
+        catch(e:kotlinx.coroutines.CancellationException) { throw e }
+        catch(_:Exception) { row }
+    }
+    var menu by remember {mutableStateOf(false)}
+    val visual=hrEventVisual(row.sport)
+    val iconTint=if(isAiSession(row)) sessionCyan else Color(0xFFFFA35C)
+    val fmt=remember { DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()) }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF102D3D))
+        .clickable { if(selectionMode) onToggle() else onDetail(measured) }.padding(12.dp),
+        verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment=Alignment.CenterVertically) {
+            if(selectionMode) {
+                Icon(if(selected) Icons.Filled.CheckCircle else if(WorkoutMerge.isMergeable(entry.original)) Icons.Filled.RadioButtonUnchecked else Icons.Filled.Lock,
+                    "Select session",tint=sessionMuted,modifier=Modifier.size(20.dp))
+                Spacer(Modifier.width(6.dp))
+            }
+            Box(Modifier.size(44.dp).background(Color(0xFF193C4D),RoundedCornerShape(10.dp)),contentAlignment=Alignment.Center) {
+                Icon(visual.icon,null,tint=iconTint,modifier=Modifier.size(26.dp).rotate(visual.iconRotationDegrees))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+                Text(WorkoutEditing.displaySport(row.sport),color=sessionWhite,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
+                Text(fmt.format(Instant.ofEpochSecond(row.startTs))+" – "+fmt.format(Instant.ofEpochSecond(row.endTs))+" · "+((row.endTs-row.startTs)/60L)+" min",color=sessionMuted,fontSize=11.sp)
+                Text(unifiedSource(row)+(if(entry.original.sport!=row.sport || entry.original.startTs!=row.startTs || entry.original.endTs!=row.endTs) " · Edited" else ""),color=sessionCyan,fontSize=11.sp)
+            }
+            if(!selectionMode) Box {
+                IconButton(onClick={menu=true},modifier=Modifier.size(32.dp)) { Icon(Icons.Filled.Edit,"Edit activity",tint=sessionMuted,modifier=Modifier.size(18.dp)) }
+                DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
+                    DropdownMenuItem(text={Text("Edit activity")},onClick={menu=false;onCorrect()})
+                    if(row.source==CloudActivityProtocol.DAILY_SOURCE)
+                        DropdownMenuItem(text={Text("Remove detected activity")},onClick={menu=false;onDismiss(entry.original)})
+                    else when(WorkoutEditing.classify(entry.original.source)) {
+                        WorkoutSource.MANUAL -> DropdownMenuItem(text={Text("Delete")},onClick={menu=false;onDelete(entry.original)})
+                        WorkoutSource.DETECTED -> {
+                            DropdownMenuItem(text={Text("Dismiss detected activity")},onClick={menu=false;onDismiss(entry.original)})
+                            DropdownMenuItem(text={Text("Relabel as manual")},onClick={menu=false;onRelabel(entry.original,row.sport)})
+                        }
+                        else -> DropdownMenuItem(text={Text("Duplicate as manual")},onClick={menu=false;onLegacyEdit(WorkoutEditing.asManualCopy(entry.original),true)})
+                    }
+                }
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF234655)))
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.weight(1f),verticalAlignment=Alignment.CenterVertically) {
+                Icon(Icons.Filled.FavoriteBorder,null,tint=Color(0xFFFF7882),modifier=Modifier.size(23.dp))
+                Spacer(Modifier.width(7.dp))
+                Column { Text(measured.avgHr?.let { "$it bpm" } ?: "—",color=sessionWhite,fontSize=15.sp,fontWeight=FontWeight.SemiBold);Text("Avg. heart rate",color=sessionMuted,fontSize=10.sp) }
+            }
+            Row(Modifier.weight(1f),verticalAlignment=Alignment.CenterVertically) {
+                Icon(Icons.Filled.LocalFireDepartment,null,tint=Color(0xFFFFAA55),modifier=Modifier.size(23.dp))
+                Spacer(Modifier.width(7.dp))
+                Column { Text(measured.energyKcal?.takeIf { it.isFinite() && it>=0 }?.let { "${it.roundToInt()} kcal" } ?: "—",color=sessionWhite,fontSize=15.sp,fontWeight=FontWeight.SemiBold);Text("Calories burned",color=sessionMuted,fontSize=10.sp) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnifiedCorrectionDialog(vm:AppViewModel,entry:UnifiedSession,onDismiss:()->Unit) {
+    var sport by remember(entry) {mutableStateOf(WorkoutEditing.displaySport(entry.display.sport))}
+    var start by remember(entry) {mutableStateOf(entry.display.startTs*1000L)}
+    var end by remember(entry) {mutableStateOf(entry.display.endTs*1000L)}
+    var busy by remember {mutableStateOf(false)}
+    var error by remember {mutableStateOf(false)}
+    val scope=rememberCoroutineScope()
+    val edit=SessionCorrection(sport.trim(),start/1000L,end/1000L)
+    AlertDialog(onDismissRequest={if(!busy)onDismiss()},title={Text("Edit activity")},
+        text={
+            Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                SportPickerField(sport){sport=it}
+                SpanTimeField("Started",start){start=it}
+                SpanTimeField("Ended",end){end=it}
+                Text("Duration · "+((end-start)/60000L).coerceAtLeast(0)+" min")
+                Text("Corrects All Sessions and the HR timeline. Original source records are preserved; the start date must remain the same.",color=sessionMuted,fontSize=12.sp)
+                if(error) Text("Could not save. Check that the corrected time does not overlap another session.",color=Palette.statusWarning)
+            }
+        },confirmButton={
+            TextButton(enabled=!busy&&edit.validFor(entry.original,System.currentTimeMillis()/1000L),onClick={
+                busy=true
+                scope.launch {
+                    val ok=withContext(Dispatchers.IO){runCatching { vm.repo.saveSessionCorrection(entry.original,edit) }.getOrDefault(false)}
+                    busy=false
+                    if(ok) onDismiss() else error=true
+                }
+            }) {Text("Save")}
+        },dismissButton={TextButton(enabled=!busy,onClick=onDismiss){Text("Cancel")}})
+}
+
 
 private data class WorkoutRecoveryTrendPoint(
     val startTs: Long,
@@ -1662,6 +1919,12 @@ private fun SessionRow(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () -> Unit) {
+    WorkoutDetailSheet(vm,row,onDismiss,measuredOnly=false)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () -> Unit, measuredOnly: Boolean) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Per-window reads (#410): the HR curve (downsampled bucket means) and the HR-zone split. Zones
@@ -1755,9 +2018,9 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
             CardDivider()
             DetailRow("Time", timeRangeLabel(row.startTs, row.endTs))
             DetailRow("Duration", durationLabel(row.durationS))
-            DetailRow("Avg HR", if (row.avgHr != null) "${row.avgHr} bpm" else "~${resolvedWorkoutAverageHr(row)} bpm")
+            DetailRow("Avg HR", if (row.avgHr != null) "${row.avgHr} bpm" else if(measuredOnly) "—" else "~${resolvedWorkoutAverageHr(row)} bpm")
             if (row.maxHr != null) DetailRow("Max HR", "${row.maxHr} bpm")
-            DetailRow("Calories", if (row.energyKcal != null) "${grouped(row.energyKcal)} kcal" else "~${grouped(resolvedWorkoutCalories(row))} kcal")
+            DetailRow("Calories", if (row.energyKcal != null) "${grouped(row.energyKcal)} kcal" else if(measuredOnly) "—" else "~${grouped(resolvedWorkoutCalories(row))} kcal")
             if (row.distanceM != null) {
                 val unitSystem = UnitPrefs.distanceSystem(LocalContext.current)
                 DetailRow("Distance", UnitFormatter.distanceFromKilometers(row.distanceM / 1000.0, unitSystem))
@@ -1768,7 +2031,7 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
                 }
             }
             steps?.let { DetailRow("Steps", "${grouped(it.toDouble())} steps") }  // #398, on-foot sports
-            if (!row.notes.isNullOrBlank()) DetailRow("Notes", row.notes)
+            if (!row.notes.isNullOrBlank() && row.source != CloudActivityProtocol.DAILY_SOURCE) DetailRow("Notes", row.notes)
 
             // #796 - per-session Effort contribution. The session's captured strain re-homed from a plain
             // value row into a prominent Effort-amber card (the big count-up value + the "This session"

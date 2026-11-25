@@ -6709,11 +6709,14 @@ internal fun HeartRateTrendCard(
         // "Last Workouts" feed below showed them (#34/#53). The glyph self-hides when no strap HR
         // overlaps, so an import with no matching strap curve simply draws nothing.
         workoutsToday = runCatching {
-            val workouts = viewModel.repo.workoutsAllSources(viewModel.deviceId, start - 6 * 3600L, end) +
-                viewModel.repo.detectedWorkoutsUnion(viewModel.deviceId,start-6*3600L,end)
+            // Fetch adjacent source windows so same-day corrections can move an icon into view.
+            val correctionFrom=start-86400L
+            val correctionTo=end+86400L
+            val workouts = viewModel.repo.workoutsAllSources(viewModel.deviceId, correctionFrom, correctionTo) +
+                viewModel.repo.detectedWorkoutsUnion(viewModel.activeStrapId,correctionFrom,correctionTo)
                     .filter { it.source == com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE }
             val canonical = WorkoutEditing.dedupCrossSource(workouts)
-            (canonical + viewModel.repo.cloudDailyActivityRows(start,end))
+            viewModel.repo.applySessionCorrections(canonical + viewModel.repo.cloudDailyActivityRows(correctionFrom,correctionTo))
                 .filter { it.startTs <= end && it.endTs >= start }
         }.getOrDefault(emptyList())
     }

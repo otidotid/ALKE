@@ -1287,13 +1287,21 @@ class WhoopRepository(
     /** Cloud activity data is namespaced away from raw wearable events and training totals. */
     internal suspend fun cloudActivityExclusions(activeId: String, from: Long, to: Long): List<Pair<Long, Long>> {
         val p = com.otidotid.alke.ai.CloudActivityProtocol
-        val workouts = dao.workoutsOverlapping(from,to).map { it.startTs to it.endTs }
+        val workoutRows = dao.workoutsOverlapping(from,to)
+        val workouts = workoutRows.map { it.startTs to it.endTs }
         val sleeps = dao.sleepSessionsOverlapping(from,to).map { it.effectiveStartTs to it.endTs }
         val dismissed = dismissedDetectedUnion(activeId).map { it.startTs to it.endTs }
-        val daily = rawCloudDailyRows(from,to).map { it.startTs to it.endTs }
+        val dailyRows = rawCloudDailyRows(from,to)
+        val daily = dailyRows.map { it.startTs to it.endTs }
         val hidden = dao.eventsByKind(p.DAILY_SOURCE,p.DISMISSED_KIND,from-86400L,to,10000)
             .mapNotNull { event -> runCatching { event.ts to org.json.JSONObject(event.payloadJSON).getLong("endTs") }.getOrNull() }
-        return p.excludes(workouts+sleeps+dismissed+daily+hidden,from,to)
+        // Only corrections with a still-existing source row reserve an adjusted span.
+        // Read the adjacent day so an edited session moved into this window is also excluded.
+        val edits=sessionCorrections()
+        val corrected=if(edits.isEmpty()) emptyList() else
+            (dao.workoutsOverlapping(from-86400L,to+86400L)+rawCloudDailyRows(from-86400L,to+86400L))
+                .mapNotNull { edits[SessionCorrectionKey.of(it)] }.map { it.start to it.end }
+        return p.excludes(workouts+sleeps+dismissed+daily+hidden+corrected,from,to)
     }
 
     private suspend fun rawCloudDailyRows(from: Long,to: Long): List<WorkoutRow> {
@@ -1324,6 +1332,50 @@ class WhoopRepository(
                 sleeps.none { p.overlap(row.startTs,row.endTs,it.effectiveStartTs,it.endTs) } &&
                 hidden.none { p.overlap(row.startTs,row.endTs,it.first,it.second) }
         }
+    }
+
+    /** UI corrections are an independent durable layer; imported records and raw HR are never overwritten. */
+    internal suspend fun sessionCorrections(): Map<SessionCorrectionKey, SessionCorrection> =
+        dao.sessionCorrections().mapNotNull { event ->
+            runCatching {
+                val j = org.json.JSONObject(event.payloadJSON)
+                val key = SessionCorrectionKey(j.getString("device"), event.ts, j.getString("originalSport"), j.getString("source"))
+                key to SessionCorrection(j.getString("sport"),j.getLong("start"),j.getLong("end"))
+            }.getOrNull()
+        }.toMap()
+
+    internal suspend fun applySessionCorrections(rows: List<WorkoutRow>): List<WorkoutRow> {
+        val edits = sessionCorrections()
+        return rows.map { row -> edits[SessionCorrectionKey.of(row)]?.applyTo(row) ?: row }
+    }
+
+    internal suspend fun saveSessionCorrection(original: WorkoutRow, edit: SessionCorrection): Boolean {
+        if (!edit.validFor(original,System.currentTimeMillis()/1000L)) return false
+        val saved = transactor.run {
+            val key = SessionCorrectionKey.of(original)
+            val edits = sessionCorrections()
+            val existing = edits[key]?.applyTo(original) ?: original
+            if (edit.start != existing.startTs || edit.end != existing.endTs) {
+                val from = minOf(original.startTs,edit.start)-86400L
+                val to = maxOf(original.endTs,edit.end)+86400L
+                val rows = dao.workoutsOverlapping(from,to) + cloudDailyActivityRows(from,to)
+                val overlap = rows.filter { SessionCorrectionKey.of(it) != key }.any { raw ->
+                    val row=edits[SessionCorrectionKey.of(raw)]?.applyTo(raw) ?: raw
+                    row.startTs < edit.end && edit.start < row.endTs
+                }
+                val sleep = dao.sleepSessionsOverlapping(edit.start,edit.end).any {
+                    it.effectiveStartTs < edit.end && edit.start < it.endTs
+                }
+                if (overlap || sleep) return@run false
+            }
+            val payload=org.json.JSONObject().put("device",key.device).put("originalSport",key.sport)
+                .put("source",key.source).put("sport",edit.sport).put("start",edit.start).put("end",edit.end).toString()
+            val kind="ALKE_SESSION_EDIT:"+com.otidotid.alke.ai.CloudActivityProtocol.sha256(listOf(key.device,key.sport,key.source).joinToString("\u0000"))
+            dao.upsertSessionCorrection(EventRow("alke-session-edits",key.start,kind,payload))
+            true
+        }
+        if (saved) com.otidotid.alke.ai.CloudActivitySettings.changed()
+        return saved
     }
 
     internal suspend fun dismissCloudDailyActivity(row: WorkoutRow) {

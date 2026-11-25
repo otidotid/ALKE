@@ -27,13 +27,17 @@ internal object ActivityRetryPolicy {
         val delay = 900L * (1L shl (failures - 1).coerceAtMost(4))
         return ActivityRetryWindow(start, failures, if (failures == MAX_FAILURES) Long.MAX_VALUE else now + delay)
     }
+    // Minimum accepted by the cloud protocol; individual bins still require measured evidence.
+    fun canSubmit(usable: Int) = usable >= 2
+    fun awaitLateSensor(now: Long, end: Long) = now - end < 7200L
+    fun waitForSensor(start: Long, now: Long) = ActivityRetryWindow(start,1,now+900L)
     fun retryParked(items: List<ActivityRetryWindow>, now: Long) =
         items.map { if (it.failures >= MAX_FAILURES) it.copy(failures=1,nextAt=now) else it }
     fun isWindowFailure(code: Int) = code == 502 || code in 200..299
     fun displayStatus(enabled: Boolean, online: Boolean, raw: String): String = when {
         !enabled -> "AI Detection Off"
         !online -> "AI Detection Offline"
-        raw.startsWith("Cloud analysis complete") -> "AI Detection Running"
+        raw.startsWith("Cloud analysis complete") -> "AI Detection Active"
         raw.startsWith("Manual recording") -> "AI Detection Paused"
         raw.startsWith("Waiting for") || raw == "Insufficient sensor data" -> "AI Detection Waiting"
         else -> "AI Detection Unavailable"

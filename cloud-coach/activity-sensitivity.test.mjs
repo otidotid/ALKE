@@ -56,3 +56,33 @@ test('R2 increases completion allowance and records fixed diagnostic on truncate
   assert.ok(logs.some(x=>x.includes('completion_token_limit')));
   assert.ok(logs.every(x=>!x.includes('PRIVATE_TEST_MARKER')&&!x.includes(token)));
 });
+
+test('HIGH walking accepts partial counter evidence but never guesses gait or stairs',async t=>{
+  const original=globalThis.fetch, originalInfo=console.info;
+  const logs=[];
+  t.after(()=>{globalThis.fetch=original;console.info=originalInfo;});
+  console.info=message=>logs.push(String(message));
+  let prediction={type:'WALKING',startBin:0,endBin:2,confidence:'HIGH'};
+  globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify({activities:[prediction]})}}],usage:{total_tokens:100}}),{status:200});
+  async function detect(first,second,mode='HIGH'){
+    const bins=Array.from({length:30},()=>bin);
+    bins[0]=first;bins[1]=second;
+    const res=await worker.fetch(req(mode,bins),env);
+    assert.equal(res.status,200,await res.clone().text());
+    return (await res.json()).activityDetection.activities;
+  }
+  const unknown=[110,0.4,null,null,1,1];
+  assert.equal((await detect(bin,unknown)).length,1);
+  assert.equal((await detect(unknown,unknown)).length,0);
+  assert.equal((await detect(bin,[110,0.4,0,null,1,1])).length,0);
+  assert.equal((await detect(bin,[110,0,null,null,1,1])).length,0);
+  assert.equal((await detect(bin,[110,0.4,null,null,0.1,1])).length,0);
+  prediction={...prediction,type:'RUNNING'};
+  assert.equal((await detect(bin,unknown)).length,0);
+  prediction={...prediction,type:'CLIMBING_STAIRS'};
+  assert.equal((await detect(bin,bin)).length,0);
+  assert.equal((await detect([110,0.4,22,2,1,1],[110,0.4,22,2,1,1])).length,1);
+  assert.ok(logs.some(x=>x.includes('evidence_rejected')));
+  assert.ok(logs.some(x=>x.includes('"accepted"')));
+  assert.ok(logs.every(x=>!x.includes(token)&&!x.includes('WALKING')&&!x.includes('CLIMBING_STAIRS')));
+});

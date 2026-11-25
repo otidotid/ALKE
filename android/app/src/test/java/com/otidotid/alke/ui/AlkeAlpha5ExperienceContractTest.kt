@@ -243,7 +243,7 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(insight.contains("absoluteSkinC"))
         assertTrue(insight.contains("deviationSkinC"))
         val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
-        assertTrue(nav.contains("composable(Destination.Intelligence.route) { InsightsScreen(viewModel) }"))
+        assertTrue(nav.contains("composable(Destination.Intelligence.route) { InsightsScreen(viewModel,"))
         val consolidated = source("src/main/java/com/otidotid/alke/ui/InsightsScreen.kt")
         assertTrue(consolidated.contains("Skin Temperature"))
         val health = source("src/main/java/com/otidotid/alke/ui/HealthScreen.kt")
@@ -252,17 +252,18 @@ class AlkeAlpha5ExperienceContractTest {
 
     @Test fun oneInsightModuleRetainsSevenConsolidatedSectionsAndJournalDeepLinks() {
         val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
-        assertTrue(nav.contains("composable(Destination.Intelligence.route) { InsightsScreen(viewModel) }"))
-        assertTrue(nav.contains("composable(Destination.InsightsHub.route) { InsightsScreen(viewModel) }"))
+        assertTrue(nav.contains("composable(Destination.Intelligence.route) { InsightsScreen(viewModel,"))
+        assertTrue(nav.contains("composable(Destination.InsightsHub.route) { InsightsScreen(viewModel,"))
         assertFalse(nav.contains("Destination.Intelligence, Destination.Insights"))
         val ui = source("src/main/java/com/otidotid/alke/ui/InsightsScreen.kt")
         val sections = listOf(
             """item\s*\{\s*ConsolidatedInsightSignals\s*\(""",
-            """item\s*\{\s*InsightDisclosure\s*\(\s*"Log Journal"""",
-            """item\s*\{\s*MindSection\s*\(""",
-            """item\s*\{\s*InsightDisclosure\s*\(\s*"Log Caffeine"""",
-            """item\s*\{\s*InsightDisclosure\s*\(\s*"Personal Experiment"""",
-            """item\s*\{\s*RelationshipsSection\s*\(""",
+            """Text\("Daily Journal"""",
+            """PremiumJournalTile\("Journal"""",
+            """PremiumJournalTile\("Mood"""",
+            """PremiumJournalTile\("Caffeine"""",
+            """Text\("Personal Analytics"""",
+            """PremiumLink\("Metric Relationships"""",
             """item\s*\{\s*ConsolidatedInsightAiSummary\s*\(""",
         )
         val positions = sections.map { pattern ->

@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocalCafe
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
@@ -201,6 +204,8 @@ fun InsightsScreen(vm: AppViewModel, onHydration: () -> Unit = {}) {
         pendingJournalDay?.let {
             dayOffset = it
             journalExpanded = true // Today journal shortcut must reveal the logger
+            moodExpanded = false
+            caffeineExpanded = false
             vm.requestJournalDay(null)
         }
     }
@@ -441,16 +446,39 @@ val expCandidates = experimentCandidates(
         //    custom-question editor, numeric entries and all callbacks stay intact.
         item {
             AlkePanel(Modifier.fillMaxWidth()) {
-                Text("Daily Journal", style = AlkeType.headline, color = Palette.textPrimary)
-                PremiumLink("Journal", "Log and review daily habits", { journalExpanded = !journalExpanded })
-                PremiumLink("Mood", "Check in and explore patterns", { moodExpanded = !moodExpanded })
-                PremiumLink("Caffeine", "Log intake and timing", { caffeineExpanded = !caffeineExpanded })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Daily Journal", style = AlkeType.headline, color = Palette.textPrimary,
+                        modifier = Modifier.weight(1f))
+                    Text(journalDayKey(dayOffset),style=AlkeType.caption,color=Palette.textSecondary)
+                }
+                val mood = moodSeries.lastOrNull { it.first == journalDayKey(0L) }?.second
+                val moodText = when(mood) { 1.0 -> "Awful"; 2.0 -> "Low"; 3.0 -> "Okay"; 4.0 -> "Good"; 5.0 -> "Great"; else -> "Not logged" }
+                val caffeineToday = remember(ctx, insightEvidenceRevision) {
+                    val zone = java.time.ZoneId.systemDefault()
+                    val date = java.time.LocalDate.now(zone)
+                    loadCaffeineIntakes(ctx).filter {
+                        java.time.Instant.ofEpochSecond(it.atEpochSec).atZone(zone).toLocalDate() == date
+                    }
+                }
+                val mg = caffeineToday.mapNotNull { it.mg }
+                val caffeineText = when {
+                    caffeineToday.isEmpty() -> "Not logged"
+                    mg.size != caffeineToday.size -> "${caffeineToday.size} logged"
+                    else -> String.format(Locale.US, "%.0f mg",mg.sum())
+                }
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    PremiumJournalTile("Journal",if(journalLoaded) "${dayAnswers.size+dayNumeric.size} logged" else "—",
+                        Icons.Filled.Edit,journalExpanded,Modifier.weight(1f)) { journalExpanded = !journalExpanded; moodExpanded=false; caffeineExpanded=false }
+                    PremiumJournalTile("Mood",moodText,Icons.Filled.FavoriteBorder,moodExpanded,Modifier.weight(1f)) {
+                        moodExpanded = !moodExpanded; journalExpanded=false; caffeineExpanded=false
+                    }
+                    PremiumJournalTile("Caffeine",caffeineText,Icons.Filled.LocalCafe,caffeineExpanded,Modifier.weight(1f)) {
+                        caffeineExpanded = !caffeineExpanded; journalExpanded=false; moodExpanded=false
+                    }
+                }
                 PremiumLink("Hydration", "Fluid intake", onHydration)
             }
         }
-        item { InsightDisclosure("Log Journal", journalExpanded) {
-            journalExpanded = !journalExpanded
-        } }
         if (journalExpanded && preFilledFromYesterday) {
             item {
             Text(
@@ -513,15 +541,11 @@ val expCandidates = experimentCandidates(
         // 4. Mood Check-In, including the existing Pearson mood correlations.
         // --- Mind: daily mood check-in + mood ↔ body correlations (Swift Mind-lane
         //     mirror; storage contract + footnote shared verbatim across platforms) ---
-        item { InsightDisclosure("Mood Check-In", moodExpanded) { moodExpanded = !moodExpanded } }
         if (moodExpanded) { item { MindSection(vm, onChanged = { insightEvidenceRevision++ }) } }
 
         item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
 
         // 5. Log Caffeine — the same existing on-device log and decay model.
-        item { InsightDisclosure("Log Caffeine", caffeineExpanded) {
-            caffeineExpanded = !caffeineExpanded
-        } }
         if (caffeineExpanded) {
             item { CaffeineLogCard(onChanged = { insightEvidenceRevision++ }) }
         }
@@ -532,13 +556,10 @@ val expCandidates = experimentCandidates(
         item {
             AlkePanel(Modifier.fillMaxWidth()) {
                 Text("Personal Analytics", style = AlkeType.headline, color = Palette.textPrimary)
-                PremiumLink("Personal Experiment", "Test a personal hypothesis", { experimentExpanded = !experimentExpanded })
-                PremiumLink("Metric Relationships", "Pearson r and recorded patterns", { relationshipsExpanded = !relationshipsExpanded })
+                PremiumLink("Personal Experiment", "Test a personal hypothesis", { experimentExpanded = !experimentExpanded; relationshipsExpanded=false })
+                PremiumLink("Metric Relationships", "Pearson r and recorded patterns", { relationshipsExpanded = !relationshipsExpanded; experimentExpanded=false })
             }
         }
-        item { InsightDisclosure("Personal Experiment", experimentExpanded) {
-            experimentExpanded = !experimentExpanded
-        } }
         if (experimentExpanded) {
         item {
         run {

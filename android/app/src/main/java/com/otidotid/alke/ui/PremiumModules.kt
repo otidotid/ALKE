@@ -107,3 +107,36 @@ internal fun PremiumHeartRateCenter(vm:AppViewModel,initialMode:String,onBack:()
         }
     }
 }
+
+@Composable
+internal fun PremiumReadout(label:String,value:String,modifier:Modifier=Modifier) {
+    Column(modifier,horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
+        Text(value,color=PremiumSurface.white,fontSize=15.sp,fontWeight=FontWeight.Bold,maxLines=1)
+        Text(label,color=PremiumSurface.muted,fontSize=11.sp,maxLines=1)
+    }
+}
+@Composable
+internal fun PremiumJournalTile(label:String,value:String,icon:androidx.compose.ui.graphics.vector.ImageVector,
+    active:Boolean,modifier:Modifier=Modifier,onClick:()->Unit) {
+    Column(modifier.clip(RoundedCornerShape(12.dp)).background(if(active) PremiumSurface.selected else PremiumSurface.canvas)
+        .clickable(role=Role.Button,onClick=onClick).padding(vertical=12.dp,horizontal=4.dp),
+        horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
+        Icon(icon,null,tint=PremiumSurface.cyan,modifier=Modifier.size(24.dp))
+        Text(label,color=PremiumSurface.white,fontSize=12.sp,maxLines=1)
+        Text(value,color=PremiumSurface.muted,fontSize=10.sp,maxLines=1)
+    }
+}
+@Composable
+internal fun PremiumSparkline(values:List<Double>,color:Color,modifier:Modifier) {
+    val points=remember(values){values.filter { it.isFinite() }}
+    androidx.compose.foundation.Canvas(modifier) {
+        if(points.size>=2) {
+            val low=points.minOrNull()?:0.0
+            val span=((points.maxOrNull()?:low)-low).coerceAtLeast(0.01)
+            fun point(index:Int)=androidx.compose.ui.geometry.Offset(
+                size.width*index/(points.size-1),size.height*(0.9f-0.8f*((points[index]-low)/span).toFloat()))
+            for(index in 1 until points.size) drawLine(color,point(index-1),point(index),strokeWidth=2.dp.toPx(),
+                cap=androidx.compose.ui.graphics.StrokeCap.Round)
+        }
+    }
+}

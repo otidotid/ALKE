@@ -814,29 +814,15 @@ fun SleepScreen(
                     asleepMin = model?.stages?.asleep,
                     source = restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
                     overline = nightLabel,
+                    efficiency = model?.efficiency?.latest?.takeIf { model?.efficiency?.latestDay == null },
+                    debtMin = model?.sleepDebt?.latest?.takeIf { model?.sleepDebt?.latestDay == null },
                 )
             }
             // v617: post-wake Sleep Breathing Quality card. A tap opens the detailed explanation.
             item(key = "sleep-hypopnea-risk") {
                 SleepHypopneaCard(hypopneaAssessment, onOpen = { showHypopneaDetail = true })
             }
-            // #sleep-layout: a compact "Arrange" affordance (the same Tune entry Today uses) opens the
-            // reorder / show-hide sheet. Pinned just above the arrangeable cards.
-            item {
-                Row(Modifier.fillMaxWidth().padding(top = Metrics.selectorTopUp)) {
-                    Spacer(Modifier.weight(1f))
-                    TextButton(
-                        onClick = { showSleepArrange = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = Palette.textTertiary),
-                    ) {
-                        Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.sleep_customize_title), modifier = Modifier.size(Metrics.iconSmall))
-                        Spacer(Modifier.width(Metrics.space4))
-                        // Concise verb on the affordance (the full "Customize Sleep" title is the icon's a11y
-                        // label + the sheet header); reuses Today's generic "Customize" action string.
-                        Text(stringResource(R.string.today_customize_action), style = AlkeType.footnote)
-                    }
-                }
-            }
+            // Arrange and Alarms live in the header.
             // Analytical cards render in the user's saved order (SleepLayoutPrefs), minus the hidden set.
             // Reordered via the Arrange sheet OR by long-press hold-to-drag on the card (#sleep-layout,
             // mirrors Today); each card's data guards (tilesModel/model) are preserved. Each section is ONE
@@ -1353,7 +1339,8 @@ private val LIQUID_HERO_RADIUS: Dp = 18.dp
 // figures, fraction math and Rest tint are UNCHANGED from the BevelGauge this replaced — presentation-only.
 
 @Composable
-private fun RestHero(score: Double?, asleepMin: Double?, source: String, overline: String) {
+private fun RestHero(score: Double?, asleepMin: Double?, source: String, overline: String,
+    efficiency: Double? = null, debtMin: Double? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader("Sleep performance", overline = overline, trailing = "Rest")
         Box(
@@ -1403,6 +1390,12 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
                     }
                 }
                 SourceBadge(text = source, tint = Palette.restColor)
+                Row(Modifier.fillMaxWidth().background(PremiumSurface.canvas,RoundedCornerShape(12.dp)).padding(10.dp),
+                    horizontalArrangement=Arrangement.SpaceBetween) {
+                    PremiumReadout("Asleep",asleepMin?.takeIf { it.isFinite() && it > 0 }?.let { durationText(it) } ?: "—",Modifier.weight(1f))
+                    PremiumReadout("Efficiency",efficiency?.takeIf { it.isFinite() }?.let { String.format(java.util.Locale.US,"%.0f%%",it) } ?: "—",Modifier.weight(1f))
+                    PremiumReadout("Sleep debt",debtMin?.takeIf { it.isFinite() && it >= 0 }?.let { durationText(it) } ?: "—",Modifier.weight(1f))
+                }
             }
         }
     }

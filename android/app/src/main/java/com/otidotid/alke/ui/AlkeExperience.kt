@@ -115,11 +115,11 @@ import kotlin.math.roundToInt
  * Original detailed screens are reachable through the "Explore details" routes.
  */
 private object A {
-    val bg = Color(0xFF061523)
-    val top = Color(0xFF092536)
-    val card = Color(0xFF0D2939)
-    val cardDark = Color(0xFF0A2031)
-    val stroke = Color(0xFF285064)
+    val bg = Color(0xFF091D2B)
+    val top = Color(0xFF0B2433)
+    val card = Color(0xFF102D3D)
+    val cardDark = Color(0xFF0B2433)
+    val stroke = Color(0xFF234655)
     val cyan = Color(0xFF26DEEB)
     val blue = Color(0xFF258EC7)
     val gold = Color(0xFFF0BF60)
@@ -1297,6 +1297,7 @@ private fun AlkeFitnessAgeHero(
     chronologicalAge: Int,
     agePace: FitnessAgePaceEngine.Result,
     onClick: () -> Unit,
+    history: List<Double> = emptyList(),
 ) {
     val reduceMotion = rememberReduceMotion()
     val minAge = FitnessAgeEngine.minAge
@@ -1496,6 +1497,10 @@ private fun AlkeFitnessAgeHero(
             Text(readingDay?.let { "Recorded $it" } ?: "Awaiting weekly result",
                 color = A.muted, fontSize = 10.sp)
         }
+        if (history.size >= 2) {
+            Text("Fitness Age history", color = A.muted, fontSize = 11.sp)
+            PremiumSparkline(history, A.cyan, Modifier.fillMaxWidth().height(45.dp))
+        }
         Text("Weekly estimate · ±5-year uncertainty · View factors and trends",
             color = A.cyan, fontSize = 11.sp, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth())
@@ -1623,19 +1628,16 @@ fun AlkeProgressExperience(
             Triple(it, row.day, row.deviceId)
         }
     }
-    // Reuse the longitudinal Theil-Sen Fitness Age pace; never infer speed from one week.
-    val agePace by produceState(
-        initialValue = FitnessAgePaceEngine.calculate(emptyList()),
-        key1 = vm.activeStrapId, key2 = days,
+    val ageHistory by produceState<List<FitnessAgePaceEngine.Point>>(
+        initialValue = emptyList(), key1 = vm.activeStrapId, key2 = days,
     ) {
         value = runCatching {
-            FitnessAgePaceEngine.calculate(
-                vm.repo.metricSeriesComputedUnion(
-                    vm.activeStrapId, "fitness_age", "0000-01-01", "9999-12-31",
-                ).map { FitnessAgePaceEngine.Point(it.day, it.value) },
-            )
-        }.getOrDefault(FitnessAgePaceEngine.calculate(emptyList()))
+            vm.repo.metricSeriesComputedUnion(vm.activeStrapId, "fitness_age", "0000-01-01", "9999-12-31")
+                .filter { it.value.isFinite() }.sortedBy { it.day }
+                .map { FitnessAgePaceEngine.Point(it.day,it.value) }
+        }.getOrDefault(emptyList())
     }
+    val agePace = remember(ageHistory) { FitnessAgePaceEngine.calculate(ageHistory) }
     // Show exactly the metabolic factor associated with this stored weekly score.
     // The existing provenance gate filters out stale AI or unrelated lab samples.
     val metabolicFactor by produceState<Pair<Double, Boolean>?>(
@@ -1688,6 +1690,7 @@ fun AlkeProgressExperience(
             chronologicalAge = chronologicalAge,
             agePace = agePace,
             onClick = onFitnessAge,
+            history = ageHistory.takeLast(12).map { it.fitnessAge },
         )
         AlkeSectionTitle("Fitness Factors")
         val rhr = days.takeLast(7).mapNotNull { it.restingHr?.toDouble() }
@@ -2005,6 +2008,7 @@ fun AlkeHeartRateTimelineExperience(
                 }
             }
         }
+        if (daysBack == 0) AlkeHeartRatePreview(vm, onLive)
         // The chart retains the inherited 5-minute HR buckets, zoom/scrub, sleep
         // bands and aligned workout sport glyphs, now styled with ALKE colors.
         HeartRateTrendCard(
@@ -2092,7 +2096,7 @@ fun AlkeAllModulesExperience(onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun AlkeMeExperience(
+internal fun AlkeMeExperience(
     vm: AppViewModel,
     onNotifications: () -> Unit,
     unreadCount: Int,

@@ -345,6 +345,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
         else -> Unit
     }
 
+    item {
+        AlkePanel(Modifier.fillMaxWidth()) {
+            Text("Guided Breathing",style=AlkeType.headline,color=Palette.textPrimary)
+            Text("Relax · Focus · Recovery",style=AlkeType.caption,color=Palette.textSecondary)
+            AlkeButton(text="Start Breathing",fullWidth=true,onClick=onBreathe)
+        }
+    }
     // 4 · Trend over the chosen window.
     item { StressTrendSection(model, modifier = Modifier.staggeredAppear(3)) }
 

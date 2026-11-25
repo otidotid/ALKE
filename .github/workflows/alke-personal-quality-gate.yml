@@ -68,6 +68,8 @@ jobs:
             fi
             sleep $((attempt * 8))
           done
+      - name: Cloud activity sensitivity contract tests
+        run: node --test cloud-coach/activity-sensitivity.test.mjs
       - name: Targeted Personal release tests
         working-directory: android
         run: |
@@ -76,6 +78,7 @@ jobs:
             --tests 'com.otidotid.alke.ui.BackupExactDocumentRetentionContractTest' \
             --tests 'com.otidotid.alke.widget.*' \
             --tests 'com.otidotid.alke.release.ReleaseContractTest' \
+            --tests 'com.otidotid.alke.ai.CloudActivityContractTest' \
             --tests 'com.otidotid.alke.ai.StepsAiValidatorClientTest' \
             --tests 'com.otidotid.alke.analytics.StepsFusionProductionTest' \
             --tests 'com.otidotid.alke.analytics.StepsEstimateEngineTest' \

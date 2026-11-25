@@ -5,7 +5,6 @@ import androidx.work.*
 import com.otidotid.alke.AlkeApplication
 import com.otidotid.alke.data.PersonalBackupBootstrap
 import com.otidotid.alke.data.SecurePrefs
-import com.otidotid.alke.data.WorkoutRow
 import com.otidotid.alke.ui.ProfileStore
 import com.otidotid.alke.ui.ActiveWorkoutStore
 import com.otidotid.alke.location.GpsSession
@@ -36,6 +35,14 @@ internal object CloudActivitySettings {
         secure(c).takeIf { it.getBoolean("consent",false) }?.getString("token",null)?.takeIf { it.length >= 32 }
     }.getOrNull()
     fun enabled(c: Context) = token(c) != null
+    fun sensitivity(c: Context) = ActivitySensitivity.fromStored(state(c).getString("sensitivity",null))
+    fun setSensitivity(c: Context, value: ActivitySensitivity) {
+        if (sensitivity(c) != value) {
+            check(state(c).edit().putString("sensitivity",value.name).commit())
+            configChanged()
+            CloudActivityScheduler.request(c)
+        }
+    }
     fun configure(c: Context, token: String) {
         require(token.trim().length >= 32 && token.trim().none { it.isWhitespace() })
         check(secure(c).edit().putString("token",token.trim()).putBoolean("consent",true).commit())
@@ -48,11 +55,36 @@ internal object CloudActivitySettings {
     fun disable(c: Context) {
         check(secure(c).edit().remove("token").putBoolean("consent",false).commit())
         CloudActivityScheduler.cancel(c)
+        check(state(c).edit().remove(RETRIES).remove("last_deferred").commit())
         status(c,"Cloud detection off")
         configChanged()
     }
     fun cursor(c: Context) = state(c).getLong("cursor",System.currentTimeMillis()/900000L*900L-900L)
-    fun advance(c: Context, next: Long) { check(state(c).edit().putLong("cursor",next).commit()) }
+    private const val RETRIES = "deferred_activity_windows_v2"
+    fun retries(c: Context, now: Long) = ActivityRetryPolicy.decode(state(c).getString(RETRIES,null),now)
+    fun lastDeferred(c: Context) = state(c).getBoolean("last_deferred",false)
+    fun noteSelection(c: Context, deferred: Boolean) { check(state(c).edit().putBoolean("last_deferred",deferred).commit()) }
+    fun finishWindow(c: Context, start: Long, deferred: Boolean, now: Long) {
+        val editor = state(c).edit()
+        if (!deferred) editor.putLong("cursor",start+900L)
+        editor.putString(RETRIES,ActivityRetryPolicy.encode(retries(c,now).filterNot { it.start == start }))
+        check(editor.commit())
+    }
+    fun deferWindow(c: Context, start: Long, deferred: Boolean, now: Long) {
+        val items = retries(c,now)
+        val next = ActivityRetryPolicy.fail(items.firstOrNull { it.start == start },start,now)
+        val editor = state(c).edit().putString(RETRIES,ActivityRetryPolicy.encode(items.filterNot { it.start == start } + next))
+        if (!deferred) editor.putLong("cursor",start+900L)
+        check(editor.commit())
+        configChanged()
+    }
+    fun hasParked(c: Context) = retries(c,System.currentTimeMillis()/1000L).any { it.failures >= ActivityRetryPolicy.MAX_FAILURES }
+    fun retryParked(c: Context) {
+        val now = System.currentTimeMillis()/1000L
+        check(state(c).edit().putString(RETRIES,ActivityRetryPolicy.encode(ActivityRetryPolicy.retryParked(retries(c,now),now))).commit())
+        configChanged()
+        CloudActivityScheduler.request(c)
+    }
     fun status(c: Context) = state(c).getString("status","Cloud detection off") ?: "Cloud detection off"
     fun status(c: Context, value: String) {
         if (status(c) != value) { state(c).edit().putString("status",value).apply(); configChanged() }
@@ -100,13 +132,18 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
             if (id.isBlank()) return@withContext Result.success()
             val now = System.currentTimeMillis()/1000L
             val latestEnd = now/900L*900L
-            var from = maxOf(CloudActivitySettings.cursor(c),(now-6*86400L)/900L*900L)
+            val forward = maxOf(CloudActivitySettings.cursor(c),(now-ActivityRetryPolicy.RETENTION)/900L*900L)
+            val due = ActivityRetryPolicy.due(CloudActivitySettings.retries(c,now),now,latestEnd)
+            val retry = due?.takeIf { forward >= latestEnd || !CloudActivitySettings.lastDeferred(c) }
+            val deferred = retry != null
+            var from = retry?.start ?: forward
             val profile = ProfileStore.from(c)
             try {
                 // A bounded number of expired empty windows may be skipped without using Groq quota.
-                repeat(12) {
+                repeat(if (deferred) 1 else 12) {
                     val to = from+CloudActivityProtocol.WINDOW
                     if (to > latestEnd) return@withContext Result.success()
+                    CloudActivitySettings.noteSelection(c,deferred)
                     val known = repo.cloudActivityExclusions(id,from,to)
                     val day = Instant.ofEpochSecond(from).atZone(ZoneId.systemDefault()).toLocalDate().toString()
                     val resting = repo.dayMerged(id,day)?.restingHr
@@ -116,7 +153,7 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                         repo.stepSamples(id,from-1,to-1,1800),profile.stepTicksPerStep)
                     val excluded = CloudActivityProtocol.excludes(known,from,to)
                     if (excluded.size == 1 && excluded[0].first <= from && excluded[0].second >= to) {
-                        CloudActivitySettings.advance(c,to)
+                        CloudActivitySettings.finishWindow(c,from,deferred,now)
                         from = to
                         return@repeat
                     }
@@ -138,40 +175,49 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                             CloudActivitySettings.status(c,"Waiting for wearable data")
                             return@withContext Result.success()
                         }
-                        CloudActivitySettings.advance(c,to)
+                        CloudActivitySettings.finishWindow(c,from,deferred,now)
                         from = to
                     } else {
-                        val snapshot = CloudActivityProtocol.Snapshot(from,bins,resting,excluded)
+                        val sensitivity = CloudActivitySettings.sensitivity(c)
+                        val snapshot = CloudActivityProtocol.Snapshot(from,bins,resting,excluded,sensitivity)
                         if (CloudActivitySettings.token(c) != token) return@withContext Result.success()
                         val result = CloudActivityClient().detect(snapshot,token)
                         if (CloudActivitySettings.token(c) != token) return@withContext Result.success()
                         val reply = result.response
                         if (reply == null) {
                             val message = when(result.code) {
+                                400 -> if (sensitivity != ActivitySensitivity.MEDIUM) "Sensitivity requires updated cloud Worker" else "Cloud snapshot unavailable"
                                 401,403 -> "Check Activity access token"
                                 429 -> "Cloud quota reached · retry later"
                                 503 -> "Cloud unavailable or disabled"
                                 else -> "Cloud response unavailable"
                             }
                             CloudActivitySettings.status(c,message)
-                            // Periodic job retries on next scheduled run; avoid quota-blind rapid retries.
+                            if (ActivityRetryPolicy.isWindowFailure(result.code)) {
+                                if (CloudActivitySettings.token(c) != token || manualRecordingActive() ||
+                                    CloudActivitySettings.sensitivity(c) != sensitivity) return@withContext Result.success()
+                                // Persist failed window and cursor in one commit; other windows can continue.
+                                CloudActivitySettings.deferWindow(c,from,deferred,now)
+                                if (CloudActivitySettings.cursor(c) < latestEnd) CloudActivityScheduler.request(c,65)
+                            }
+                            // Global failures (auth, quota, provider outage) leave the cursor intact.
                             return@withContext Result.success()
                         }
                         if (reply.status == "INSUFFICIENT_DATA" && now-to < 7200L) {
                             CloudActivitySettings.status(c,"Waiting for wearable data")
                             return@withContext Result.success()
                         }
-                        if (CloudActivitySettings.token(c) != token || manualRecordingActive()) return@withContext Result.success()
+                        if (CloudActivitySettings.token(c) != token || CloudActivitySettings.sensitivity(c) != sensitivity || manualRecordingActive()) return@withContext Result.success()
                         val added = repo.saveCloudActivityEvents(id,reply.events)
-                        CloudActivitySettings.advance(c,to)
+                        CloudActivitySettings.finishWindow(c,from,deferred,now)
                         CloudActivitySettings.status(c,if (reply.status == "COMPLETE")
                             "Cloud analysis complete · $added new activities" else "Insufficient sensor data")
-                        if (to < latestEnd) CloudActivityScheduler.request(c,65)
+                        if (CloudActivitySettings.cursor(c) < latestEnd) CloudActivityScheduler.request(c,65)
                         return@withContext Result.success()
                     }
                 }
-                CloudActivitySettings.status(c,"Waiting for wearable data")
-                if (from < latestEnd) CloudActivityScheduler.request(c,65)
+                if (!deferred) CloudActivitySettings.status(c,"Waiting for wearable data")
+                if (CloudActivitySettings.cursor(c) < latestEnd) CloudActivityScheduler.request(c,65)
                 Result.success()
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) {

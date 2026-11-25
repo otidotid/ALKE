@@ -30,7 +30,7 @@ class AlkeNavigationConsistencyTest {
         assertTrue(Destination.Sleep in allModules)
         // Legacy Insight routes remain deep-link aliases, not separate catalog modules.
         assertFalse(Destination.Insights in allModules)
-        assertTrue(Destination.Health in allModules)
+        assertFalse(Destination.Health in allModules)
         val unpinnedModules = alkeAllModulesGroups(emptyList()).flatMap { it.items }
         assertTrue(Destination.Intelligence in unpinnedModules)
         assertFalse(Destination.Insights in unpinnedModules)

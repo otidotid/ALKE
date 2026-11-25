@@ -1000,6 +1000,7 @@ fun AlkeTrainingExperience(
     onDevices: () -> Unit,
     onProfile: () -> Unit,
     unreadCount: Int,
+    onIntervals: () -> Unit = {},
 ) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val sessions by vm.workouts.collectAsStateWithLifecycle()
@@ -1023,11 +1024,12 @@ fun AlkeTrainingExperience(
         Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
         // Keep the frequent workout controls and Activity Calories visible.
         AlkeTrainWorkoutActions(vm, onAdd = { showAddDialog = true })
+        AlkeLinkRow("Intervals", "Haptic-guided interval training", Icons.Filled.DirectionsRun, onIntervals, A.gold)
         AlkeActiveCaloriesCalendar(vm, days)
         // Both original workout sections stay immediately below Active Calories.
         AlkeTrainHistorySections(vm)
         // Lifetime totals are available on demand, not repeated as primary KPIs.
-        AlkeExpandableSection("Lifetime activity", "Recorded calories and most active sport") {
+        AlkeExpandableSection("Activity Overview", "Lifetime recorded calories and most active sport") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 AlkePanel(Modifier.weight(1f)) {
                     Text("CALORIES", color = A.gold, fontSize = 10.sp,
@@ -1604,6 +1606,8 @@ fun AlkeProgressExperience(
     onTrain: () -> Unit,
     onTrends: () -> Unit,
     onSteps: () -> Unit,
+    onLabBook: () -> Unit = {},
+    onVitalSigns: () -> Unit = {},
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val days by vm.recentDays.collectAsStateWithLifecycle()
@@ -1774,7 +1778,14 @@ fun AlkeProgressExperience(
         }
         // Detailed recovery bars are opt-in. Fitness Age and its four recorded
         // contributors remain the always-visible primary Progress experience.
-        AlkeExpandableSection("Recovery history", "7-day trend and full recorded trends") {
+        AlkePanel(Modifier.fillMaxWidth()) {
+            AlkeSectionTitle("Explore your progress")
+            PremiumLink("Trends Studio", "Trends · Explore · Compare", onTrends)
+            PremiumLink("Lab Book", "Metabolic markers and body measurements", onLabBook)
+            PremiumLink("Fitness Age details", "Recorded age history and calculation inputs", onHealth)
+            PremiumLink("Vital signs", "Recorded measurements and history", onVitalSigns)
+        }
+        AlkeExpandableSection("Weekly Review", "Recovery history and long-term performance") {
             AlkeSectionTitle("Recovery trend", "Full trends", onTrends)
             AlkeMiniBars(days.takeLast(7).map { it.day.takeLast(5) to it.recovery }, A.cyan)
         }
@@ -2091,6 +2102,7 @@ fun AlkeMeExperience(
     onBackupRestore: () -> Unit,
     onOpenTestCentre: () -> Unit,
     onOpenSelfHostedPush: () -> Unit,
+    onNavigate: (Destination) -> Unit = {},
 ) {
     val context = LocalContext.current
     var profileRevision by remember { mutableIntStateOf(0) }
@@ -2112,17 +2124,23 @@ fun AlkeMeExperience(
         showSettingsBody = personalSettingsExpanded,
         meHeader = {
             profileRevision
-            AlkeSectionTitle("Devices & Sources")
-            AlkeLinkRow("Devices", "Connect and manage wearable sensors", Icons.Filled.Sensors, onDevices)
-            AlkeLinkRow("Data Sources", "Imports, Health Connect and provenance", Icons.Filled.Storage, onSources)
-
-            AlkeSectionTitle("Data & Backup")
-            AlkeLinkRow("Google Drive / Local Folder", "Backup, restore and verified archived history", Icons.Filled.Storage,
-                onBackupRestore, A.blue)
-
-            AlkeSectionTitle("App")
-            AlkeLinkRow("Customize Dock", "Choose and reorder your quick navigation", Icons.Filled.Tune,
-                { showDockEditor = true }, A.cyan)
+            AlkeLinkRow("Your Profile", "Personal details, photo and Google account",
+                Icons.Filled.AccountCircle, { onNavigate(Destination.Profile) })
+            AlkePanel(Modifier.fillMaxWidth()) {
+                AlkeSectionTitle("Connected Sources")
+                PremiumLink("Wearable devices", "Pair, connect and manage sensors", onDevices)
+                PremiumLink("Health Connect & imports", "Manage external data and provenance", onSources)
+                PremiumLink("Google Drive / Local Folder", "Backup, restore and verified archive", onBackupRestore)
+                PremiumLink("Fused Record", "Review source provenance", { onNavigate(Destination.FusedRecord) })
+                PremiumLink("Device capabilities", "Supported readings and limitations", { onNavigate(Destination.AlkeLimitations) })
+            }
+            AlkePanel(Modifier.fillMaxWidth()) {
+                AlkeSectionTitle("Preferences")
+                PremiumLink("Customize Dock", "Choose and reorder your navigation", { showDockEditor = true })
+                PremiumLink("Smart Settings", "Automations and device controls", { onNavigate(Destination.Automations) })
+                PremiumLink("Power saving", "Manage battery and sync policy", { onNavigate(Destination.PowerSaving) })
+                PremiumLink("Notification preferences", "Alerts and reminders", { onNavigate(Destination.Notifications) })
+            }
             AlkeMeDisclosureHeader(
                 title = "More Tools",
                 subtitle = "All modules and notification controls",
@@ -2137,7 +2155,8 @@ fun AlkeMeExperience(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     AlkeLinkRow("All Modules", "Explore the complete ALKE toolkit", Icons.Filled.Apps, onModules, A.gold)
-                    AlkeLinkRow("Notifications", "Updates and notification preferences", Icons.Filled.NotificationsNone, onNotifications)
+                    AlkeLinkRow("Notifications", "Updates inbox", Icons.Filled.NotificationsNone, onNotifications)
+                    AlkeLinkRow("Advanced & Diagnostics", "Test Centre and ground truth", Icons.Filled.Tune, onOpenTestCentre)
                 }
             }
             AlkeMeDisclosureHeader(

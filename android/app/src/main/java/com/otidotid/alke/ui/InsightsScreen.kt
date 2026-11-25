@@ -172,10 +172,12 @@ private data class InsightModel(
  * numbers, matching the macOS data-display contract.
  */
 @Composable
-fun InsightsScreen(vm: AppViewModel) {
+fun InsightsScreen(vm: AppViewModel, onHydration: () -> Unit = {}) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val day by vm.today.collectAsStateWithLifecycle()
     var journalExpanded by rememberSaveable { mutableStateOf(true) }
+    var moodExpanded by rememberSaveable { mutableStateOf(false) }
+    var relationshipsExpanded by rememberSaveable { mutableStateOf(false) }
     var caffeineExpanded by rememberSaveable { mutableStateOf(false) }
     var experimentExpanded by rememberSaveable { mutableStateOf(false) }
     var insightEvidenceRevision by remember { mutableStateOf(0) }
@@ -437,6 +439,15 @@ val expCandidates = experimentCandidates(
 
         // 3. Log Journal — a premium collapsible disclosure. Existing history,
         //    custom-question editor, numeric entries and all callbacks stay intact.
+        item {
+            AlkePanel(Modifier.fillMaxWidth()) {
+                Text("Daily Journal", style = AlkeType.headline, color = Palette.textPrimary)
+                PremiumLink("Journal", "Log and review daily habits", { journalExpanded = !journalExpanded })
+                PremiumLink("Mood", "Check in and explore patterns", { moodExpanded = !moodExpanded })
+                PremiumLink("Caffeine", "Log intake and timing", { caffeineExpanded = !caffeineExpanded })
+                PremiumLink("Hydration", "Fluid intake", onHydration)
+            }
+        }
         item { InsightDisclosure("Log Journal", journalExpanded) {
             journalExpanded = !journalExpanded
         } }
@@ -502,7 +513,8 @@ val expCandidates = experimentCandidates(
         // 4. Mood Check-In, including the existing Pearson mood correlations.
         // --- Mind: daily mood check-in + mood ↔ body correlations (Swift Mind-lane
         //     mirror; storage contract + footnote shared verbatim across platforms) ---
-        item { MindSection(vm, onChanged = { insightEvidenceRevision++ }) }
+        item { InsightDisclosure("Mood Check-In", moodExpanded) { moodExpanded = !moodExpanded } }
+        if (moodExpanded) { item { MindSection(vm, onChanged = { insightEvidenceRevision++ }) } }
 
         item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
 
@@ -517,6 +529,13 @@ val expCandidates = experimentCandidates(
         item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
 
         // 6. Personal Experiment — the same local n-of-1 engine and history.
+        item {
+            AlkePanel(Modifier.fillMaxWidth()) {
+                Text("Personal Analytics", style = AlkeType.headline, color = Palette.textPrimary)
+                PremiumLink("Personal Experiment", "Test a personal hypothesis", { experimentExpanded = !experimentExpanded })
+                PremiumLink("Metric Relationships", "Pearson r and recorded patterns", { relationshipsExpanded = !relationshipsExpanded })
+            }
+        }
         item { InsightDisclosure("Personal Experiment", experimentExpanded) {
             experimentExpanded = !experimentExpanded
         } }
@@ -585,7 +604,7 @@ val expCandidates = experimentCandidates(
         // 7. Pearson r — Metric Relationship. All prior behaviour, activity
         //    cost, lag-aware What Moves You and dose-response evidence is now
         //    nested under this analysis area, not a second Insight module.
-        item { RelationshipsSection(relationships) }
+        if (relationshipsExpanded) { item { RelationshipsSection(relationships) } }
 
         // One final interpretation AFTER the underlying journal, mood, caffeine,
         // experiment and correlation evidence. No duplicate daily score hero.

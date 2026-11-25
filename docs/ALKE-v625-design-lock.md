@@ -1,0 +1,26 @@
+# ALKE v625 — approved total premium redesign
+
+Baseline: v624 / 4df12bc38f66338218bf564aeb1fe25bad11559d. User approved two releases only: v625 redesign, v626 final visual consistency/performance/regression audit.
+
+## Non-negotiable
+- Exact approved All Sessions card layout, typography, colors, filters, editing and HR/calorie presentation. Keep WorkoutsScreen.kt unchanged unless separately approved.
+- Keep the existing HR graph rendering, markers, sleep bands and gestures. Do not replace TodayScreen.kt or HrEventVisuals.kt.
+- Preserve existing algorithms, data, backups, import routes, signing identity F34C, and stored settings. Online Activity Intelligence through Cloudflare/Groq only; no local classification/approval.
+- Keep continuous premium hero animations and reduced-motion support. Use existing measured values, not mockup values.
+- One release APK for v625, not separate releases for each commit. No release until all approved sections implemented and Quality Gate passes.
+
+## Acceptance matrix
+| Area | Required layout/function | State at initial implementation |
+| --- | --- | --- |
+| Progress | Existing Fitness Age hero first, four factors, detail history, Lab Book, Trends Studio, weekly review | Parent links and retained hero implemented; exact visual review pending |
+| Sleep | Canonical direct navigation, one hero, architecture, hypopnea, grouped sleep balance, night physiology, clock, history, header alarms | Direct route and balance disclosure implemented; exact visual layout pending |
+| Stress & Breathe | Stress hero and timeline, guided breathing, history | Shared mode host implemented; full visual composition pending |
+| Heart Rate Center | Existing graph unchanged, live HR, HRV snapshot, rhythm, zones | Shared mode host implemented; HRV through existing Live HR; visual review pending |
+| Insight | Signals, Daily Journal (journal/mood/caffeine), Personal Analytics, AI Summary last | Groups and disclosures implemented; exact compact mockup pending |
+| Trends Studio | Trends, Explore, Compare, shared selector | Shared mode host implemented; visual review pending |
+| Me | Profile, connected sources, preferences, diagnostics | Grouped cards implemented; detail visual review pending |
+| Train | Retain All Sessions, intervals and Activity Overview | Contextual intervals and lifetime overview label implemented; exact grouped layout pending |
+| Navigation | Custom dock preserved, old routes remain valid, no duplicate discovery items | Initial consolidation implemented; test all entry points |
+| Design system | Shared v624 navy/cyan/gold typography, spacing and component states | New shared surface/link/selector; full styling pending |
+
+Source-based work does not establish on-device fidelity. Do not call the matrix complete until screenshot comparison and functional navigation tests succeed.

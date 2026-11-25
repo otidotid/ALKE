@@ -1287,14 +1287,20 @@ class WhoopRepository(
     /** Cloud activity data is namespaced away from raw wearable events and training totals. */
     internal suspend fun cloudActivityExclusions(activeId: String, from: Long, to: Long): List<Pair<Long, Long>> {
         val p = com.otidotid.alke.ai.CloudActivityProtocol
-        val workouts = dao.workoutsOverlapping(from,to).map { it.startTs to it.endTs }
+        val workoutRows = dao.workoutsOverlapping(from,to)
+        val workouts = workoutRows.map { it.startTs to it.endTs }
         val sleeps = dao.sleepSessionsOverlapping(from,to).map { it.effectiveStartTs to it.endTs }
         val dismissed = dismissedDetectedUnion(activeId).map { it.startTs to it.endTs }
-        val daily = rawCloudDailyRows(from,to).map { it.startTs to it.endTs }
+        val dailyRows = rawCloudDailyRows(from,to)
+        val daily = dailyRows.map { it.startTs to it.endTs }
         val hidden = dao.eventsByKind(p.DAILY_SOURCE,p.DISMISSED_KIND,from-86400L,to,10000)
             .mapNotNull { event -> runCatching { event.ts to org.json.JSONObject(event.payloadJSON).getLong("endTs") }.getOrNull() }
-        // Corrections also reserve their adjusted span; the original span remains excluded.
-        val corrected=sessionCorrections().values.map { it.start to it.end }
+        // Only corrections with a still-existing source row reserve an adjusted span.
+        // Read the adjacent day so an edited session moved into this window is also excluded.
+        val edits=sessionCorrections()
+        val corrected=if(edits.isEmpty()) emptyList() else
+            (dao.workoutsOverlapping(from-86400L,to+86400L)+rawCloudDailyRows(from-86400L,to+86400L))
+                .mapNotNull { edits[SessionCorrectionKey.of(it)] }.map { it.start to it.end }
         return p.excludes(workouts+sleeps+dismissed+daily+hidden+corrected,from,to)
     }
 

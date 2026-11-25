@@ -100,7 +100,7 @@ class CloudActivityContractTest {
         val ui=File(root,"app/src/main/java/com/otidotid/alke/ui")
         val today=File(ui,"TodayScreen.kt").readText()
         assertFalse(today.contains("AutoWorkoutNudgeCard("))
-        assertTrue(today.contains("cloudDailyActivityRows(start,end)"))
+        assertTrue(today.contains("cloudDailyActivityRows(correctionFrom,correctionTo)"))
         assertTrue(today.contains("hrEventVisual(workout.sport)"))
         assertTrue(today.contains("detectedWorkoutsUnion(viewModel.activeStrapId"))
         assertTrue(today.contains("applySessionCorrections("))

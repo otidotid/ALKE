@@ -428,7 +428,6 @@ internal fun AlkeTrainHistorySections(vm: AppViewModel) {
     }
     var advanced by rememberSaveable { mutableStateOf(false) }
     // Train displays the complete session history; no redundant 7D/30D/90D selector.
-    val range = WorkoutRange.All
     var sportFilter by remember { mutableStateOf<String?>(null) }
     var sourceFilter by remember { mutableStateOf<WorkoutSource?>(null) }
     var searchText by remember { mutableStateOf("") }
@@ -655,7 +654,7 @@ private fun UnifiedAllSessions(
                 Text("Show "+minOf(SESSIONS_PAGE_SIZE,filtered.size-shown)+" more ("+(filtered.size-shown)+" remaining)",color=sessionCyan)
             }
             Row(verticalAlignment=Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) { advancedFilters() }
+                Column(Modifier.weight(1f)) { advancedFilters() }
                 if(rows.any { WorkoutMerge.isMergeable(it.original) }) SelectPill(selectionMode,onToggleSelectMode)
             }
             val status=CloudActivitySettings.status(context)
@@ -685,7 +684,11 @@ private fun UnifiedSessionCard(vm:AppViewModel,entry:UnifiedSession,selectionMod
     val row=entry.display
     val sync by vm.lastHistorySyncAt.collectAsStateWithLifecycle()
     var measured by remember(row) {mutableStateOf(row)}
-    LaunchedEffect(row,sync) { measured=runCatching { vm.activityCardMetrics(row) }.getOrDefault(row) }
+    LaunchedEffect(row,sync) {
+        measured=try { vm.activityCardMetrics(row) }
+        catch(e:kotlinx.coroutines.CancellationException) { throw e }
+        catch(_:Exception) { row }
+    }
     var menu by remember {mutableStateOf(false)}
     val visual=hrEventVisual(row.sport)
     val iconTint=if(isAiSession(row)) sessionCyan else Color(0xFFFFA35C)
@@ -1915,7 +1918,13 @@ private fun SessionRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () -> Unit, measuredOnly: Boolean = false) {
+internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () -> Unit) {
+    WorkoutDetailSheet(vm,row,onDismiss,measuredOnly=false)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () -> Unit, measuredOnly: Boolean) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Per-window reads (#410): the HR curve (downsampled bucket means) and the HR-zone split. Zones

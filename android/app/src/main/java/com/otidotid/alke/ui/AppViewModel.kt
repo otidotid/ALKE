@@ -2347,7 +2347,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             .filter { it.ts in row.startTs..row.endTs && it.bpm in 25..250 }
         if (samples.size < 2) return@withContext row
         val kcal = if (row.energyKcal != null) row.energyKcal else runCatching {
-            com.otidotid.alke.analytics.Calories.estimateBoutCalories(samples,currentProfile(),profileStore.hrMax.toDouble(),_today.value?.restingHr?.toDouble()).first
+            com.otidotid.alke.analytics.Calories.estimateBoutCalories(
+                hrSamples=samples,profile=currentProfile(),hrmax=profileStore.hrMax.toDouble(),
+                restingHR=_today.value?.restingHr?.toDouble()).first
         }.getOrNull()?.takeIf { it.isFinite() && it>0.0 }
         row.copy(avgHr=row.avgHr ?: samples.map { it.bpm }.average().roundToInt(),
             maxHr=row.maxHr ?: samples.maxOf { it.bpm },energyKcal=kcal)

@@ -39,7 +39,7 @@ class CloudActivityContractTest {
         assertEquals(waiting,ActivityRetryPolicy.decode(ActivityRetryPolicy.encode(listOf(waiting)),2700L).single())
     }
     @Test fun publicStatusDoesNotExposeTechnicalDetails() {
-        assertEquals("AI Detection Running",ActivityRetryPolicy.displayStatus(true,true,"Cloud analysis complete · 0 new activities"))
+        assertEquals("AI Detection Active",ActivityRetryPolicy.displayStatus(true,true,"Cloud analysis complete · 0 new activities"))
         assertEquals("AI Detection Offline",ActivityRetryPolicy.displayStatus(true,false,"Cloud analysis complete · 0 new activities"))
         assertEquals("AI Detection Off",ActivityRetryPolicy.displayStatus(false,true,"Cloud analysis complete"))
         assertEquals("AI Detection Unavailable",ActivityRetryPolicy.displayStatus(true,true,"Cloud response unavailable"))
@@ -82,6 +82,18 @@ class CloudActivityContractTest {
             assertFalse(com.otidotid.alke.ui.isCloudAiHrEvent(it))
         }
     }
+    @Test fun sessionCorrectionPreservesSourceAndInvalidatesMetricsWhenTimeChanges() {
+        val row=com.otidotid.alke.data.WorkoutRow("strap",900L,1200L,"Walking","alke-cloud-activity",durationS=300.0,energyKcal=20.0,avgHr=100)
+        val correction=com.otidotid.alke.data.SessionCorrection("Running",960L,1260L)
+        assertTrue(correction.validFor(row,2000L,java.time.ZoneOffset.UTC))
+        val result=correction.applyTo(row)
+        assertEquals(row.source,result.source)
+        assertEquals("Running",result.sport)
+        assertEquals(960L,result.startTs)
+        assertNull(result.avgHr); assertNull(result.energyKcal)
+        assertEquals(100,row.avgHr)
+        assertFalse(com.otidotid.alke.data.SessionCorrection("Walking",960L,3000L).validFor(row,2000L,java.time.ZoneOffset.UTC))
+    }
     @Test fun sourceDesignLock() {
         var root=File(System.getProperty("user.dir") ?: ".").canonicalFile
         repeat(5){if(!File(root,"settings.gradle.kts").exists())root=root.parentFile ?: root}
@@ -91,9 +103,12 @@ class CloudActivityContractTest {
         assertTrue(today.contains("cloudDailyActivityRows(start,end)"))
         assertTrue(today.contains("hrEventVisual(workout.sport)"))
         assertTrue(today.contains("detectedWorkoutsUnion(viewModel.activeStrapId"))
-        val activity=File(ui,"CloudActivityIntelligence.kt").readText()
-        assertTrue(activity.contains("AI Detected · "))
-        assertTrue(activity.contains("Last analysis · No new activities"))
-        assertTrue(File(ui,"AlkeExperience.kt").readText().contains("CloudActivityIntelligencePanel(vm)"))
+        assertTrue(today.contains("applySessionCorrections("))
+        val history=File(ui,"WorkoutsScreen.kt").readText()
+        assertTrue(history.contains("UnifiedAllSessions("))
+        assertTrue(history.contains("Avg. heart rate"))
+        assertTrue(history.contains("Calories burned"))
+        assertTrue(history.contains("Last analysis · No new activities"))
+        assertFalse(File(ui,"AlkeExperience.kt").readText().contains("CloudActivityIntelligencePanel(vm)"))
     }
 }

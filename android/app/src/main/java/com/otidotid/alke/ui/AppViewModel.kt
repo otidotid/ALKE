@@ -2339,6 +2339,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  HR-curve. A short session wants a finer bucket than the Today 24h chart (300 s would flatten a
      *  30-min run to ~6 points), so the bucket scales with duration: ~120 buckets across the window,
      *  floored at 15 s and capped at 300 s. Mirrors macOS Repository.workoutHrBuckets. */
+    internal suspend fun activityCardMetrics(row: WorkoutRow): WorkoutRow = withContext(Dispatchers.IO) {
+        if (row.avgHr != null && row.energyKcal != null) return@withContext row
+        val ids = if (row.source == com.otidotid.alke.ai.CloudActivityProtocol.DAILY_SOURCE)
+            listOf(row.deviceId) else WhoopRepository.workoutHrDeviceIds(row.source,row.deviceId,activeStrapId)
+        val samples = repository.hrSamplesFor(ids,row.startTs,row.endTs,8000)
+            .filter { it.ts in row.startTs..row.endTs && it.bpm in 25..250 }
+        if (samples.size < 2) return@withContext row
+        val kcal = if (row.energyKcal != null) row.energyKcal else runCatching {
+            com.otidotid.alke.analytics.Calories.estimateBoutCalories(samples,currentProfile(),profileStore.hrMax.toDouble(),_today.value?.restingHr?.toDouble()).first
+        }.getOrNull()?.takeIf { it.isFinite() && it>0.0 }
+        row.copy(avgHr=row.avgHr ?: samples.map { it.bpm }.average().roundToInt(),
+            maxHr=row.maxHr ?: samples.maxOf { it.bpm },energyKcal=kcal)
+    }
+
     suspend fun workoutHrBuckets(
         from: Long,
         to: Long,
@@ -2436,6 +2450,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun saveManualWorkout(row: WorkoutRow, replacing: WorkoutRow? = null) {
         viewModelScope.launch {
             runCatching { repository.saveManualWorkout(row, replacing) }
+            com.otidotid.alke.ai.CloudActivitySettings.changed()
             // #598: rescore the just-added workout from the strap's HR for its window NOW, so its average /
             // peak HR, strain and calories appear immediately instead of waiting for the next analyze tick.
             // No-ops when there's no strap HR for the window; never overrides a value the user typed.

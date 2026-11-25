@@ -37,7 +37,7 @@ internal object ActivityRetryPolicy {
     fun displayStatus(enabled: Boolean, online: Boolean, raw: String): String = when {
         !enabled -> "AI Detection Off"
         !online -> "AI Detection Offline"
-        raw.startsWith("Cloud analysis complete") -> "AI Detection Running"
+        raw.startsWith("Cloud analysis complete") -> "AI Detection Active"
         raw.startsWith("Manual recording") -> "AI Detection Paused"
         raw.startsWith("Waiting for") || raw == "Insufficient sensor data" -> "AI Detection Waiting"
         else -> "AI Detection Unavailable"

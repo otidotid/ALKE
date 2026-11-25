@@ -1026,7 +1026,6 @@ fun AlkeTrainingExperience(
         AlkeActiveCaloriesCalendar(vm, days)
         // Both original workout sections stay immediately below Active Calories.
         AlkeTrainHistorySections(vm)
-        CloudActivityIntelligencePanel(vm)
         // Lifetime totals are available on demand, not repeated as primary KPIs.
         AlkeExpandableSection("Lifetime activity", "Recorded calories and most active sport") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

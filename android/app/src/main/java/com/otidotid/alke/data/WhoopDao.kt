@@ -274,6 +274,12 @@ interface WhoopDao : DeviceRegistryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertEvents(rows: List<EventRow>): List<Long>
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertSessionCorrection(row: EventRow)
+
+    @Query("SELECT * FROM event WHERE deviceId = 'alke-session-edits' ORDER BY ts ASC")
+    suspend fun sessionCorrections(): List<EventRow>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertBattery(rows: List<BatterySample>): List<Long>
 

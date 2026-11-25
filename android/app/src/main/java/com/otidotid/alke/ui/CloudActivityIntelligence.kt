@@ -59,10 +59,17 @@ private val cloudMuted = Color(0xFF9BB9C5)
         "AI Detection Unavailable", "AI Detection Offline" -> Color(0xFFF0B86B)
         else -> cloudMuted
     }
-    Row(verticalAlignment=Alignment.CenterVertically) {
-        Box(Modifier.size(7.dp).background(color,RoundedCornerShape(50)))
-        Spacer(Modifier.width(6.dp))
-        Text(label,color=color,fontSize=12.sp)
+    Column {
+        Row(verticalAlignment=Alignment.CenterVertically) {
+            Box(Modifier.size(7.dp).background(color,RoundedCornerShape(50)))
+            Spacer(Modifier.width(6.dp))
+            Text(label,color=color,fontSize=12.sp)
+        }
+        if (enabled && connected && label == "AI Detection Waiting") {
+            val detail = if (raw == "Waiting for cloud analysis") "Cloud analysis pending"
+                else "Waiting for usable wearable samples"
+            Text(detail,color=cloudMuted,fontSize=10.sp)
+        }
     }
 }
 

@@ -24,6 +24,20 @@ class CloudActivityContractTest {
         assertTrue(ActivityRetryPolicy.isWindowFailure(200))
         listOf(400,401,403,429,503).forEach { assertFalse(ActivityRetryPolicy.isWindowFailure(it)) }
     }
+    @Test fun sparseWindowsCanReachCloudWithoutWholeWindowCoverage() {
+        assertFalse(ActivityRetryPolicy.canSubmit(0))
+        assertFalse(ActivityRetryPolicy.canSubmit(1))
+        assertTrue(ActivityRetryPolicy.canSubmit(2))
+        assertTrue(ActivityRetryPolicy.canSubmit(30))
+        assertTrue(ActivityRetryPolicy.awaitLateSensor(8999L,1800L))
+        assertFalse(ActivityRetryPolicy.awaitLateSensor(9000L,1800L))
+        val waiting = ActivityRetryPolicy.waitForSensor(900L,1800L)
+        assertEquals(1,waiting.failures)
+        assertEquals(2700L,waiting.nextAt)
+        assertNull(ActivityRetryPolicy.due(listOf(waiting),1800L,1800L))
+        assertEquals(waiting,ActivityRetryPolicy.due(listOf(waiting),2700L,2700L))
+        assertEquals(waiting,ActivityRetryPolicy.decode(ActivityRetryPolicy.encode(listOf(waiting)),2700L).single())
+    }
     @Test fun publicStatusDoesNotExposeTechnicalDetails() {
         assertEquals("AI Detection Running",ActivityRetryPolicy.displayStatus(true,true,"Cloud analysis complete · 0 new activities"))
         assertEquals("AI Detection Offline",ActivityRetryPolicy.displayStatus(true,false,"Cloud analysis complete · 0 new activities"))

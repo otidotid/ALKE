@@ -59,7 +59,7 @@ internal object CloudActivitySettings {
         status(c,"Cloud detection off")
         configChanged()
     }
-    fun cursor(c: Context) = state(c).getLong("cursor",System.currentTimeMillis()/900000L*900L-900L)
+    fun cursor(c: Context) = state(c).getLong("cursor",System.currentTimeMillis()/1000L/900L*900L-900L)
     private const val RETRIES = "deferred_activity_windows_v2"
     fun retries(c: Context, now: Long) = ActivityRetryPolicy.decode(state(c).getString(RETRIES,null),now)
     fun lastDeferred(c: Context) = state(c).getBoolean("last_deferred",false)
@@ -73,6 +73,15 @@ internal object CloudActivitySettings {
     fun deferWindow(c: Context, start: Long, deferred: Boolean, now: Long) {
         val items = retries(c,now)
         val next = ActivityRetryPolicy.fail(items.firstOrNull { it.start == start },start,now)
+        val editor = state(c).edit().putString(RETRIES,ActivityRetryPolicy.encode(items.filterNot { it.start == start } + next))
+        if (!deferred) editor.putLong("cursor",start+900L)
+        check(editor.commit())
+        configChanged()
+    }
+    /** A late offload is not a provider error and must not block newer windows. */
+    fun deferSensorWindow(c: Context, start: Long, deferred: Boolean, now: Long) {
+        val items = retries(c,now)
+        val next = ActivityRetryPolicy.waitForSensor(start,now)
         val editor = state(c).edit().putString(RETRIES,ActivityRetryPolicy.encode(items.filterNot { it.start == start } + next))
         if (!deferred) editor.putLong("cursor",start+900L)
         check(editor.commit())
@@ -157,30 +166,26 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                         from = to
                         return@repeat
                     }
-                    val eligible = bins.indices.count { index ->
-                        val a = from+index*30L
-                        excluded.none { CloudActivityProtocol.overlap(a,a+30,it.first,it.second) }
-                    }
                     val usable = bins.indices.count { index ->
                         val a = from+index*30L
                         CloudActivityProtocol.usable(bins[index]) && excluded.none { CloudActivityProtocol.overlap(a,a+30,it.first,it.second) }
                     }
-                    if (usable < kotlin.math.ceil(eligible*0.7).toInt() && now-to < 7200L) {
-                        CloudActivitySettings.status(c,"Waiting for wearable data")
-                        return@withContext Result.success()
-                    }
-                    if (usable < 2) {
-                        // An offload can arrive late. Leave the current cursor pending for two hours.
-                        if (now-to < 7200L) {
+                    // The Worker can analyze two usable bins; keep the strict per-bin evidence
+                    // contract, but never demand 70% coverage of the entire 15-minute window.
+                    if (!ActivityRetryPolicy.canSubmit(usable)) {
+                        if (ActivityRetryPolicy.awaitLateSensor(now,to)) {
+                            CloudActivitySettings.deferSensorWindow(c,from,deferred,now)
                             CloudActivitySettings.status(c,"Waiting for wearable data")
-                            return@withContext Result.success()
+                        } else {
+                            CloudActivitySettings.finishWindow(c,from,deferred,now)
+                            CloudActivitySettings.status(c,"Insufficient sensor data")
                         }
-                        CloudActivitySettings.finishWindow(c,from,deferred,now)
                         from = to
                     } else {
                         val sensitivity = CloudActivitySettings.sensitivity(c)
                         val snapshot = CloudActivityProtocol.Snapshot(from,bins,resting,excluded,sensitivity)
                         if (CloudActivitySettings.token(c) != token) return@withContext Result.success()
+                        CloudActivitySettings.status(c,"Waiting for cloud analysis")
                         val result = CloudActivityClient().detect(snapshot,token)
                         if (CloudActivitySettings.token(c) != token) return@withContext Result.success()
                         val reply = result.response
@@ -203,8 +208,11 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                             // Global failures (auth, quota, provider outage) leave the cursor intact.
                             return@withContext Result.success()
                         }
-                        if (reply.status == "INSUFFICIENT_DATA" && now-to < 7200L) {
+                        if (reply.status == "INSUFFICIENT_DATA" && ActivityRetryPolicy.awaitLateSensor(now,to)) {
+                            if (CloudActivitySettings.token(c) != token || CloudActivitySettings.sensitivity(c) != sensitivity || manualRecordingActive()) return@withContext Result.success()
+                            CloudActivitySettings.deferSensorWindow(c,from,deferred,now)
                             CloudActivitySettings.status(c,"Waiting for wearable data")
+                            if (CloudActivitySettings.cursor(c) < latestEnd) CloudActivityScheduler.request(c,65)
                             return@withContext Result.success()
                         }
                         if (CloudActivitySettings.token(c) != token || CloudActivitySettings.sensitivity(c) != sensitivity || manualRecordingActive()) return@withContext Result.success()
@@ -216,7 +224,7 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                         return@withContext Result.success()
                     }
                 }
-                if (!deferred) CloudActivitySettings.status(c,"Waiting for wearable data")
+                // Keep the most recent explicit status; do not overwrite successful analysis.
                 if (CloudActivitySettings.cursor(c) < latestEnd) CloudActivityScheduler.request(c,65)
                 Result.success()
             } catch (e: CancellationException) { throw e }

@@ -216,6 +216,8 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                             return@withContext Result.success()
                         }
                         if (CloudActivitySettings.token(c) != token || CloudActivitySettings.sensitivity(c) != sensitivity || manualRecordingActive()) return@withContext Result.success()
+                        // Recheck active device as offloads can adopt a new strap identity mid-request.
+                        if (app.activeDeviceId != id) return@withContext Result.success()
                         val added = repo.saveCloudActivityEvents(id,reply.events)
                         CloudActivitySettings.finishWindow(c,from,deferred,now)
                         CloudActivitySettings.status(c,if (reply.status == "COMPLETE")

@@ -176,6 +176,7 @@ private val cloudMuted = Color(0xFF9BB9C5)
     }
     val workouts=sessions.filter{it.startTs<end && it.endTs>start}
     val rows=(workouts+daily).sortedByDescending{it.startTs}
+    val aiCount=rows.count { it.source == CloudActivityProtocol.WORKOUT_SOURCE || it.source == CloudActivityProtocol.DAILY_SOURCE }
     val fmt=remember {DateTimeFormatter.ofPattern("HH:mm")}
     val unique=CloudActivityProtocol.mergeSpans(rows.map{it.startTs to it.endTs},start,end)
     val mins=(unique.sumOf{it.second-it.first}/60L)
@@ -193,6 +194,12 @@ private val cloudMuted = Color(0xFF9BB9C5)
             Column {Text(rows.size.toString(),color=cloudCyan,fontSize=24.sp,fontWeight=FontWeight.Bold);Text("Activities",color=cloudMuted,fontSize=11.sp)}
             Column {Text("$mins min",color=cloudCyan,fontSize=24.sp,fontWeight=FontWeight.Bold);Text("Active time",color=cloudMuted,fontSize=11.sp)}
             Column {Text(workouts.size.toString(),color=cloudCyan,fontSize=24.sp,fontWeight=FontWeight.Bold);Text("Workouts",color=cloudMuted,fontSize=11.sp)}
+        }
+        Text("AI Detected · $aiCount today",color=cloudCyan,fontSize=13.sp,fontWeight=FontWeight.SemiBold)
+        val rawStatus=CloudActivitySettings.status(c)
+        if (enabled && rawStatus.startsWith("Cloud analysis complete")) {
+            val added=rawStatus.substringAfter("· ").substringBefore(" ").toIntOrNull()
+            if (added != null) Text(if (added == 0) "Last analysis · No new activities" else "Last analysis · $added added",color=cloudMuted,fontSize=11.sp)
         }
         Text("Today's activities",color=cloudWhite,fontWeight=FontWeight.SemiBold)
         if(rows.isEmpty()) Text("No recorded activities yet.",color=cloudMuted,fontSize=13.sp)
@@ -215,7 +222,7 @@ private val cloudMuted = Color(0xFF9BB9C5)
             }
         }
         Text("Automatically detected. Intelligently reconciled.",color=cloudMuted,fontSize=11.sp)
-        Text("Activity labels are estimates. Stairs require elevation evidence; missing sensor data stays unknown.",color=cloudMuted,fontSize=11.sp)
+        Text("Activity labels are estimates. Stairs are not independently identified without elevation evidence. Missing sensor data stays unknown.",color=cloudMuted,fontSize=11.sp)
     }
     if(show) CloudActivitySetupDialog {show=false}
 }

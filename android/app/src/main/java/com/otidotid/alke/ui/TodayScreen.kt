@@ -6710,7 +6710,7 @@ internal fun HeartRateTrendCard(
         // overlaps, so an import with no matching strap curve simply draws nothing.
         workoutsToday = runCatching {
             val workouts = viewModel.repo.workoutsAllSources(viewModel.deviceId, start - 6 * 3600L, end) +
-                viewModel.repo.detectedWorkoutsUnion(viewModel.deviceId,start-6*3600L,end)
+                viewModel.repo.detectedWorkoutsUnion(viewModel.activeStrapId,start-6*3600L,end)
                     .filter { it.source == com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE }
             val canonical = WorkoutEditing.dedupCrossSource(workouts)
             (canonical + viewModel.repo.cloudDailyActivityRows(start,end))

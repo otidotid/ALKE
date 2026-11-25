@@ -90,6 +90,10 @@ class CloudActivityContractTest {
         assertFalse(today.contains("AutoWorkoutNudgeCard("))
         assertTrue(today.contains("cloudDailyActivityRows(start,end)"))
         assertTrue(today.contains("hrEventVisual(workout.sport)"))
+        assertTrue(today.contains("detectedWorkoutsUnion(viewModel.activeStrapId"))
+        val activity=File(ui,"CloudActivityIntelligence.kt").readText()
+        assertTrue(activity.contains("AI Detected · "))
+        assertTrue(activity.contains("Last analysis · No new activities"))
         assertTrue(File(ui,"AlkeExperience.kt").readText().contains("CloudActivityIntelligencePanel(vm)"))
     }
 }

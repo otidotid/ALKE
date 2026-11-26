@@ -98,6 +98,12 @@ internal fun SleepHypopneaCard(
                     )
                 }
                 if (!compact && !assessment.isReady) {
+                    // Keep the purpose identifiable without presenting an unmeasured verdict.
+                    Text(
+                        stringResource(R.string.sleep_hypopnea_risk_title),
+                        style = AlkeType.headline,
+                        color = Palette.textPrimary,
+                    )
                     Text(
                         if (risk == SleepHypopneaRiskEngine.Risk.WAITING)
                             stringResource(R.string.sleep_hypopnea_waiting_hint)

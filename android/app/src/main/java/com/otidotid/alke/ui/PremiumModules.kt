@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -36,9 +39,20 @@ internal object PremiumSurface {
 
 @Composable
 internal fun PremiumLink(title:String,subtitle:String,onClick:()->Unit) {
+    PremiumLink(title, subtitle, onClick, icon = null)
+}
+
+/** Me shortcuts use a real leading vector; other modules keep their existing layout. */
+@Composable
+internal fun PremiumLink(title:String,subtitle:String,onClick:()->Unit,icon:ImageVector?) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(PremiumSurface.card)
         .clickable(role=Role.Button,onClick=onClick).padding(horizontal=12.dp,vertical=10.dp),
-        verticalAlignment=Alignment.CenterVertically) {
+        verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(if (icon != null) 12.dp else 0.dp)) {
+        if (icon != null) {
+            Box(Modifier.size(43.dp).clip(CircleShape).background(PremiumSurface.cyan.copy(alpha=0.12f)), contentAlignment=Alignment.Center) {
+                Icon(icon, contentDescription=null, tint=PremiumSurface.cyan, modifier=Modifier.size(23.dp))
+            }
+        }
         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
             Text(title,color=PremiumSurface.white,fontSize=15.sp,fontWeight=FontWeight.SemiBold)
             Text(subtitle,color=PremiumSurface.muted,fontSize=11.sp)
@@ -161,5 +175,5 @@ internal fun PremiumSparkline(values:List<Double>,color:Color,modifier:Modifier)
 internal fun PremiumWearableLink(vm:AppViewModel,onClick:()->Unit) {
     val live by vm.live.collectAsStateWithLifecycle()
     val status=if(live.connected) if(live.bonded) "Connected" else "Pairing" else "Not connected"
-    PremiumLink("Wearable devices",status,onClick)
+    PremiumLink("Wearable devices",status,onClick, icon = Icons.Filled.Sensors)
 }

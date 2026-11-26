@@ -47,4 +47,27 @@ class MeProfileConsolidationContractTest {
         assertFalse(source.contains("Choose photo"))
         assertFalse(source.contains("Text(\"Remove\""))
     }
+
+    @Test
+    fun premiumMeShortcutsRenderLeadingVectorsAndSleepCardIdentifiesRiskWithoutEvidence() {
+        val experience = source("AlkeExperience.kt")
+        val me = experience.substringAfter("fun AlkeMeExperience(")
+            .substringBefore("/** The real ALKE dock editor")
+        assertTrue(me.contains("icon = Icons.Filled.MonitorHeart"))
+        assertTrue(me.contains("icon = Icons.Filled.CloudSync"))
+        assertTrue(me.contains("icon = Icons.Filled.Storage"))
+        assertTrue(me.contains("icon = Icons.Filled.Sensors"))
+        assertTrue(me.contains("icon = Icons.Filled.Apps"))
+        assertTrue(me.contains("icon = Icons.Filled.Settings"))
+        assertTrue(me.contains("icon = Icons.Filled.AutoAwesome"))
+        assertTrue(me.contains("icon = Icons.Filled.BatterySaver"))
+        assertTrue(me.contains("icon = Icons.Filled.NotificationsNone"))
+        val premium = source("PremiumModules.kt")
+        assertTrue(premium.contains("Icon(icon, contentDescription=null"))
+        assertTrue(premium.contains("PremiumLink(\"Wearable devices\",status,onClick, icon = Icons.Filled.Sensors)"))
+        val sleep = source("SleepHypopneaCard.kt")
+        val missing = sleep.substringAfter("if (!compact && !assessment.isReady) {").substringBefore("Icon(")
+        assertTrue(missing.contains("R.string.sleep_hypopnea_risk_title"))
+        assertFalse(missing.contains("riskLabel(risk)"))
+    }
 }

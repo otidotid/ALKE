@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.DirectionsWalk
@@ -2153,22 +2155,22 @@ internal fun AlkeMeExperience(
             AlkePanel(Modifier.fillMaxWidth()) {
                 AlkeSectionTitle("Connected Sources")
                 PremiumWearableLink(vm,onDevices)
-                PremiumLink("Health Connect & imports", "Manage external data and provenance", onSources)
+                PremiumLink("Health Connect & imports", "Manage external data and provenance", onSources, icon = Icons.Filled.MonitorHeart)
                 PremiumLink("Google Drive / Local Folder",
                     if (BackupSyncPrefs.autoEnabled(context)) "Automatic backup enabled" else "Backup, restore and verified archive",
-                    onBackupRestore)
-                PremiumLink("Fused Record", "Review source provenance", { onNavigate(Destination.FusedRecord) })
-                PremiumLink("Device capabilities", "Supported readings and limitations", { onNavigate(Destination.AlkeLimitations) })
+                    onBackupRestore, icon = Icons.Filled.CloudSync)
+                PremiumLink("Fused Record", "Review source provenance", { onNavigate(Destination.FusedRecord) }, icon = Icons.Filled.Storage)
+                PremiumLink("Device capabilities", "Supported readings and limitations", { onNavigate(Destination.AlkeLimitations) }, icon = Icons.Filled.Sensors)
             }
             AlkePanel(Modifier.fillMaxWidth()) {
                 AlkeSectionTitle("Preferences")
-                PremiumLink("Customize Dock", "Choose and reorder your navigation", { showDockEditor = true })
+                PremiumLink("Customize Dock", "Choose and reorder your navigation", { showDockEditor = true }, icon = Icons.Filled.Apps)
                 var smartExpanded by rememberSaveable { mutableStateOf(false) }
-                PremiumLink("Smart Settings", if(smartExpanded) "Collapse" else "Automations · notifications · power saving", { smartExpanded = !smartExpanded })
+                PremiumLink("Smart Settings", if(smartExpanded) "Collapse" else "Automations · notifications · power saving", { smartExpanded = !smartExpanded }, icon = Icons.Filled.Settings)
                 if(smartExpanded) {
-                    PremiumLink("Automations", "Wearable actions and detection", { onNavigate(Destination.Automations) })
-                    PremiumLink("Power saving", "Manage battery and sync policy", { onNavigate(Destination.PowerSaving) })
-                    PremiumLink("Notification preferences", "Alerts and reminders", { onNavigate(Destination.Notifications) })
+                    PremiumLink("Automations", "Wearable actions and detection", { onNavigate(Destination.Automations) }, icon = Icons.Filled.AutoAwesome)
+                    PremiumLink("Power saving", "Manage battery and sync policy", { onNavigate(Destination.PowerSaving) }, icon = Icons.Filled.BatterySaver)
+                    PremiumLink("Notification preferences", "Alerts and reminders", { onNavigate(Destination.Notifications) }, icon = Icons.Filled.NotificationsNone)
                 }
             }
             AlkeMeDisclosureHeader(

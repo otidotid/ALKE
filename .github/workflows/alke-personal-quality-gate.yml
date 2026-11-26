@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      JAVA_TOOL_OPTIONS: '-Drobolectric.dependency.repo.url=https://repo.maven.apache.org/maven2'
+      JAVA_TOOL_OPTIONS: '-Drobolectric.dependency.repo.url=https://maven-central.storage-download.googleapis.com/maven2'
       ALKE_CLOUD_COACH_URL: ${{ vars.ALKE_CLOUD_COACH_URL || 'https://alke-cloud-coach.anandhito-prakoso.workers.dev' }}
       ALKE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.ALKE_GOOGLE_WEB_CLIENT_ID || '542598370283-1gr0qq8ad4ga691k3lvrotma140hcu5r.apps.googleusercontent.com' }}
     steps:
@@ -71,13 +71,18 @@ jobs:
           done
       - name: Cloud activity and sleep contract tests
         run: node --test cloud-coach/activity-sensitivity.test.mjs cloud-coach/sleep-detection.test.mjs
+      - name: Restore Robolectric SDK cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric/android-all-instrumented
+          key: ${{ runner.os }}-robolectric-4.13-sdk33-34-i6-verified-v2
       - name: Prefetch verified Robolectric Android SDK jars
         shell: bash
         run: |
           set -euo pipefail
-          # Robolectric 4.13 uses instrumentation revision i6. API 33 is used
-          # by HR widget tests; API 34 is also needed by its resource loader.
-          # Seed Maven local so test JVMs never depend on a cold download of these jars.
+          # Use the Google-hosted Maven Central mirror first, then Central's two endpoints.
+          # Always verify bytes against a SHA-512 sidecar; fail closed on missing/mismatched checksums.
+          repos=(https://maven-central.storage-download.googleapis.com/maven2 https://repo.maven.apache.org/maven2 https://repo1.maven.org/maven2)
           for version in 13-robolectric-9030017-i6 14-robolectric-10818077-i6; do
             artifact=android-all-instrumented
             rel="org/robolectric/$artifact/$version"
@@ -85,16 +90,34 @@ jobs:
             mkdir -p "$dest"
             for ext in pom jar; do
               name="$artifact-$version.$ext"
-              url="https://repo.maven.apache.org/maven2/$rel/$name"
-              curl --fail --silent --show-error --location --retry 5 --retry-all-errors --connect-timeout 20 --max-time 300 "$url.sha512" -o "$dest/$name.sha512.tmp"
-              digest=$(awk '{print $1}' "$dest/$name.sha512.tmp")
-              [[ "$digest" =~ ^[a-fA-F0-9]{128}$ ]]
-              if ! (cd "$dest" && printf '%s  %s\n' "$digest" "$name" | sha512sum --check --status); then
-                curl --fail --silent --show-error --location --retry 5 --retry-all-errors --connect-timeout 20 --max-time 300 "$url" -o "$dest/$name.tmp"
-                (cd "$dest" && printf '%s  %s\n' "$digest" "$name.tmp" | sha512sum --check)
-                mv "$dest/$name.tmp" "$dest/$name"
+              if [[ -s "$dest/$name.sha512" && -s "$dest/$name" ]]; then
+                digest=$(awk '{print $1}' "$dest/$name.sha512")
+                if [[ "$digest" =~ ^[a-fA-F0-9]{128}$ ]] && (cd "$dest" && printf '%s  %s\n' "$digest" "$name" | sha512sum --check --status); then
+                  echo "Verified cached $name"
+                  continue
+                fi
               fi
-              mv "$dest/$name.sha512.tmp" "$dest/$name.sha512"
+              verified=false
+              for repo in "${repos[@]}"; do
+                url="$repo/$rel/$name"
+                echo "Fetching $name from $repo"
+                if ! curl --fail --silent --show-error --location --retry 2 --retry-all-errors --connect-timeout 20 --max-time 60 "$url.sha512" -o "$dest/$name.sha512.tmp"; then continue; fi
+                digest=$(awk '{print $1}' "$dest/$name.sha512.tmp")
+                [[ "$digest" =~ ^[a-fA-F0-9]{128}$ ]] || continue
+                if ! curl --fail --silent --show-error --location --retry 2 --retry-all-errors --connect-timeout 20 --max-time 300 "$url" -o "$dest/$name.tmp"; then continue; fi
+                if ! (cd "$dest" && printf '%s  %s\n' "$digest" "$name.tmp" | sha512sum --check); then
+                  echo "::error::Checksum mismatch for $name from $repo"
+                  exit 1
+                fi
+                mv "$dest/$name.tmp" "$dest/$name"
+                mv "$dest/$name.sha512.tmp" "$dest/$name.sha512"
+                verified=true
+                break
+              done
+              if [[ "$verified" != true ]]; then
+                echo "::error::No trusted Maven endpoint supplied $name with SHA-512"
+                exit 1
+              fi
             done
             echo "Verified Robolectric SDK: $version"
           done

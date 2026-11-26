@@ -391,7 +391,7 @@ private object CorrelationEngine {
  * correlations. Faithful port of CompareView.swift onto the locked Compose components.
  */
 @Composable
-fun CompareScreen(vm: AppViewModel) {
+fun CompareScreen(vm: AppViewModel, embedded: Boolean = false) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
 
     // Liquid finish (pilot pattern): the time-of-day sky settles behind the top of the screen, gated on the
@@ -475,8 +475,8 @@ fun CompareScreen(vm: AppViewModel) {
     }
 
     LazyScreenScaffold(
-        title = uiString(R.string.l10n_compare_screen_compare_8d105cf4),
-        subtitle = "Overlay signals, draw conclusions.",
+        title = if(embedded) null else uiString(R.string.l10n_compare_screen_compare_8d105cf4),
+        subtitle = if(embedded) null else "Overlay signals, draw conclusions.",
         // Liquid sky backdrop (LiquidScreenSky.kt) in the scaffold's topBackground slot, gated on the
         // day-cycle preference — the same pilot plumbing the liquid Today uses.
         topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),

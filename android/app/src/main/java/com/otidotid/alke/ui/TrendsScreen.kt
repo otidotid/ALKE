@@ -96,7 +96,7 @@ import kotlin.math.roundToInt
 private val LIQUID_HERO_RADIUS: Dp = 26.dp
 
 @Composable
-fun TrendsScreen(vm: AppViewModel) {
+fun TrendsScreen(vm: AppViewModel, embedded: Boolean = false) {
     // Reactive cache (oldest → newest) as the immediate backing.
     val reactiveDays by vm.recentDays.collectAsStateWithLifecycle()
 
@@ -131,12 +131,12 @@ fun TrendsScreen(vm: AppViewModel) {
     // cards reveal it the whole way down, exactly like Today and the metric-detail screens.
     val skyBehindCards = remember { AlkePrefs.skyBehindCards(trendsCtx) }
 
-    var range by remember { mutableStateOf(TrendsRange.Quarter) }
+    var range by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(TrendsRange.Quarter) }
 
     // #710 , browse previous weeks in the Week-in-review digest. 0 = the week containing today; each step
     // back is one Mon–Sun week earlier, clamped so it never runs past the earliest day we hold. The Trends
     // RANGE control above scopes the long charts; this only moves the weekly digest at the top.
-    var weekOffset by remember { mutableStateOf(0) }
+    var weekOffset by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
     // Re-clamp the offset whenever the loaded history changes (e.g. an import lands more weeks), so a
     // stored offset can never point past the new earliest week. Mirrors the iOS minWeekOffset clamp.
     val minWeekOffset = remember(days) { minWeekOffset(days) }
@@ -174,8 +174,8 @@ fun TrendsScreen(vm: AppViewModel) {
     } ?: stringResource(R.string.trends_all_history)
 
     LazyScreenScaffold(
-        title = stringResource(R.string.nav_trends),
-        subtitle = stringResource(R.string.trends_subtitle),
+        title = if(embedded) null else stringResource(R.string.nav_trends),
+        subtitle = if(embedded) null else stringResource(R.string.trends_subtitle),
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky settles
         // into the theme canvas behind the header + top rows, full-bleed via the scaffold's topBackground
         // plumbing. Static (LiquidSkyStatic, inside the helper) — never an animated sky behind a scrolling

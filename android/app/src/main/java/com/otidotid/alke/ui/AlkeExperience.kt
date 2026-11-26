@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.DirectionsWalk
@@ -115,11 +117,11 @@ import kotlin.math.roundToInt
  * Original detailed screens are reachable through the "Explore details" routes.
  */
 private object A {
-    val bg = Color(0xFF061523)
-    val top = Color(0xFF092536)
-    val card = Color(0xFF0D2939)
-    val cardDark = Color(0xFF0A2031)
-    val stroke = Color(0xFF285064)
+    val bg = Color(0xFF091D2B)
+    val top = Color(0xFF0B2433)
+    val card = Color(0xFF102D3D)
+    val cardDark = Color(0xFF0B2433)
+    val stroke = Color(0xFF234655)
     val cyan = Color(0xFF26DEEB)
     val blue = Color(0xFF258EC7)
     val gold = Color(0xFFF0BF60)
@@ -1000,6 +1002,7 @@ fun AlkeTrainingExperience(
     onDevices: () -> Unit,
     onProfile: () -> Unit,
     unreadCount: Int,
+    onIntervals: () -> Unit = {},
 ) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val sessions by vm.workouts.collectAsStateWithLifecycle()
@@ -1022,35 +1025,35 @@ fun AlkeTrainingExperience(
     AlkePage {
         Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
         // Keep the frequent workout controls and Activity Calories visible.
-        AlkeTrainWorkoutActions(vm, onAdd = { showAddDialog = true })
-        AlkeActiveCaloriesCalendar(vm, days)
-        // Both original workout sections stay immediately below Active Calories.
-        AlkeTrainHistorySections(vm)
-        // Lifetime totals are available on demand, not repeated as primary KPIs.
-        AlkeExpandableSection("Lifetime activity", "Recorded calories and most active sport") {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AlkePanel(Modifier.weight(1f)) {
-                    Text("CALORIES", color = A.gold, fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
-                    Text(if (validCalories.isEmpty()) "—"
-                        else String.format(Locale.US, "%,.0f", validCalories.sum()),
-                        color = A.white, fontSize = 27.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 1)
-                    Text("Workout kcal · all sessions", color = A.muted, fontSize = 10.sp,
-                        maxLines = 1)
-                }
-                AlkePanel(Modifier.weight(1f)) {
-                    Text("MOST ACTIVE SPORTS", color = A.gold, fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp, maxLines = 1)
-                    Text(rankedSports.firstOrNull()?.first ?: "—",
-                        color = A.white, fontSize = 19.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(rankedSports.firstOrNull()?.let {
-                        "${it.second} recorded sessions"
-                    } ?: "No sessions yet", color = A.muted, fontSize = 10.sp, maxLines = 1)
+        AlkeTrainWorkoutActions(vm, onAdd = { showAddDialog = true }, onIntervals = onIntervals)
+        AlkeActiveCaloriesCalendar(vm, days) {
+            AlkeExpandableSection("Lifetime totals", "Recorded workout calories and most active sport") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AlkePanel(Modifier.weight(1f)) {
+                        Text("CALORIES", color = A.gold, fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                        Text(if (validCalories.isEmpty()) "—"
+                            else String.format(Locale.US, "%,.0f", validCalories.sum()),
+                            color = A.white, fontSize = 27.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1)
+                        Text("Workout kcal · all sessions", color = A.muted, fontSize = 10.sp,
+                            maxLines = 1)
+                    }
+                    AlkePanel(Modifier.weight(1f)) {
+                        Text("MOST ACTIVE SPORTS", color = A.gold, fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp, maxLines = 1)
+                        Text(rankedSports.firstOrNull()?.first ?: "—",
+                            color = A.white, fontSize = 19.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(rankedSports.firstOrNull()?.let {
+                            "${it.second} recorded sessions"
+                        } ?: "No sessions yet", color = A.muted, fontSize = 10.sp, maxLines = 1)
+                    }
                 }
             }
         }
+        // Activity Breakdown and the exact v624 All Sessions component follow the overview.
+        AlkeTrainHistorySections(vm)
     }
     if (showAddDialog) {
         ManualWorkoutDialog(vm, editing = null, onDismiss = { showAddDialog = false },
@@ -1066,7 +1069,7 @@ fun AlkeTrainingExperience(
  * we reuse the original pause/resume/open/end banner and manual Add action.
  */
 @Composable
-private fun AlkeTrainWorkoutActions(vm: AppViewModel, onAdd: () -> Unit) {
+private fun AlkeTrainWorkoutActions(vm: AppViewModel, onAdd: () -> Unit, onIntervals: () -> Unit = {}) {
     val live by vm.live.collectAsStateWithLifecycle()
     val activeWorkout by vm.activeWorkout.collectAsStateWithLifecycle()
     var showStartWorkout by remember { mutableStateOf(false) }
@@ -1092,6 +1095,7 @@ private fun AlkeTrainWorkoutActions(vm: AppViewModel, onAdd: () -> Unit) {
             }
         }
     }
+    PremiumLink("Intervals", "Haptic-guided interval training", onIntervals)
     if (showStartWorkout) {
         StartWorkoutSheet(vm = vm, onDismiss = { showStartWorkout = false })
     }
@@ -1099,7 +1103,7 @@ private fun AlkeTrainWorkoutActions(vm: AppViewModel, onAdd: () -> Unit) {
 
 /** ALKE native presentation of the EXISTING, parity-tested ActivityHeatmap model. */
 @Composable
-private fun AlkeActiveCaloriesCalendar(vm: AppViewModel, days: List<DailyMetric>) {
+private fun AlkeActiveCaloriesCalendar(vm: AppViewModel, days: List<DailyMetric>, extraContent: @Composable ColumnScope.() -> Unit = {}) {
     // The original workout calendar core uses daily active calories. Those may
     // come from imported Apple/Health Connect (AppleDaily), not only on-device
     // DailyMetric.activeKcalEst. Prior ALKE demos already seeded 120 days of
@@ -1144,6 +1148,7 @@ private fun AlkeActiveCaloriesCalendar(vm: AppViewModel, days: List<DailyMetric>
         A.gold,
     )
     AlkePanel(Modifier.fillMaxWidth()) {
+        AlkeSectionTitle("Activity Overview")
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("ACTIVE CALORIES", color = A.gold, fontSize = 10.sp,
@@ -1194,6 +1199,7 @@ private fun AlkeActiveCaloriesCalendar(vm: AppViewModel, days: List<DailyMetric>
                 Text("More", color = A.muted, fontSize = 10.sp)
             }
         }
+        extraContent()
     }
 }
 
@@ -1295,6 +1301,7 @@ private fun AlkeFitnessAgeHero(
     chronologicalAge: Int,
     agePace: FitnessAgePaceEngine.Result,
     onClick: () -> Unit,
+    history: List<Double> = emptyList(),
 ) {
     val reduceMotion = rememberReduceMotion()
     val minAge = FitnessAgeEngine.minAge
@@ -1494,6 +1501,10 @@ private fun AlkeFitnessAgeHero(
             Text(readingDay?.let { "Recorded $it" } ?: "Awaiting weekly result",
                 color = A.muted, fontSize = 10.sp)
         }
+        if (history.size >= 2) {
+            Text("Fitness Age history", color = A.muted, fontSize = 11.sp)
+            PremiumSparkline(history, A.cyan, Modifier.fillMaxWidth().height(45.dp))
+        }
         Text("Weekly estimate · ±5-year uncertainty · View factors and trends",
             color = A.cyan, fontSize = 11.sp, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth())
@@ -1604,6 +1615,8 @@ fun AlkeProgressExperience(
     onTrain: () -> Unit,
     onTrends: () -> Unit,
     onSteps: () -> Unit,
+    onLabBook: () -> Unit = {},
+    onVitalSigns: () -> Unit = {},
 ) {
     val day by vm.today.collectAsStateWithLifecycle()
     val days by vm.recentDays.collectAsStateWithLifecycle()
@@ -1619,19 +1632,16 @@ fun AlkeProgressExperience(
             Triple(it, row.day, row.deviceId)
         }
     }
-    // Reuse the longitudinal Theil-Sen Fitness Age pace; never infer speed from one week.
-    val agePace by produceState(
-        initialValue = FitnessAgePaceEngine.calculate(emptyList()),
-        key1 = vm.activeStrapId, key2 = days,
+    val ageHistory by produceState<List<FitnessAgePaceEngine.Point>>(
+        initialValue = emptyList(), key1 = vm.activeStrapId, key2 = days,
     ) {
         value = runCatching {
-            FitnessAgePaceEngine.calculate(
-                vm.repo.metricSeriesComputedUnion(
-                    vm.activeStrapId, "fitness_age", "0000-01-01", "9999-12-31",
-                ).map { FitnessAgePaceEngine.Point(it.day, it.value) },
-            )
-        }.getOrDefault(FitnessAgePaceEngine.calculate(emptyList()))
+            vm.repo.metricSeriesComputedUnion(vm.activeStrapId, "fitness_age", "0000-01-01", "9999-12-31")
+                .filter { it.value.isFinite() }.sortedBy { it.day }
+                .map { FitnessAgePaceEngine.Point(it.day,it.value) }
+        }.getOrDefault(emptyList())
     }
+    val agePace = remember(ageHistory) { FitnessAgePaceEngine.calculate(ageHistory) }
     // Show exactly the metabolic factor associated with this stored weekly score.
     // The existing provenance gate filters out stale AI or unrelated lab samples.
     val metabolicFactor by produceState<Pair<Double, Boolean>?>(
@@ -1684,6 +1694,7 @@ fun AlkeProgressExperience(
             chronologicalAge = chronologicalAge,
             agePace = agePace,
             onClick = onFitnessAge,
+            history = ageHistory.takeLast(12).map { it.fitnessAge },
         )
         AlkeSectionTitle("Fitness Factors")
         val rhr = days.takeLast(7).mapNotNull { it.restingHr?.toDouble() }
@@ -1774,7 +1785,14 @@ fun AlkeProgressExperience(
         }
         // Detailed recovery bars are opt-in. Fitness Age and its four recorded
         // contributors remain the always-visible primary Progress experience.
-        AlkeExpandableSection("Recovery history", "7-day trend and full recorded trends") {
+        AlkePanel(Modifier.fillMaxWidth()) {
+            AlkeSectionTitle("Explore your progress")
+            PremiumLink("Trends Studio", "Trends · Explore · Compare", onTrends)
+            PremiumLink("Lab Book", "Metabolic markers and body measurements", onLabBook)
+            PremiumLink("Health monitor", "Recorded vital signs, sync and fitness details", onHealth)
+            PremiumLink("Vital signs", "Recorded measurements and history", onVitalSigns)
+        }
+        AlkeExpandableSection("Weekly Review", "Recovery history and long-term performance") {
             AlkeSectionTitle("Recovery trend", "Full trends", onTrends)
             AlkeMiniBars(days.takeLast(7).map { it.day.takeLast(5) to it.recovery }, A.cyan)
         }
@@ -1926,6 +1944,8 @@ fun AlkeHeartRateTimelineExperience(
     onBack: () -> Unit,
     onLive: () -> Unit,
     onWorkouts: () -> Unit,
+    embedded: Boolean = false,
+    onMetric: (String) -> Unit = {},
 ) {
     val todayMetric by vm.today.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
@@ -1937,6 +1957,7 @@ fun AlkeHeartRateTimelineExperience(
         else recentDays.lastOrNull { it.day == selectedDay.toString() }
 
     AlkePage {
+        if (!embedded) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -1952,6 +1973,8 @@ fun AlkeHeartRateTimelineExperience(
             "Heart Rate Timeline",
             "Your daily heart-rate story, with sleep and workouts in context.",
         )
+        }
+        if (daysBack == 0) AlkeHeartRatePreview(vm, onLive)
         AlkePanel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Filled.MonitorHeart, contentDescription = null, tint = A.cyan)
@@ -2005,9 +2028,15 @@ fun AlkeHeartRateTimelineExperience(
             dayCycleMode = AlkePrefs.dayCycleMode(context),
             alkeStyle = true,
         )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AlkeMetricTile("Resting HR", metric?.restingHr?.let { "$it bpm" } ?: "—", Icons.Filled.Favorite,
+                Modifier.weight(1f), A.gold, { onMetric("rhr") })
+            AlkeMetricTile("HRV", niceOne(metric?.avgHrv, " ms"), Icons.Filled.FavoriteBorder,
+                Modifier.weight(1f), A.cyan, { onMetric("hrv") })
+        }
         AlkeLinkRow(
-            "Live HR",
-            "Real-time BPM, HR zones and training controls",
+            "Live HR & HR Zones",
+            "Real-time BPM, HRV snapshot and signal quality",
             Icons.Filled.Favorite, onLive, A.cyan,
         )
         AlkeLinkRow(
@@ -2081,7 +2110,7 @@ fun AlkeAllModulesExperience(onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun AlkeMeExperience(
+internal fun AlkeMeExperience(
     vm: AppViewModel,
     onNotifications: () -> Unit,
     unreadCount: Int,
@@ -2091,6 +2120,7 @@ fun AlkeMeExperience(
     onBackupRestore: () -> Unit,
     onOpenTestCentre: () -> Unit,
     onOpenSelfHostedPush: () -> Unit,
+    onNavigate: (Destination) -> Unit = {},
 ) {
     val context = LocalContext.current
     var profileRevision by remember { mutableIntStateOf(0) }
@@ -2112,17 +2142,37 @@ fun AlkeMeExperience(
         showSettingsBody = personalSettingsExpanded,
         meHeader = {
             profileRevision
-            AlkeSectionTitle("Devices & Sources")
-            AlkeLinkRow("Devices", "Connect and manage wearable sensors", Icons.Filled.Sensors, onDevices)
-            AlkeLinkRow("Data Sources", "Imports, Health Connect and provenance", Icons.Filled.Storage, onSources)
-
-            AlkeSectionTitle("Data & Backup")
-            AlkeLinkRow("Google Drive / Local Folder", "Backup, restore and verified archived history", Icons.Filled.Storage,
-                onBackupRestore, A.blue)
-
-            AlkeSectionTitle("App")
-            AlkeLinkRow("Customize Dock", "Choose and reorder your quick navigation", Icons.Filled.Tune,
-                { showDockEditor = true }, A.cyan)
+            AlkePanel(Modifier.fillMaxWidth(), onClick = { onNavigate(Destination.Profile) }) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ProfileAvatar(size = 54.dp, contentDescription = "Profile photo")
+                    Column(Modifier.weight(1f)) {
+                        Text("Your Profile", color = A.white, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Personal details & Google account", color = A.muted, fontSize = 12.sp)
+                    }
+                    Icon(Icons.Filled.ChevronRight, "Open profile", tint = A.cyan)
+                }
+            }
+            AlkePanel(Modifier.fillMaxWidth()) {
+                AlkeSectionTitle("Connected Sources")
+                PremiumWearableLink(vm,onDevices)
+                PremiumLink("Health Connect & imports", "Manage external data and provenance", onSources, icon = Icons.Filled.MonitorHeart)
+                PremiumLink("Google Drive / Local Folder",
+                    if (BackupSyncPrefs.autoEnabled(context)) "Automatic backup enabled" else "Backup, restore and verified archive",
+                    onBackupRestore, icon = Icons.Filled.CloudSync)
+                PremiumLink("Fused Record", "Review source provenance", { onNavigate(Destination.FusedRecord) }, icon = Icons.Filled.Storage)
+                PremiumLink("Device capabilities", "Supported readings and limitations", { onNavigate(Destination.AlkeLimitations) }, icon = Icons.Filled.Sensors)
+            }
+            AlkePanel(Modifier.fillMaxWidth()) {
+                AlkeSectionTitle("Preferences")
+                PremiumLink("Customize Dock", "Choose and reorder your navigation", { showDockEditor = true }, icon = Icons.Filled.Apps)
+                var smartExpanded by rememberSaveable { mutableStateOf(false) }
+                PremiumLink("Smart Settings", if(smartExpanded) "Collapse" else "Automations · notifications · power saving", { smartExpanded = !smartExpanded }, icon = Icons.Filled.Settings)
+                if(smartExpanded) {
+                    PremiumLink("Automations", "Wearable actions and detection", { onNavigate(Destination.Automations) }, icon = Icons.Filled.AutoAwesome)
+                    PremiumLink("Power saving", "Manage battery and sync policy", { onNavigate(Destination.PowerSaving) }, icon = Icons.Filled.BatterySaver)
+                    PremiumLink("Notification preferences", "Alerts and reminders", { onNavigate(Destination.Notifications) }, icon = Icons.Filled.NotificationsNone)
+                }
+            }
             AlkeMeDisclosureHeader(
                 title = "More Tools",
                 subtitle = "All modules and notification controls",
@@ -2137,7 +2187,8 @@ fun AlkeMeExperience(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     AlkeLinkRow("All Modules", "Explore the complete ALKE toolkit", Icons.Filled.Apps, onModules, A.gold)
-                    AlkeLinkRow("Notifications", "Updates and notification preferences", Icons.Filled.NotificationsNone, onNotifications)
+                    AlkeLinkRow("Notifications", "Updates inbox", Icons.Filled.NotificationsNone, onNotifications)
+                    AlkeLinkRow("Advanced & Diagnostics", "Test Centre and ground truth", Icons.Filled.Tune, onOpenTestCentre)
                 }
             }
             AlkeMeDisclosureHeader(

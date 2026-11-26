@@ -21,7 +21,8 @@ import org.junit.Test
 class SleepSectionReorderTest {
 
     // MARKS, STAGES, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION
-    private val order = SleepSection.defaultOrder
+    // Explicit original fixture: test drag semantics independently of the premium default ordering.
+    private val order = listOf(SLEEP_MARKS, STAGES, BODY_CLOCK, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION, HOURS_VS_NEEDED, CONSISTENCY)
 
     @Test fun movingDownPlacesTheCardAtTheTargetsSlot() {
         assertEquals(

@@ -377,6 +377,9 @@ fun SleepScreen(
     var sleepSectionOrder by remember { mutableStateOf(SleepLayoutPrefs.order(context)) }
     var hiddenSections by remember { mutableStateOf(SleepLayoutPrefs.hidden(context)) }
     var showSleepArrange by remember { mutableStateOf(false) }
+    var showSleepBalance by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showNightPhysiology by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showSleepClock by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     // #sleep-layout (hold-to-drag): the hoisted list state (the drag math needs layoutInfo + scrollBy) and
     // the live drag state, mirroring Today (TodayScreen.kt §today-layout). The frame loop runs ONLY while a
     // card is lifted: each frame it retries the swap (so a card held still at a viewport edge keeps
@@ -692,6 +695,12 @@ fun SleepScreen(
     LazyScreenScaffold(
         title = uiString(R.string.l10n_sleep_screen_sleep_3cac34e6),
         subtitle = "Last night, read in two seconds.",
+        trailing = {
+            Row {
+                IconButton(onClick = onOpenAlarms) { Icon(Icons.Filled.Alarm, "Alarms", tint = Palette.restColor) }
+                IconButton(onClick = { showSleepArrange = true }) { Icon(Icons.Filled.Tune, "Customize Sleep", tint = Palette.accent) }
+            }
+        },
         listState = sleepListState,   // #sleep-layout: the hold-to-drag frame loop drives this list state
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the static time-of-day liquid sky
         // settles into the theme canvas behind the header + hero, bled full-width up behind the status bar
@@ -790,7 +799,6 @@ fun SleepScreen(
             item {
                 SleepEmptyState()
             }
-            item { SleepAlarmsEntry(onOpenAlarms) }
         } else {
             // REST HERO — a scenic indigo backdrop with the night's sleep-performance score as a
             // layered BevelGauge (Rest gradient), else a big rounded hours-slept headline. Mirrors the
@@ -808,30 +816,15 @@ fun SleepScreen(
                     asleepMin = model?.stages?.asleep,
                     source = restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
                     overline = nightLabel,
+                    efficiency = model?.selectedNightEfficiency,
+                    debtMin = model?.selectedNightDebtMin,
                 )
             }
-            // v617: post-wake Sleep Breathing Quality card. A tap opens the detailed explanation.
-            item(key = "sleep-hypopnea-risk") {
+            // If the user hides architecture, the post-wake assessment still has a visible home.
+            if (SleepSection.STAGES in hiddenSections) item(key = "sleep-hypopnea-risk") {
                 SleepHypopneaCard(hypopneaAssessment, onOpen = { showHypopneaDetail = true })
             }
-            item { SleepAlarmsEntry(onOpenAlarms) }
-            // #sleep-layout: a compact "Arrange" affordance (the same Tune entry Today uses) opens the
-            // reorder / show-hide sheet. Pinned just above the arrangeable cards.
-            item {
-                Row(Modifier.fillMaxWidth().padding(top = Metrics.selectorTopUp)) {
-                    Spacer(Modifier.weight(1f))
-                    TextButton(
-                        onClick = { showSleepArrange = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = Palette.textTertiary),
-                    ) {
-                        Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.sleep_customize_title), modifier = Modifier.size(Metrics.iconSmall))
-                        Spacer(Modifier.width(Metrics.space4))
-                        // Concise verb on the affordance (the full "Customize Sleep" title is the icon's a11y
-                        // label + the sheet header); reuses Today's generic "Customize" action string.
-                        Text(stringResource(R.string.today_customize_action), style = AlkeType.footnote)
-                    }
-                }
-            }
+            // Arrange and Alarms live in the header.
             // Analytical cards render in the user's saved order (SleepLayoutPrefs), minus the hidden set.
             // Reordered via the Arrange sheet OR by long-press hold-to-drag on the card (#sleep-layout,
             // mirrors Today); each card's data guards (tilesModel/model) are preserved. Each section is ONE
@@ -839,7 +832,25 @@ fun SleepScreen(
             // #sleep-layout: persist the live hold-to-drag reorder when the gesture drops (the in-memory
             // `sleepSectionOrder` already moved live in the frame loop; this writes it through).
             val persistSleepOrder = { SleepLayoutPrefs.setOrder(context, sleepSectionOrder) }
-            sleepSectionOrder.filterNot { it in hiddenSections }.forEach { section ->
+            val balanceSections = setOf(SleepSection.SLEEP_DEBT, SleepSection.ASLEEP_DURATION,
+                SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY)
+            val visibleSections = sleepSectionOrder.filterNot { it in hiddenSections }
+            val firstBalance = visibleSections.firstOrNull { it in balanceSections }
+            visibleSections.forEach { section ->
+              if (section == firstBalance && tilesModel != null) {
+                  item(key = "sleep-balance-disclosure") {
+                      AlkePanel(Modifier.fillMaxWidth(), onClick = { showSleepBalance = !showSleepBalance }) {
+                          Row(verticalAlignment = Alignment.CenterVertically) {
+                              Column(Modifier.weight(1f)) {
+                                  Text("Sleep Balance", style = AlkeType.headline, color = Palette.textPrimary)
+                                  Text("Sleep needed · debt · duration · consistency", style = AlkeType.caption, color = Palette.textSecondary)
+                              }
+                              Icon(Icons.Filled.ChevronRight, if (showSleepBalance) "Collapse Sleep Balance" else "Expand Sleep Balance", tint = Palette.accent)
+                          }
+                      }
+                  }
+              }
+              if (section in balanceSections && !showSleepBalance) return@forEach
               val k = SLEEP_SECTION_KEY_PREFIX + section.raw
               when (section) {
                 SleepSection.SLEEP_MARKS -> item(key = k) {
@@ -884,6 +895,7 @@ fun SleepScreen(
                             emptyList()
                         }
                     }
+                    Text("Sleep Architecture",style=AlkeType.headline,color=Palette.textPrimary)
                     Hero(
                 display = display,
                 activeIsOura = activeIsOura,
@@ -1014,7 +1026,8 @@ fun SleepScreen(
                             SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                                 Column {
                                     Spacer(Modifier.height(Metrics.selectorTopUp))
-                                    BodyClockDialCard(
+                                    PremiumLink("Body Clock", if(showSleepClock) "Collapse" else "Circadian rhythm and sleep timing", { showSleepClock = !showSleepClock })
+                                    if(showSleepClock) BodyClockDialCard(
                                         estimate = phase,
                                         actualBedHour = localClockHour(session.effectiveStartTs),
                                         actualWakeHour = localClockHour(session.endTs),
@@ -1029,7 +1042,8 @@ fun SleepScreen(
                         SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                             Column {
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
-                                NightDetailHostCard(m, onMetricClick = { detailMetricKey = it })
+                                PremiumLink("Night Physiology", if(showNightPhysiology) "Collapse" else "Recorded night metrics and respiratory rate", { showNightPhysiology = !showNightPhysiology })
+                                if(showNightPhysiology) NightDetailHostCard(m, onMetricClick = { detailMetricKey = it })
                             }
                         }
                     }
@@ -1090,6 +1104,9 @@ fun SleepScreen(
                         }
                     }
                 }
+              }
+              if (section == SleepSection.STAGES) item(key = "sleep-hypopnea-risk") {
+                  SleepHypopneaCard(hypopneaAssessment, onOpen = { showHypopneaDetail = true })
               }
             }
         }
@@ -1330,7 +1347,8 @@ private val LIQUID_HERO_RADIUS: Dp = 18.dp
 // figures, fraction math and Rest tint are UNCHANGED from the BevelGauge this replaced — presentation-only.
 
 @Composable
-private fun RestHero(score: Double?, asleepMin: Double?, source: String, overline: String) {
+private fun RestHero(score: Double?, asleepMin: Double?, source: String, overline: String,
+    efficiency: Double? = null, debtMin: Double? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader("Sleep performance", overline = overline, trailing = "Rest")
         Box(
@@ -1370,16 +1388,20 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
                         verticalArrangement = Arrangement.spacedBy(Metrics.space4),
                         modifier = Modifier.padding(vertical = Metrics.space16),
                     ) {
-                        CountUpText(
-                            value = asleepMin ?: 0.0,
-                            format = { durationText(it) },
-                            style = AlkeType.number(46f),
-                            color = Palette.restBright,
-                        )
+                        if (asleepMin != null && asleepMin.isFinite() && asleepMin > 0) {
+                            CountUpText(value = asleepMin, format = { durationText(it) },
+                                style = AlkeType.number(46f), color = Palette.restBright)
+                        } else Text("—",style=AlkeType.number(46f),color=Palette.restBright)
                         Text(uiString(R.string.l10n_sleep_screen_asleep_last_night_b969b068), style = AlkeType.subhead, color = Palette.textSecondary)
                     }
                 }
                 SourceBadge(text = source, tint = Palette.restColor)
+                Row(Modifier.fillMaxWidth().background(PremiumSurface.canvas,RoundedCornerShape(12.dp)).padding(10.dp),
+                    horizontalArrangement=Arrangement.SpaceBetween) {
+                    PremiumReadout("Asleep",asleepMin?.takeIf { it.isFinite() && it > 0 }?.let { durationText(it) } ?: "—",Modifier.weight(1f))
+                    PremiumReadout("Efficiency",efficiency?.takeIf { it.isFinite() }?.let { String.format(java.util.Locale.US,"%.0f%%",it) } ?: "—",Modifier.weight(1f))
+                    PremiumReadout("Sleep debt",debtMin?.takeIf { it.isFinite() && it >= 0 }?.let { durationText(it) } ?: "—",Modifier.weight(1f))
+                }
             }
         }
     }

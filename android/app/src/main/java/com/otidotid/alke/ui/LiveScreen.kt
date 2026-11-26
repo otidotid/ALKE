@@ -94,7 +94,7 @@ import com.otidotid.alke.ble.WhoopModel
 private val LIVE_HERO_RADIUS: Dp = 26.dp
 
 @Composable
-fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
+fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}, embedded: Boolean = false) {
     val live by viewModel.live.collectAsStateWithLifecycle()
     // #628: the Oura ring's live wear/charge state (null for WHOOP / before evidence). Preferred by the
     // "Worn" stat below, so removing the ring or putting it on the charger flips it instead of lingering.
@@ -169,10 +169,11 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
     // already in flight by consuming the ViewModel's one-shot on appear (iOS parity:
     // LiveView.consumeActiveWorkoutRequest). Closing just hides it; the workout keeps recording.
     var showLiveWorkout by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
+    val workoutPresentationRequested by viewModel.presentActiveWorkout.collectAsStateWithLifecycle()
+    LaunchedEffect(workoutPresentationRequested) {
         // consumeActiveWorkoutRequest() returns true exactly once per raise, and only while a workout is
         // active, so a stale flag can never open an empty overlay.
-        if (viewModel.consumeActiveWorkoutRequest()) showLiveWorkout = true
+        if (workoutPresentationRequested && viewModel.consumeActiveWorkoutRequest()) showLiveWorkout = true
     }
 
     // GPS workout sport picker — the shared sheet (also used on the Workouts screen, #115). Rendered at
@@ -217,8 +218,8 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
     }
 
     LazyScreenScaffold(
-        title = uiString(R.string.l10n_live_screen_live_body_console_54838e06),
-        subtitle = "Current physiology, strap trust, and session controls",
+        title = if(embedded) null else uiString(R.string.l10n_live_screen_live_body_console_54838e06),
+        subtitle = if(embedded) null else "Current physiology, strap trust, and session controls",
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky settles
         // behind the header + hero and the cards float over the flat canvas below. Reuses the shared
         // LiquidScreenSky() slot verbatim; when the day-cycle background is off, the scaffold paints the

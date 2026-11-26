@@ -31,7 +31,9 @@ class MeSettingsConsolidationTest {
         assertTrue(segment.contains("showSettingsBody = personalSettingsExpanded"))
         assertFalse(segment.contains("AlkeLinkRow(\"My profile\""))
         assertFalse(segment.contains("AlkeLinkRow(\"Settings\""))
-        assertTrue(segment.contains("AlkeLinkRow(\"Customize Dock\""))
+        assertTrue(segment.contains("PremiumLink(\"Customize Dock\""))
+        assertTrue(segment.contains("{ showDockEditor = true }"))
+        assertTrue(segment.contains("AlkeDockEditorDialog(onDismiss = { showDockEditor = false })"))
     }
 
     @Test fun settingsScreenPreservesControlsInsideOneScrollColumn() {

@@ -40,9 +40,15 @@ class SleepLayoutPrefsTest {
         assertEquals(SleepSection.entries.size, decoded.size)
         assertEquals(
             listOf(
-                SleepSection.STAGES, SleepSection.BODY_CLOCK, SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_DEBT,
-                SleepSection.STAGES_VS_TYPICAL, SleepSection.ASLEEP_DURATION, SleepSection.SLEEP_MARKS,
-                SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY,
+                SleepSection.STAGES,
+                SleepSection.NIGHT_DETAIL,
+                SleepSection.SLEEP_DEBT,
+                SleepSection.ASLEEP_DURATION,
+                SleepSection.HOURS_VS_NEEDED,
+                SleepSection.CONSISTENCY,
+                SleepSection.BODY_CLOCK,
+                SleepSection.STAGES_VS_TYPICAL,
+                SleepSection.SLEEP_MARKS,
             ),
             decoded,
         )
@@ -76,8 +82,13 @@ class SleepLayoutPrefsTest {
         val order = "nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,stagesVsTypical"
         assertEquals(
             listOf(
-                SleepSection.BODY_CLOCK, SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_MARKS, SleepSection.STAGES,
-                SleepSection.STAGES_VS_TYPICAL, SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY,
+                SleepSection.NIGHT_DETAIL,
+                SleepSection.HOURS_VS_NEEDED,
+                SleepSection.CONSISTENCY,
+                SleepSection.BODY_CLOCK,
+                SleepSection.SLEEP_MARKS,
+                SleepSection.STAGES,
+                SleepSection.STAGES_VS_TYPICAL,
             ),
             SleepLayoutPrefs.visibleOrder(order, "asleepDuration,sleepDebt"),
         )
@@ -95,6 +106,7 @@ class SleepLayoutPrefsTest {
      *  missing from the default order could otherwise be dropped or mis-sorted. Twin of the Swift test. */
     @Test
     fun defaultOrderCoversEveryEntry() {
+        assertEquals(listOf(SleepSection.STAGES, SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_DEBT, SleepSection.ASLEEP_DURATION, SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY, SleepSection.BODY_CLOCK, SleepSection.STAGES_VS_TYPICAL, SleepSection.SLEEP_MARKS), SleepSection.defaultOrder)
         assertEquals(SleepSection.entries.toSet(), SleepSection.defaultOrder.toSet())
         assertEquals(SleepSection.entries.size, SleepSection.defaultOrder.size)
     }

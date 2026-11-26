@@ -274,6 +274,7 @@ internal fun alkeModuleAlias(destination: Destination): String? = when (destinat
     Destination.Trends -> "Progress"
     Destination.Intelligence -> "Insight"
     Destination.Live -> "Live HR"
+    Destination.Breathe, Destination.Stress -> "Stress & Breathe"
     Destination.Health -> "Fitness Age"
     Destination.More -> "Me"
     else -> null
@@ -402,12 +403,19 @@ internal fun visibleMoreGroups(pinned: List<Destination>): List<DrawerGroup> {
  * Backup & Restore. Keep old route IDs for history, not as duplicate modules.
  */
 internal fun alkeAllModulesGroups(pinned: List<Destination>): List<DrawerGroup> {
+    // Discovery hides secondary routes now reachable inside their canonical parent.
+    // Existing saved dock pins and old deep links remain valid.
     val meShortcuts = setOf(
         Destination.Settings, Destination.Devices,
-        Destination.DataSources, Destination.BackupSync,
+        Destination.DataSources, Destination.BackupSync, Destination.FusedRecord,
+        Destination.AlkeLimitations, Destination.Notifications, Destination.Automations,
+        Destination.TestCentre, Destination.PowerSaving, Destination.SmartAlarm,
+        Destination.Explore, Destination.Compare, Destination.Health, Destination.LabBook,
+        Destination.VitalSigns, Destination.Rhythm, Destination.Intervals, Destination.Hydration,
     )
     return visibleMoreGroups(pinned).map { group ->
-        group.copy(items = group.items.filterNot { it in meShortcuts })
+        group.copy(items = group.items.filterNot { it in meShortcuts }
+            .map { if (it == Destination.Breathe) Destination.Stress else it })
     }.filter { it.items.isNotEmpty() }
 }
 
@@ -821,7 +829,7 @@ fun AppRoot(
                         onDevices = { nav.navigate(Destination.Devices.route) },
                         onProfile = { nav.navigate(Destination.Profile.route) },
                         unreadCount = updateStore.unreadCount,
-                        onSleep = { nav.navigate(Destination.AlkeRecovery.route) },
+                        onSleep = { nav.navigate(Destination.Sleep.route) },
                         onHealth = { nav.navigate(Destination.Health.route) },
                         onTrain = { nav.navigateTopLevel(Destination.Workouts.route) },
                         onProgress = { nav.navigateTopLevel(Destination.Trends.route) },
@@ -836,12 +844,13 @@ fun AppRoot(
                     )
                 }
                 composable(Destination.AlkeHeartRateTimeline.route) {
-                    AlkeHeartRateTimelineExperience(
-                        vm = viewModel,
+                    PremiumHeartRateCenter(viewModel, initialMode = "Timeline",
                         onBack = { nav.popBackStack() },
-                        onLive = { nav.navigate(Destination.Live.route) },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
                         onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) },
-                    )
+                        onMetric = { nav.navigate("vital_detail/$it") },
+                        timelineRequestId = if(widgetEntryRequest.first == Destination.AlkeHeartRateTimeline.route)
+                            widgetEntryRequest.second else 0L)
                 }
                 composable(Destination.AlkeDetailedToday.route) {
                     TodayScreen(
@@ -861,7 +870,7 @@ fun AppRoot(
                         onOpenHydration = { nav.navigate(Destination.Hydration.route) },
                         // #706/#684: the dashboard cards draw a tappable chevron; wire each to its detail,
                         // matching iOS. Stress + the vitals are pushes; Sleep is a top-level tab switch.
-                        onOpenStress = { nav.navigate(Destination.Breathe.route) },
+                        onOpenStress = { nav.navigate(Destination.Stress.route) },
                         onOpenHealth = { nav.navigate(Destination.Health.route) },
                         // Every metric/vital card opens its OWN focused detail trend (vital_detail/<key>),
                         // not the shared Health hub (2026-07-03). Mirrors the iOS liquidCard metricDetail.
@@ -889,20 +898,18 @@ fun AppRoot(
                     )
                 }
                 composable(Destination.Live.route) {
-                    LiveScreen(
-                        viewModel = viewModel,
-                        onManageDevices = { nav.navigateTopLevel(Destination.Devices.route) },
-                    )
-                }
-                composable(Destination.AlkeRecovery.route) {
-                    AlkeRecoveryExperience(
-                        vm = viewModel,
-                        onNotifications = { showUpdatesInbox = true },
+                    PremiumHeartRateCenter(viewModel, initialMode = "Live HR",
+                        onBack = { nav.popBackStack() },
                         onDevices = { nav.navigate(Destination.Devices.route) },
-                        onProfile = { nav.navigate(Destination.Profile.route) },
-                        unreadCount = updateStore.unreadCount,
-                        onFullSleep = { nav.navigate(Destination.Sleep.route) },
-                        onHealth = { nav.navigate(Destination.Health.route) },
+                        onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) },
+                        onMetric = { nav.navigate("vital_detail/$it") })
+                }
+                // Legacy deep links now open the same canonical Sleep experience.
+                composable(Destination.AlkeRecovery.route) {
+                    SleepScreen(
+                        vm = viewModel,
+                        onOpenJournal = { nav.navigateTopLevel(Destination.Intelligence.route) },
+                        onOpenAlarms = { nav.navigate(Destination.SmartAlarm.route) },
                     )
                 }
                 composable(Destination.Sleep.route) {
@@ -921,10 +928,7 @@ fun AppRoot(
                 }
                 composable(Destination.Intervals.route) { IntervalsScreen(viewModel) }
                 composable(Destination.Breathe.route) {
-                    BreatheScreen(
-                        viewModel = viewModel,
-                        onOpenStress = { nav.navigate(Destination.Stress.route) },
-                    )
+                    PremiumStressBreathe(viewModel, initialMode = "Breathe")
                 }
                 composable(Destination.Coach.route) {
                     // A normal push, so Back returns to the conversation (#2243).
@@ -943,7 +947,7 @@ fun AppRoot(
                     val coachEntry = remember(it) { nav.getBackStackEntry(Destination.Coach.route) }
                     CoachSettingsScreen(vm = viewModel(coachEntry))
                 }
-                composable(Destination.Explore.route) { TrendsExploreScreen(viewModel) }
+                composable(Destination.Explore.route) { PremiumTrendsStudio(viewModel, "Explore") }
                 composable(Destination.Automations.route) { AutomationsScreen(viewModel) }
                 composable(Destination.SmartAlarm.route) { SmartAlarmScreen(viewModel) }
                 composable(Destination.Workouts.route) {
@@ -953,19 +957,17 @@ fun AppRoot(
                         onDevices = { nav.navigate(Destination.Devices.route) },
                         onProfile = { nav.navigate(Destination.Profile.route) },
                         unreadCount = updateStore.unreadCount,
+                        onIntervals = { nav.navigate(Destination.Intervals.route) },
                     )
                 }
                 // One canonical Insight experience. Earlier two Insights routes
                 // below remain compatibility aliases, not separate modules.
-                composable(Destination.Intelligence.route) { InsightsScreen(viewModel) }
+                composable(Destination.Intelligence.route) { InsightsScreen(viewModel, onHydration = { nav.navigate(Destination.Hydration.route) }, onCoach = { nav.navigate(Destination.Coach.route) }) }
                 composable(Destination.AlkeIntelligenceDetails.route) { IntelligenceScreen(viewModel) }
 
                 // --- Placeholder routes (later waves fill these in) ---
                 composable(Destination.Stress.route) {
-                    StressScreen(
-                        vm = viewModel,
-                        onBreathe = { nav.navigateTopLevel(Destination.Breathe.route) },
-                    )
+                    PremiumStressBreathe(viewModel, initialMode = "Stress")
                 }
                 composable(Destination.Trends.route) {
                     AlkeProgressExperience(
@@ -981,11 +983,13 @@ fun AppRoot(
                         onTrain = { nav.navigateTopLevel(Destination.Workouts.route) },
                         onTrends = { nav.navigate(Destination.AlkeTrendHistory.route) },
                         onSteps = { nav.navigate("vital_detail/steps_est") },
+                        onLabBook = { nav.navigate(Destination.LabBook.route) },
+                        onVitalSigns = { nav.navigate(Destination.VitalSigns.route) },
                     )
                 }
-                composable(Destination.AlkeTrendHistory.route) { TrendsScreen(viewModel) }
-                composable(Destination.Insights.route) { InsightsScreen(viewModel) }
-                composable(Destination.Compare.route) { CompareScreen(viewModel) }
+                composable(Destination.AlkeTrendHistory.route) { PremiumTrendsStudio(viewModel, "Trends") }
+                composable(Destination.Insights.route) { InsightsScreen(viewModel, onHydration = { nav.navigate(Destination.Hydration.route) }, onCoach = { nav.navigate(Destination.Coach.route) }) }
+                composable(Destination.Compare.route) { PremiumTrendsStudio(viewModel, "Compare") }
                 composable(Destination.Health.route) {
                     HealthScreen(
                         vm = viewModel,
@@ -993,6 +997,7 @@ fun AppRoot(
                         onOpenLabBook = { nav.navigateTopLevel(Destination.LabBook.route) },
                         onOpenFusedRecord = { nav.navigateTopLevel(Destination.FusedRecord.route) },
                         onOpenSettings = { nav.navigateTopLevel(Destination.Profile.route) },
+                        onOpenInsight = { nav.navigate(Destination.Intelligence.route) },
                     )
                 }
                 composable(Destination.Hydration.route) { HydrationScreen(viewModel) }
@@ -1009,10 +1014,14 @@ fun AppRoot(
                     )
                 }
                 // --- v5 pillar screens (Wave 3 wiring) ---
-                composable(Destination.InsightsHub.route) { InsightsScreen(viewModel) }
+                composable(Destination.InsightsHub.route) { InsightsScreen(viewModel, onHydration = { nav.navigate(Destination.Hydration.route) }, onCoach = { nav.navigate(Destination.Coach.route) }) }
                 composable(Destination.LabBook.route) { LabBookScreen(viewModel) }
                 composable(Destination.Rhythm.route) {
-                    RhythmRoute(viewModel)
+                    PremiumHeartRateCenter(viewModel, initialMode = "Rhythm",
+                        onBack = { nav.popBackStack() },
+                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) },
+                        onMetric = { nav.navigate("vital_detail/$it") })
                 }
                 composable(Destination.FusedRecord.route) { FusedRecordRoute(viewModel) }
                 composable(Destination.Devices.route) {
@@ -1062,6 +1071,7 @@ fun AppRoot(
                         onBackupRestore = { nav.navigate(Destination.BackupSync.route) },
                         onOpenTestCentre = { nav.navigate(Destination.TestCentre.route) },
                         onOpenSelfHostedPush = { nav.navigate(Destination.SelfHostedPush.route) },
+                        onNavigate = { nav.navigate(it.route) },
                     )
                 }
                 composable(Destination.AlkeAllModules.route) {

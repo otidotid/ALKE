@@ -218,7 +218,7 @@ private fun breatheModeLabel(mode: BreatheMode): String = when (mode) {
  * rolling RMSSD show the autonomic response building. Ports BreathingView.swift.
  */
 @Composable
-fun BreatheScreen(viewModel: AppViewModel, onOpenStress: () -> Unit = {}) {
+fun BreatheScreen(viewModel: AppViewModel, onOpenStress: () -> Unit = {}, embedded: Boolean = false) {
     val live by viewModel.live.collectAsStateWithLifecycle()
     val bpm by viewModel.bpm.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -465,8 +465,8 @@ fun BreatheScreen(viewModel: AppViewModel, onOpenStress: () -> Unit = {}) {
     val showDayCycleBackground = remember { AlkePrefs.showDayCycleBackground(skyCtx) }
     val skyBehindCards = remember { AlkePrefs.skyBehindCards(skyCtx) }
     ScreenScaffold(
-        title = uiString(R.string.l10n_breathe_screen_breathe_282be568),
-        subtitle = "Haptic-paced breathing · find your pace · calm down",
+        title = if(embedded) null else uiString(R.string.l10n_breathe_screen_breathe_282be568),
+        subtitle = if(embedded) null else "Haptic-paced breathing · find your pace · calm down",
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky settles
         // into the theme canvas behind the header + top card and bleeds full-width up behind the status bar
         // via the scaffold's topBackground plumbing. The Android equivalent of the iOS

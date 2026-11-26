@@ -242,10 +242,10 @@ private fun statOf(values: List<Double>): Stat {
 // MARK: - Screen
 
 @Composable
-fun TrendsExploreScreen(vm: AppViewModel) {
+fun TrendsExploreScreen(vm: AppViewModel, embedded: Boolean = false) {
     // The Deep Timeline (#575) is presented INLINE from Explore , no NavHost route needed, so this stays
     // self-contained in the Explore entry-point file. System back / the in-screen reset returns here.
-    var showDeepTimeline by remember { mutableStateOf(false) }
+    var showDeepTimeline by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     if (showDeepTimeline) {
         FullDayChartScreen(vm = vm, onBack = { showDeepTimeline = false })
         return
@@ -327,8 +327,8 @@ fun TrendsExploreScreen(vm: AppViewModel) {
     // follow the toggle through every read-out (hero, footer stats, Y-axis). Display-only.
     val effortScale = UnitPrefs.effortScale(LocalContext.current)
 
-    var selectedKey by remember { mutableStateOf(builtInMetrics.first().key) }
-    var range by remember { mutableStateOf(ExploreRange.Month) }
+    var selectedKey by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(builtInMetrics.first().key) }
+    var range by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(ExploreRange.Month) }
     val selected = (metrics.firstOrNull { it.key == selectedKey } ?: metrics.first())
         .copy(effortScale = effortScale)
 
@@ -392,7 +392,7 @@ fun TrendsExploreScreen(vm: AppViewModel) {
     // are accessibility-walked on scroll. Each top-level child is one `item { }` in the same order; the
     // conditional empty-state note uses `if (cond) { item {} }` so it adds no row when hidden. No standalone
     // Spacers here , the LazyColumn's `spacedBy(20.dp)` reproduces the eager column's row spacing exactly.
-    LazyScreenScaffold(title = stringResource(R.string.nav_explore), subtitle = stringResource(R.string.explore_subtitle)) {
+    LazyScreenScaffold(title = if(embedded) null else stringResource(R.string.nav_explore), subtitle = if(embedded) null else stringResource(R.string.explore_subtitle)) {
 
         // The headline tap-through (#575): a full-day, full-resolution, zoomable timeline. Sits above the
         // per-metric catalog because it's a different kind of view , every second of one day, not one

@@ -123,12 +123,15 @@ class SleepStagerHrOnlySessionsTest {
         // call. The first version measured PROXIMITY — 1200 chars back — and broke the moment a couple
         // of diagnostic lines were inserted between the gate and the call, even though the gate still
         // held. Containment is the actual invariant; distance never was.
-        val from = src.indexOf("val providedSleep: List<DetectedSleep> =")
-        assertTrue("IntelligenceEngine must build providedSleep", from > 0)
-        val to = src.indexOf("val tScore0", from)
-        assertTrue("expected the scoring call to follow providedSleep", to > from)
+        val from = src.indexOf("private suspend fun resolvePriorSleep(")
+        assertTrue("IntelligenceEngine must build legacy prior sleep in the guarded helper", from > 0)
+        val to = src.indexOf("private suspend fun resolveProvidedSleep(", from)
+        assertTrue("expected the cloud-only resolver to follow the legacy helper", to > from)
         val expr = src.substring(from, to)
-        assertTrue("the fallback must sit inside the absent-gravity gate", expr.contains("grav.size < 2"))
+        assertTrue("the fallback must sit inside the absent-gravity gate", expr.contains("return if (!cloudOnly && grav.size < 2)"))
+        assertTrue("the pass must use the guarded helper", src.contains("val priorSleep = resolvePriorSleep(repo, owner, importedDeviceId, from, to, day, cloudOnly, grav, hr, rr, resp, ::dayDiag)"))
+        assertTrue("the resolved sleep must pass through cloud ownership filtering",
+            src.contains("return priorSleep.filter { cloudDay?.owns(it.start) != true } + stagedCloud"))
         assertTrue("IntelligenceEngine must call the HR-only fallback",
             expr.contains("SleepStager.hrOnlySessions("))
         assertTrue("and must only run when the device supplied no hypnogram of its own",

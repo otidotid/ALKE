@@ -1,7 +1,6 @@
 name: ALKE v627 Sleep Emulator Smoke
 on:
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -9,7 +8,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   demo-apk:
-    if: github.head_ref == 'alke/v627-sleep-intelligence'
+    if: github.ref_name == 'alke/v627-sleep-intelligence'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     steps:

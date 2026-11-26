@@ -24,7 +24,8 @@ class PremiumV625DesignLockTest {
     }
     @Test fun approvedV624SurfacesRemainByteIdentical() {
         val expected=mapOf("WorkoutsScreen.kt" to "60e0b648ca8a93b774eb934e020a32dfca8bc650",
-            "TodayScreen.kt" to "2f7e63fb596c3626eeede389732bba6e59769f2f",
+            // v627 owner-approved daily Rest resolver and Charge contributor data wiring only.
+            "TodayScreen.kt" to "23fa0a65baaec61083b81e0f6a03f0888fb80140",
             "HrEventVisuals.kt" to "d0ded42f01dddf9ad342384e7a6b25f908d8ad26")
         expected.forEach { (name,sha) ->
             assertEquals(name,sha,gitBlob(File(root(),"android/app/src/main/java/com/otidotid/alke/ui/$name")))

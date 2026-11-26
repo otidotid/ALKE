@@ -61,12 +61,16 @@ class HrOnlyPhysiologyIsolationTest {
         // to be deliberate rather than accidental.
         assertTrue(
             "physiologySessions must PREFER motion-backed sessions and fall back rather than emptying",
-            src.contains("val physiologySessions = matched.filter { !it.hrOnly }.ifEmpty { matched }"),
+            src.contains("val physiologySessions = physiologyCandidates.filter { !it.hrOnly }.ifEmpty { physiologyCandidates }"),
         )
         // The preference still has to exist: an aggregate that simply read `matched` would fold an
         // HR-only night in even when a motion-backed one was available on the same day.
         assertTrue("the hrOnly filter must survive the fallback",
-            src.contains("matched.filter { !it.hrOnly }"))
+            src.contains("physiologyCandidates.filter { !it.hrOnly }"))
+        // v627: only main sleep may feed physiology when classified cloud episodes exist.
+        // Legacy days must keep the original candidate set, including its HR-only fallback.
+        assertTrue("cloud supplemental sleep must not feed main-night physiology",
+            src.contains("val physiologyCandidates = if (matched.any { it.cloudEpisodeType != null }) mainGroup else matched"))
     }
 
     /**

@@ -598,45 +598,45 @@ object IntelligenceEngine {
         hr: List<com.otidotid.alke.data.HrSample>, rr: List<com.otidotid.alke.data.RrInterval>,
         resp: List<com.otidotid.alke.data.RespSample>, dayDiag: (String) -> Unit,
     ): List<DetectedSleep> {
-    return if (!cloudOnly && grav.size < 2) {
-        val stored = repo.sleepSessionsForDevice(owner, from, to, 4000)
-            .mapNotNull { AnalyticsEngine.sleepSessionFromProvided(it) }
-        when {
-            owner != importedDeviceId && stored.isNotEmpty() -> {
-                dayDiag(SleepStagerTrace.hrOnlyGateLine(
-                    day = day, attempted = false, reason = "stored-hypnogram",
-                    gravRows = grav.size, storedNights = stored.size,
-                ))
-                stored
+        return if (!cloudOnly && grav.size < 2) {
+            val stored = repo.sleepSessionsForDevice(owner, from, to, 4000)
+                .mapNotNull { AnalyticsEngine.sleepSessionFromProvided(it) }
+            when {
+                owner != importedDeviceId && stored.isNotEmpty() -> {
+                    dayDiag(SleepStagerTrace.hrOnlyGateLine(
+                        day = day, attempted = false, reason = "stored-hypnogram",
+                        gravRows = grav.size, storedNights = stored.size,
+                    ))
+                    stored
+                }
+                stored.isNotEmpty() -> {
+                    // The import namespace keeps #804's exclusion — its rows are not handed to
+                    // analyzeDay as "provided" — but they still mean this night is already known,
+                    // so the heart-rate fallback stays out of it.
+                    dayDiag(SleepStagerTrace.hrOnlyGateLine(
+                        day = day, attempted = false, reason = "stored-sessions-exist",
+                        gravRows = grav.size, storedNights = stored.size,
+                    ))
+                    emptyList()
+                }
+                else -> {
+                    // Reachable for ANY owner now, which widens this past the 5/MG it was built for:
+                    // a WHOOP 4.0 day that banked nothing at all (`grav.size < 2`, no stored night)
+                    // also lands here, where the owner check previously blocked it. A normal 4.0 day
+                    // is untouched — it streams gravity, so it never reaches this gate — and a day
+                    // with no motion has too little of anything to clear `minSleepMin`, but "too
+                    // little" is not "none", so the night it could produce is marked
+                    // [DetectedSleep.hrOnly] like every other.
+                    dayDiag(SleepStagerTrace.hrOnlyGateLine(
+                        day = day, attempted = true, reason = "no-motion-no-hypnogram",
+                        gravRows = grav.size, storedNights = 0,
+                    ))
+                    SleepStager.hrOnlySessions(day, hr, rr, resp, traceSink = dayDiag)
+                }
             }
-            stored.isNotEmpty() -> {
-                // The import namespace keeps #804's exclusion — its rows are not handed to
-                // analyzeDay as "provided" — but they still mean this night is already known,
-                // so the heart-rate fallback stays out of it.
-                dayDiag(SleepStagerTrace.hrOnlyGateLine(
-                    day = day, attempted = false, reason = "stored-sessions-exist",
-                    gravRows = grav.size, storedNights = stored.size,
-                ))
-                emptyList()
-            }
-            else -> {
-                // Reachable for ANY owner now, which widens this past the 5/MG it was built for:
-                // a WHOOP 4.0 day that banked nothing at all (`grav.size < 2`, no stored night)
-                // also lands here, where the owner check previously blocked it. A normal 4.0 day
-                // is untouched — it streams gravity, so it never reaches this gate — and a day
-                // with no motion has too little of anything to clear `minSleepMin`, but "too
-                // little" is not "none", so the night it could produce is marked
-                // [DetectedSleep.hrOnly] like every other.
-                dayDiag(SleepStagerTrace.hrOnlyGateLine(
-                    day = day, attempted = true, reason = "no-motion-no-hypnogram",
-                    gravRows = grav.size, storedNights = 0,
-                ))
-                SleepStager.hrOnlySessions(day, hr, rr, resp, traceSink = dayDiag)
-            }
+        } else {
+            emptyList()
         }
-    } else {
-        emptyList()
-    }
     }
 
     /** Stage cloud-owned episode bounds using the existing on-device stage computation. */
@@ -648,19 +648,19 @@ object IntelligenceEngine {
         resp: List<com.otidotid.alke.data.RespSample>, steps: List<com.otidotid.alke.data.StepSample>,
         useExperimentalSleepV2: Boolean, useMotionAwareWake: Boolean,
     ): List<DetectedSleep> {
-    val cloudEpisodes = cloudDay?.episodes.orEmpty().filter { it.start >= from && it.end <= to &&
-        AnalyticsEngine.dayString(it.end, tzOffsetSeconds) == day }
-    val blocked = if (cloudEpisodes.isEmpty()) emptyList() else
-        repo.cloudSleep?.exclusions(owner, from, to).orEmpty()
-    val stagedCloud = cloudEpisodes.filter { episode ->
-        blocked.none { (a,b) -> a < episode.end && episode.start < b }
-    }.mapNotNull { episode ->
-        val json = SleepStageHealer.restageFromSamples(episode.start, episode.end, grav, hr, rr, resp,
-            useExperimentalSleepV2, steps, useMotionAwareWake) ?: return@mapNotNull null
-        AnalyticsEngine.sleepSessionFromProvided(SleepSession(owner, episode.start, episode.end, stagesJSON = json))
-            ?.copy(cloudEpisodeType = episode.type)
-    }
-    return priorSleep.filter { cloudDay?.owns(it.start) != true } + stagedCloud
+        val cloudEpisodes = cloudDay?.episodes.orEmpty().filter { it.start >= from && it.end <= to &&
+            AnalyticsEngine.dayString(it.end, tzOffsetSeconds) == day }
+        val blocked = if (cloudEpisodes.isEmpty()) emptyList() else
+            repo.cloudSleep?.exclusions(owner, from, to).orEmpty()
+        val stagedCloud = cloudEpisodes.filter { episode ->
+            blocked.none { (a,b) -> a < episode.end && episode.start < b }
+        }.mapNotNull { episode ->
+            val json = SleepStageHealer.restageFromSamples(episode.start, episode.end, grav, hr, rr, resp,
+                useExperimentalSleepV2, steps, useMotionAwareWake) ?: return@mapNotNull null
+            AnalyticsEngine.sleepSessionFromProvided(SleepSession(owner, episode.start, episode.end, stagesJSON = json))
+                ?.copy(cloudEpisodeType = episode.type)
+        }
+        return priorSleep.filter { cloudDay?.owns(it.start) != true } + stagedCloud
     }
 
     /**

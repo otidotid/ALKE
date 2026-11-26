@@ -591,6 +591,110 @@ object IntelligenceEngine {
      *  matching the Swift `historyDays` default. */
     const val EFFORT_RESCORE_HISTORY_DAYS: Int = 4000
 
+    /** Keep score publication order and diagnostic values intact outside the large scoring coroutine. */
+    private fun appendNightMetricRows(
+        restRows: MutableList<MetricSeriesRow>, daily: DailyMetric, computedId: String, dailyRest: Double?,
+        spo2CandidateByDay: Map<String, Int>, hrvOverCountByDay: Map<String, Boolean>,
+        primarySessionRHRByDay: Map<String, Double>,
+        primarySessionRHRCoverageByDay: Map<String, PrimarySessionRestingHR.Coverage>,
+    ) {
+        RestScorer.restFromDaily(daily)?.let { rest ->
+            restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "sleep_performance", value = rest))
+        }
+        dailyRest?.let { score ->
+            restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = UnifiedSleepRest.KEY, value = score))
+        }
+        // #103: persist the SpO₂ candidate @82 nightly mean to metricSeries as "spo2_candidate" so the
+        // Blood Oxygen tile can surface it as a "strap estimate (unverified)" fallback when the toggle
+        // is ON. Written under the "-alke" computed device ID, never to `spo2Pct`.
+        spo2CandidateByDay[daily.day]?.let { cand ->
+            restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "spo2_candidate", value = cand.toDouble()))
+        }
+        // #1118: persist the HRV over-count flag (1/0) so the HRV card can mark an over-counted 4.0
+        // night's reading "unverified" until the two-channel de-dup lands. 0 written on a clean night
+        // (not just absent) so a night that flips clean on re-score clears its prior flag.
+        hrvOverCountByDay[daily.day]?.let { oc ->
+            restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "hrv_rr_overcount", value = if (oc) 1.0 else 0.0))
+        }
+        // #1169 shadow metric: the primary-session mean RHR, stored beside the shipped floor
+        // (daily.restingHr) under the "-alke" computed ID. Instrumentation only — never shown, never
+        // scored — for later mean-vs-floor evaluation from exports.
+        primarySessionRHRByDay[daily.day]?.let { v ->
+            restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "rhr_primary_session", value = v))
+        }
+        // #1169: its coverage inputs beside the mean — valid-sample count + primary-session duration (s)
+        // — so a thin-coverage night can be down-weighted in the later holdout. Raw inputs, not a fraction.
+        primarySessionRHRCoverageByDay[daily.day]?.let { cov ->
+            restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "rhr_primary_session_valid_samples", value = cov.validSamples.toDouble()))
+            restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "rhr_primary_session_duration_s", value = cov.durationSec))
+        }
+    }
+
+    private fun emitScoredDayDiagnostics(
+        daily: DailyMetric, matchedSessions: Int, editedCount: Int, deepHrvWindow: Boolean,
+        importedWhoopDays: Set<String>, appleHealthDays: Set<String>,
+        readOwnerByDay: Map<String, OwnerRead>, activeWriteId: String,
+        diag: (String) -> Unit, universalSink: ((String) -> Unit)?,
+    ) {
+        // ── Per-day scoring diagnostic (Sleep overhaul §2.5) ──────────────────────────────────────
+        // ONE concise, privacy-safe line per scored day into the shareable strap log: the day key, the
+        // FINAL computed total-sleep minutes (after any edit substitution), how many sleep blocks the
+        // detector matched on the day, and the provenance of the dashboard headline. Counts + a rounded
+        // minute only , no HR/HRV/timestamps , so the next report ships PROOF of what was computed per
+        // day (the project's log-failures-not-successes blind spot) and lets us settle the "Rest repeats
+        // across days" question with data. Gated by the existing strap-log export. Mirrors the Swift line.
+        val tsmLog = daily.totalSleepMin?.let { Math.round(it).toString() } ?: "nil"
+        // #386: the banked stage split + efficiency ride beside the rollup, so a "homepage disagrees
+        // with the Sleep tab" report is self-diagnosing from the export alone — totalSleepMin vs the
+        // deep+rem+light sum is the identity both screens must agree on, now verifiable per pass, per
+        // day, without screenshots. Rounded minutes only (same privacy class as the rest of the line);
+        // stages=nil when the day has no banked stage split (an unstaged or imported-total-only day).
+        val effLog = daily.efficiency?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "nil"
+        diag(
+            "sleep day=${daily.day} totalSleepMin=$tsmLog " +
+                "stages=${sleepStagesLogToken(daily.deepMin, daily.remMin, daily.lightMin)} " +
+                "eff=$effLog " +
+                "matched=${matchedSessions} " +
+                "source=${daySourceToken(daily.day, importedWhoopDays, appleHealthDays)}",
+        )
+        // #674/#1244: flag a COMPUTED day carrying a sleep total with NO matched session — the folded
+        // edited/hand-logged block on a day the detector staged nothing (see sleepDivergenceLogLine).
+        // Scoped to computed days: an imported-total-only day legitimately has a total without our
+        // sessions, so it is NOT a divergence.
+        val imported = daily.day in importedWhoopDays || daily.day in appleHealthDays
+        val finalSleepMin = daily.totalSleepMin
+        if (!imported && finalSleepMin != null && matchedSessions == 0) {
+            diag(sleepDivergenceLogLine(daily.day, Math.round(finalSleepMin).toInt(), editedCount))
+        }
+        // #195: one always-on line per scored night with the computed HRV value + the window it used,
+        // so an "HRV reads high / deep-sleep window not changing" report is self-diagnosing straight
+        // from the strap log — the whole-night vs deep-sleep value, and `avgHrv=nil window=deep` when a
+        // deep-window night has no detected deep sleep — without needing the HRV & Autonomic test mode.
+        // Counts-only (a rounded ms + the window), PII-free; byte-identical to the Swift line.
+        val hrvLog = daily.avgHrv?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "nil"
+        diag("hrv day=${daily.day} window=${if (deepHrvWindow) "deep" else "whole"} avgHrv=$hrvLog")
+        // ── CAPTURE-B: universal dayOwner self-diagnostic (#814/#799) ────────────────────────────────
+        // ONE line per SCORED day, tagged .universal so it rides EVERY Test Centre export regardless of
+        // which mode is on. It pins the read/write split #814 is about: readId is the owner this day was
+        // read+scored from (captured in pass 1), writeActiveId is the registry's active id; a divergence
+        // on a day with HR rows is the symptom. provenance says what backed the day. Verbatim format so
+        // the export parser reads it; byte-identical to the iOS emit (same scored-days loop, same shape).
+        // Only when the universal sink is on (the gate is the sink's nullness, set by the caller).
+        if (universalSink != null) {
+            val read = readOwnerByDay[daily.day]
+            universalSink(
+                dayOwnerLine(
+                    day = daily.day,
+                    readId = read?.owner ?: activeWriteId,
+                    writeActiveId = activeWriteId,
+                    hrRows = read?.hrRows ?: 0,
+                    importedWhoopDays = importedWhoopDays,
+                    appleHealthDays = appleHealthDays,
+                ),
+            )
+        }
+    }
+
     /** Keep legacy absent-gravity fallback isolated from cloud ownership. */
     private suspend fun resolvePriorSleep(
         repo: WhoopRepository, owner: String, importedDeviceId: String, from: Long, to: Long,
@@ -1753,36 +1857,8 @@ object IntelligenceEngine {
             if (recoveryTraceSink != null) {
                 for (line in recoveryTraceLines(daily, baselines2, dailyRest?.rest)) recoveryTraceSink(line)
             }
-            RestScorer.restFromDaily(daily)?.let { rest ->
-                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "sleep_performance", value = rest))
-            }
-            dailyRest?.let { score ->
-                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = UnifiedSleepRest.KEY, value = score.rest))
-            }
-            // #103: persist the SpO₂ candidate @82 nightly mean to metricSeries as "spo2_candidate" so the
-            // Blood Oxygen tile can surface it as a "strap estimate (unverified)" fallback when the toggle
-            // is ON. Written under the "-alke" computed device ID, never to `spo2Pct`.
-            spo2CandidateByDay[daily.day]?.let { cand ->
-                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "spo2_candidate", value = cand.toDouble()))
-            }
-            // #1118: persist the HRV over-count flag (1/0) so the HRV card can mark an over-counted 4.0
-            // night's reading "unverified" until the two-channel de-dup lands. 0 written on a clean night
-            // (not just absent) so a night that flips clean on re-score clears its prior flag.
-            hrvOverCountByDay[daily.day]?.let { oc ->
-                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "hrv_rr_overcount", value = if (oc) 1.0 else 0.0))
-            }
-            // #1169 shadow metric: the primary-session mean RHR, stored beside the shipped floor
-            // (daily.restingHr) under the "-alke" computed ID. Instrumentation only — never shown, never
-            // scored — for later mean-vs-floor evaluation from exports.
-            primarySessionRHRByDay[daily.day]?.let { v ->
-                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "rhr_primary_session", value = v))
-            }
-            // #1169: its coverage inputs beside the mean — valid-sample count + primary-session duration (s)
-            // — so a thin-coverage night can be down-weighted in the later holdout. Raw inputs, not a fraction.
-            primarySessionRHRCoverageByDay[daily.day]?.let { cov ->
-                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "rhr_primary_session_valid_samples", value = cov.validSamples.toDouble()))
-                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "rhr_primary_session_duration_s", value = cov.durationSec))
-            }
+            appendNightMetricRows(restRows, daily, computedId, dailyRest?.rest,
+                spo2CandidateByDay, hrvOverCountByDay, primarySessionRHRByDay, primarySessionRHRCoverageByDay)
 
             out.add(
                 Computed(
@@ -1794,63 +1870,8 @@ object IntelligenceEngine {
                     rhr = daily.restingHr,
                 ),
             )
-            // ── Per-day scoring diagnostic (Sleep overhaul §2.5) ──────────────────────────────────────
-            // ONE concise, privacy-safe line per scored day into the shareable strap log: the day key, the
-            // FINAL computed total-sleep minutes (after any edit substitution), how many sleep blocks the
-            // detector matched on the day, and the provenance of the dashboard headline. Counts + a rounded
-            // minute only , no HR/HRV/timestamps , so the next report ships PROOF of what was computed per
-            // day (the project's log-failures-not-successes blind spot) and lets us settle the "Rest repeats
-            // across days" question with data. Gated by the existing strap-log export. Mirrors the Swift line.
-            val tsmLog = daily.totalSleepMin?.let { Math.round(it).toString() } ?: "nil"
-            // #386: the banked stage split + efficiency ride beside the rollup, so a "homepage disagrees
-            // with the Sleep tab" report is self-diagnosing from the export alone — totalSleepMin vs the
-            // deep+rem+light sum is the identity both screens must agree on, now verifiable per pass, per
-            // day, without screenshots. Rounded minutes only (same privacy class as the rest of the line);
-            // stages=nil when the day has no banked stage split (an unstaged or imported-total-only day).
-            val effLog = daily.efficiency?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "nil"
-            diag(
-                "sleep day=${daily.day} totalSleepMin=$tsmLog " +
-                    "stages=${sleepStagesLogToken(daily.deepMin, daily.remMin, daily.lightMin)} " +
-                    "eff=$effLog " +
-                    "matched=${res.sleepSessions.size} " +
-                    "source=${daySourceToken(daily.day, importedWhoopDays, appleHealthDays)}",
-            )
-            // #674/#1244: flag a COMPUTED day carrying a sleep total with NO matched session — the folded
-            // edited/hand-logged block on a day the detector staged nothing (see sleepDivergenceLogLine).
-            // Scoped to computed days: an imported-total-only day legitimately has a total without our
-            // sessions, so it is NOT a divergence.
-            val imported = daily.day in importedWhoopDays || daily.day in appleHealthDays
-            val finalSleepMin = daily.totalSleepMin
-            if (!imported && finalSleepMin != null && res.sleepSessions.isEmpty()) {
-                diag(sleepDivergenceLogLine(daily.day, Math.round(finalSleepMin).toInt(), dayEditedRows.size))
-            }
-            // #195: one always-on line per scored night with the computed HRV value + the window it used,
-            // so an "HRV reads high / deep-sleep window not changing" report is self-diagnosing straight
-            // from the strap log — the whole-night vs deep-sleep value, and `avgHrv=nil window=deep` when a
-            // deep-window night has no detected deep sleep — without needing the HRV & Autonomic test mode.
-            // Counts-only (a rounded ms + the window), PII-free; byte-identical to the Swift line.
-            val hrvLog = daily.avgHrv?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "nil"
-            diag("hrv day=${daily.day} window=${if (deepHrvWindow) "deep" else "whole"} avgHrv=$hrvLog")
-            // ── CAPTURE-B: universal dayOwner self-diagnostic (#814/#799) ────────────────────────────────
-            // ONE line per SCORED day, tagged .universal so it rides EVERY Test Centre export regardless of
-            // which mode is on. It pins the read/write split #814 is about: readId is the owner this day was
-            // read+scored from (captured in pass 1), writeActiveId is the registry's active id; a divergence
-            // on a day with HR rows is the symptom. provenance says what backed the day. Verbatim format so
-            // the export parser reads it; byte-identical to the iOS emit (same scored-days loop, same shape).
-            // Only when the universal sink is on (the gate is the sink's nullness, set by the caller).
-            if (universalSink != null) {
-                val read = readOwnerByDay[daily.day]
-                universalSink(
-                    dayOwnerLine(
-                        day = daily.day,
-                        readId = read?.owner ?: activeWriteId,
-                        writeActiveId = activeWriteId,
-                        hrRows = read?.hrRows ?: 0,
-                        importedWhoopDays = importedWhoopDays,
-                        appleHealthDays = appleHealthDays,
-                    ),
-                )
-            }
+            emitScoredDayDiagnostics(daily, res.sleepSessions.size, dayEditedRows.size, deepHrvWindow,
+                importedWhoopDays, appleHealthDays, readOwnerByDay, activeWriteId, diag, universalSink)
             // Stamp the computed source id + the re-scored recovery & skin-temp deviation onto the row.
             dailies.add(scoredDailyRow(daily, computedId, recovery, skinTempDevC, res.nightlySkinTempC))
             // Map the rich DetectedSleep sessions → Room SleepSession cache rows.

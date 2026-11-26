@@ -344,7 +344,7 @@ fun SleepScreen(
     // headline tiles prefer them over the on-device approximations. Keyed on `days` so a
     // fresh import (which always rewrites dailyMetric too) reloads; metricSeries has no Flow.
     var imported by remember { mutableStateOf(ImportedSleepSeries()) }
-    LaunchedEffect(days) {
+    LaunchedEffect(days, sleepRevision, vm.activeStrapId) {
         suspend fun load(key: String) = runCatching {
             vm.repo.metricSeries("my-whoop", key, "0000-00-00", "9999-99-99")
         }.getOrDefault(emptyList()).associate { it.day to it.value }
@@ -353,6 +353,10 @@ fun SleepScreen(
             consistency = load("sleep_consistency"),
             needMin = load("sleep_need_min"),
             debtMin = load("sleep_debt_min"),
+            dailyRest = runCatching {
+                vm.repo.metricSeriesComputedUnion(vm.activeStrapId,
+                    com.otidotid.alke.analytics.UnifiedSleepRest.KEY, "0000-00-00", "9999-99-99")
+            }.getOrDefault(emptyList()).associate { it.day to it.value },
         )
     }
 
@@ -915,10 +919,7 @@ fun SleepScreen(
                     score = if (night != null) heroPerformanceScore(night, days, imported, napSleepMinByDay)
                             else tilesModel?.performance?.latest,
                     asleepMin = model?.stages?.asleep,
-                    source = if ((night?.dayKey?.let { napSleepMinByDay[it] } ?: 0.0) > 0.0 &&
-                        days.any { it.day == night?.dayKey && com.otidotid.alke.analytics.RestScorer.restFromDaily(it) != null })
-                        "ALKE daily estimate"
-                        else restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
+                    source = restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
                     overline = nightLabel,
                     efficiency = model?.selectedNightEfficiency,
                     debtMin = model?.selectedNightDebtMin,

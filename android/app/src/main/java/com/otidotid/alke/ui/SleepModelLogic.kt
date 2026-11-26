@@ -201,7 +201,7 @@ internal fun buildSleepModel(
     // is `metric { … }` over repo.days. Where the WHOOP export carried the figure verbatim
     // (metricSeries), it wins per day; the on-device recomputation fills the rest.
     val performance = metric(days, todayKey) { d ->
-        RestScorer.dailyRestFromDaily(d, napSleepMinByDay[d.day] ?: 0.0, imported.performance[d.day])
+        imported.performance[d.day] ?: imported.dailyRest[d.day] ?: RestScorer.restFromDaily(d)
     }
     val efficiency = metric(days, todayKey) { d ->
         d.efficiency?.let { if (it <= 1.0) it * 100.0 else it }
@@ -376,6 +376,10 @@ internal suspend fun buildHostedSleepModel(
         consistency = load("sleep_consistency"),
         needMin = load("sleep_need_min"),
         debtMin = load("sleep_debt_min"),
+        dailyRest = runCatching {
+            repo.metricSeriesComputedUnion(activeStrapId, com.otidotid.alke.analytics.UnifiedSleepRest.KEY,
+                "0000-00-00", "9999-99-99")
+        }.getOrDefault(emptyList()).associate { it.day to it.value },
     )
 
     val napSleepMinByDay = napSleepMinutesByDay(sleeps, habitualMidsleep)

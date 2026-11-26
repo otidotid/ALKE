@@ -109,8 +109,7 @@ internal fun heroPerformanceScore(
 ): Double? {
     val wakeDay = night?.dayKey ?: return null
     val daily = days.lastOrNull { it.day == wakeDay } ?: return imported.performance[wakeDay]
-    return RestScorer.dailyRestFromDaily(daily, napSleepMinByDay[wakeDay] ?: 0.0,
-        imported.performance[wakeDay])
+    return imported.performance[wakeDay] ?: imported.dailyRest[wakeDay] ?: RestScorer.restFromDaily(daily)
 }
 
 /**
@@ -124,6 +123,7 @@ internal fun restHeroSource(
     imported: ImportedSleepSeries, wakeDay: String?, activeIsOura: Boolean = false,
 ): String = when {
     wakeDay != null && imported.performance[wakeDay] != null -> "Whoop"
+    wakeDay != null && imported.dailyRest[wakeDay] != null -> "ALKE daily estimate"
     activeIsOura -> "Oura"
     else -> "On-device"
 }

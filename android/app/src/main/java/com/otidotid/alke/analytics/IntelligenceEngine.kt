@@ -1680,6 +1680,7 @@ object IntelligenceEngine {
             profile, maxHROverride, effortMethod,
         )
 
+        val dismissedWindows = repo.dismissedSleeps(importedDeviceId).map { it.startTs to it.endTs }
         for (res in scoredNights) {
             // #299: scope the edits to THIS day before folding. A userEdited row / hand-logged nap belongs
             // to exactly ONE day — the day its night ENDS on, matching the daily's end-day bucket
@@ -1695,7 +1696,9 @@ object IntelligenceEngine {
                 res, dayEditedRows, tzOffsetSeconds, habitualMidsleepSec,
                 physiologicalSteps, computedId, restRows,
             )
-            val daily = recomputeRecoveryDaily(editedDaily, res.nightlySkinTempC, baselines2)
+            val dailyRest = UnifiedSleepRest.fromDetected(editedDaily, res.sleepSessions, dayEditedRows,
+                dismissedWindows, computedId, tzOffsetSeconds, habitualMidsleepSec, sleepNeedHours)
+            val daily = recomputeRecoveryDaily(editedDaily, res.nightlySkinTempC, baselines2, dailyRest?.rest)
             val recovery = daily.recovery
             val skinTempDevC = daily.skinTempDevC
             // Charge term-breakdown trace (Test Centre Group G): only when the Recovery test mode is on
@@ -1704,10 +1707,13 @@ object IntelligenceEngine {
             // `recovery` written above is unchanged. Zero cost when off (the sink stays null, this branch
             // is skipped, recoveryTraceLines is never built). Mirrors the Swift recoveryTraceActive wiring.
             if (recoveryTraceSink != null) {
-                for (line in recoveryTraceLines(daily, baselines2)) recoveryTraceSink(line)
+                for (line in recoveryTraceLines(daily, baselines2, dailyRest?.rest)) recoveryTraceSink(line)
             }
             RestScorer.restFromDaily(daily)?.let { rest ->
                 restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "sleep_performance", value = rest))
+            }
+            dailyRest?.let { score ->
+                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = UnifiedSleepRest.KEY, value = score.rest))
             }
             // #103: persist the SpO₂ candidate @82 nightly mean to metricSeries as "spo2_candidate" so the
             // Blood Oxygen tile can surface it as a "strap estimate (unverified)" fallback when the toggle
@@ -2002,7 +2008,6 @@ object IntelligenceEngine {
         // written under EITHER namespace (an imported night writes "my-whoop", a computed one writes
         // "my-whoop-alke") is found. The overlap-suppression predicate lives in DismissedSleepGuard,
         // the JVM-tested twin of Swift's DismissedSleepSpans.
-        val dismissedWindows = repo.dismissedSleeps(importedDeviceId).map { it.startTs to it.endTs }
         val skipWindows = editedWindows + dismissedWindows
         val sleepKept = DismissedSleepGuard.keeping(sleepRows, skipWindows) { it.startTs to it.endTs }
         IntelligencePersistence.persistDetectedSleepDetails(repo, computedId, sleepKept, scoredNights)
@@ -2422,14 +2427,14 @@ object IntelligenceEngine {
      * sleep / strain / workout / RSA pipeline. Mirrors the recovery gate in
      * AnalyticsEngine.analyzeDay exactly (null on missing HRV/RHR or an unusable HRV baseline).
      */
-    private fun recomputeRecovery(daily: DailyMetric, baselines: ProfileBaselines): Double? {
+    private fun recomputeRecovery(daily: DailyMetric, baselines: ProfileBaselines, dailyRest: Double? = null): Double? {
         val hrvVal = daily.avgHrv ?: return null
         val rhrVal = daily.restingHr ?: return null
         val hrvBase = baselines.hrv ?: return null
         // Charge enrichment: feed the Rest COMPOSITE (÷100) as the sleep-quality term instead of raw
         // efficiency, and fold in the night's skin-temp deviation (both from persisted daily fields).
         // Mirrors the Swift recomputeRecovery. (Charge/Effort/Rest scoring redesign.)
-        val restQuality = RestScorer.restFromDaily(daily)?.let { it / 100.0 } ?: daily.efficiency
+        val restQuality = (dailyRest ?: RestScorer.restFromDaily(daily))?.let { it / 100.0 } ?: daily.efficiency
         return RecoveryScorer.recovery(
             hrv = hrvVal,
             rhr = rhrVal.toDouble(),
@@ -2448,12 +2453,13 @@ object IntelligenceEngine {
      */
     internal fun recomputeRecoveryDaily(
         daily: DailyMetric, nightlySkinTempC: Double?, baselines: ProfileBaselines,
+        dailyRest: Double? = null,
     ): DailyMetric {
         val input = daily.copy(
             skinTempDevC = recomputeSkinTempDev(nightlySkinTempC, baselines.skinTemp),
             skinTempC = nightlySkinTempC,
         )
-        return input.copy(recovery = recomputeRecovery(input, baselines))
+        return input.copy(recovery = recomputeRecovery(input, baselines, dailyRest))
     }
 
     /** One day's source-only (daily-aggregate) recovery output, keyed by day. Mirrors Swift WatchScoredDay. */
@@ -2526,7 +2532,7 @@ object IntelligenceEngine {
      * when the Recovery test mode is on, so it costs nothing when the mode is off. Mirrors the Swift
      * recoveryTraceLines.
      */
-    private fun recoveryTraceLines(daily: DailyMetric, baselines: ProfileBaselines): List<String> {
+    private fun recoveryTraceLines(daily: DailyMetric, baselines: ProfileBaselines, dailyRest: Double? = null): List<String> {
         val hrvVal = daily.avgHrv
         val rhrVal = daily.restingHr
         val hrvBase = baselines.hrv
@@ -2535,7 +2541,7 @@ object IntelligenceEngine {
                 "charge day=${daily.day} nilScore reason=missingInput (hrv/rhr/hrvBaseline required)",
             )
         }
-        val restQuality = RestScorer.restFromDaily(daily)?.let { it / 100.0 } ?: daily.efficiency
+        val restQuality = (dailyRest ?: RestScorer.restFromDaily(daily))?.let { it / 100.0 } ?: daily.efficiency
         val (_, trace) = RecoveryScorerTrace.recoveryTrace(
             hrv = hrvVal,
             rhr = rhrVal.toDouble(),

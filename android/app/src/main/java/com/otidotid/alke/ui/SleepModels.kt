@@ -64,6 +64,7 @@ internal data class ImportedSleepSeries(
     val consistency: Map<String, Double> = emptyMap(), // sleep_consistency, 0–100
     val needMin: Map<String, Double> = emptyMap(),     // sleep_need_min, minutes
     val debtMin: Map<String, Double> = emptyMap(),     // sleep_debt_min, minutes
+    val dailyRest: Map<String, Double> = emptyMap(),   // ALKE's persisted aggregate, not an imported score
 )
 
 /** Everything the screen renders, derived once per data change. */

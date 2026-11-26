@@ -36,7 +36,10 @@ class MeProfileConsolidationContractTest {
         assertTrue(me.contains("PremiumWearableLink(vm,onDevices)"))
         assertTrue(me.contains("PremiumLink(\"Health Connect & imports\""))
         assertTrue(me.contains("PremiumLink(\"Google Drive / Local Folder\""))
-        assertTrue(me.contains("onBackupRestore)"))
+        val backupLink = me.substringAfter("PremiumLink(\"Google Drive / Local Folder\"")
+            .substringBefore("PremiumLink(\"Fused Record\"")
+        assertTrue("Backup shortcut must preserve the original callback and display its icon",
+            backupLink.contains("onBackupRestore, icon = Icons.Filled.CloudSync)"))
         assertTrue(me.contains("PremiumLink(\"Smart Settings\""))
 
         assertFalse(

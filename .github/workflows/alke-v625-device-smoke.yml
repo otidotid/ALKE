@@ -41,9 +41,15 @@ jobs:
           set -euo pipefail
           test -c /dev/kvm
           sudo chmod a+rw /dev/kvm
-          sdkmanager --install "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64"
-          echo no | avdmanager create avd --force --name alke625 --package "system-images;android-34;google_apis;x86_64" --device pixel_6
-          "$ANDROID_HOME/emulator/emulator" -avd alke625 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -camera-back none -camera-front none > "$RUNNER_TEMP/alke-emulator.log" 2>&1 &
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkmanager="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -n "$sdkmanager" && test -x "$sdkmanager"
+          avdmanager="$(dirname "$sdkmanager")/avdmanager"
+          test -x "$avdmanager"
+          "$sdkmanager" --sdk_root="$sdk_root" --install "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64"
+          export PATH="$sdk_root/platform-tools:$sdk_root/emulator:$PATH"
+          "$avdmanager" create avd --force --name alke625 --package "system-images;android-34;google_apis;x86_64" --device pixel_6 <<< no
+          "$sdk_root/emulator/emulator" -avd alke625 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -camera-back none -camera-front none > "$RUNNER_TEMP/alke-emulator.log" 2>&1 &
           timeout 300 adb -s emulator-5554 wait-for-device
           timeout 300 bash -c 'until [[ "$(adb -s emulator-5554 shell getprop sys.boot_completed | tr -d "\r")" == 1 ]]; do sleep 3; done'
           adb -s emulator-5554 shell input keyevent 82

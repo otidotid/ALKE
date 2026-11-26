@@ -70,4 +70,13 @@ class ProfileAvatarExifTest {
         val flipped = tags.count { tag -> ProfileAvatarStore.exifOps(tag).any { it is ProfileAvatarStore.ExifOp.Scale } }
         assertEquals(4, flipped) // FLIP_H, FLIP_V, TRANSPOSE, TRANSVERSE carry a mirror
     }
+
+    @Test
+    fun avatarDecodeIsBoundedForPanoramasAndTallPhotos() {
+        assertEquals(1, ProfileAvatarStore.avatarDecodeSampleSize(256, 256))
+        assertEquals(8, ProfileAvatarStore.avatarDecodeSampleSize(4032, 3024))
+        assertEquals(32, ProfileAvatarStore.avatarDecodeSampleSize(16000, 500))
+        assertEquals(32, ProfileAvatarStore.avatarDecodeSampleSize(500, 16000))
+        assertTrue(16000 / ProfileAvatarStore.avatarDecodeSampleSize(16000, 500) < 512)
+    }
 }

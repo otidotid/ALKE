@@ -591,6 +591,85 @@ object IntelligenceEngine {
      *  matching the Swift `historyDays` default. */
     const val EFFORT_RESCORE_HISTORY_DAYS: Int = 4000
 
+    /** Preserve sleep cache mapping and existing workout enrichment without growing the scoring coroutine. */
+    private fun appendScoredSessionRows(
+        res: DayResult, day: String, computedId: String, sleepRows: MutableList<SleepSession>,
+        realWorkouts: List<WorkoutRow>, workoutBackfills: MutableList<WorkoutRow>,
+        diag: (String) -> Unit, workoutsTraceSink: ((String) -> Unit)?,
+    ) {
+        // Map the rich DetectedSleep sessions → Room SleepSession cache rows.
+        for (s in res.sleepSessions) {
+            sleepRows.add(
+                SleepSession(
+                    deviceId = computedId,
+                    startTs = s.start,
+                    endTs = s.end,
+                    efficiency = s.efficiency,
+                    restingHr = s.restingHR,
+                    avgHrv = s.avgHRV,
+                    stagesJSON = AnalyticsEngine.encodeStages(s.stages),
+                    // #345 follow-up: stamp the day's motion-coverage verdict so the Sleep tab can
+                    // caption a sparse (likely under-detected) night. Twin of Swift analyzeDay.
+                    stagingSparse = res.gravitySparse,
+                ),
+            )
+        }
+        // The daily analytics detector still computes bouts for daily analytics and can enrich
+        // missing fields on an overlapping real imported/manual workout. It does NOT publish a new
+        // generic workout: the opt-in Today card remains the only creation path, and requires Save.
+        // #1545: where the detector lost every candidate workout on this day, emitted BEFORE the
+        // per-bout loop so it is present even when that loop runs zero times — which is exactly the
+        // report it exists for. The `effort bout` line below explains a bout that exists; a strap log
+        // showing 37 days and no workouts at all previously carried nothing to explain the absence.
+        res.detectionFunnel?.let { diag(WorkoutDetector.detectionFunnelLine(day, it)) }
+        for (s in res.workouts) {
+            val durMin = maxOf(0L, (s.end - s.start) / 60L).toInt()
+            val avgBpm = s.avgHR.toInt()
+            // #1545: always-on, one line per detected bout naming what this Effort was SCORED AGAINST.
+            // A user reporting "my hard session scored 1.7" cannot currently see the HRmax that set the
+            // zone boundaries, where it came from, or whether the strap even saw most of the bout — and
+            // those three answers separate the three different causes ("the floor is doing its job",
+            // "your HRmax is wrong", "the sensor dropped out"). Reversing the arithmetic out of the
+            // displayed score is what diagnosing #1545 actually took. Same privacy class as the sibling
+            // `sleep day=` line: a day key, a duration, bpm and percentages. Mirrors the Swift line.
+            diag(
+                WorkoutDetector.boutCalibrationLine(
+                    day = day, durMin = durMin, hrmax = s.hrmax, hrmaxSource = s.hrmaxSource,
+                    avgHRRPct = s.avgHRRPct, hrCoveragePct = s.hrCoveragePct, strain = s.strain,
+                ),
+            )
+            // Bare time overlap (any source), so a detected bout collapses against a manual session even
+            // though their sports differ , the #975 "two workouts, one vanished" seam. Name the collider.
+            val collider = realWorkouts.firstOrNull { w -> s.start < w.endTs && w.startTs < s.end }
+            if (collider != null) {
+                // #510: the detected bout's own avgHR/calories/maxHR/strain come from the SAME
+                // motion+HR trace the detector used to find this activity's actual boundaries —
+                // often a tighter match than the colliding row's own [startTs,endTs] (e.g. a manual
+                // entry typed in afterward, whose guessed boundaries can clip most of the real
+                // HR-rich period and leave WhoopRepository.fillWorkoutHrFromStrap's raw window read
+                // too thin, silently showing no HR/calories). Same natural key (deviceId, startTs,
+                // sport), so the upsert below updates the existing row in place rather than
+                // duplicating it.
+                val backfilled = backfillWorkoutFromDetectedBout(
+                    collider, avgBpm = avgBpm, peakHR = s.peakHR, caloriesKcal = s.caloriesKcal, strain = s.strain,
+                )
+                val didBackfill = backfilled != collider
+                if (didBackfill) workoutBackfills.add(backfilled)
+                workoutsTraceSink?.invoke(
+                    WorkoutsTrace.detectedBoutLine(
+                        verdict = if (didBackfill) "droppedOverlapBackfilled" else "droppedOverlap",
+                        durMin = durMin, avgBpm = avgBpm,
+                        overlapSource = colliderSourceLabel(collider.source),
+                    ),
+                )
+                continue
+            }
+            workoutsTraceSink?.invoke(
+                WorkoutsTrace.detectedBoutLine(verdict = "analyticsOnly", durMin = durMin, avgBpm = avgBpm),
+            )
+        }
+    }
+
     /** Keep score publication order and diagnostic values intact outside the large scoring coroutine. */
     private fun appendNightMetricRows(
         restRows: MutableList<MetricSeriesRow>, daily: DailyMetric, computedId: String, dailyRest: Double?,
@@ -1874,77 +1953,8 @@ object IntelligenceEngine {
                 importedWhoopDays, appleHealthDays, readOwnerByDay, activeWriteId, diag, universalSink)
             // Stamp the computed source id + the re-scored recovery & skin-temp deviation onto the row.
             dailies.add(scoredDailyRow(daily, computedId, recovery, skinTempDevC, res.nightlySkinTempC))
-            // Map the rich DetectedSleep sessions → Room SleepSession cache rows.
-            for (s in res.sleepSessions) {
-                sleepRows.add(
-                    SleepSession(
-                        deviceId = computedId,
-                        startTs = s.start,
-                        endTs = s.end,
-                        efficiency = s.efficiency,
-                        restingHr = s.restingHR,
-                        avgHrv = s.avgHRV,
-                        stagesJSON = AnalyticsEngine.encodeStages(s.stages),
-                        // #345 follow-up: stamp the day's motion-coverage verdict so the Sleep tab can
-                        // caption a sparse (likely under-detected) night. Twin of Swift analyzeDay.
-                        stagingSparse = res.gravitySparse,
-                    ),
-                )
-            }
-            // The daily analytics detector still computes bouts for daily analytics and can enrich
-            // missing fields on an overlapping real imported/manual workout. It does NOT publish a new
-            // generic workout: the opt-in Today card remains the only creation path, and requires Save.
-            // #1545: where the detector lost every candidate workout on this day, emitted BEFORE the
-            // per-bout loop so it is present even when that loop runs zero times — which is exactly the
-            // report it exists for. The `effort bout` line below explains a bout that exists; a strap log
-            // showing 37 days and no workouts at all previously carried nothing to explain the absence.
-            res.detectionFunnel?.let { diag(WorkoutDetector.detectionFunnelLine(daily.day, it)) }
-            for (s in res.workouts) {
-                val durMin = maxOf(0L, (s.end - s.start) / 60L).toInt()
-                val avgBpm = s.avgHR.toInt()
-                // #1545: always-on, one line per detected bout naming what this Effort was SCORED AGAINST.
-                // A user reporting "my hard session scored 1.7" cannot currently see the HRmax that set the
-                // zone boundaries, where it came from, or whether the strap even saw most of the bout — and
-                // those three answers separate the three different causes ("the floor is doing its job",
-                // "your HRmax is wrong", "the sensor dropped out"). Reversing the arithmetic out of the
-                // displayed score is what diagnosing #1545 actually took. Same privacy class as the sibling
-                // `sleep day=` line: a day key, a duration, bpm and percentages. Mirrors the Swift line.
-                diag(
-                    WorkoutDetector.boutCalibrationLine(
-                        day = daily.day, durMin = durMin, hrmax = s.hrmax, hrmaxSource = s.hrmaxSource,
-                        avgHRRPct = s.avgHRRPct, hrCoveragePct = s.hrCoveragePct, strain = s.strain,
-                    ),
-                )
-                // Bare time overlap (any source), so a detected bout collapses against a manual session even
-                // though their sports differ , the #975 "two workouts, one vanished" seam. Name the collider.
-                val collider = realWorkouts.firstOrNull { w -> s.start < w.endTs && w.startTs < s.end }
-                if (collider != null) {
-                    // #510: the detected bout's own avgHR/calories/maxHR/strain come from the SAME
-                    // motion+HR trace the detector used to find this activity's actual boundaries —
-                    // often a tighter match than the colliding row's own [startTs,endTs] (e.g. a manual
-                    // entry typed in afterward, whose guessed boundaries can clip most of the real
-                    // HR-rich period and leave WhoopRepository.fillWorkoutHrFromStrap's raw window read
-                    // too thin, silently showing no HR/calories). Same natural key (deviceId, startTs,
-                    // sport), so the upsert below updates the existing row in place rather than
-                    // duplicating it.
-                    val backfilled = backfillWorkoutFromDetectedBout(
-                        collider, avgBpm = avgBpm, peakHR = s.peakHR, caloriesKcal = s.caloriesKcal, strain = s.strain,
-                    )
-                    val didBackfill = backfilled != collider
-                    if (didBackfill) workoutBackfills.add(backfilled)
-                    workoutsTraceSink?.invoke(
-                        WorkoutsTrace.detectedBoutLine(
-                            verdict = if (didBackfill) "droppedOverlapBackfilled" else "droppedOverlap",
-                            durMin = durMin, avgBpm = avgBpm,
-                            overlapSource = colliderSourceLabel(collider.source),
-                        ),
-                    )
-                    continue
-                }
-                workoutsTraceSink?.invoke(
-                    WorkoutsTrace.detectedBoutLine(verdict = "analyticsOnly", durMin = durMin, avgBpm = avgBpm),
-                )
-            }
+            appendScoredSessionRows(res, daily.day, computedId, sleepRows,
+                realWorkouts, workoutBackfills, diag, workoutsTraceSink)
         }
 
         // #277 migration: the loop now keys days by the LOCAL calendar day. A prior run (before this

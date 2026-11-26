@@ -102,6 +102,7 @@ internal object IntelligencePersistence {
     ): List<ScoreInputProvenanceRow> {
         val byCell = LinkedHashMap<Pair<String, String>, ScoreInputProvenanceRow>()
         val dailyByDay = dailies.associateBy { it.day }
+        val unifiedRestByDay = metricRows.filter { it.key == UnifiedSleepRest.KEY }.associateBy { it.day }
         for (daily in dailies) {
             val source = ownerByDay[daily.day] ?: continue
             if (daily.recovery != null) {
@@ -113,8 +114,12 @@ internal object IntelligencePersistence {
                         ScoreTraceFormatter.forDailyScore("recovery", daily) else null
                     byCell[daily.day to "recovery"] = ScoreInputProvenanceRow(
                         computedId, daily.day, "recovery", recoverySource,
-                        algorithmVersion = snapshot?.version,
-                        observedInputs = snapshot?.measurements,
+                        algorithmVersion = snapshot?.version?.let { version ->
+                            if (unifiedRestByDay[daily.day] != null) version + "+" + UnifiedSleepRest.VERSION else version
+                        },
+                        observedInputs = snapshot?.measurements?.let { summary ->
+                            unifiedRestByDay[daily.day]?.let { summary + "; Daily Rest: " + it.value + " %" } ?: summary
+                        },
                     )
                 }
             }
@@ -129,7 +134,10 @@ internal object IntelligencePersistence {
         }
         for (point in metricRows) {
             val source = ownerByDay[point.day] ?: continue
-            val snapshot = ScoreTraceFormatter.forDailyScore(point.key, dailyByDay[point.day])
+            val snapshot = if (point.key == UnifiedSleepRest.KEY)
+                ScoreTraceFormatter.Snapshot(UnifiedSleepRest.VERSION,
+                    "Daily Rest: " + point.value + " %; staged non-overlapping sleep episodes; main-sleep consistency retained")
+                else ScoreTraceFormatter.forDailyScore(point.key, dailyByDay[point.day])
             byCell[point.day to point.key] = ScoreInputProvenanceRow(
                 computedId, point.day, point.key, source,
                 algorithmVersion = snapshot?.version,
@@ -227,6 +235,6 @@ internal suspend fun WhoopRepository.replaceComputedScoreWindow(
     dailyMetrics = window.dailies,
     metricPoints = window.metricRows,
     provenance = window.provenance,
-    replaceMetricKeys = listOf(DayCycleIntelligenceIntegration.ONSET_KEY),
+    replaceMetricKeys = listOf(DayCycleIntelligenceIntegration.ONSET_KEY, UnifiedSleepRest.KEY),
     replaceMetricSourceIds = window.markerSourceIds,
 )

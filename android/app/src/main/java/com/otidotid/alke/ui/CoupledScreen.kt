@@ -261,6 +261,7 @@ fun CoupledScreen(
             properties = DialogProperties(usePlatformDefaultWidth = false),
         ) {
             ChargeBreakdownSheet(
+                vm = vm,
                 days = days,
                 chargeBaselines = chargeBaselines,
                 displayDay = todayRow,

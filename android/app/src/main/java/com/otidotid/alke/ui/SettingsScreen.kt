@@ -712,16 +712,6 @@ fun SettingsScreen(
     var fastHistorySync by remember { mutableStateOf(AlkePrefs.fastHistorySync(context)) }
     var fastLinkPhy by remember { mutableStateOf(AlkePrefs.fastLinkPhy(context)) }
 
-    // "Continuous HRV capture" — hold the dense realtime stream armed 24/7 (better overnight HRV) at the
-    // cost of more battery. Default OFF; only does anything with background connection on. Local mirror.
-    var continuousHrv by remember { mutableStateOf(AlkePrefs.continuousHrv(context)) }
-
-    // "Overnight only" (#927): arm the continuous stream only inside the nightly quiet-hours window
-    // instead of 24/7. Defaults ON for fresh installs (#1008); existing installs are pinned to OFF by
-    // AlkePrefs.migrateContinuousHrvOvernightDefault() at launch, so they keep always-on. Local mirror,
-    // read through AlkePrefs so it cannot disagree with what the BLE client acts on.
-    var continuousHrvOvernight by remember { mutableStateOf(AlkePrefs.continuousHrvOvernight(context)) }
-
     // #477 Power saving: battery-adaptive strap-sync cadence + optional HRV-capture pause. Local mirrors.
 
     // --- v5 Health & wellness toggle group. All SharedPreferences-backed (not reactive), so each Switch
@@ -1870,79 +1860,14 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     }
                 }
 
-                // Continuous HRV capture: keep the dense beat-to-beat (R-R) stream armed even with no Live
-                // screen open, so the strap banks far more data overnight for better HRV/recovery/sleep.
-                // Honest battery framing — continuous HR streaming uses more battery. Needs background
-                // connection on (there's no background link to stream over otherwise). Default OFF.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            uiString(R.string.l10n_settings_screen_continuous_hrv_capture_1f0805d8),
-                            style = AlkeType.subhead,
-                            color = Palette.textPrimary,
-                        )
-                        Text(
-                            uiString(R.string.l10n_settings_screen_keeps_the_detailed_beat_to_beat_87b78edd),
-                            style = AlkeType.footnote,
-                            color = Palette.textTertiary,
-                        )
-                    }
-                    Switch(
-                        checked = continuousHrv,
-                        onCheckedChange = {
-                            continuousHrv = it
-                            vm.setContinuousHrv(it)
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Palette.surfaceBase,
-                            checkedTrackColor = Palette.accent,
-                            uncheckedThumbColor = Palette.textSecondary,
-                            uncheckedTrackColor = Palette.surfaceInset,
-                            uncheckedBorderColor = Palette.hairline,
-                        ),
+                // Continuous capture is a core capability, not a separate toggle.
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("Continuous HRV capture · 24/7", style = AlkeType.subhead, color = Palette.textPrimary)
+                    Text(
+                        "Collects beat-to-beat data whenever the wearable connection supports it. Background connection keeps capture available outside the app. Uses more wearable battery.",
+                        style = AlkeType.footnote,
+                        color = Palette.textTertiary,
                     )
-                }
-
-                // Overnight only (#927): window-gate the continuous stream to the nightly quiet-hours
-                // window. Shown only while Continuous HRV capture is on; default OFF so existing users
-                // keep the always-on behaviour with no migration.
-                if (continuousHrv) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                uiString(R.string.l10n_settings_screen_overnight_only_05747985),
-                                style = AlkeType.subhead,
-                                color = Palette.textPrimary,
-                            )
-                            Text(
-                                uiString(R.string.l10n_settings_screen_runs_the_continuous_hrv_stream_only_3fed47c5),
-                                style = AlkeType.footnote,
-                                color = Palette.textTertiary,
-                            )
-                        }
-                        Switch(
-                            checked = continuousHrvOvernight,
-                            onCheckedChange = {
-                                continuousHrvOvernight = it
-                                vm.setContinuousHrvOvernight(it)
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Palette.surfaceBase,
-                                checkedTrackColor = Palette.accent,
-                                uncheckedThumbColor = Palette.textSecondary,
-                                uncheckedTrackColor = Palette.surfaceInset,
-                                uncheckedBorderColor = Palette.hairline,
-                            ),
-                        )
-                    }
                 }
 
                 // HRV window (#141) — grouped with the other HRV settings (#155). Measure nightly HRV over

@@ -206,6 +206,7 @@ fun SleepScreen(
     onOpenAlarms: () -> Unit = {},
 ) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
+    val sleepRevision by com.otidotid.alke.data.SleepDataRevision.revision.collectAsStateWithLifecycle()
     // Whether the ACTIVE strap is an Oura ring, off the canonical brand table (not an "oura" literal) — so
     // the sleep surfaces name a ring-PROVIDED night's provenance "Oura" and flag its split as the ring's
     // RAW on-device stages. Read/UI only, no stored value. Mirrors macOS Repository.activeDeviceIsOura.
@@ -259,7 +260,7 @@ fun SleepScreen(
     // `sleeps` in place WITHOUT touching `days`, so it must not reset the browse — keeping the
     // user on the night they just edited. (#160)
     var nightOffset by remember { mutableIntStateOf(0) }
-    LaunchedEffect(days, vm.activeStrapId) {
+    LaunchedEffect(days, vm.activeStrapId, sleepRevision) {
         loadedSleepDays = null
         val strap = vm.activeStrapId
         val loaded = runCatching {
@@ -343,7 +344,7 @@ fun SleepScreen(
     // headline tiles prefer them over the on-device approximations. Keyed on `days` so a
     // fresh import (which always rewrites dailyMetric too) reloads; metricSeries has no Flow.
     var imported by remember { mutableStateOf(ImportedSleepSeries()) }
-    LaunchedEffect(days) {
+    LaunchedEffect(days, sleepRevision, vm.activeStrapId) {
         suspend fun load(key: String) = runCatching {
             vm.repo.metricSeries("my-whoop", key, "0000-00-00", "9999-99-99")
         }.getOrDefault(emptyList()).associate { it.day to it.value }
@@ -352,6 +353,10 @@ fun SleepScreen(
             consistency = load("sleep_consistency"),
             needMin = load("sleep_need_min"),
             debtMin = load("sleep_debt_min"),
+            dailyRest = runCatching {
+                vm.repo.metricSeriesComputedUnion(vm.activeStrapId,
+                    com.otidotid.alke.analytics.UnifiedSleepRest.KEY, "0000-00-00", "9999-99-99")
+            }.getOrDefault(emptyList()).associate { it.day to it.value },
         )
     }
 
@@ -377,9 +382,7 @@ fun SleepScreen(
     var sleepSectionOrder by remember { mutableStateOf(SleepLayoutPrefs.order(context)) }
     var hiddenSections by remember { mutableStateOf(SleepLayoutPrefs.hidden(context)) }
     var showSleepArrange by remember { mutableStateOf(false) }
-    var showSleepBalance by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    var showNightPhysiology by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    var showSleepClock by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showSleepDetails by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     // #sleep-layout (hold-to-drag): the hoisted list state (the drag math needs layoutInfo + scrollBy) and
     // the live drag state, mirroring Today (TodayScreen.kt §today-layout). The frame loop runs ONLY while a
     // card is lifted: each frame it retries the swap (so a card held still at a viewport edge keeps
@@ -692,9 +695,104 @@ fun SleepScreen(
         if (dayIdx >= 0) nightOffset = dayIdx
     }
 
+    // Shared controls for the daily summary and main-sleep architecture.
+    val updateEpisode: (SleepSession, Long, Long) -> Unit = { s, start, end ->
+                    // #940 belt-and-braces: never apply (optimistically OR durably) a future-ending
+                    // or inverted window, whatever the pickers produced. The editor's own guards
+                    // (cross-midnight auto-correct + the disjoint confirm) should make this
+                    // unreachable; sharing ONE safe window here keeps the in-memory copy and the DB
+                    // write in lockstep. Same rule as WhoopRepository.updateSleepSessionTimes.
+                    val safe = SleepEditGuard.clampedEditWindow(start, end, System.currentTimeMillis() / 1000L)
+                    if (safe != null) {
+                        val (safeStart, safeEnd) = safe
+                        // Optimistic: rewrite this session in `sleeps` so every metric recomputes
+                        // immediately, then persist DURABLY off the UI thread. Mirror the persist path —
+                        // keep the IMMUTABLE detected startTs and store the corrected onset in
+                        // startTsAdjusted with userEdited=true, so display (via effectiveStartTs) tracks the
+                        // edit while the (deviceId,startTs) key never moves. (PR #260 + #395)
+                        // Reclip stagesJSON in-memory so the hypnogram strip updates instantly (same
+                        // reclip logic runs again in WhoopRepository for the durable DB copy).
+                        // #1492: apply across the WHOLE bridged night. Editing only `s` (the winning
+                        // fragment) left the fragments defining the displayed bedtime and wake exactly
+                        // where they were, so a corrected night looked unchanged. ONE plan drives both the
+                        // optimistic copy and the durable write, so they cannot disagree.
+                        val mainGroup = night?.heroGroup.orEmpty()
+                        val group = if (mainGroup.any { it.deviceId == s.deviceId && it.startTs == s.startTs })
+                            mainGroup else listOf(s)
+                        val keys = group.mapTo(hashSetOf()) { it.deviceId to it.startTs }
+                        if (sleeps.any { (it.deviceId to it.startTs) !in keys &&
+                            it.effectiveStartTs < safeEnd && safeStart < it.endTs }) {
+                            Toast.makeText(context, "Sleep sessions cannot overlap.", Toast.LENGTH_SHORT).show()
+                        } else {
+                        val plan = SleepGroupEdit.plan(group, safeStart, safeEnd)
+                        if (plan.clipped.isNotEmpty()) {
+                            val edited = plan.clipped.associateBy { it.deviceId to it.startTs }
+                            val gone = plan.dropped.map { it.deviceId to it.startTs }.toSet()
+                            sleeps = sleeps.mapNotNull { row ->
+                                val key = row.deviceId to row.startTs
+                                when {
+                                    key in gone -> null
+                                    else -> edited[key] ?: row
+                                }
+                            }
+                            if (plan.dropped.isNotEmpty()) {
+                                sleepUndo = SleepUndoState(plan.dropped, fromEdit = true)
+                            }
+                            scope.launch { vm.updateSleepGroupTimes(group, safeStart, safeEnd) }
+                        }
+                        }
+                    } else {
+                        // The clamp refused a future/inverted window. Never drop an edit silently (the nap
+                        // pickers used to do exactly that): tell the user why nothing changed. (#940)
+                        Toast.makeText(
+                            context,
+                            "That time can't be saved (it lands in the future or ends before it starts).",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+    val deleteEpisode: (SleepSession) -> Unit = { s ->
+                    // Delete = the edit path minus the re-insert: drop this session from `sleeps`
+                    // so every metric recomputes immediately as if the night were never recorded,
+                    // then persist the removal off the UI thread. Lets the user clear a misread or
+                    // spurious night. (#281)
+                    // #65: offer a transient UNDO. `s` still carries its owning deviceId + userEdited,
+                    // everything undo needs to restore it into the original namespace.
+                    sleeps = sleeps.filterNot { it.deviceId == s.deviceId && it.startTs == s.startTs }
+                    sleepUndo = SleepUndoState(listOf(s), fromEdit = false)
+                    scope.launch {
+                        vm.deleteSleepSession(s)
+                        dismissedSleeps = runCatching {
+                            vm.repo.dismissedSleepsUnion(vm.activeStrapId)
+                        }.getOrDefault(dismissedSleeps)
+                    }
+                }
+    val addEpisode: (Long, Long) -> Unit = { startTs, endTs ->
+                    // Persist the new nap as its OWN session (#508); reload `sleeps` afterwards so the
+                    // new block shows in the ◀/▶ browse without waiting for a sync. We don't optimistically
+                    // insert here because the stages are staged from raw off the UI thread.
+                    scope.launch {
+                        vm.addManualNap(startTs, endTs)
+                        sleeps = runCatching {
+                            val now = System.currentTimeMillis() / 1000L
+                            // Same active∪canonical union as the main loader (#814/#1008), so the
+                            // post-nap reload can't snap the browse back to a canonical-only night set.
+                            val importedSessions = vm.repo.sleepSessionsUnion(vm.activeStrapId, 0L, now)
+                            val computed = vm.repo.computedSleepSessionsUnion(vm.activeStrapId, 0L, now)
+                            fun localEndDay(ts: Long): String {
+                                val offsetSec = (java.util.TimeZone.getDefault().getOffset(ts * 1000) / 1000).toLong()
+                                return AnalyticsEngine.dayString(ts, offsetSec)
+                            }
+                            // Same imported-wins + #241 richness merge as the main loader.
+                            WhoopRepository.mergeSleepRichness(importedSessions, computed) { localEndDay(it.endTs) }
+                                .sortedBy { it.effectiveStartTs }
+                        }.getOrDefault(sleeps)
+                    }
+                }
+
     LazyScreenScaffold(
         title = uiString(R.string.l10n_sleep_screen_sleep_3cac34e6),
-        subtitle = "Last night, read in two seconds.",
+        subtitle = "Your sleep, across the whole day.",
         trailing = {
             Row {
                 IconButton(onClick = onOpenAlarms) { Icon(Icons.Filled.Alarm, "Alarms", tint = Palette.restColor) }
@@ -806,13 +904,20 @@ fun SleepScreen(
             // The score is a full-history latest (series.last), so it reads from `tilesModel` when
             // the selected day's model failed to build (#940): real data over a zeroed gauge.
             item {
+                NightNavHeader(nightOffset,nightLabel,max(navDays.lastIndex,0),
+                    navHeaderClockLabel(night?.clockLabel,navDays,nightOffset,is24h),
+                    onNavigate = { nightOffset = it },session = night?.session,
+                    heroGroup = night?.heroGroup.orEmpty(),onUpdateTimes = updateEpisode,
+                    onDeleteSession = deleteEpisode,onAddNap = addEpisode,onPickNightDate = onPickNightDate)
+            }
+            item {
                 RestHero(
                     // The DISPLAYED night's score (keyed by its wake-day), so the hero tracks the
                     // ◀/▶-navigated night instead of freezing on the full-history latest. When no night
                     // resolves but history exists (#940), keep the old "real data over a zeroed gauge"
                     // fallback to the latest score.
-                    score = if (night != null) heroPerformanceScore(night, days, imported)
-                            else tilesModel?.performance?.latest,
+                    score = if (night != null) heroPerformanceScore(night, days, imported, napSleepMinByDay)
+                            else if (navDays.isEmpty()) tilesModel?.performance?.latest else null,
                     asleepMin = model?.stages?.asleep,
                     source = restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
                     overline = nightLabel,
@@ -820,10 +925,39 @@ fun SleepScreen(
                     debtMin = model?.selectedNightDebtMin,
                 )
             }
+            night?.let { chosen ->
+                item(key = "daily-sleep-episodes") {
+                    val main = chosen.groupStages?.let { it.light + it.deep + it.rem }
+                        ?: parseSessionStages(SleepStageTotals.clampStagesToOnset(
+                            chosen.session.stagesJSON, chosen.session.effectiveStartTs))
+                            ?.let { it.light + it.deep + it.rem }
+                    NapsCard(main = chosen.session, mainMin = main,
+                        naps = chosen.napBlocks, onEditNapTimes = updateEpisode,
+                        onDeleteNap = deleteEpisode, habitualMidsleepSec = habitualMidsleep,
+                        activeIsOura = activeIsOura,
+                        mainStart = chosen.heroOnsetTs ?: chosen.session.effectiveStartTs,
+                        mainEnd = chosen.heroWakeTs ?: chosen.session.endTs,
+                        creditedMin = napSleepMinByDay[chosen.dayKey] ?: 0.0,
+                        targetMin = imported.needMin[chosen.dayKey] ?: model?.sleepDebtLedger?.needMin,
+                        debtMin = model?.selectedNightDebtMin)
+                }
+            }
+            if (night == null) {
+                val episodes = navDays.getOrNull(nightOffset).orEmpty()
+                if (episodes.isNotEmpty()) item(key = "sleep-episodes-without-main") {
+                    AlkeCard(padding = Metrics.space14, tint = Palette.restColor) {
+                        Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
+                            Text("No main sleep recorded", style = AlkeType.subhead, color = Palette.textPrimary)
+                            SleepEpisodeGroups(episodes, updateEpisode, deleteEpisode)
+                        }
+                    }
+                }
+            }
             // If the user hides architecture, the post-wake assessment still has a visible home.
             if (SleepSection.STAGES in hiddenSections) item(key = "sleep-hypopnea-risk") {
                 SleepHypopneaCard(hypopneaAssessment, onOpen = { showHypopneaDetail = true })
             }
+            item(key = "sleep-intelligence-settings") { CloudSleepSettingsRow() }
             // Arrange and Alarms live in the header.
             // Analytical cards render in the user's saved order (SleepLayoutPrefs), minus the hidden set.
             // Reordered via the Arrange sheet OR by long-press hold-to-drag on the card (#sleep-layout,
@@ -832,25 +966,28 @@ fun SleepScreen(
             // #sleep-layout: persist the live hold-to-drag reorder when the gesture drops (the in-memory
             // `sleepSectionOrder` already moved live in the frame loop; this writes it through).
             val persistSleepOrder = { SleepLayoutPrefs.setOrder(context, sleepSectionOrder) }
-            val balanceSections = setOf(SleepSection.SLEEP_DEBT, SleepSection.ASLEEP_DURATION,
-                SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY)
+            // Keep the architecture near the summary. All remaining charts live behind ONE disclosure.
+            // Preserve stable section IDs, relative detail order, user visibility and underlying records.
             val visibleSections = sleepSectionOrder.filterNot { it in hiddenSections }
-            val firstBalance = visibleSections.firstOrNull { it in balanceSections }
-            visibleSections.forEach { section ->
-              if (section == firstBalance && tilesModel != null) {
-                  item(key = "sleep-balance-disclosure") {
-                      AlkePanel(Modifier.fillMaxWidth(), onClick = { showSleepBalance = !showSleepBalance }) {
+            val detailSections = visibleSections.filter { it != SleepSection.STAGES }
+            val orderedSections = visibleSections.filter { it == SleepSection.STAGES } + detailSections
+            val firstDetail = detailSections.firstOrNull()
+            orderedSections.forEach { section ->
+              if (section == firstDetail) {
+                  item(key = "sleep-details-disclosure") {
+                      AlkePanel(Modifier.fillMaxWidth(), onClick = { showSleepDetails = !showSleepDetails }) {
                           Row(verticalAlignment = Alignment.CenterVertically) {
                               Column(Modifier.weight(1f)) {
-                                  Text("Sleep Balance", style = AlkeType.headline, color = Palette.textPrimary)
-                                  Text("Sleep needed · debt · duration · consistency", style = AlkeType.caption, color = Palette.textSecondary)
+                                  Text("Sleep Details", style = AlkeType.headline, color = Palette.textPrimary)
+                                  Text("Physiology · balance · trends · body clock", style = AlkeType.caption, color = Palette.textSecondary)
                               }
-                              Icon(Icons.Filled.ChevronRight, if (showSleepBalance) "Collapse Sleep Balance" else "Expand Sleep Balance", tint = Palette.accent)
+                              Icon(Icons.Filled.ChevronRight, if (showSleepDetails) "Collapse Sleep Details" else "Expand Sleep Details",
+                                  modifier = Modifier.graphicsLayer(rotationZ = if (showSleepDetails) 90f else 0f), tint = Palette.accent)
                           }
                       }
                   }
               }
-              if (section in balanceSections && !showSleepBalance) return@forEach
+              if (section != SleepSection.STAGES && !showSleepDetails) return@forEach
               val k = SLEEP_SECTION_KEY_PREFIX + section.raw
               when (section) {
                 SleepSection.SLEEP_MARKS -> item(key = k) {
@@ -909,91 +1046,9 @@ fun SleepScreen(
                 onNavigate = { nightOffset = it },
                 session = night?.session,
                 heroGroup = night?.heroGroup.orEmpty(),
-                onUpdateTimes = { s, start, end ->
-                    // #940 belt-and-braces: never apply (optimistically OR durably) a future-ending
-                    // or inverted window, whatever the pickers produced. The editor's own guards
-                    // (cross-midnight auto-correct + the disjoint confirm) should make this
-                    // unreachable; sharing ONE safe window here keeps the in-memory copy and the DB
-                    // write in lockstep. Same rule as WhoopRepository.updateSleepSessionTimes.
-                    val safe = SleepEditGuard.clampedEditWindow(start, end, System.currentTimeMillis() / 1000L)
-                    if (safe != null) {
-                        val (safeStart, safeEnd) = safe
-                        // Optimistic: rewrite this session in `sleeps` so every metric recomputes
-                        // immediately, then persist DURABLY off the UI thread. Mirror the persist path —
-                        // keep the IMMUTABLE detected startTs and store the corrected onset in
-                        // startTsAdjusted with userEdited=true, so display (via effectiveStartTs) tracks the
-                        // edit while the (deviceId,startTs) key never moves. (PR #260 + #395)
-                        // Reclip stagesJSON in-memory so the hypnogram strip updates instantly (same
-                        // reclip logic runs again in WhoopRepository for the durable DB copy).
-                        // #1492: apply across the WHOLE bridged night. Editing only `s` (the winning
-                        // fragment) left the fragments defining the displayed bedtime and wake exactly
-                        // where they were, so a corrected night looked unchanged. ONE plan drives both the
-                        // optimistic copy and the durable write, so they cannot disagree.
-                        val group = night?.heroGroup.orEmpty().ifEmpty { listOf(s) }
-                        val plan = SleepGroupEdit.plan(group, safeStart, safeEnd)
-                        if (plan.clipped.isNotEmpty()) {
-                            val edited = plan.clipped.associateBy { it.deviceId to it.startTs }
-                            val gone = plan.dropped.map { it.deviceId to it.startTs }.toSet()
-                            sleeps = sleeps.mapNotNull { row ->
-                                val key = row.deviceId to row.startTs
-                                when {
-                                    key in gone -> null
-                                    else -> edited[key] ?: row
-                                }
-                            }
-                            if (plan.dropped.isNotEmpty()) {
-                                sleepUndo = SleepUndoState(plan.dropped, fromEdit = true)
-                            }
-                            scope.launch { vm.updateSleepGroupTimes(group, safeStart, safeEnd) }
-                        }
-                    } else {
-                        // The clamp refused a future/inverted window. Never drop an edit silently (the nap
-                        // pickers used to do exactly that): tell the user why nothing changed. (#940)
-                        Toast.makeText(
-                            context,
-                            "That time can't be saved (it lands in the future or ends before it starts).",
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                },
-                onDeleteSession = { s ->
-                    // Delete = the edit path minus the re-insert: drop this session from `sleeps`
-                    // so every metric recomputes immediately as if the night were never recorded,
-                    // then persist the removal off the UI thread. Lets the user clear a misread or
-                    // spurious night. (#281)
-                    // #65: offer a transient UNDO. `s` still carries its owning deviceId + userEdited,
-                    // everything undo needs to restore it into the original namespace.
-                    sleeps = sleeps.filterNot { it.deviceId == s.deviceId && it.startTs == s.startTs }
-                    sleepUndo = SleepUndoState(listOf(s), fromEdit = false)
-                    scope.launch {
-                        vm.deleteSleepSession(s)
-                        dismissedSleeps = runCatching {
-                            vm.repo.dismissedSleepsUnion(vm.activeStrapId)
-                        }.getOrDefault(dismissedSleeps)
-                    }
-                },
-                onAddNap = { startTs, endTs ->
-                    // Persist the new nap as its OWN session (#508); reload `sleeps` afterwards so the
-                    // new block shows in the ◀/▶ browse without waiting for a sync. We don't optimistically
-                    // insert here because the stages are staged from raw off the UI thread.
-                    scope.launch {
-                        vm.addManualNap(startTs, endTs)
-                        sleeps = runCatching {
-                            val now = System.currentTimeMillis() / 1000L
-                            // Same active∪canonical union as the main loader (#814/#1008), so the
-                            // post-nap reload can't snap the browse back to a canonical-only night set.
-                            val importedSessions = vm.repo.sleepSessionsUnion(vm.activeStrapId, 0L, now)
-                            val computed = vm.repo.computedSleepSessionsUnion(vm.activeStrapId, 0L, now)
-                            fun localEndDay(ts: Long): String {
-                                val offsetSec = (java.util.TimeZone.getDefault().getOffset(ts * 1000) / 1000).toLong()
-                                return AnalyticsEngine.dayString(ts, offsetSec)
-                            }
-                            // Same imported-wins + #241 richness merge as the main loader.
-                            WhoopRepository.mergeSleepRichness(importedSessions, computed) { localEndDay(it.endTs) }
-                                .sortedBy { it.effectiveStartTs }
-                        }.getOrDefault(sleeps)
-                    }
-                },
+                onUpdateTimes = updateEpisode,
+                onDeleteSession = deleteEpisode,
+                onAddNap = addEpisode,
                 onPickNightDate = onPickNightDate,
                 napBlocks = night?.napBlocks ?: emptyList(),
                 habitualMidsleepSec = habitualMidsleep,
@@ -1026,8 +1081,7 @@ fun SleepScreen(
                             SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                                 Column {
                                     Spacer(Modifier.height(Metrics.selectorTopUp))
-                                    PremiumLink("Body Clock", if(showSleepClock) "Collapse" else "Circadian rhythm and sleep timing", { showSleepClock = !showSleepClock })
-                                    if(showSleepClock) BodyClockDialCard(
+                                    BodyClockDialCard(
                                         estimate = phase,
                                         actualBedHour = localClockHour(session.effectiveStartTs),
                                         actualWakeHour = localClockHour(session.endTs),
@@ -1042,8 +1096,7 @@ fun SleepScreen(
                         SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                             Column {
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
-                                PremiumLink("Night Physiology", if(showNightPhysiology) "Collapse" else "Recorded night metrics and respiratory rate", { showNightPhysiology = !showNightPhysiology })
-                                if(showNightPhysiology) NightDetailHostCard(m, onMetricClick = { detailMetricKey = it })
+                                NightDetailHostCard(m, onMetricClick = { detailMetricKey = it }, compact = true)
                             }
                         }
                     }
@@ -1350,7 +1403,7 @@ private val LIQUID_HERO_RADIUS: Dp = 18.dp
 private fun RestHero(score: Double?, asleepMin: Double?, source: String, overline: String,
     efficiency: Double? = null, debtMin: Double? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        SectionHeader("Sleep performance", overline = overline, trailing = "Rest")
+        SectionHeader("Rest score", overline = overline, trailing = "Daily rest")
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1396,12 +1449,6 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
                     }
                 }
                 SourceBadge(text = source, tint = Palette.restColor)
-                Row(Modifier.fillMaxWidth().background(PremiumSurface.canvas,RoundedCornerShape(12.dp)).padding(10.dp),
-                    horizontalArrangement=Arrangement.SpaceBetween) {
-                    PremiumReadout("Asleep",asleepMin?.takeIf { it.isFinite() && it > 0 }?.let { durationText(it) } ?: "—",Modifier.weight(1f))
-                    PremiumReadout("Efficiency",efficiency?.takeIf { it.isFinite() }?.let { String.format(java.util.Locale.US,"%.0f%%",it) } ?: "—",Modifier.weight(1f))
-                    PremiumReadout("Sleep debt",debtMin?.takeIf { it.isFinite() && it >= 0 }?.let { durationText(it) } ?: "—",Modifier.weight(1f))
-                }
             }
         }
     }
@@ -1580,9 +1627,6 @@ private fun Hero(
     windowWakeTs: Long? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        NightNavHeader(nightOffset, nightLabel, lastIndex, clock, onNavigate, session,
-            heroGroup = heroGroup, onUpdateTimes = onUpdateTimes, onDeleteSession = onDeleteSession,
-            onAddNap = onAddNap, onPickNightDate = onPickNightDate)
         // The night's clock window — when you fell asleep and when you woke — as its own clearly
         // labelled row. These were only ever in the nav-header's trailing caption, which truncates
         // between the two chevrons on a phone, so in practice the two times people look for first
@@ -1766,31 +1810,6 @@ private fun Hero(
                 SleepPartialNote(stageCoverage)
             }
         }
-        // Naps card (#508/#518): the day's blocks OTHER than the main night, each editable / deletable
-        // with the SAME mechanism main sleep uses, plus a Main / Nap(s) / Total split so what drives the
-        // day's Rest total is explainable. Mirrors iOS SleepView.napSection.
-        if (session != null) {
-            // Main = the WHOLE main-night's summed DECODED stage minutes (awake+light+deep+rem), NOT the
-            // winning fragment's window — a biphasic/bridged night has sibling fragments that are part of
-            // the main sleep, not naps, and the old single-block window undercounted the Main / Total
-            // split on a fragmented night. Byte-for-byte twin of iOS SleepView.napSection (`night.stages
-            // .total`): the bridged group's `sumGroupStages` (gaps excluded, mirrors iOS mergeDay), or the
-            // single block's own decoded stages, both clamped to onset. NOT `display.stages`, whose awake
-            // is efficiency-derived. Window fallback only for a stage-less stub day, unchanged from before.
-            val mainStages = groupStages
-                ?: parseSessionStages(SleepStageTotals.clampStagesToOnset(session.stagesJSON, session.effectiveStartTs))
-            val mainMin = mainStages?.let { it.awake + it.light + it.deep + it.rem }
-                ?: (session.endTs - session.effectiveStartTs) / 60.0
-            NapsCard(
-                main = session,
-                mainMin = mainMin,
-                naps = napBlocks,
-                onEditNapTimes = onUpdateTimes,
-                onDeleteNap = onDeleteSession,
-                habitualMidsleepSec = habitualMidsleepSec,
-                activeIsOura = activeIsOura,
-            )
-        }
     }
 }
 
@@ -1805,53 +1824,112 @@ private fun Hero(
 @Composable
 private fun NapsCard(
     main: SleepSession,
-    // The day's MAIN-sleep minutes = the whole main-night's summed DECODED stage minutes (iOS
-    // `night.stages.total`): the bridged group's `sumGroupStages` or the single block's own decoded
-    // stages. Computed by the caller. NOT `main`'s own window — that undercounts a bridged night.
-    mainMin: Double,
+    mainMin: Double?,
     naps: List<SleepSession>,
     onEditNapTimes: (SleepSession, Long, Long) -> Unit,
     onDeleteNap: (SleepSession) -> Unit,
-    // The LEARNED habitual midsleep, fed to the main-night selector so the "why this is your main sleep"
-    // reason matches the block the hero shows. null = cold-start band. Mirrors iOS SleepView. (C1)
     habitualMidsleepSec: Long? = null,
-    // Active strap is an Oura ring → a computed night's provenance reads "Oura" not "On-device" (C4).
     activeIsOura: Boolean = false,
+    mainStart: Long = main.effectiveStartTs,
+    mainEnd: Long = main.endTs,
+    creditedMin: Double = 0.0,
+    targetMin: Double? = null,
+    debtMin: Double? = null,
 ) {
-    val napMin = naps.sumOf { (it.endTs - it.effectiveStartTs) / 60.0 }
+    val is24h = ClockPrefs.uses24Hour(LocalContext.current)
+    var mainExpanded by remember(main.deviceId,main.startTs) { mutableStateOf(false) }
+    val total = mainMin?.let { it + creditedMin }
     AlkeCard(padding = Metrics.space14, tint = Palette.restColor) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
-            Text(uiString(R.string.l10n_sleep_screen_daytime_sleep_871c03ca), style = AlkeType.overline, color = Palette.textTertiary)
-            Text(uiString(R.string.l10n_sleep_screen_naps_2f83e350), style = AlkeType.subhead, color = Palette.textPrimary)
-            if (naps.isNotEmpty()) {
-                // Main / Nap(s) / Total split — only meaningful once a nap exists. Total = main + naps.
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    NapSummaryCell("Main sleep", durationText(mainMin), Modifier.weight(1f))
-                    NapSummaryCell("Nap(s)", durationText(napMin), Modifier.weight(1f))
-                    NapSummaryCell("Total", durationText(mainMin + napMin), Modifier.weight(1f))
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                Column {
+                    Text("TOTAL DAILY SLEEP",style=AlkeType.overline,color=Palette.textTertiary)
+                    Text(total?.let { durationText(it) } ?: "—",style=AlkeType.number(32f),color=Palette.textPrimary)
+                }
+                Column(horizontalAlignment=Alignment.End) {
+                    Text("SLEEP TARGET",style=AlkeType.overline,color=Palette.textTertiary)
+                    Text(targetMin?.takeIf { it.isFinite() && it>0.0 }?.let { durationText(it) } ?: "—",style=AlkeType.subhead,color=Palette.textPrimary)
                 }
             }
-            if (naps.isEmpty()) {
-                Text(
-                    uiString(R.string.l10n_sleep_screen_no_naps_recorded_for_this_day_b17c148f),
-                    style = AlkeType.caption,
-                    color = Palette.textTertiary,
-                )
-            } else {
-                naps.forEachIndexed { i, nap ->
-                    NapRow(nap, onEditNapTimes, onDeleteNap)
-                    if (i < naps.lastIndex) {
-                        Box(Modifier.fillMaxWidth().height(Metrics.divider).background(Palette.hairline))
-                    }
+            if (total != null && total > 0) {
+                val target = targetMin?.takeIf { it.isFinite() && it > 0.0 }
+                val remaining = ((target ?: total) - total).coerceAtLeast(0.0)
+                Row(Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(5.dp)),
+                    horizontalArrangement=Arrangement.spacedBy(2.dp)) {
+                    if ((mainMin ?: 0.0) > 0.0) Box(Modifier.weight(mainMin!!.toFloat()).height(7.dp).background(Palette.restColor))
+                    if (creditedMin > 0.0) Box(Modifier.weight(creditedMin.toFloat()).height(7.dp).background(Palette.restBright))
+                    if (remaining > 0.0) Box(Modifier.weight(remaining.toFloat()).height(7.dp).background(Palette.surfaceInset))
                 }
+                if (target != null) Text(
+                    "${(total / target * 100.0).roundToInt()}% of daily target",
+                    style=AlkeType.footnote,color=Palette.textSecondary)
             }
-            // Provenance (C4) + the "why this is your main sleep" explainer (C1). The badge names the REAL
-            // per-day merge winner; the info affordance reveals the foundation reason for the pick. Mirrors
-            // iOS SleepView.mainSleepFooter. (spec 2026-06-20 C1/C4)
+            Row(Modifier.fillMaxWidth().clickable { mainExpanded = !mainExpanded },
+                verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Metrics.space10)) {
+                Icon(Icons.Filled.Bedtime,null,tint=Palette.restColor)
+                Column(Modifier.weight(1f)) {
+                    Text("Main sleep",style=AlkeType.subhead,color=Palette.textPrimary)
+                    Text("${clockTimeLabel(mainStart,is24h)} – ${clockTimeLabel(mainEnd,is24h)}",
+                        style=AlkeType.footnote,color=Palette.textSecondary)
+                }
+                Text(mainMin?.let { durationText(it) } ?: "—",style=AlkeType.subhead,color=Palette.restBright)
+            }
+            if (mainExpanded) EpisodePhysiology(main)
+            SleepEpisodeGroups(naps, onEditNapTimes, onDeleteNap)
             Box(Modifier.fillMaxWidth().height(Metrics.divider).background(Palette.hairline))
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                Text("Sleep debt",style=AlkeType.footnote,color=Palette.textSecondary)
+                Text(debtMin?.takeIf { it.isFinite() && it>=0.0 }?.let { durationText(it) } ?: "—",
+                    style=AlkeType.subhead,color=Palette.textPrimary)
+            }
             MainSleepFooter(main = main, naps = naps, habitualMidsleepSec = habitualMidsleepSec, activeIsOura = activeIsOura)
         }
     }
+}
+
+@Composable
+private fun SleepEpisodeGroups(rows: List<SleepSession>,
+    edit: (SleepSession, Long, Long) -> Unit, delete: (SleepSession) -> Unit) {
+    val groups = rows.groupBy { when (it.cloudEpisodeType) {
+        "DAY_SLEEP" -> "Day sleep"
+        "NAP" -> "Nap"
+        else -> "Other sleep"
+    } }
+    for (label in listOf("Day sleep", "Nap", "Other sleep")) {
+        val sessions = groups[label].orEmpty()
+        if (label == "Other sleep" && sessions.isEmpty()) continue
+        var expanded by remember(label, sessions.map { it.deviceId to it.startTs }) { mutableStateOf(false) }
+        Box(Modifier.fillMaxWidth().height(Metrics.divider).background(Palette.hairline))
+        Row(Modifier.fillMaxWidth().clickable(enabled = sessions.isNotEmpty()) { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Metrics.space10)) {
+            Icon(Icons.Filled.WbSunny, null, tint = Palette.restBright)
+            Text(label, modifier = Modifier.weight(1f), style = AlkeType.subhead, color = Palette.textPrimary)
+            val minutes = com.otidotid.alke.analytics.SupplementalSleepCredit.minutes(sessions, emptyList())
+            Text(if (minutes > 0) durationText(minutes) else if (sessions.isEmpty()) "—" else "Recorded",
+                style = AlkeType.subhead, color = Palette.restBright)
+            if (sessions.isNotEmpty()) Icon(Icons.Filled.ChevronRight, if (expanded) "Collapse" else "Expand",
+                modifier = Modifier.graphicsLayer(rotationZ = if (expanded) 90f else 0f), tint = Palette.textSecondary)
+        }
+        if (expanded) sessions.forEach { session ->
+            androidx.compose.runtime.key(session.deviceId, session.startTs) { NapRow(session, edit, delete) }
+        }
+    }
+}
+
+@Composable
+private fun EpisodePhysiology(row: SleepSession) {
+    val stages = SleepStageTotals.minutes(SleepStageTotals.clampStagesToOnset(row.stagesJSON, row.effectiveStartTs))
+    val values = buildList {
+        if (stages != null && stages.inBed > 0.0) {
+            add("Efficiency ${(100.0 * stages.asleep / stages.inBed).roundToInt()}%")
+            add("Deep ${durationText(stages.deep)}")
+            add("REM ${durationText(stages.rem)}")
+        }
+        row.restingHr?.let { add("Resting HR $it bpm") }
+        row.avgHrv?.takeIf { it.isFinite() }?.let { add("HRV ${it.roundToInt()} ms") }
+    }
+    Text(if (values.isEmpty()) "Episode metrics unavailable" else values.joinToString(" · "),
+        style = AlkeType.footnote, color = Palette.textSecondary)
 }
 
 /**
@@ -2180,7 +2258,9 @@ private fun NapRow(
                 Spacer(Modifier.width(Metrics.space10))
                 Column {
                     Text(window, style = AlkeType.body, color = Palette.textPrimary)
-                    Text(durationText(durMin), style = AlkeType.overline, color = Palette.textTertiary)
+                    val credited = com.otidotid.alke.analytics.SupplementalSleepCredit.minutes(listOf(nap), emptyList())
+                    Text(if (credited > 0) "${durationText(credited)} asleep" else "Sleep duration unavailable",
+                        style = AlkeType.overline, color = Palette.textTertiary)
                 }
             }
             // Each action gets a 48dp IconButton touch target and keeps its own contentDescription.
@@ -2210,12 +2290,10 @@ private fun NapRow(
             }
         }
         if (showWhy) {
-            Text(uiString(R.string.l10n_sleep_screen_about_this_nap_e2719b9b), style = AlkeType.subhead, color = Palette.textPrimary)
-            Text(
-                uiString(R.string.l10n_sleep_screen_logged_as_a_nap_wrong_tap_4285d23e),
-                style = AlkeType.footnote,
-                color = Palette.textTertiary,
-            )
+            EpisodePhysiology(nap)
+            Text(if (nap.userEdited) "Times edited manually" else if (nap.cloudEpisodeType != null)
+                "Estimated by Sleep Intelligence" else "Recorded sleep session",
+                style = AlkeType.footnote, color = Palette.textTertiary)
         }
     }
 

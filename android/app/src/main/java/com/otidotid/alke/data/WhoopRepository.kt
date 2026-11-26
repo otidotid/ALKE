@@ -495,13 +495,18 @@ class WhoopRepository(
     private var readoutRevisions = ReadoutDataRevisions()
     private val stepRevisionIndex = StepDataRevisionIndex()
 
+    internal var cloudSleep: CloudSleepLedger? = null
+        private set
+
     constructor(db: WhoopDatabase, context: Context? = null) : this(
         dao = db.whoopDao(),
         transactor = object : Transactor {
             override suspend fun <R> run(block: suspend () -> R): R = db.withTransaction { block() }
         },
         metabolicStore = context?.let { MetabolicEstimateStore(it) },
-    )
+    ) {
+        cloudSleep = CloudSleepLedger(dao, transactor)
+    }
 
     internal suspend fun metabolicEstimateFor(sourceId: String, day: String, profile: com.otidotid.alke.analytics.UserProfile) =
         metabolicStore?.current(this, sourceId, day, profile)
@@ -750,7 +755,7 @@ class WhoopRepository(
 
     /** Complete cross-device scoring-input change detector. Unlike [hrFingerprint], this also moves when
      * a trailing sleep-critical stream (especially gravity) lands after HR in the same history sync. */
-    suspend fun analysisFingerprint(): String = dao.analysisFingerprint()
+    suspend fun analysisFingerprint(): String = dao.analysisFingerprint() + ":" + SleepDataRevision.revision.value
 
     /** #1005 — per-day (device + window) HR fingerprint as (count, newestTs) for analyzeRecent's per-day
      *  reuse cache. Cheap COUNT/MAX aggregate, never a row fetch; mirrors Swift
@@ -979,9 +984,20 @@ class WhoopRepository(
         ) ?: return
         val plan = com.otidotid.alke.analytics.SleepGroupEdit.plan(group, safeStartTs, safeEndTs)
         if (plan.clipped.isEmpty()) return
-        dao.upsertSleepSessions(plan.clipped)
+        val allowedKeys = group.mapTo(hashSetOf()) { it.deviceId to it.startTs }
+        val saved = transactor.run {
+            if (plan.clipped.any { row ->
+                dao.sleepSessionsOverlapping(row.effectiveStartTs,row.endTs).any { other ->
+                    other.deviceId == row.deviceId && (other.deviceId to other.startTs) !in allowedKeys
+                }
+            }) return@run false
+            dao.upsertSleepSessions(plan.clipped)
+            true
+        }
+        if (!saved) return
         reconcileAutoWorkoutsForSleep(group.first().deviceId.removeSuffix("-alke"), plan.clipped)
         plan.dropped.forEach { deleteSleepSession(it) }
+        SleepDataRevision.changed()
     }
 
     /** Remove a sleep session entirely , the delete half of [updateSleepSessionTimes] with no
@@ -1007,6 +1023,7 @@ class WhoopRepository(
             dao.insertDismissedSleep(listOf(DismissedSleep(session.deviceId, session.startTs, session.endTs)))
         }
         dao.deleteSleepSession(session.deviceId, session.startTs)
+        SleepDataRevision.changed()
     }
 
     /** Undo a [deleteSleepSession] (#65): lift the tombstone and restore the deleted row into its ORIGINAL
@@ -1017,6 +1034,7 @@ class WhoopRepository(
     suspend fun undoDeleteSleepSession(session: SleepSession) {
         dao.deleteDismissedSleep(session.deviceId, session.startTs)
         dao.upsertSleepSessions(listOf(session))
+        SleepDataRevision.changed()
     }
 
     /** Lift a deleted-sleep tombstone by (deviceId, startTs) (#65 "Allow re-detection" escape hatch): the
@@ -1100,19 +1118,27 @@ class WhoopRepository(
      *  (userEdited = true, startTsAdjusted = null), so the recompute overlap guard preserves it and it is
      *  NEVER folded into the night's main sleep (which would mislabel the awake daytime gap as light
      *  sleep). Purely additive , the DAO's IGNORE-on-conflict makes a same-onset add a no-op. */
-    suspend fun addManualNap(strapDeviceId: String, startTs: Long, endTs: Long) {
+    suspend fun addManualNap(strapDeviceId: String, startTs: Long, endTs: Long): Boolean {
         // #940 belt-and-braces (same rule as updateSleepSessionTimes): a manually-added session
         // can't end in the future or invert; a future nap would otherwise own the tab's newest day
         // as an all-awake phantom exactly like the bad edit did. The clamped end is used verbatim.
         val (safeStartTs, safeEndTs) = com.otidotid.alke.analytics.SleepEditGuard.clampedEditWindow(
             startTs, endTs, System.currentTimeMillis() / 1000L,
-        ) ?: return
+        ) ?: return false
         val computedId = computedDeviceId(strapDeviceId)
         val stagesJSON = com.otidotid.alke.analytics.SleepStageHealer.restageFromRaw(this, strapDeviceId, safeStartTs, safeEndTs)
             ?: com.otidotid.alke.analytics.AnalyticsEngine.encodeStages(
                 listOf(com.otidotid.alke.analytics.StageSegment(start = safeStartTs, end = safeEndTs, stage = "wake")),
             )
-        dao.insertSleepSession(
+        // Recheck every persisted interval atomically immediately before the insert.
+        // Adjacent sessions are legal; no positive overlap is legal for a new nap.
+        val inserted = transactor.run {
+            if (dao.sleepSessionsOverlapping(safeStartTs, safeEndTs).isNotEmpty()) return@run false
+            if (dao.workoutsOverlapping(safeStartTs, safeEndTs).any {
+                    it.source != com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE &&
+                    it.source != "auto-detected"
+                }) return@run false
+            dao.insertSleepSession(
             SleepSession(
                 deviceId = computedId,
                 startTs = safeStartTs,
@@ -1122,8 +1148,12 @@ class WhoopRepository(
                 userEdited = true,
                 startTsAdjusted = null,
             ),
-        )
+            ) != -1L
+        }
+        if (!inserted) return false
+        SleepDataRevision.changed()
         reconcileAutoWorkoutsForSleep(strapDeviceId, listOf(SleepSession(computedId, safeStartTs, safeEndTs, userEdited = true)))
+        return true
     }
 
     /** Asleep fraction (light+deep+rem ÷ total in-bed) of a segment-array [stagesJSON], or null when the
@@ -2335,6 +2365,20 @@ class WhoopRepository(
         ).singleOrNull { it.day == day }
     }
 
+    /** Resolve the exact Rest input of the computed Charge selected by the daily merge. */
+    internal suspend fun restUsedForCharge(activeId: String, display: DailyMetric): Double? = transactor.run {
+        val day = display.day
+        val imported = unionByDay(importedSourceIds(activeId).map { dao.dailyMetricsRange(it, day, day) })
+        if (imported.singleOrNull()?.recovery != null) return@run null
+        val computed = unionByDay(computedSourceIds(activeId).map { dao.dailyMetricsRange(it, day, day) })
+            .singleOrNull() ?: return@run null
+        if (computed.recovery == null || computed.recovery != display.recovery) return@run null
+        val version = scoreInputDetails(computed.deviceId, day, "recovery")?.algorithmVersion
+        if (version?.endsWith("+" + com.otidotid.alke.analytics.UnifiedSleepRest.VERSION) != true) return@run null
+        metricSeries(computed.deviceId, com.otidotid.alke.analytics.UnifiedSleepRest.KEY, day, day)
+            .singleOrNull()?.value?.takeIf { it.isFinite() && it in 0.0..100.0 }
+    }
+
     /** Count the same merged day set as [daysMerged] using SQL, without loading every DailyMetric. */
     suspend fun daysMergedCount(deviceId: String): Int {
         val sourceIds = (importedSourceIds(deviceId) + computedSourceIds(deviceId) + ACTIVITY_FILE_SOURCE).distinct()
@@ -2461,9 +2505,17 @@ class WhoopRepository(
      *  Repository.unionComputedSleepSessions. */
     suspend fun computedSleepSessionsUnion(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
         List<SleepSession> {
-        val ids = rawWhoopSourceIds(deviceId).map { "$it-alke" }
-        return dedupSleepBlocks(ids.flatMap {
-            dao.sleepSessions(it, OnlineFirstWindow.clampSecond(from), to, limit)
+        return dedupSleepBlocks(rawWhoopSourceIds(deviceId).flatMap { owner ->
+            val rows = dao.sleepSessions("$owner-alke", OnlineFirstWindow.clampSecond(from), to, limit)
+            val history = cloudSleep?.history(owner, from, to)
+            val episodes = history?.episodes.orEmpty().associateBy { it.start }
+            rows.filter { row ->
+                val episode = episodes[row.startTs]?.takeIf { it.end == row.endTs || row.userEdited }
+                row.cloudEpisodeType = episode?.type
+                // A subsequent confirmed import, workout or dismissal wins even before the next rescore.
+                episode == null || row.userEdited ||
+                    cloudSleep?.exclusions(owner, row.effectiveStartTs, row.endTs).isNullOrEmpty()
+            }
         })
     }
 
@@ -2489,7 +2541,12 @@ class WhoopRepository(
             return com.otidotid.alke.analytics.AnalyticsEngine.dayString(s.endTs, offsetSec)
         }
         val importedDays = imported.mapTo(HashSet(), ::endDay)
-        val computedKept = computed.filter { endDay(it) !in importedDays }
+        val computedKept = computed.filter { row ->
+            endDay(row) !in importedDays || ((row.userEdited || row.cloudEpisodeType != null) && imported.none {
+                com.otidotid.alke.analytics.SupplementalSleepCredit.span(it)
+                    .overlaps(com.otidotid.alke.analytics.SupplementalSleepCredit.span(row))
+            })
+        }
         return (imported + computedKept).sortedBy { it.effectiveStartTs }
     }
 
@@ -3468,7 +3525,14 @@ class WhoopRepository(
                 if (comp != null && dayRichness(comp) > dayRichness(imp)) {
                     out.addAll(comp)   // richer computed day survives a poorer import
                 } else {
-                    out.addAll(imp)    // imported wins its day (unchanged rule)
+                    out.addAll(imp)    // imported remains the main-night authority
+                    // Preserve a separately entered session, not an overlapping computed twin.
+                    comp.orEmpty().filter { row ->
+                        (row.userEdited || row.cloudEpisodeType != null) && imported.none {
+                            com.otidotid.alke.analytics.SupplementalSleepCredit.span(it)
+                                .overlaps(com.otidotid.alke.analytics.SupplementalSleepCredit.span(row))
+                        }
+                    }.forEach(out::add)
                 }
             }
             for ((day, comp) in computedByDay) if (day !in importedByDay) out.addAll(comp)

@@ -165,13 +165,14 @@ def main():
     (OUT/"frames.txt").write_bytes(adb("shell", "dumpsys", "gfxinfo", PACKAGE, "framestats"))
     (OUT/"meminfo.txt").write_bytes(adb("shell", "dumpsys", "meminfo", PACKAGE))
 
-try:
-    main()
-finally:
-    (OUT/"final.png").write_bytes(adb("exec-out", "screencap", "-p"))
-    (OUT/"final.xml").write_bytes(ET.tostring(tree(), encoding="utf-8"))
-    crash = adb("logcat", "-b", "crash", "-d").decode(errors="replace")
-    (OUT/"crash.txt").write_text(crash)
-    (OUT/"logcat.txt").write_bytes(adb("logcat", "-d", "-t", "2000"))
-    if PACKAGE in crash:
-        raise AssertionError("App crash during smoke; inspect crash.txt")
+if __name__ == '__main__':
+    try:
+        main()
+    finally:
+        (OUT/"final.png").write_bytes(adb("exec-out", "screencap", "-p"))
+        (OUT/"final.xml").write_bytes(ET.tostring(tree(), encoding="utf-8"))
+        crash = adb("logcat", "-b", "crash", "-d").decode(errors="replace")
+        (OUT/"crash.txt").write_text(crash)
+        (OUT/"logcat.txt").write_bytes(adb("logcat", "-d", "-t", "2000"))
+        if PACKAGE in crash:
+            raise AssertionError("App crash during smoke; inspect crash.txt")

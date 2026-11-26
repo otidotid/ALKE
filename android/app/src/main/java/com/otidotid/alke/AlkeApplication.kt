@@ -53,7 +53,7 @@ class AlkeApplication : Application() {
         runCatching { com.otidotid.alke.location.GpsSession.initialize(this) }
         // #1008: pin the pre-change Overnight-only default for existing installs before anything
         // reads it. Idempotent; a no-op on fresh installs and on every launch after the first.
-        com.otidotid.alke.ui.AlkePrefs.migrateContinuousHrvOvernightDefault(this)
+        // v627: all-day HRV capture no longer reads the legacy overnight preference.
         // A private owner-backup APK imports on its first launch. Do NOT schedule
         // any application work that might open the new Room database before the
         // private bootstrap has validated/recovered it. Following the successful
@@ -70,6 +70,7 @@ class AlkeApplication : Application() {
             com.otidotid.alke.notif.StaleBatteryWorker.ensureScheduled(this)
             // Rolling offline snapshots and, after one-time secure setup, encrypted daily cloud archives.
             com.otidotid.alke.data.AutomaticHybridHistoryScheduler.ensureScheduled(this)
+            com.otidotid.alke.ai.CloudSleepSettings.schedule(this, immediate = false)
             com.otidotid.alke.ai.CloudActivityScheduler.ensure(this)
             com.otidotid.alke.ai.CloudActivityScheduler.request(this)
         }
@@ -149,6 +150,7 @@ class AlkeApplication : Application() {
             liveWidgetSample = widgetFeed::offer,
             successfulOffloadSink = {
                 SelfHostedPushScheduler.enqueueAfterSuccessfulOffload(applicationContext)
+                com.otidotid.alke.ai.CloudSleepSettings.schedule(applicationContext, immediate = true)
                 com.otidotid.alke.ai.CloudActivityScheduler.request(applicationContext)
             },
         ).apply {

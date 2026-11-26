@@ -2,6 +2,7 @@ package com.otidotid.alke.ui
 
 import com.otidotid.alke.analytics.AnalyticsEngine
 import com.otidotid.alke.analytics.SleepStageTotals
+import com.otidotid.alke.analytics.SupplementalSleepCredit
 import com.otidotid.alke.data.DailyMetric
 import com.otidotid.alke.data.SleepSession
 import java.util.TimeZone
@@ -49,8 +50,14 @@ internal fun selectNight(
     // matches AnalyticsEngine.analyzeDay instead of rendering phantom naps (#555). A single-block day is
     // byte-identical to the prior behaviour. (#518/#555/#561)
     val group = mainSleepGroup(blocks, habitualMidsleepSec)
+    val groupKeys = group.map { it.deviceId to it.startTs }.toHashSet()
     val groupStarts = group.map { it.startTs }.toHashSet()
-    val napBlocks = blocks.filter { it.startTs !in groupStarts }
+    val mainSpan = SupplementalSleepCredit.Span(
+        group.minOfOrNull { it.effectiveStartTs } ?: session.effectiveStartTs,
+        group.maxOfOrNull { it.endTs } ?: session.endTs,
+    )
+    val napBlocks = blocks.filter { (it.deviceId to it.startTs) !in groupKeys &&
+        !mainSpan.overlaps(SupplementalSleepCredit.span(it)) }
         .sortedBy { it.effectiveStartTs }
     // Drop a spurious leading pre-sleep awake stub from the hero's RECONSTRUCTION so the hypnogram and the
     // summed minutes start where the displayed bedtime (the main block's onset) does (#736). A night can
@@ -138,7 +145,7 @@ internal fun selectNight(
 internal fun mainSleepBlock(blocks: List<SleepSession>, habitualMidsleepSec: Long? = null): SleepSession? {
     if (blocks.isEmpty()) return null
     val idx = SleepStageTotals.mainNightIndex(
-        blocks.map { SleepStageTotals.NightBlock(it.effectiveStartTs, it.endTs) },
+        blocks.map { SleepStageTotals.NightBlock(it.effectiveStartTs, it.endTs, it.cloudEpisodeType) },
         uiTzOffsetSec(),
         habitualMidsleepSec,
     ) ?: return null
@@ -156,7 +163,7 @@ internal fun mainSleepBlock(blocks: List<SleepSession>, habitualMidsleepSec: Lon
  */
 internal fun mainSleepGroup(blocks: List<SleepSession>, habitualMidsleepSec: Long? = null): List<SleepSession> {
     val idx = SleepStageTotals.mainNightGroupIndices(
-        blocks.map { SleepStageTotals.NightBlock(it.effectiveStartTs, it.endTs) },
+        blocks.map { SleepStageTotals.NightBlock(it.effectiveStartTs, it.endTs, it.cloudEpisodeType) },
         uiTzOffsetSec(),
         habitualMidsleepSec,
     ) ?: return emptyList()
@@ -172,14 +179,20 @@ internal fun mainSleepGroup(blocks: List<SleepSession>, habitualMidsleepSec: Lon
 internal fun napSleepMinutesByDay(
     sleeps: List<SleepSession>,
     habitualMidsleepSec: Long? = null,
-): Map<String, Double> = sleeps
-    .groupBy { localDayString(it.endTs) }
-    .mapValues { (_, blocks) ->
-        val mainStarts = mainSleepGroup(blocks, habitualMidsleepSec).mapTo(hashSetOf()) { it.startTs }
-        blocks.asSequence()
-            .filter { it.startTs !in mainStarts }
-            .sumOf { decodedAsleepMinutes(it.stagesJSON, it.effectiveStartTs) }
+): Map<String, Double> {
+    val byDay = sleeps.groupBy { localDayString(it.endTs) }
+    val groups = byDay.mapValues { (_, blocks) -> mainSleepGroup(blocks, habitualMidsleepSec) }
+    val reserved = groups.values.mapNotNull { group ->
+        if (group.isEmpty()) null else SupplementalSleepCredit.Span(
+            group.minOf { it.effectiveStartTs },group.maxOf { it.endTs })
     }
+    return byDay.mapValues { (day, blocks) ->
+        val mainKeys = groups[day].orEmpty().mapTo(hashSetOf()) { it.deviceId to it.startTs }
+        val supplemental = blocks.filter { (it.deviceId to it.startTs) !in mainKeys }
+            .filter { row -> reserved.none { it.overlaps(SupplementalSleepCredit.span(row)) } }
+        SupplementalSleepCredit.minutes(supplemental, reserved)
+    }
+}
 
 /**
  * The day's main-night bridged SPAN (onset -> wake), the same window [mainSleepGroup] bridges into one
@@ -297,3 +310,22 @@ private fun sumGroupStages(group: List<SleepSession>): StageMins? {
  *  gate the audit flagged. Mirrors the engine's `TimeZone.getDefault().getOffset(...)`. (#547) */
 internal fun uiTzOffsetSec(): Long =
     TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000L
+
+/** Daily Rest and Charge consume the same persisted ALKE score. Imported provider values retain
+ * their existing precedence until a distinct, validated ALKE imported-day recovery path exists.
+ * Do not add an independent UI-only nap bonus or read raw sensor streams here. */
+internal suspend fun loadDailyRestSeries(
+    repo: com.otidotid.alke.data.WhoopRepository,
+    id: String,
+    days: List<DailyMetric>,
+    from: String,
+    to: String,
+): Map<String, Double> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val base = repo.resolvedSeries("sleep_performance","my-whoop",from,to,strapDeviceId=id)
+        .values.toMap().toMutableMap()
+    val imported = repo.metricSeries("my-whoop","sleep_performance",from,to).mapTo(hashSetOf()) { it.day }
+    repo.metricSeriesComputedUnion(id,com.otidotid.alke.analytics.UnifiedSleepRest.KEY,from,to)
+        .filter { it.day !in imported && it.value.isFinite() && it.value in 0.0..100.0 }
+        .forEach { base[it.day]=it.value }
+    base
+}

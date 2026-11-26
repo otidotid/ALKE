@@ -420,6 +420,8 @@ object AnalyticsEngine {
         // Threaded rather than read from a global so this stays a pure function, and defaulted so every
         // existing caller and test is byte-identical.
         effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
+        cloudOwnsStart: ((Long) -> Boolean)? = null,
+        skipLocalSleepDetection: Boolean = false,
     ): DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). isoDay is a FIXED-UTC formatter, so
@@ -433,12 +435,13 @@ object AnalyticsEngine {
         fun tsInDay(ts: Long): Boolean = (ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc
 
         // ── Sleep detection + staging ─────────────────────────────────────────
-        val detectedSessions = SleepStager.detectSleep(
+        val detectedSessions = if (skipLocalSleepDetection) emptyList() else SleepStager.detectSleep(
             hr = hr, rr = rr, resp = resp, gravity = gravity, tzOffsetSeconds = tzOffsetSeconds,
             wristOff = wristOff, bandSleepState = bandSleepState,
             useSleepStagerV2 = useSleepStagerV2,
             traceSink = traceSink,
         )
+            .filter { cloudOwnsStart?.invoke(it.start) != true }
         // Motion-aware wake refinement (#364 follow-up) runs AFTER V1/V2 staging, over every detected
         // session (naps included — the same eligibility gates apply). `steps` is the SAME calendar-day/
         // night-window stream the caller passed for the rest of this analysis; the pass self-gates on its
@@ -502,7 +505,7 @@ object AnalyticsEngine {
         // SAME group; the debt ledger starts with it and separately credits naps, so #525 does not regress.
         // Mirrors Swift. (#525 / #561)
         val mainGroupIdx = SleepStageTotals.mainNightGroupIndices(
-            matched.map { SleepStageTotals.NightBlock(it.start, it.end) },
+            matched.map { SleepStageTotals.NightBlock(it.start, it.end, it.cloudEpisodeType) },
             tzOffsetSeconds, habitualMidsleepSec,
         ) ?: emptyList()
         val mainGroup: List<DetectedSleep> = mainGroupIdx.map { matched[it] }
@@ -584,7 +587,8 @@ object AnalyticsEngine {
         // re-derive from `rr` over each session's own stages instead of reading restingHR/avgHRV, so the
         // only way to scope them is through the session set itself — which is precisely the "one forgotten
         // call site" a scattered filter invites.
-        val physiologySessions = matched.filter { !it.hrOnly }.ifEmpty { matched }
+        val physiologyCandidates = if (matched.any { it.cloudEpisodeType != null }) mainGroup else matched
+        val physiologySessions = physiologyCandidates.filter { !it.hrOnly }.ifEmpty { physiologyCandidates }
         // #2522: use the gated lowest five-minute bin from the primary session, not its whole-session
         // mean. Choosing the session first preserves #2358's nap protection; a shorter nap must not
         // supply the daily RHR when the main night has no HR. #804's device-provided value still wins.
@@ -1070,7 +1074,7 @@ object AnalyticsEngine {
             sessionSleepStateByStart = sessionSleepStateByStart,
             gravitySparse = gravitySparse,
             detectionFunnel = detectionFunnel,
-            mainNightBlocks = mainGroup.map { SleepStageTotals.NightBlock(it.start, it.end) },
+            mainNightBlocks = mainGroup.map { SleepStageTotals.NightBlock(it.start, it.end, it.cloudEpisodeType) },
         )
     }
 
@@ -1739,6 +1743,22 @@ object RestScorer {
      * truth so the persisted sleep_performance series and the Charge "Rest quality" term agree. Mirrors
      * Swift `AnalyticsEngine.Rest.composite(daily:)`.
      */
+    /** ALKE daily Rest: replace only the existing duration component with credited actual sleep.
+     * This is a product accounting policy, not a validated physiological recovery score.
+     * The original night-only scorer remains the Charge and sleep-quality input. */
+    fun dailyRestFromDaily(daily: DailyMetric, supplementalMin: Double = 0.0,
+                          importedPerformance: Double? = null): Double? {
+        val main = daily.totalSleepMin?.takeIf { it.isFinite() && it > 0.0 }
+        val extra = supplementalMin.takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+        if (main == null || extra == 0.0) return importedPerformance ?: restFromDaily(daily)
+        val base = restFromDaily(daily) ?: return importedPerformance
+        val need = defaultSleepNeedHours * 60.0
+        val oldDuration = (main / need).coerceIn(0.0, 1.0)
+        val newDuration = ((main + extra) / need).coerceIn(0.0, 1.0)
+        return ((base + 100.0 * wDuration * (newDuration - oldDuration))
+            .coerceIn(0.0, 100.0) * 100.0).roundToInt() / 100.0
+    }
+
     fun restFromDaily(daily: DailyMetric, consistency: Double? = null): Double? {
         val tstMin = daily.totalSleepMin ?: return null
         val eff = daily.efficiency ?: return null

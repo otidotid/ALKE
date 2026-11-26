@@ -277,6 +277,9 @@ interface WhoopDao : DeviceRegistryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSessionCorrection(row: EventRow)
 
+    @Query("DELETE FROM event WHERE deviceId = :source AND ts = :start AND kind = 'sleep-ai-episode-v1'")
+    suspend fun removeCloudSleepEstimate(source: String, start: Long)
+
     @Query("SELECT * FROM event WHERE deviceId = 'alke-session-edits' ORDER BY ts ASC")
     suspend fun sessionCorrections(): List<EventRow>
 

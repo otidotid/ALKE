@@ -201,12 +201,7 @@ internal fun buildSleepModel(
     // is `metric { … }` over repo.days. Where the WHOOP export carried the figure verbatim
     // (metricSeries), it wins per day; the on-device recomputation fills the rest.
     val performance = metric(days, todayKey) { d ->
-        imported.performance[d.day]                       // WHOOP's own 0–100 figure wins per day
-            // else the REAL Rest composite (RestScorer.restFromDaily) — the SAME single source of
-            // truth the Today Rest score, the metric-detail overlay (below) and iOS SleepView
-            // (AnalyticsEngine.Rest.composite(daily:)) read. The old hours-vs-need proxy ceilinged
-            // live 5.0 nights at 100% here while every other surface showed the ~85% composite (#298).
-            ?: com.otidotid.alke.analytics.RestScorer.restFromDaily(d)
+        imported.performance[d.day] ?: imported.dailyRest[d.day] ?: RestScorer.restFromDaily(d)
     }
     val efficiency = metric(days, todayKey) { d ->
         d.efficiency?.let { if (it <= 1.0) it * 100.0 else it }
@@ -225,6 +220,11 @@ internal fun buildSleepModel(
     val hoursVsNeeded = metric(days, todayKey) { d ->
         val need = imported.needMin[d.day] ?: needMin   // imported need wins per day
         d.totalSleepMin?.takeIf { it > 0.0 && need > 0.0 }?.let { it / need * 100.0 }
+    }
+    val dailyFulfillment = metric(days, todayKey) { d ->
+        val need = imported.needMin[d.day] ?: debtNeedMin
+        SleepDebt.creditedSleepMin(d.totalSleepMin, napSleepMinByDay[d.day] ?: 0.0)
+            ?.takeIf { need > 0.0 }?.let { it / need * 100.0 }
     }
     val restorative = metric(days, todayKey) { d ->
         val dp = d.deepMin; val rm = d.remMin; val sl = d.totalSleepMin
@@ -306,6 +306,7 @@ internal fun buildSleepModel(
         selectedNightEfficiency = latest.efficiency?.takeIf { it.isFinite() && it > 0 }
             ?.let { if(it <= 1.0) it * 100.0 else it }?.takeIf { it <= 100.0 },
         selectedNightDebtMin = localDebtByDay[effectiveDay],
+        dailyFulfillment = dailyFulfillment,
     )
 }
 
@@ -375,6 +376,10 @@ internal suspend fun buildHostedSleepModel(
         consistency = load("sleep_consistency"),
         needMin = load("sleep_need_min"),
         debtMin = load("sleep_debt_min"),
+        dailyRest = runCatching {
+            repo.metricSeriesComputedUnion(activeStrapId, com.otidotid.alke.analytics.UnifiedSleepRest.KEY,
+                "0000-00-00", "9999-99-99")
+        }.getOrDefault(emptyList()).associate { it.day to it.value },
     )
 
     val napSleepMinByDay = napSleepMinutesByDay(sleeps, habitualMidsleep)

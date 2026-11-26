@@ -467,7 +467,7 @@ object AlkePrefs {
 
     /** Pause continuous-HRV capture while Battery Saver is on (sub-option of Power saving). Default ON. */
     fun pauseHrvOnPowerSave(context: Context): Boolean =
-        of(context).getBoolean(KEY_PAUSE_HRV_ON_POWER_SAVE, true)
+        false
 
     fun setPauseHrvOnPowerSave(context: Context, enabled: Boolean) {
         of(context).edit().putBoolean(KEY_PAUSE_HRV_ON_POWER_SAVE, enabled).apply()
@@ -568,10 +568,9 @@ object AlkePrefs {
         of(context).edit().putBoolean(KEY_BACKGROUND_CONNECTION, enabled).apply()
     }
 
-    /** Whether ALKE keeps the dense realtime HR stream armed 24/7 for continuous HRV capture. Default
-     *  false. Only takes effect while [backgroundConnection] is also on. */
+    /** v627: continuous capture is mandatory; background connection owns the link. Legacy key retained for backup compatibility. */
     fun continuousHrv(context: Context): Boolean =
-        of(context).getBoolean(KEY_CONTINUOUS_HRV, false)
+        true
 
     fun setContinuousHrv(context: Context, enabled: Boolean) {
         of(context).edit().putBoolean(KEY_CONTINUOUS_HRV, enabled).apply()
@@ -594,7 +593,7 @@ object AlkePrefs {
      * they have seen the old behaviour.
      */
     fun continuousHrvOvernight(context: Context): Boolean =
-        of(context).getBoolean(KEY_CONTINUOUS_HRV_OVERNIGHT, true)
+        false
 
     /**
      * One-time migration for the #1008 default flip. Called once at process start, BEFORE anything reads

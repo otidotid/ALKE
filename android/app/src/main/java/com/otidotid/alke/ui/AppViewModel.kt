@@ -1458,12 +1458,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // around it, it is NOT battery-gated once chosen — it moves the BASE cadence to hourly.
         ble.setLowRefreshMode(on && AlkePrefs.lowRefresh(appContext))
         ble.setLowBatteryOffloadThrottle(if (on) AlkePrefs.powerSavingBatteryPct(appContext) else 0)
-        // HRV pause is a sub-option: only effective while the master is on (defaults on when it is), and
-        // now battery-%-aware like the offload lever — pass the same threshold.
-        ble.setPauseCaptureOnPowerSave(
-            on && AlkePrefs.pauseHrvOnPowerSave(appContext),
-            AlkePrefs.powerSavingBatteryPct(appContext),
-        )
+        // Continuous HRV is a core input for all-day intelligence; power saving must not pause it.
     }
 
     /** Flip "Power saving" (Settings). Persists + applies immediately. */
@@ -1484,12 +1479,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         applyPowerSaving()
     }
 
-    /** Flip "Pause HRV capture in Battery Saver" (Settings). Persists + applies immediately. */
-    fun setPauseHrvOnPowerSave(enabled: Boolean) {
-        AlkePrefs.setPauseHrvOnPowerSave(appContext, enabled)
-        applyPowerSaving()
-    }
-
     /** Flip the experimental "Faster history sync" (#533). Persists + applies immediately, so the next
      *  offload burst uses the new priority without waiting for a reconnect. */
     fun setFastHistorySync(enabled: Boolean) {
@@ -1504,11 +1493,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         applyPowerSaving()
     }
 
-    /** The effective continuous-HRV want: the user's "Continuous HRV capture" preference AND
-     *  "Keep connected in the background" — the latter is what holds the link up for the stream to ride,
-     *  so continuous capture is meaningless without it. */
+    /** All-day HRV capture is mandatory while background connection is enabled. */
     private fun continuousHrvEffective(): Boolean =
-        AlkePrefs.continuousHrv(appContext) && AlkePrefs.backgroundConnection(appContext)
+        AlkePrefs.backgroundConnection(appContext)
 
     /**
      * On launch, reconnect DIRECTLY to the strap we last bonded to (no scan), so the connection
@@ -2662,30 +2649,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // Continuous HRV capture is gated on background connection (it has nothing to stream over without
         // it), so a change here re-reconciles the keep-stream want: turning background off disarms the
         // continuous stream when no Live screen wants it; turning it back on re-arms it if the pref is on.
-        ble.setKeepStreamForData(continuousHrvEffective())
-    }
-
-    /**
-     * Flip "Continuous HRV capture" (driven by Settings → Strap). Persists the preference and pushes the
-     * effective want to the BLE client so it takes effect immediately: turning it on while bonded +
-     * backgrounded arms the dense realtime stream now; turning it off disarms it unless a Live screen
-     * still wants it (the reconciler only sends the toggle on the false↔true edge). Gated on background
-     * connection — it does nothing while that's off (there'd be no background link to stream over).
-     */
-    fun setContinuousHrv(enabled: Boolean) {
-        AlkePrefs.setContinuousHrv(appContext, enabled)
-        ble.setKeepStreamForData(continuousHrvEffective())
-    }
-
-    /**
-     * Flip "Overnight only" for Continuous HRV capture (#927, driven by Settings → Strap). Persists the
-     * preference and re-pushes the UNCHANGED keep-stream want, purely so the BLE reconciler re-derives
-     * the window gate immediately: flipping it on outside the window disarms the stream now, flipping it
-     * off re-arms it. The BLE client re-reads this preference at every arm site, so no stale value can
-     * keep the stream armed outside the window between reconciles.
-     */
-    fun setContinuousHrvOvernight(enabled: Boolean) {
-        AlkePrefs.setContinuousHrvOvernight(appContext, enabled)
         ble.setKeepStreamForData(continuousHrvEffective())
     }
 

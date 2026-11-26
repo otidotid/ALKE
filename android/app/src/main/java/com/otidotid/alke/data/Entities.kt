@@ -412,6 +412,9 @@ data class SleepSession(
 ) {
     /** The bed (onset) time to DISPLAY / sort / re-stage by: the user's hand-set onset when edited,
      *  else the immutable detected [startTs]. Mirrors Swift `CachedSleepSession.effectiveStartTs`. */
+    @androidx.room.Ignore
+    var cloudEpisodeType: String? = null
+
     val effectiveStartTs: Long get() = startTsAdjusted ?: startTs
 }
 

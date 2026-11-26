@@ -23,7 +23,7 @@ def bounds(node):
     nums = list(map(int, re.findall(r"\d+", node.get("bounds", ""))))
     return nums if len(nums) == 4 else [0, 0, 0, 0]
 
-def lookup(root, label, dock=False):
+def lookup(root, label, dock=False, presence_only=False):
     matches = []
     for node in root.iter("node"):
         if node.get("package") != PACKAGE:
@@ -37,6 +37,13 @@ def lookup(root, label, dock=False):
         if dock and y1 < 2050:
             continue
         matches.append(node)
+    # Presence assertions do not select a tap target. Record every match and
+    # retain screenshots/XML for visual review of any duplicate labels.
+    if presence_only and matches:
+        exact = [n for n in matches if label in [n.get('text', '').strip(), n.get('content-desc', '').strip()]]
+        if len(matches) > 1:
+            print(f'PRESENCE {label!r}: {len(matches)} matches; bounds={[n.get("bounds") for n in matches]}', flush=True)
+        return (exact or matches)[0]
     # Semantics may expose both parent and text child; same center is one target.
     centers = {}
     for n in matches:
@@ -55,10 +62,10 @@ def screenshot(name):
     (OUT / (name + ".png")).write_bytes(adb("exec-out", "screencap", "-p"))
     (OUT / (name + ".xml")).write_bytes(ET.tostring(tree(), encoding="utf-8"))
 
-def find(label, scroll=False, dock=False):
+def find(label, scroll=False, dock=False, presence_only=False):
     for attempt in range(11 if scroll else 6):
         root = tree()
-        n = lookup(root, label, dock)
+        n = lookup(root, label, dock, presence_only=presence_only)
         if n is not None:
             return n
         if scroll:
@@ -72,7 +79,7 @@ def tap(label, scroll=False, dock=False):
     time.sleep(1.4)
 
 def verify(label, name, scroll=False):
-    find(label, scroll)
+    find(label, scroll, presence_only=True)
     screenshot(name)
     print("PASS:", name, flush=True)
 
@@ -162,6 +169,7 @@ try:
     main()
 finally:
     (OUT/"final.png").write_bytes(adb("exec-out", "screencap", "-p"))
+    (OUT/"final.xml").write_bytes(ET.tostring(tree(), encoding="utf-8"))
     crash = adb("logcat", "-b", "crash", "-d").decode(errors="replace")
     (OUT/"crash.txt").write_text(crash)
     (OUT/"logcat.txt").write_bytes(adb("logcat", "-d", "-t", "2000"))

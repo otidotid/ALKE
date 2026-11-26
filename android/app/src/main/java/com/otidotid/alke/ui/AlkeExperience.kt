@@ -1023,8 +1023,7 @@ fun AlkeTrainingExperience(
     AlkePage {
         Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
         // Keep the frequent workout controls and Activity Calories visible.
-        AlkeTrainWorkoutActions(vm, onAdd = { showAddDialog = true })
-        AlkeLinkRow("Intervals", "Haptic-guided interval training", Icons.Filled.DirectionsRun, onIntervals, A.gold)
+        AlkeTrainWorkoutActions(vm, onAdd = { showAddDialog = true }, onIntervals = onIntervals)
         AlkeActiveCaloriesCalendar(vm, days) {
             AlkeExpandableSection("Lifetime totals", "Recorded workout calories and most active sport") {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1068,7 +1067,7 @@ fun AlkeTrainingExperience(
  * we reuse the original pause/resume/open/end banner and manual Add action.
  */
 @Composable
-private fun AlkeTrainWorkoutActions(vm: AppViewModel, onAdd: () -> Unit) {
+private fun AlkeTrainWorkoutActions(vm: AppViewModel, onAdd: () -> Unit, onIntervals: () -> Unit = {}) {
     val live by vm.live.collectAsStateWithLifecycle()
     val activeWorkout by vm.activeWorkout.collectAsStateWithLifecycle()
     var showStartWorkout by remember { mutableStateOf(false) }
@@ -1094,6 +1093,7 @@ private fun AlkeTrainWorkoutActions(vm: AppViewModel, onAdd: () -> Unit) {
             }
         }
     }
+    PremiumLink("Intervals", "Haptic-guided interval training", onIntervals)
     if (showStartWorkout) {
         StartWorkoutSheet(vm = vm, onDismiss = { showStartWorkout = false })
     }
@@ -1787,7 +1787,7 @@ fun AlkeProgressExperience(
             AlkeSectionTitle("Explore your progress")
             PremiumLink("Trends Studio", "Trends · Explore · Compare", onTrends)
             PremiumLink("Lab Book", "Metabolic markers and body measurements", onLabBook)
-            PremiumLink("Fitness Age details", "Recorded age history and calculation inputs", onHealth)
+            PremiumLink("Health monitor", "Recorded vital signs, sync and fitness details", onHealth)
             PremiumLink("Vital signs", "Recorded measurements and history", onVitalSigns)
         }
         AlkeExpandableSection("Weekly Review", "Recovery history and long-term performance") {

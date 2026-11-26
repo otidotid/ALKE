@@ -30,3 +30,9 @@ Source-based work does not establish on-device fidelity. Do not call the matrix 
 - Consolidated Train activity overview, added contextual HRV/RHR readouts and actual device connectivity, and reduced duplicate headings in tab hosts.
 - Kept original sub-screen implementations for full functional depth. Saved pins are not rewritten.
 - Remaining: verify visual fidelity on a real device; review actual Sleep architecture ordering, skin-temperature/charge contributor ownership and deep settings styling against the mockups. CI tests and signed APK release not yet verified.
+
+## Latest correction pass
+- Me contracts now assert approved Profile → Connected Sources → Preferences ordering, retained backup/settings callbacks and dock editing. More uses the original push callback with canonical Stress catalog entry, so Back retains the originating stack.
+- Recovery contributors moved into Charge detail; skin-temperature/cycle/illness content moved into Insight with original controls. Legacy Health links remain available.
+- Sleep architecture defaults first, hypopnea follows architecture, date-specific hero readouts use the selected day rather than latest-history tiles. Existing stored custom Sleep layout orders remain unchanged.
+- Train intervals is grouped with start/add controls. Build and full regression must be rerun on this commit. Device visual verification still pending.

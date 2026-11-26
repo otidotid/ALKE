@@ -814,12 +814,19 @@ fun SleepScreen(
                     asleepMin = model?.stages?.asleep,
                     source = restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
                     overline = nightLabel,
-                    efficiency = model?.efficiency?.latest?.takeIf { model?.efficiency?.latestDay == null },
-                    debtMin = model?.sleepDebt?.latest?.takeIf { model?.sleepDebt?.latestDay == null },
+                    efficiency = days.lastOrNull { it.day == (night?.dayKey ?: days.lastOrNull()?.day) }
+                        ?.efficiency?.takeIf { it.isFinite() && it > 0 }?.let { if(it <= 1.0) it * 100.0 else it }
+                        ?.takeIf { it <= 100.0 },
+                    debtMin = (night?.dayKey ?: days.lastOrNull()?.day)?.let { selectedDay ->
+                        imported.debtMin[selectedDay] ?: model?.let { m ->
+                            m.trendDates.indexOf(selectedDay).takeIf { it >= 0 }
+                                ?.let { m.trendDebtHours.getOrNull(it)?.times(60.0) }
+                        }
+                    },
                 )
             }
-            // v617: post-wake Sleep Breathing Quality card. A tap opens the detailed explanation.
-            item(key = "sleep-hypopnea-risk") {
+            // If the user hides architecture, the post-wake assessment still has a visible home.
+            if (SleepSection.STAGES in hiddenSections) item(key = "sleep-hypopnea-risk") {
                 SleepHypopneaCard(hypopneaAssessment, onOpen = { showHypopneaDetail = true })
             }
             // Arrange and Alarms live in the header.
@@ -1101,6 +1108,9 @@ fun SleepScreen(
                         }
                     }
                 }
+              }
+              if (section == SleepSection.STAGES) item(key = "sleep-hypopnea-risk") {
+                  SleepHypopneaCard(hypopneaAssessment, onOpen = { showHypopneaDetail = true })
               }
             }
         }

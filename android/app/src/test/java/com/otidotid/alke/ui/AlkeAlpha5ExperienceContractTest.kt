@@ -54,7 +54,7 @@ class AlkeAlpha5ExperienceContractTest {
         assertTrue(train.contains("MOST ACTIVE SPORTS"))
         assertTrue(train.contains("Text(\"Add Workout\""))
         assertTrue(train.contains("Text(\"Start Workout\""))
-        assertTrue(train.contains("AlkeTrainWorkoutActions(vm, onAdd = { showAddDialog = true })"))
+        assertTrue(train.contains("AlkeTrainWorkoutActions(vm, onAdd = { showAddDialog = true }, onIntervals = onIntervals)"))
         val calendar = train.indexOf("AlkeActiveCaloriesCalendar(vm, days)")
         val sections = train.indexOf("AlkeTrainHistorySections(vm)")
         assertTrue("Activity Breakdown and All Sessions must be placed below Active Calories",

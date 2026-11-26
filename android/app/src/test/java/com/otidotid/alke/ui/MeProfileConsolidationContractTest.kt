@@ -23,21 +23,21 @@ class MeProfileConsolidationContractTest {
         assertTrue(root.contains("composable(Destination.Profile.route)"))
     }
     @Test
-    fun meStartsWithDevicesAndKeepsApprovedGroups() {
+    fun meStartsWithProfileAndKeepsApprovedPremiumGroups() {
         val source = source("AlkeExperience.kt")
 
-        val devices =
-            source.indexOf("AlkeSectionTitle(\"Devices & Sources\")")
-        val backup =
-            source.indexOf("AlkeSectionTitle(\"Data & Backup\")")
-        val app =
-            source.indexOf("AlkeSectionTitle(\"App\")")
-
-        assertTrue(
-            devices >= 0 &&
-                devices < backup &&
-                backup < app
-        )
+        val me = source.substringAfter("fun AlkeMeExperience(")
+            .substringBefore("/** The real ALKE dock editor")
+        val profile = me.indexOf("Text(\"Your Profile\"")
+        val sources = me.indexOf("AlkeSectionTitle(\"Connected Sources\")")
+        val prefs = me.indexOf("AlkeSectionTitle(\"Preferences\")")
+        assertTrue(profile >= 0 && profile < sources && sources < prefs)
+        assertTrue(me.contains("onNavigate(Destination.Profile)"))
+        assertTrue(me.contains("PremiumWearableLink(vm,onDevices)"))
+        assertTrue(me.contains("PremiumLink(\"Health Connect & imports\""))
+        assertTrue(me.contains("PremiumLink(\"Google Drive / Local Folder\""))
+        assertTrue(me.contains("onBackupRestore)"))
+        assertTrue(me.contains("PremiumLink(\"Smart Settings\""))
 
         assertFalse(
             source.contains("AlkeSectionTitle(\"Profile\")")

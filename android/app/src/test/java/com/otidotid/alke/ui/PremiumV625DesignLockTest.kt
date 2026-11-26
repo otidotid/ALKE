@@ -47,6 +47,12 @@ class PremiumV625DesignLockTest {
         val keys=listOf("ConsolidatedInsightSignals(insightDay)","Text(\"Daily Journal\"","Text(\"Personal Analytics\"","ConsolidatedInsightAiSummary(aiSummary")
         val indexes=keys.map { insight.indexOf(it) }
         assertTrue(indexes.all { it>=0 } && indexes.zipWithNext().all { it.first<it.second })
-        assertTrue(ui("SleepScreen.kt").contains("Sleep Balance"))
+        val sleep=ui("SleepScreen.kt")
+        assertTrue(sleep.contains("Sleep Balance"))
+        assertTrue(sleep.contains("m.trendDates.indexOf(selectedDay)"))
+        assertTrue(sleep.contains("days.lastOrNull { it.day =="))
+        assertTrue(insight.contains("InsightSkinTemperatureDetails(vm)"))
+        assertTrue(ui("HealthScreen.kt").contains("if (key == \"recovery\")"))
+        assertTrue(ui("HealthScreen.kt").contains("HealthContributorsSection(today)"))
     }
 }

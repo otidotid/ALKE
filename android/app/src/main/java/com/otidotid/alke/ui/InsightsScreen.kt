@@ -181,6 +181,7 @@ fun InsightsScreen(vm: AppViewModel, onHydration: () -> Unit = {}) {
     var journalExpanded by rememberSaveable { mutableStateOf(true) }
     var moodExpanded by rememberSaveable { mutableStateOf(false) }
     var relationshipsExpanded by rememberSaveable { mutableStateOf(false) }
+    var skinExpanded by rememberSaveable { mutableStateOf(false) }
     var caffeineExpanded by rememberSaveable { mutableStateOf(false) }
     var experimentExpanded by rememberSaveable { mutableStateOf(false) }
     var insightEvidenceRevision by remember { mutableStateOf(0) }
@@ -441,6 +442,13 @@ val expCandidates = experimentCandidates(
 
                 // 2. Your Signals — current readings; unavailable metrics stay unavailable.
         item { ConsolidatedInsightSignals(insightDay) }
+        item {
+            AlkePanel(Modifier.fillMaxWidth()) {
+                PremiumLink("Skin Temperature details", if(skinExpanded) "Collapse" else "Nightly signals, cycle awareness and illness heads-up",
+                    { skinExpanded = !skinExpanded })
+            }
+        }
+        if(skinExpanded) item { InsightSkinTemperatureDetails(vm) }
 
         // 3. Log Journal — a premium collapsible disclosure. Existing history,
         //    custom-question editor, numeric entries and all callbacks stay intact.

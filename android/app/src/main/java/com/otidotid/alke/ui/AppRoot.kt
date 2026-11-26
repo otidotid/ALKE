@@ -274,7 +274,7 @@ internal fun alkeModuleAlias(destination: Destination): String? = when (destinat
     Destination.Trends -> "Progress"
     Destination.Intelligence -> "Insight"
     Destination.Live -> "Live HR"
-    Destination.Breathe -> "Stress & Breathe"
+    Destination.Breathe, Destination.Stress -> "Stress & Breathe"
     Destination.Health -> "Fitness Age"
     Destination.More -> "Me"
     else -> null
@@ -414,7 +414,8 @@ internal fun alkeAllModulesGroups(pinned: List<Destination>): List<DrawerGroup> 
         Destination.VitalSigns, Destination.Rhythm, Destination.Intervals, Destination.Hydration,
     )
     return visibleMoreGroups(pinned).map { group ->
-        group.copy(items = group.items.filterNot { it in meShortcuts })
+        group.copy(items = group.items.filterNot { it in meShortcuts }
+            .map { if (it == Destination.Breathe) Destination.Stress else it })
     }.filter { it.items.isNotEmpty() }
 }
 
@@ -992,6 +993,7 @@ fun AppRoot(
                         onOpenLabBook = { nav.navigateTopLevel(Destination.LabBook.route) },
                         onOpenFusedRecord = { nav.navigateTopLevel(Destination.FusedRecord.route) },
                         onOpenSettings = { nav.navigateTopLevel(Destination.Profile.route) },
+                        onOpenInsight = { nav.navigate(Destination.Intelligence.route) },
                     )
                 }
                 composable(Destination.Hydration.route) { HydrationScreen(viewModel) }
@@ -1068,9 +1070,7 @@ fun AppRoot(
                     )
                 }
                 composable(Destination.AlkeAllModules.route) {
-                    AlkeAllModulesExperience(onNavigate = { route ->
-                        nav.navigate(if(route == Destination.Breathe.route) Destination.Stress.route else route)
-                    })
+                    AlkeAllModulesExperience(onNavigate = { nav.navigate(it) })
                 }
             }
         }

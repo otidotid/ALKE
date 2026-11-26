@@ -140,19 +140,13 @@ fun HealthScreen(
     onOpenLabBook: () -> Unit = {},
     onOpenFusedRecord: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenInsight: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val profile = remember { ProfileStore.from(context.applicationContext) }
     val today by vm.today.collectAsStateWithLifecycle()
     // Full merged daily history — feeds the personal-baseline banding of the vitals grid.
     val days by vm.recentDays.collectAsStateWithLifecycle()
-    // v5 skin-temp suite engine results (Cycle / Body clock / Illness heads-up), recomputed each
-    // analytics pass and published by the ViewModel. Cycle awareness gates on its opt-in pref.
-    val v5Signals by vm.v5Signals.collectAsStateWithLifecycle()
-    val cycleEnabled by vm.cycleTrackingEnabled.collectAsStateWithLifecycle()
-    val cycleHidden by vm.cycleAwarenessHidden.collectAsStateWithLifecycle()
-    val periodStarts by vm.periodStarts.collectAsStateWithLifecycle()
-    var showCycleTracker by remember { mutableStateOf(false) }
     val hrMax = profile.hrMax
 
     // Health Monitor shows live HR too, so it must keep the realtime stream on while it's visible —
@@ -231,30 +225,12 @@ fun HealthScreen(
             }
             // VitalityEngine and its historical body_age data stay intact for future
             // validated Fitness Age integration, but no separate Body Age UI is shown.
-            // SKIN TEMPERATURE (v5 pillar) — Cycle awareness (opt-in), Body clock + an illness heads-up,
-            // each from a pure engine RESULT the ViewModel publishes. A section of Health, never its own
-            // destination (umbrella §2.4). Non-clinical observations about your own numbers.
-            item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
             item {
-                SkinTempSuiteSection(
-                    signals = v5Signals,
-                    cycleEnabled = cycleEnabled,
-                    // #801: gate the cycle-awareness OPT-IN to profiles it can apply to (sex-gated, pure
-                    // helper). Cycle phase is read from the menstrual skin-temperature shift, so the
-                    // invitation is NOT offered for male profiles. Matches iOS SkinTempSection.cycleOptInApplies.
-                    cycleOptInApplies = cycleAwarenessVisible(profile.sex, cycleHidden),
-                    onEnableCycle = { vm.setCycleTrackingEnabled(true) },
-                    onLogPeriod = { vm.logPeriodStart() },
-                    onOpenCycleTracker = { showCycleTracker = true },
-                    // #801: symmetric off-control. Cycle awareness could be turned ON here but only OFF from
-                    // Automations; let the user turn it off in-place where they turned it on.
-                    onTurnOffCycle = { vm.setCycleTrackingEnabled(false) },
-                )
+                AlkePanel(Modifier.fillMaxWidth()) {
+                    PremiumLink("Skin Temperature & body signals", "Open Insight", onOpenInsight)
+                    PremiumLink("Recovery Contributors", "Open Charge details", { onVitalClick("recovery") })
+                }
             }
-            // CONTRIBUTORS (README screen #5, recovery detail) — the signals behind recovery as
-            // labelled progress bars in the shared stage/zone bar style, mirroring Today's section.
-            item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-            item { HealthContributorsSection(today) }
             // RECORDS & SOURCES (Swift parity) — deep-link rows into the local Lab Book and the
             // "Your Data, Fused" record, so both are discoverable from Health, not just the drawer.
             item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
@@ -267,18 +243,7 @@ fun HealthScreen(
         }
     }
 
-    if (showCycleTracker) {
-        v5Signals?.cycle?.let { cycle ->
-            CycleTrackerDialog(
-                result = cycle,
-                starts = periodStarts,
-                onLog = vm::logPeriodStart,
-                onDelete = vm::deletePeriodStart,
-                onDeleteAll = vm::deleteAllPeriodStarts,
-                onDismiss = { showCycleTracker = false },
-            )
-        }
-    }
+
 }
 
 // MARK: - Sync status + "Sync now" (#364)
@@ -501,6 +466,38 @@ internal fun cycleOptInApplies(sex: String): Boolean = sex.lowercase(Locale.US) 
  *  ProfileStore.cycleAwarenessVisible(sex:hidden:). */
 internal fun cycleAwarenessVisible(sex: String, hidden: Boolean): Boolean =
     cycleOptInApplies(sex) && !hidden
+
+@Composable
+internal fun InsightSkinTemperatureDetails(vm: AppViewModel) {
+    val context = LocalContext.current
+    val profile = remember { ProfileStore.from(context.applicationContext) }
+    val v5Signals by vm.v5Signals.collectAsStateWithLifecycle()
+    val cycleEnabled by vm.cycleTrackingEnabled.collectAsStateWithLifecycle()
+    val cycleHidden by vm.cycleAwarenessHidden.collectAsStateWithLifecycle()
+    val periodStarts by vm.periodStarts.collectAsStateWithLifecycle()
+    var showCycleTracker by remember { mutableStateOf(false) }
+    SkinTempSuiteSection(
+        signals = v5Signals,
+        cycleEnabled = cycleEnabled,
+        cycleOptInApplies = cycleAwarenessVisible(profile.sex, cycleHidden),
+        onEnableCycle = { vm.setCycleTrackingEnabled(true) },
+        onLogPeriod = { vm.logPeriodStart() },
+        onOpenCycleTracker = { showCycleTracker = true },
+        onTurnOffCycle = { vm.setCycleTrackingEnabled(false) },
+    )
+    if (showCycleTracker) {
+        v5Signals?.cycle?.let { cycle ->
+            CycleTrackerDialog(
+                result = cycle,
+                starts = periodStarts,
+                onLog = vm::logPeriodStart,
+                onDelete = vm::deletePeriodStart,
+                onDeleteAll = vm::deleteAllPeriodStarts,
+                onDismiss = { showCycleTracker = false },
+            )
+        }
+    }
+}
 
 @Composable
 private fun SkinTempSuiteSection(
@@ -2290,6 +2287,10 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
         // offset left the lower cards on plain canvas (tester report).
         fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
+        if (key == "recovery") {
+            val today by vm.today.collectAsStateWithLifecycle()
+            HealthContributorsSection(today)
+        }
         if (isSeriesBacked && !seriesLoaded) {
             DataPendingNote(
                 title = uiString(if (isStepsDetail) R.string.steps_loading_title else R.string.l10n_health_screen_loading_33ce4174),

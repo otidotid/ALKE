@@ -1,0 +1,30 @@
+name: ALKE v625 Offline Release Tools
+on:
+  push:
+    branches: [alke/v625-offline-release]
+    paths:
+      - .github/workflows/alke-v625-offline-release.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export-sdk-tools:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Export official Android SDK APK signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar="$(find "$ANDROID_HOME/build-tools" -path '*/lib/apksigner.jar' -type f | sort -V | tail -1)"
+          test -s "$jar"
+          mkdir -p sdk-tools
+          cp "$jar" sdk-tools/apksigner.jar
+          java -jar sdk-tools/apksigner.jar version
+          (cd sdk-tools && sha256sum apksigner.jar > apksigner.jar.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-v625-SDK-apksigner
+          path: sdk-tools/
+          if-no-files-found: error
+          retention-days: 2

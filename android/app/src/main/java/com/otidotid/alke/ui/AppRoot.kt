@@ -848,7 +848,9 @@ fun AppRoot(
                         onBack = { nav.popBackStack() },
                         onDevices = { nav.navigate(Destination.Devices.route) },
                         onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) },
-                        onMetric = { nav.navigate("vital_detail/$it") })
+                        onMetric = { nav.navigate("vital_detail/$it") },
+                        timelineRequestId = if(widgetEntryRequest.first == Destination.AlkeHeartRateTimeline.route)
+                            widgetEntryRequest.second else 0L)
                 }
                 composable(Destination.AlkeDetailedToday.route) {
                     TodayScreen(

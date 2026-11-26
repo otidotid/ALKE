@@ -169,10 +169,11 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}, embedd
     // already in flight by consuming the ViewModel's one-shot on appear (iOS parity:
     // LiveView.consumeActiveWorkoutRequest). Closing just hides it; the workout keeps recording.
     var showLiveWorkout by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
+    val workoutPresentationRequested by viewModel.presentActiveWorkout.collectAsStateWithLifecycle()
+    LaunchedEffect(workoutPresentationRequested) {
         // consumeActiveWorkoutRequest() returns true exactly once per raise, and only while a workout is
         // active, so a stale flag can never open an empty overlay.
-        if (viewModel.consumeActiveWorkoutRequest()) showLiveWorkout = true
+        if (workoutPresentationRequested && viewModel.consumeActiveWorkoutRequest()) showLiveWorkout = true
     }
 
     // GPS workout sport picker — the shared sheet (also used on the Workouts screen, #115). Rendered at

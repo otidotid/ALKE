@@ -245,7 +245,7 @@ private fun statOf(values: List<Double>): Stat {
 fun TrendsExploreScreen(vm: AppViewModel, embedded: Boolean = false) {
     // The Deep Timeline (#575) is presented INLINE from Explore , no NavHost route needed, so this stays
     // self-contained in the Explore entry-point file. System back / the in-screen reset returns here.
-    var showDeepTimeline by remember { mutableStateOf(false) }
+    var showDeepTimeline by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     if (showDeepTimeline) {
         FullDayChartScreen(vm = vm, onBack = { showDeepTimeline = false })
         return
@@ -327,8 +327,8 @@ fun TrendsExploreScreen(vm: AppViewModel, embedded: Boolean = false) {
     // follow the toggle through every read-out (hero, footer stats, Y-axis). Display-only.
     val effortScale = UnitPrefs.effortScale(LocalContext.current)
 
-    var selectedKey by remember { mutableStateOf(builtInMetrics.first().key) }
-    var range by remember { mutableStateOf(ExploreRange.Month) }
+    var selectedKey by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(builtInMetrics.first().key) }
+    var range by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(ExploreRange.Month) }
     val selected = (metrics.firstOrNull { it.key == selectedKey } ?: metrics.first())
         .copy(effortScale = effortScale)
 

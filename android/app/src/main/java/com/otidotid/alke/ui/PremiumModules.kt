@@ -51,10 +51,17 @@ internal fun PremiumLink(title:String,subtitle:String,onClick:()->Unit) {
 @Composable
 private fun PremiumModeHost(title:String,modes:List<String>,initialMode:String,
     onBack:(()->Unit)?=null,
+    requestMode:String?=null, requestId:Long=0L, forcedMode:String?=null,
     content:@Composable (String,(String)->Unit)->Unit) {
     var selected by rememberSaveable(initialMode) { mutableStateOf(initialMode.takeIf { it in modes } ?: modes.first()) }
     val stateHolder=rememberSaveableStateHolder()
     val choose:(String)->Unit={ if(it in modes) selected=it }
+    LaunchedEffect(requestId,requestMode) {
+        if(requestId!=0L && requestMode!=null) choose(requestMode)
+    }
+    LaunchedEffect(forcedMode) {
+        if(forcedMode!=null) choose(forcedMode)
+    }
     Column(Modifier.fillMaxSize().background(PremiumSurface.canvas)) {
         Column(Modifier.fillMaxWidth().background(PremiumSurface.surface).padding(horizontal=16.dp,vertical=8.dp),
             verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -103,8 +110,11 @@ internal fun PremiumStressBreathe(vm:AppViewModel,initialMode:String) {
 
 @Composable
 internal fun PremiumHeartRateCenter(vm:AppViewModel,initialMode:String,onBack:()->Unit,
-    onDevices:()->Unit,onWorkouts:()->Unit,onMetric:(String)->Unit={}) {
-    PremiumModeHost("Heart Rate",listOf("Timeline","Live HR","Rhythm"),initialMode,onBack=onBack) { mode,choose ->
+    onDevices:()->Unit,onWorkouts:()->Unit,onMetric:(String)->Unit={},timelineRequestId:Long=0L) {
+    val workoutRequested by vm.presentActiveWorkout.collectAsStateWithLifecycle()
+    PremiumModeHost("Heart Rate",listOf("Timeline","Live HR","Rhythm"),initialMode,onBack=onBack,
+        requestMode="Timeline",requestId=timelineRequestId,
+        forcedMode=if(initialMode=="Live HR" && workoutRequested) "Live HR" else null) { mode,choose ->
         when(mode) {
             "Live HR" -> LiveScreen(vm,onManageDevices=onDevices,embedded=true)
             "Rhythm" -> RhythmRoute(vm)

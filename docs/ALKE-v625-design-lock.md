@@ -42,3 +42,8 @@ Source-based work does not establish on-device fidelity. Do not call the matrix 
 - Sleep selected-night summary uses the existing debt calculation with an explicit day key. Night physiology and Body Clock are collapsible. Old saved orders and keys are unchanged.
 - Insight adds the gold AI summary/Coach entry and retains evidence-only text and retry. Heart Rate Center tiles link their correct metric histories.
 - Visual fidelity of all modules still requires actual screenshot/device verification. No release is authorized by these source-only checks.
+
+## Pre-signing audit pass
+- Audited exact passing head e8e6110 against v624: no deleted files; no algorithm, DB schema, signing, BLE protocol, cloud Worker or backup implementation changes. Shared UI palette changes still require device review.
+- Fixed three navigation/state/data risks introduced by consolidation: tab switches now preserve Trends/Explore selections, widget and active-workout commands override restored HR tabs, Journal summary counts unique items and uses selected-date data (today-only mood/caffeine labeled separately).
+- Added source contract tests. These are not instrumentation or device smoke tests. New head requires fresh full Quality Gate. Device visual/layout, back-stack, BLE, actual backup/restore, cloud detection and measured performance remain unverified in this environment. Do not publish as final.

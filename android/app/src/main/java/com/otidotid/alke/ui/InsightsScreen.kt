@@ -196,6 +196,7 @@ fun InsightsScreen(vm: AppViewModel, onHydration: () -> Unit = {}, onCoach: () -
     // Map<String, Double> outcome), so "caffeine mg" / "alcohol units" can rank as a numeric outcome.
     var numericJournalSeries by remember { mutableStateOf<Map<String, Map<String, Double>>>(emptyMap()) }
     var journalLoaded by remember { mutableStateOf(false) }
+    var loadedJournalDay by remember { mutableStateOf<String?>(null) }
     var journalSeq by remember { mutableStateOf(0) }
     var dayOffset by remember { mutableStateOf(0L) }
     // #656: honour a day the Today journal widget deep-linked to (tapping a bar opens the journal at THAT
@@ -288,8 +289,13 @@ fun InsightsScreen(vm: AppViewModel, onHydration: () -> Unit = {}, onCoach: () -
             preFilledFromYesterday = false
         }
         dayAnswers = answers
+        loadedJournalDay = key
         journalLoaded = true
     }
+    val selectedJournalDay = journalDayKey(dayOffset)
+    val journalReady = journalLoaded && loadedJournalDay == selectedJournalDay
+    val selectedAnswers = if(journalReady) dayAnswers else emptyMap()
+    val selectedNumeric = if(journalReady) dayNumeric else emptyMap()
 
     // Selected outcome metric for the behaviour-effects half.
     var outcome by remember { mutableStateOf(Outcome.Recovery) }
@@ -368,15 +374,15 @@ val expCandidates = experimentCandidates(
         }
     }
     val journalEvidence = buildList {
-        add("Journal date: " + journalDayKey(dayOffset))
-        dayAnswers.entries.sortedBy { it.key }.forEach { (name, yes) ->
+        add("Journal date: " + selectedJournalDay)
+        selectedAnswers.entries.filterNot { it.key in selectedNumeric }.sortedBy { it.key }.forEach { (name, yes) ->
             add("${name}: " + if (yes) "yes" else "no")
         }
-        dayNumeric.entries.sortedBy { it.key }.forEach { (name, amount) ->
+        selectedNumeric.entries.sortedBy { it.key }.forEach { (name, amount) ->
             add("${name}: " + String.format(Locale.US, "%.1f", amount))
         }
-        if (!journalLoaded) add("Journal data not loaded")
-        else if (dayAnswers.isEmpty()) add("No yes/no journal entries for selected date")
+        if (!journalReady) add("Journal data not loaded")
+        else if (selectedAnswers.isEmpty() && selectedNumeric.isEmpty()) add("No journal entries for selected date")
     }
     val relationshipsEvidence = relationships.map { relation ->
         String.format(Locale.US,
@@ -457,11 +463,11 @@ val expCandidates = experimentCandidates(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Daily Journal", style = AlkeType.headline, color = Palette.textPrimary,
                         modifier = Modifier.weight(1f))
-                    Text(journalDayKey(dayOffset),style=AlkeType.caption,color=Palette.textSecondary)
+                    Text(selectedJournalDay,style=AlkeType.caption,color=Palette.textSecondary)
                 }
-                val mood = moodSeries.lastOrNull { it.first == journalDayKey(0L) }?.second
+                val mood = moodSeries.lastOrNull { it.first == currentDayKey }?.second
                 val moodText = when(mood) { 1.0 -> "Awful"; 2.0 -> "Low"; 3.0 -> "Okay"; 4.0 -> "Good"; 5.0 -> "Great"; else -> "Not logged" }
-                val caffeineToday = remember(ctx, insightEvidenceRevision) {
+                val caffeineToday = remember(ctx, insightEvidenceRevision, currentDayKey) {
                     val zone = java.time.ZoneId.systemDefault()
                     val date = java.time.LocalDate.now(zone)
                     loadCaffeineIntakes(ctx).filter {
@@ -475,7 +481,7 @@ val expCandidates = experimentCandidates(
                     else -> String.format(Locale.US, "%.0f mg",mg.sum())
                 }
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    PremiumJournalTile("Journal",if(journalLoaded) "${dayAnswers.size+dayNumeric.size} logged" else "—",
+                    PremiumJournalTile("Journal",if(journalReady) "${(selectedAnswers.keys+selectedNumeric.keys).size} logged" else "—",
                         Icons.Filled.Edit,journalExpanded,Modifier.weight(1f)) { journalExpanded = !journalExpanded; moodExpanded=false; caffeineExpanded=false }
                     PremiumJournalTile("Mood",moodText,Icons.Filled.FavoriteBorder,moodExpanded,Modifier.weight(1f)) {
                         moodExpanded = !moodExpanded; journalExpanded=false; caffeineExpanded=false
@@ -484,10 +490,12 @@ val expCandidates = experimentCandidates(
                         caffeineExpanded = !caffeineExpanded; journalExpanded=false; moodExpanded=false
                     }
                 }
+                if(dayOffset!=0L) Text("Journal: selected date · Mood and caffeine: today",
+                    style=AlkeType.caption,color=Palette.textSecondary)
                 if (AlkePrefs.hydrationTracking(ctx)) PremiumLink("Hydration", "Fluid intake", onHydration)
             }
         }
-        if (journalExpanded && preFilledFromYesterday) {
+        if (journalExpanded && journalReady && preFilledFromYesterday) {
             item {
             Text(
                 uiString(R.string.l10n_insights_screen_pre_filled_from_last_night_tap_ce81097c),
@@ -507,32 +515,35 @@ val expCandidates = experimentCandidates(
         }
         JournalLogCard(
             items = resolveJournalItems(importedQuestions, catalogItems, includeHidden = false),
-            answers = dayAnswers,
-            numericAnswers = dayNumeric,
+            answers = selectedAnswers,
+            numericAnswers = selectedNumeric,
             dayOffset = dayOffset,
             onDayOffset = { dayOffset = it },
             onAnswer = { q, yes ->
+                val targetDay = selectedJournalDay
                 scope.launch {
                     vm.repo.upsertJournal(
-                        listOf(JournalEntry(JOURNAL_DEVICE_ID, journalDayKey(dayOffset), q, yes)),
+                        listOf(JournalEntry(JOURNAL_DEVICE_ID, targetDay, q, yes)),
                     )
                     journalSeq++
                 }
             },
             onNumeric = { q, value ->
+                val targetDay = selectedJournalDay
                 scope.launch {
                     // A numeric log writes answeredYes=true AND the value (#322), so the effects engine
                     // counts the day as logged and the with/without split is unchanged.
                     vm.repo.upsertJournal(
-                        listOf(JournalEntry(JOURNAL_DEVICE_ID, journalDayKey(dayOffset), q,
+                        listOf(JournalEntry(JOURNAL_DEVICE_ID, targetDay, q,
                             answeredYes = true, numericValue = value)),
                     )
                     journalSeq++
                 }
             },
             onClear = { q ->
+                val targetDay = selectedJournalDay
                 scope.launch {
-                    vm.repo.deleteJournalEntry(JOURNAL_DEVICE_ID, journalDayKey(dayOffset), q)
+                    vm.repo.deleteJournalEntry(JOURNAL_DEVICE_ID, targetDay, q)
                     journalSeq++
                 }
             },

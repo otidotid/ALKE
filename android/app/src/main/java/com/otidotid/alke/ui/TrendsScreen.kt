@@ -131,12 +131,12 @@ fun TrendsScreen(vm: AppViewModel, embedded: Boolean = false) {
     // cards reveal it the whole way down, exactly like Today and the metric-detail screens.
     val skyBehindCards = remember { AlkePrefs.skyBehindCards(trendsCtx) }
 
-    var range by remember { mutableStateOf(TrendsRange.Quarter) }
+    var range by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(TrendsRange.Quarter) }
 
     // #710 , browse previous weeks in the Week-in-review digest. 0 = the week containing today; each step
     // back is one Mon–Sun week earlier, clamped so it never runs past the earliest day we hold. The Trends
     // RANGE control above scopes the long charts; this only moves the weekly digest at the top.
-    var weekOffset by remember { mutableStateOf(0) }
+    var weekOffset by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
     // Re-clamp the offset whenever the loaded history changes (e.g. an import lands more weeks), so a
     // stored offset can never point past the new earliest week. Mirrors the iOS minWeekOffset clamp.
     val minWeekOffset = remember(days) { minWeekOffset(days) }

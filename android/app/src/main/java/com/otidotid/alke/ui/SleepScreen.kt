@@ -917,7 +917,7 @@ fun SleepScreen(
                     score = if (night != null) heroPerformanceScore(night, days, imported, napSleepMinByDay)
                             else tilesModel?.performance?.latest,
                     asleepMin = model?.stages?.asleep,
-                    source = if ((napSleepMinByDay[night?.dayKey] ?: 0.0) > 0.0 &&
+                    source = if ((night?.dayKey?.let { napSleepMinByDay[it] } ?: 0.0) > 0.0 &&
                         days.any { it.day == night?.dayKey && com.otidotid.alke.analytics.RestScorer.restFromDaily(it) != null })
                         "ALKE daily estimate"
                         else restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
@@ -936,7 +936,8 @@ fun SleepScreen(
                         naps = chosen.napBlocks, onEditNapTimes = updateEpisode,
                         onDeleteNap = deleteEpisode, habitualMidsleepSec = habitualMidsleep,
                         activeIsOura = activeIsOura,
-                        mainStart = chosen.heroOnsetTs, mainEnd = chosen.heroWakeTs,
+                        mainStart = chosen.heroOnsetTs ?: chosen.session.effectiveStartTs,
+                        mainEnd = chosen.heroWakeTs ?: chosen.session.endTs,
                         creditedMin = napSleepMinByDay[chosen.dayKey] ?: 0.0)
                 }
             }

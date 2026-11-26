@@ -126,12 +126,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest \\
+          ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest \
             --tests 'com.otidotid.alke.analytics.IntelligenceEngineJacocoBudgetTest' || {
-              find app/build/test-results -name '*IntelligenceEngineJacocoBudgetTest*.xml' -exec cat {} \\;
+              find app/build/test-results -name '*IntelligenceEngineJacocoBudgetTest*.xml' -exec cat {} \;
               exit 1
             }
-          find app/build/test-results -name '*IntelligenceEngineJacocoBudgetTest*.xml' -exec grep -E 'instrumented Code length=' {} \\; || true
+          find app/build/test-results -name '*IntelligenceEngineJacocoBudgetTest*.xml' -exec grep -E 'instrumented Code length=' {} \; || true
       - name: Targeted Personal release tests
         working-directory: android
         run: |

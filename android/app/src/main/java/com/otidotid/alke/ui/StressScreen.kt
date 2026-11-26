@@ -207,6 +207,12 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}, embedded: Boolean
             !storedLoaded -> item { StressLoading() }
             else -> item { StressEmpty() }
         }
+        if(model == null) item {
+            AlkePanel(Modifier.fillMaxWidth()) {
+                Text("Guided Breathing",style=AlkeType.headline,color=Palette.textPrimary)
+                AlkeButton(text="Start Breathing",fullWidth=true,onClick=onBreathe)
+            }
+        }
     }
 }
 
@@ -305,24 +311,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
     //     PipBar on the 0…3 scale. Flat, crisp, no needle, no gauge, no glow, no scenic).
     item { StressHeroCard(model, modifier = Modifier.staggeredAppear(0)) }
 
-    // 1b · ADVANCED HRV readouts (additive, on-demand). A separate, clearly-labelled card shown
-    //      only when at least one engine returned a value. It sits BELOW the hero and never alters
-    //      the hero, the markers or the timeline.
-    if (hasAdvancedReadouts(stressIndex, freqHrv)) {
-        item { StressAdvancedCard(stressIndex, freqHrv, modifier = Modifier.staggeredAppear(1)) }
-    }
-
-    // 2 · Today's markers — uniform fixed-height tiles, two-up.
-    item {
-        Column(
-            modifier = Modifier.staggeredAppear(1),
-            verticalArrangement = Arrangement.spacedBy(Metrics.gap),
-        ) {
-            SectionHeader("Today", overline = "Markers", trailing = "vs 30-day baseline")
-            StressTiles(model)
-        }
-    }
-
     // 3 · Today's intraday timeline — when in the day stress ran high, + a passive Breathe
     //     suggestion when the recent hours stay elevated.
     // #2535: THREE states, not two. `daytime` is null only while the read is still running, and this used
@@ -352,11 +340,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
             AlkeButton(text="Start Breathing",fullWidth=true,onClick=onBreathe)
         }
     }
-    // 4 · Trend over the chosen window.
-    item { StressTrendSection(model, modifier = Modifier.staggeredAppear(3)) }
-
-    // 5 · Transparency — how the number is built.
-    item { StressMethodologyCard(model, modifier = Modifier.staggeredAppear(4)) }
+    item {
+        var expanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+        Column(verticalArrangement=Arrangement.spacedBy(Metrics.gap)) {
+            PremiumLink("Stress history & advanced analysis",if(expanded) "Collapse" else "Trends, baseline, HRV and methodology",{ expanded = !expanded })
+            if(expanded) {
+                StressTrendSection(model, modifier = Modifier.staggeredAppear(3))
+                SectionHeader("Today",overline="Markers",trailing="vs 30-day baseline")
+                StressTiles(model)
+                if(hasAdvancedReadouts(stressIndex,freqHrv)) StressAdvancedCard(stressIndex,freqHrv)
+                StressMethodologyCard(model, modifier = Modifier.staggeredAppear(4))
+            }
+        }
+    }
 }
 
 // MARK: - Liquid hero tokens (the liquid restyle)
@@ -379,97 +375,38 @@ private val LIQUID_HERO_RADIUS = 26.dp
 @Composable
 private fun StressHeroCard(model: StressModel, modifier: Modifier = Modifier) {
     val bandColor = StressRamp.color(model.score)
-    // The vessel fills on the SAME 0–3 scale the score uses (score / 3 → 0..1), tinted by the live band.
-    val fraction = (model.score / 3.0).coerceIn(0.0, 1.0)
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(LIQUID_HERO_RADIUS))
-            .background(Palette.heroFill.copy(alpha = Palette.heroFill.alpha * CardAppearance.opacity))
-            .border(1.dp, Palette.heroBorder.copy(alpha = Palette.heroBorder.alpha * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
-            .padding(Metrics.cardPadding),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Overline("Stress monitor", modifier = Modifier.weight(1f))
-                StatePill(model.band.title, tone = model.band.tone, showsDot = true)
-            }
-
-            // The liquid vessel + the count-up value rolled over it, with "of 3" + the band word beside.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                // The band-tinted vessel with a WHITE count-up number over it — the HeroScoreVessel idiom.
-                // `animated` only once a real score is loaded (model != null here, so always a real value).
-                Box(
-                    modifier = Modifier
-                        .size(112.dp)
-                        .semantics {
-                            contentDescription = uiString(
-                                R.string.stress_score_accessibility,
-                                String.format(Locale.US, "%.1f", model.score),
-                                model.band.title,
-                            )
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    LiquidVessel(
-                        value = fraction,
-                        tint = bandColor,
-                        animated = true,
-                        modifier = Modifier.size(112.dp),
-                    )
-                    // Count-up value over the vessel — white, tabular, a soft shadow for legibility, and
-                    // hit-transparent so the tap reaches the vessel (splash). Mirrors HeroScoreVessel.
-                    CountUpText(
-                        value = model.score,
-                        format = { String.format(Locale.US, "%.1f", it) },
-                        style = AlkeType.number(30f, weight = FontWeight.Bold)
-                            .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
-                        color = Color.White,
-                        modifier = Modifier.clearAndSetSemantics {},
-                    )
+    val fraction = (model.score / 3.0).coerceIn(0.0, 1.0).toFloat()
+    AlkePanel(modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,
+            verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Overline("PHYSIOLOGICAL STRESS")
+            Box(Modifier.fillMaxWidth().height(158.dp).semantics {
+                contentDescription = uiString(R.string.stress_score_accessibility,
+                    String.format(Locale.US,"%.1f",model.score),model.band.title)
+            },contentAlignment=Alignment.Center) {
+                Canvas(Modifier.fillMaxWidth().height(158.dp)) {
+                    val stroke=10.dp.toPx()
+                    val radius=minOf(size.width/2f-stroke-4.dp.toPx(),size.height-stroke-4.dp.toPx()).coerceAtLeast(1f)
+                    val origin=Offset(center.x-radius, size.height-stroke-radius)
+                    val bounds=Size(radius*2,radius*2)
+                    drawArc(color=PremiumSurface.selected,startAngle=180f,sweepAngle=180f,useCenter=false,topLeft=origin,size=bounds,style=Stroke(stroke,cap=StrokeCap.Round))
+                    if(fraction>0f) drawArc(brush=Brush.horizontalGradient(listOf(Color(0xFF38D996),Color(0xFFEAC17A),Color(0xFFFF7882)),startX=origin.x,endX=origin.x+bounds.width),
+                        startAngle=180f,sweepAngle=180f*fraction,useCenter=false,topLeft=origin,size=bounds,style=Stroke(stroke,cap=StrokeCap.Round))
                 }
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            model.band.title,
-                            style = AlkeType.display(30f),
-                            color = bandColor,
-                        )
-                        Text(
-                            uiString(R.string.l10n_stress_screen_of_3_46203495),
-                            style = AlkeType.number(14f, FontWeight.Medium),
-                            color = Palette.textTertiary,
-                            modifier = Modifier.padding(start = 6.dp, bottom = 5.dp),
-                        )
-                    }
-                    Text(
-                        uiString(R.string.l10n_stress_screen_on_the_0_3_autonomic_load_8a0d5107),
-                        style = AlkeType.footnote,
-                        color = Palette.textTertiary,
-                    )
+                Column(Modifier.padding(top=44.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+                    CountUpText(value=model.score,format={String.format(Locale.US,"%.1f",it)},
+                        style=AlkeType.number(46f,weight=FontWeight.Bold),color=PremiumSurface.white,
+                        modifier=Modifier.clearAndSetSemantics {})
+                    Text(model.band.title,style=AlkeType.subhead,color=bandColor)
                 }
             }
-
-            // One plain-English line, full width under the vessel row.
-            Text(
-                model.explanation,
-                style = AlkeType.subhead,
-                color = Palette.textSecondary,
-            )
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                Text("Low · 0",style=AlkeType.caption,color=PremiumSurface.muted)
+                Text("3 · High",style=AlkeType.caption,color=PremiumSurface.muted)
+            }
+            Text(model.explanation,style=AlkeType.subhead,color=Palette.textSecondary)
+            Text(uiString(R.string.l10n_stress_screen_on_the_0_3_autonomic_load_8a0d5107),
+                style=AlkeType.footnote,color=Palette.textTertiary)
         }
     }
 }

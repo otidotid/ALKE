@@ -175,7 +175,7 @@ private data class InsightModel(
  * numbers, matching the macOS data-display contract.
  */
 @Composable
-fun InsightsScreen(vm: AppViewModel, onHydration: () -> Unit = {}) {
+fun InsightsScreen(vm: AppViewModel, onHydration: () -> Unit = {}, onCoach: () -> Unit = {}) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val day by vm.today.collectAsStateWithLifecycle()
     var journalExpanded by rememberSaveable { mutableStateOf(true) }
@@ -637,7 +637,7 @@ val expCandidates = experimentCandidates(
 
         // One final interpretation AFTER the underlying journal, mood, caffeine,
         // experiment and correlation evidence. No duplicate daily score hero.
-        item { ConsolidatedInsightAiSummary(aiSummary, onRetry = { insightAiRetry++ }) }
+        item { ConsolidatedInsightAiSummary(aiSummary, onRetry = { insightAiRetry++ }, onCoach = onCoach) }
 
         item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
     }
@@ -725,17 +725,18 @@ private fun ConsolidatedInsightSignals(day: DailyMetric?) {
 private fun ConsolidatedInsightAiSummary(
     summary: InsightAiResult,
     onRetry: () -> Unit,
+    onCoach: () -> Unit = {},
 ) {
-    AlkeCard(tint = Palette.accent) {
+    AlkeCard(tint = Color(0xFFEAC17A)) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = "ALKE AI",
-                    tint = Palette.accent, modifier = Modifier.size(28.dp))
+                    tint = Color(0xFFEAC17A), modifier = Modifier.size(28.dp))
                 Column {
                     Overline("AI · INSIGHTS-ONLY EVIDENCE")
                     Text("Your Insight Summary", style = AlkeType.title2,
-                        color = Palette.textPrimary)
+                        color = Color(0xFFEAC17A))
                 }
             }
             Text(summary.text, style = AlkeType.subhead, color = Palette.textPrimary)
@@ -753,6 +754,7 @@ private fun ConsolidatedInsightAiSummary(
                     Text("Refresh with AI")
                 }
             }
+            PremiumLink("Explore with ALKE AI", "Open AI Coach", onCoach)
             Text("Based exclusively on evidence in this Insight module · association is not causation",
                 style = AlkeType.footnote, color = Palette.textTertiary)
         }

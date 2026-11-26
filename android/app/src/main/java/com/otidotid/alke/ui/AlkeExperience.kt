@@ -1943,6 +1943,7 @@ fun AlkeHeartRateTimelineExperience(
     onLive: () -> Unit,
     onWorkouts: () -> Unit,
     embedded: Boolean = false,
+    onMetric: (String) -> Unit = {},
 ) {
     val todayMetric by vm.today.collectAsStateWithLifecycle()
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
@@ -2027,9 +2028,9 @@ fun AlkeHeartRateTimelineExperience(
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AlkeMetricTile("Resting HR", metric?.restingHr?.let { "$it bpm" } ?: "—", Icons.Filled.Favorite,
-                Modifier.weight(1f), A.gold, onLive)
+                Modifier.weight(1f), A.gold, { onMetric("rhr") })
             AlkeMetricTile("HRV", niceOne(metric?.avgHrv, " ms"), Icons.Filled.FavoriteBorder,
-                Modifier.weight(1f), A.cyan, onLive)
+                Modifier.weight(1f), A.cyan, { onMetric("hrv") })
         }
         AlkeLinkRow(
             "Live HR & HR Zones",

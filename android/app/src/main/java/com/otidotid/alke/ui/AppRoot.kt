@@ -847,7 +847,8 @@ fun AppRoot(
                     PremiumHeartRateCenter(viewModel, initialMode = "Timeline",
                         onBack = { nav.popBackStack() },
                         onDevices = { nav.navigate(Destination.Devices.route) },
-                        onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) })
+                        onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) },
+                        onMetric = { nav.navigate("vital_detail/$it") })
                 }
                 composable(Destination.AlkeDetailedToday.route) {
                     TodayScreen(
@@ -898,7 +899,8 @@ fun AppRoot(
                     PremiumHeartRateCenter(viewModel, initialMode = "Live HR",
                         onBack = { nav.popBackStack() },
                         onDevices = { nav.navigate(Destination.Devices.route) },
-                        onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) })
+                        onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) },
+                        onMetric = { nav.navigate("vital_detail/$it") })
                 }
                 // Legacy deep links now open the same canonical Sleep experience.
                 composable(Destination.AlkeRecovery.route) {
@@ -958,7 +960,7 @@ fun AppRoot(
                 }
                 // One canonical Insight experience. Earlier two Insights routes
                 // below remain compatibility aliases, not separate modules.
-                composable(Destination.Intelligence.route) { InsightsScreen(viewModel, onHydration = { nav.navigate(Destination.Hydration.route) }) }
+                composable(Destination.Intelligence.route) { InsightsScreen(viewModel, onHydration = { nav.navigate(Destination.Hydration.route) }, onCoach = { nav.navigate(Destination.Coach.route) }) }
                 composable(Destination.AlkeIntelligenceDetails.route) { IntelligenceScreen(viewModel) }
 
                 // --- Placeholder routes (later waves fill these in) ---
@@ -984,7 +986,7 @@ fun AppRoot(
                     )
                 }
                 composable(Destination.AlkeTrendHistory.route) { PremiumTrendsStudio(viewModel, "Trends") }
-                composable(Destination.Insights.route) { InsightsScreen(viewModel, onHydration = { nav.navigate(Destination.Hydration.route) }) }
+                composable(Destination.Insights.route) { InsightsScreen(viewModel, onHydration = { nav.navigate(Destination.Hydration.route) }, onCoach = { nav.navigate(Destination.Coach.route) }) }
                 composable(Destination.Compare.route) { PremiumTrendsStudio(viewModel, "Compare") }
                 composable(Destination.Health.route) {
                     HealthScreen(
@@ -1010,13 +1012,14 @@ fun AppRoot(
                     )
                 }
                 // --- v5 pillar screens (Wave 3 wiring) ---
-                composable(Destination.InsightsHub.route) { InsightsScreen(viewModel, onHydration = { nav.navigate(Destination.Hydration.route) }) }
+                composable(Destination.InsightsHub.route) { InsightsScreen(viewModel, onHydration = { nav.navigate(Destination.Hydration.route) }, onCoach = { nav.navigate(Destination.Coach.route) }) }
                 composable(Destination.LabBook.route) { LabBookScreen(viewModel) }
                 composable(Destination.Rhythm.route) {
                     PremiumHeartRateCenter(viewModel, initialMode = "Rhythm",
                         onBack = { nav.popBackStack() },
                         onDevices = { nav.navigate(Destination.Devices.route) },
-                        onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) })
+                        onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) },
+                        onMetric = { nav.navigate("vital_detail/$it") })
                 }
                 composable(Destination.FusedRecord.route) { FusedRecordRoute(viewModel) }
                 composable(Destination.Devices.route) {

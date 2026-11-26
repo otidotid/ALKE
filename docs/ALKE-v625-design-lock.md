@@ -36,3 +36,9 @@ Source-based work does not establish on-device fidelity. Do not call the matrix 
 - Recovery contributors moved into Charge detail; skin-temperature/cycle/illness content moved into Insight with original controls. Legacy Health links remain available.
 - Sleep architecture defaults first, hypopnea follows architecture, date-specific hero readouts use the selected day rather than latest-history tiles. Existing stored custom Sleep layout orders remain unchanged.
 - Train intervals is grouped with start/add controls. Build and full regression must be rerun on this commit. Device visual verification still pending.
+
+## Visual implementation follow-up
+- Stress uses a real 0–3 semicircular instrument, timeline, guided breathing and expandable historical/advanced evidence. Breathing remains available when stress readings are absent.
+- Sleep selected-night summary uses the existing debt calculation with an explicit day key. Night physiology and Body Clock are collapsible. Old saved orders and keys are unchanged.
+- Insight adds the gold AI summary/Coach entry and retains evidence-only text and retry. Heart Rate Center tiles link their correct metric histories.
+- Visual fidelity of all modules still requires actual screenshot/device verification. No release is authorized by these source-only checks.

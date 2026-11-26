@@ -103,12 +103,12 @@ internal fun PremiumStressBreathe(vm:AppViewModel,initialMode:String) {
 
 @Composable
 internal fun PremiumHeartRateCenter(vm:AppViewModel,initialMode:String,onBack:()->Unit,
-    onDevices:()->Unit,onWorkouts:()->Unit) {
+    onDevices:()->Unit,onWorkouts:()->Unit,onMetric:(String)->Unit={}) {
     PremiumModeHost("Heart Rate",listOf("Timeline","Live HR","Rhythm"),initialMode,onBack=onBack) { mode,choose ->
         when(mode) {
             "Live HR" -> LiveScreen(vm,onManageDevices=onDevices,embedded=true)
             "Rhythm" -> RhythmRoute(vm)
-            else -> AlkeHeartRateTimelineExperience(vm,onBack=onBack,onLive={choose("Live HR")},onWorkouts=onWorkouts,embedded=true)
+            else -> AlkeHeartRateTimelineExperience(vm,onBack=onBack,onLive={choose("Live HR")},onWorkouts=onWorkouts,embedded=true,onMetric=onMetric)
         }
     }
 }

@@ -303,6 +303,9 @@ internal fun buildSleepModel(
         realSegments = realSegments,
         hypnogramSegments = hypnogramSegments,
         sleepDebtLedger = sleepDebtLedger,
+        selectedNightEfficiency = latest.efficiency?.takeIf { it.isFinite() && it > 0 }
+            ?.let { if(it <= 1.0) it * 100.0 else it }?.takeIf { it <= 100.0 },
+        selectedNightDebtMin = localDebtByDay[effectiveDay],
     )
 }
 

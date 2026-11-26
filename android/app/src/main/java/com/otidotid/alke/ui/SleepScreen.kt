@@ -378,6 +378,8 @@ fun SleepScreen(
     var hiddenSections by remember { mutableStateOf(SleepLayoutPrefs.hidden(context)) }
     var showSleepArrange by remember { mutableStateOf(false) }
     var showSleepBalance by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showNightPhysiology by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showSleepClock by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     // #sleep-layout (hold-to-drag): the hoisted list state (the drag math needs layoutInfo + scrollBy) and
     // the live drag state, mirroring Today (TodayScreen.kt §today-layout). The frame loop runs ONLY while a
     // card is lifted: each frame it retries the swap (so a card held still at a viewport edge keeps
@@ -814,15 +816,8 @@ fun SleepScreen(
                     asleepMin = model?.stages?.asleep,
                     source = restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
                     overline = nightLabel,
-                    efficiency = days.lastOrNull { it.day == (night?.dayKey ?: days.lastOrNull()?.day) }
-                        ?.efficiency?.takeIf { it.isFinite() && it > 0 }?.let { if(it <= 1.0) it * 100.0 else it }
-                        ?.takeIf { it <= 100.0 },
-                    debtMin = (night?.dayKey ?: days.lastOrNull()?.day)?.let { selectedDay ->
-                        imported.debtMin[selectedDay] ?: model?.let { m ->
-                            m.trendDates.indexOf(selectedDay).takeIf { it >= 0 }
-                                ?.let { m.trendDebtHours.getOrNull(it)?.times(60.0) }
-                        }
-                    },
+                    efficiency = model?.selectedNightEfficiency,
+                    debtMin = model?.selectedNightDebtMin,
                 )
             }
             // If the user hides architecture, the post-wake assessment still has a visible home.
@@ -1031,7 +1026,8 @@ fun SleepScreen(
                             SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                                 Column {
                                     Spacer(Modifier.height(Metrics.selectorTopUp))
-                                    BodyClockDialCard(
+                                    PremiumLink("Body Clock", if(showSleepClock) "Collapse" else "Circadian rhythm and sleep timing", { showSleepClock = !showSleepClock })
+                                    if(showSleepClock) BodyClockDialCard(
                                         estimate = phase,
                                         actualBedHour = localClockHour(session.effectiveStartTs),
                                         actualWakeHour = localClockHour(session.endTs),
@@ -1046,8 +1042,8 @@ fun SleepScreen(
                         SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                             Column {
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
-                                Text("Night Physiology",style=AlkeType.headline,color=Palette.textPrimary)
-                                NightDetailHostCard(m, onMetricClick = { detailMetricKey = it })
+                                PremiumLink("Night Physiology", if(showNightPhysiology) "Collapse" else "Recorded night metrics and respiratory rate", { showNightPhysiology = !showNightPhysiology })
+                                if(showNightPhysiology) NightDetailHostCard(m, onMetricClick = { detailMetricKey = it })
                             }
                         }
                     }

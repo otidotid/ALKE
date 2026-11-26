@@ -96,6 +96,9 @@ internal data class SleepModel(
     /** Rolling 14-night sleep-debt ledger: Σ(slept − personal need) across the recent
      *  fortnight, with the per-night deltas behind it. Computed once per data change. (#242) */
     val sleepDebtLedger: SleepDebtLedger,
+    // Day-specific hero values use the existing calculations, not latest-history tiles.
+    val selectedNightEfficiency: Double? = null,
+    val selectedNightDebtMin: Double? = null,
 )
 
 /** The night the ◀/▶ chevrons selected: its MAIN session, the day-metric key it resolves to, its

@@ -495,13 +495,18 @@ class WhoopRepository(
     private var readoutRevisions = ReadoutDataRevisions()
     private val stepRevisionIndex = StepDataRevisionIndex()
 
+    internal var cloudSleep: CloudSleepLedger? = null
+        private set
+
     constructor(db: WhoopDatabase, context: Context? = null) : this(
         dao = db.whoopDao(),
         transactor = object : Transactor {
             override suspend fun <R> run(block: suspend () -> R): R = db.withTransaction { block() }
         },
         metabolicStore = context?.let { MetabolicEstimateStore(it) },
-    )
+    ) {
+        cloudSleep = CloudSleepLedger(dao, transactor)
+    }
 
     internal suspend fun metabolicEstimateFor(sourceId: String, day: String, profile: com.otidotid.alke.analytics.UserProfile) =
         metabolicStore?.current(this, sourceId, day, profile)
@@ -750,7 +755,7 @@ class WhoopRepository(
 
     /** Complete cross-device scoring-input change detector. Unlike [hrFingerprint], this also moves when
      * a trailing sleep-critical stream (especially gravity) lands after HR in the same history sync. */
-    suspend fun analysisFingerprint(): String = dao.analysisFingerprint()
+    suspend fun analysisFingerprint(): String = dao.analysisFingerprint() + ":" + SleepDataRevision.revision.value
 
     /** #1005 — per-day (device + window) HR fingerprint as (count, newestTs) for analyzeRecent's per-day
      *  reuse cache. Cheap COUNT/MAX aggregate, never a row fetch; mirrors Swift
@@ -2500,9 +2505,15 @@ class WhoopRepository(
      *  Repository.unionComputedSleepSessions. */
     suspend fun computedSleepSessionsUnion(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
         List<SleepSession> {
-        val ids = rawWhoopSourceIds(deviceId).map { "$it-alke" }
-        return dedupSleepBlocks(ids.flatMap {
-            dao.sleepSessions(it, OnlineFirstWindow.clampSecond(from), to, limit)
+        return dedupSleepBlocks(rawWhoopSourceIds(deviceId).flatMap { owner ->
+            val rows = dao.sleepSessions("$owner-alke", OnlineFirstWindow.clampSecond(from), to, limit)
+            val history = cloudSleep?.history(owner, from, to)
+            val episodes = history?.episodes.orEmpty().associateBy { it.start }
+            rows.onEach { row ->
+                episodes[row.startTs]?.takeIf { it.end == row.endTs || row.userEdited }?.let {
+                    row.cloudEpisodeType = it.type
+                }
+            }
         })
     }
 
@@ -2529,7 +2540,7 @@ class WhoopRepository(
         }
         val importedDays = imported.mapTo(HashSet(), ::endDay)
         val computedKept = computed.filter { row ->
-            endDay(row) !in importedDays || (row.userEdited && imported.none {
+            endDay(row) !in importedDays || ((row.userEdited || row.cloudEpisodeType != null) && imported.none {
                 com.otidotid.alke.analytics.SupplementalSleepCredit.span(it)
                     .overlaps(com.otidotid.alke.analytics.SupplementalSleepCredit.span(row))
             })
@@ -3515,7 +3526,7 @@ class WhoopRepository(
                     out.addAll(imp)    // imported remains the main-night authority
                     // Preserve a separately entered session, not an overlapping computed twin.
                     comp.orEmpty().filter { row ->
-                        row.userEdited && imported.none {
+                        (row.userEdited || row.cloudEpisodeType != null) && imported.none {
                             com.otidotid.alke.analytics.SupplementalSleepCredit.span(it)
                                 .overlaps(com.otidotid.alke.analytics.SupplementalSleepCredit.span(row))
                         }

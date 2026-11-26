@@ -171,7 +171,7 @@ object SleepStageTotals {
 
     /** One candidate block for main-night selection: its effective onset and end (unix seconds). A user
      *  wake/bed edit moves [end], never the detected onset key. */
-    data class NightBlock(val start: Long, val end: Long) {
+    data class NightBlock(val start: Long, val end: Long, val episodeType: String? = null) {
         val durationS: Long get() = end - start
         val midpointSec: Long get() = start + (end - start) / 2
     }
@@ -316,6 +316,12 @@ object SleepStageTotals {
      *  deterministic; shares the [bridgedNightGroups] pass + [mainNightIndex] so the pick stays
      *  cross-platform stable. Mirrors Swift `mainNightGroupIndices`. (#561) */
     fun mainNightGroupIndices(blocks: List<NightBlock>, offsetSec: Long, habitualMidsleepSec: Long? = null): List<Int>? {
+        if (blocks.any { it.episodeType != null }) {
+            val classified = blocks.indices.filter { blocks[it].episodeType == "MAIN_SLEEP" }
+            val eligible = classified.ifEmpty { blocks.indices.filter { blocks[it].episodeType == null } }
+            val primaryCandidates = eligible.map { blocks[it].copy(episodeType = null) }
+            return mainNightGroupIndices(primaryCandidates, offsetSec, habitualMidsleepSec)?.map { eligible[it] }
+        }
         if (blocks.isEmpty()) return null
         val all = bridgedNightGroups(blocks, offsetSec)
         // Rebuild each group's bridged span for scoring: sorted-ascending fragments make the span
@@ -336,6 +342,12 @@ object SleepStageTotals {
      *  stages, so "asleep minutes" is the clock span — preserving the prior duration semantics for callers
      *  that rank by span (`analyzeDay`). Mirrors Swift `mainNightIndex`. (#525 / #547) */
     fun mainNightIndex(blocks: List<NightBlock>, offsetSec: Long, habitualMidsleepSec: Long? = null): Int? {
+        if (blocks.any { it.episodeType != null }) {
+            val classified = blocks.indices.filter { blocks[it].episodeType == "MAIN_SLEEP" }
+            val eligible = classified.ifEmpty { blocks.indices.filter { blocks[it].episodeType == null } }
+            val primaryCandidates = eligible.map { blocks[it].copy(episodeType = null) }
+            return mainNightIndex(primaryCandidates, offsetSec, habitualMidsleepSec)?.let { eligible[it] }
+        }
         if (blocks.isEmpty()) return null
         val target = targetMidsleepSec(habitualMidsleepSec)
         fun score(b: NightBlock): Double {

@@ -19,15 +19,23 @@ internal object CloudSleepEvidence {
 
     suspend fun read(repo:WhoopRepository,deviceId:String,from:Long,to:Long,offsetMinutes:Int,
                      habitualMidsleepSec:Long?,excluded:List<Pair<Long,Long>>):CloudSleepProtocol.Snapshot {
-        val hr=repo.hrSamplesForDevice(deviceId,from,to-1,StreamReadCap.HR)
-        val motion=repo.gravitySamplesForDevice(deviceId,from-1,to-1,StreamReadCap.GRAVITY)
-        val rr=repo.rrIntervalsForDevice(deviceId,from,to-1,StreamReadCap.RR)
-        // A truncated read is unknown evidence, not an apparently inactive tail.
-        return build(deviceId,from,to,
-            if(hr.size>=StreamReadCap.HR) emptyList() else hr,
-            if(motion.size>=StreamReadCap.GRAVITY) emptyList() else motion,
-            if(rr.size>=StreamReadCap.RR) emptyList() else rr,
-            offsetMinutes,habitualMidsleepSec,excluded)
+        require(from % BIN == 0L && to % BIN == 0L && (to-from)/BIN in 3L..CloudSleepProtocol.MAX_BINS.toLong())
+        val bins = mutableListOf<List<Number?>>()
+        // Bound peak heap on the background worker. Each chunk keeps the previous motion second.
+        var start = from
+        while (start < to) {
+            val end = minOf(start + 3600L, to)
+            val hr = repo.hrSamplesForDevice(deviceId, start, end-1, StreamReadCap.HR)
+            val motion = repo.gravitySamplesForDevice(deviceId, start-1, end-1, StreamReadCap.GRAVITY)
+            val rr = repo.rrIntervalsForDevice(deviceId, start, end-1, StreamReadCap.RR)
+            bins.addAll(build(deviceId, start, end,
+                hr.takeIf { it.size < StreamReadCap.HR }.orEmpty(),
+                motion.takeIf { it.size < StreamReadCap.GRAVITY }.orEmpty(),
+                rr.takeIf { it.size < StreamReadCap.RR }.orEmpty(),
+                offsetMinutes, habitualMidsleepSec, emptyList()).bins)
+            start = end
+        }
+        return CloudSleepProtocol.Snapshot(from, bins, offsetMinutes, habitualMidsleepSec, excluded)
     }
 
     fun build(deviceId:String,from:Long,to:Long,hr:List<HrSample>,gravity:List<GravitySample>,
@@ -35,7 +43,7 @@ internal object CloudSleepEvidence {
               excluded:List<Pair<Long,Long>>):CloudSleepProtocol.Snapshot {
         require(from%BIN==0L && to%BIN==0L && to>from)
         val count=((to-from)/BIN).toInt()
-        require(count in 3..CloudSleepProtocol.MAX_BINS)
+        require(count in 1..CloudSleepProtocol.MAX_BINS)
         val h=hr.asSequence().filter { it.deviceId==deviceId && it.ts in from until to && it.bpm in 25..250 }
             .distinctBy { it.ts }.groupBy { (it.ts-from)/BIN }
         val motion=gravity.filter { it.deviceId==deviceId && it.ts in from-1 until to }

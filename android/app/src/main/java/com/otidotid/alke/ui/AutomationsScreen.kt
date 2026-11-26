@@ -326,7 +326,13 @@ fun AutomationsScreen(viewModel: AppViewModel) {
         // On-device short-nap detection (PR #569 reimpl) — opt-in, default OFF. Detected on the offload
         // hook; a confident nap is offered as a review card you accept (it becomes a nap session) or
         // dismiss. NEVER auto-written.
-        item { NapDetectionSection(viewModel) }
+        item {
+            val device = viewModel.activeStrapId
+            val revision by com.otidotid.alke.ai.CloudSleepSettings.revision.collectAsStateWithLifecycle()
+            val cloud = remember(device, revision) { com.otidotid.alke.ai.CloudSleepSettings.token(ctx, device) != null }
+            CloudSleepSettingsRow()
+            if (!cloud) NapDetectionSection(viewModel)
+        }
 
         // Illness early-warning (real + persisted; opt-OUT — the watch has always run on Android).
         item {

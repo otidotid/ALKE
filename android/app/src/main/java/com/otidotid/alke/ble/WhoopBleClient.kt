@@ -4870,6 +4870,7 @@ class WhoopBleClient(
      * Self-gates on the NapPrefs toggle (default OFF, opt-in), so it's fully inert until enabled.
      */
     private fun maybeDetectNaps() {
+        if (com.otidotid.alke.ai.CloudSleepSettings.token(context, deviceId) != null) return
         if (!NapPrefs.enabled(context)) return   // cheap master gate before any DB work
         ioScope.launch {
             try {
@@ -4898,6 +4899,7 @@ class WhoopBleClient(
                     config = NapPrefs.config(context),
                 )
                 val candidate = decision.candidate
+                if (com.otidotid.alke.ai.CloudSleepSettings.token(context, deviceId) != null) return@launch
                 when (AutoNapPolicy.action(NapPrefs.enabled(context), decision.verdict)) {
                     AutoNapAction.ACCEPT -> if (candidate != null && candidate.end > highWater) {
                         // Nap Detection ON is the master automation switch. A conservative NAP verdict

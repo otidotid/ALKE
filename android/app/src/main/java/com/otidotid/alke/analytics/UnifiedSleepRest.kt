@@ -66,7 +66,7 @@ internal object UnifiedSleepRest {
             .distinctBy { Triple(it.deviceId,it.startTs,it.endTs) }
             .sortedBy { it.effectiveStartTs }
         val group = SleepStageTotals.mainNightGroupIndices(
-            rows.map { SleepStageTotals.NightBlock(it.effectiveStartTs,it.endTs) },
+            rows.map { SleepStageTotals.NightBlock(it.effectiveStartTs, it.endTs, it.cloudEpisodeType) },
             offsetSec,habitualMidsleepSec) ?: return null
         if (group.isEmpty()) return null
         val primary=group.map { rows[it] }
@@ -98,7 +98,7 @@ internal object UnifiedSleepRest {
         val editedWindows = edits.map { it.effectiveStartTs to it.endTs }
         val rows=DismissedSleepGuard.keeping(detected,editedWindows+dismissed) { it.start to it.end }
             .map { s -> SleepSession(computedId,s.start,s.end,efficiency=s.efficiency,
-                restingHr=s.restingHR,avgHrv=s.avgHRV,stagesJSON=AnalyticsEngine.encodeStages(s.stages)) }
+                restingHr=s.restingHR,avgHrv=s.avgHRV,stagesJSON=AnalyticsEngine.encodeStages(s.stages)).also { it.cloudEpisodeType = s.cloudEpisodeType } }
         return score(main,rows+DismissedSleepGuard.keeping(edits,dismissed) { it.effectiveStartTs to it.endTs },
             offsetSec,habitualMidsleepSec,sleepNeedHours)
     }

@@ -145,7 +145,7 @@ internal fun selectNight(
 internal fun mainSleepBlock(blocks: List<SleepSession>, habitualMidsleepSec: Long? = null): SleepSession? {
     if (blocks.isEmpty()) return null
     val idx = SleepStageTotals.mainNightIndex(
-        blocks.map { SleepStageTotals.NightBlock(it.effectiveStartTs, it.endTs) },
+        blocks.map { SleepStageTotals.NightBlock(it.effectiveStartTs, it.endTs, it.cloudEpisodeType) },
         uiTzOffsetSec(),
         habitualMidsleepSec,
     ) ?: return null
@@ -163,7 +163,7 @@ internal fun mainSleepBlock(blocks: List<SleepSession>, habitualMidsleepSec: Lon
  */
 internal fun mainSleepGroup(blocks: List<SleepSession>, habitualMidsleepSec: Long? = null): List<SleepSession> {
     val idx = SleepStageTotals.mainNightGroupIndices(
-        blocks.map { SleepStageTotals.NightBlock(it.effectiveStartTs, it.endTs) },
+        blocks.map { SleepStageTotals.NightBlock(it.effectiveStartTs, it.endTs, it.cloudEpisodeType) },
         uiTzOffsetSec(),
         habitualMidsleepSec,
     ) ?: return emptyList()

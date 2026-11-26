@@ -420,6 +420,8 @@ object AnalyticsEngine {
         // Threaded rather than read from a global so this stays a pure function, and defaulted so every
         // existing caller and test is byte-identical.
         effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
+        cloudOwnsStart: ((Long) -> Boolean)? = null,
+        skipLocalSleepDetection: Boolean = false,
     ): DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). isoDay is a FIXED-UTC formatter, so
@@ -433,12 +435,13 @@ object AnalyticsEngine {
         fun tsInDay(ts: Long): Boolean = (ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc
 
         // ── Sleep detection + staging ─────────────────────────────────────────
-        val detectedSessions = SleepStager.detectSleep(
+        val detectedSessions = if (skipLocalSleepDetection) emptyList() else SleepStager.detectSleep(
             hr = hr, rr = rr, resp = resp, gravity = gravity, tzOffsetSeconds = tzOffsetSeconds,
             wristOff = wristOff, bandSleepState = bandSleepState,
             useSleepStagerV2 = useSleepStagerV2,
             traceSink = traceSink,
         )
+            .filter { cloudOwnsStart?.invoke(it.start) != true }
         // Motion-aware wake refinement (#364 follow-up) runs AFTER V1/V2 staging, over every detected
         // session (naps included — the same eligibility gates apply). `steps` is the SAME calendar-day/
         // night-window stream the caller passed for the rest of this analysis; the pass self-gates on its
@@ -502,7 +505,7 @@ object AnalyticsEngine {
         // SAME group; the debt ledger starts with it and separately credits naps, so #525 does not regress.
         // Mirrors Swift. (#525 / #561)
         val mainGroupIdx = SleepStageTotals.mainNightGroupIndices(
-            matched.map { SleepStageTotals.NightBlock(it.start, it.end) },
+            matched.map { SleepStageTotals.NightBlock(it.start, it.end, it.cloudEpisodeType) },
             tzOffsetSeconds, habitualMidsleepSec,
         ) ?: emptyList()
         val mainGroup: List<DetectedSleep> = mainGroupIdx.map { matched[it] }
@@ -1070,7 +1073,7 @@ object AnalyticsEngine {
             sessionSleepStateByStart = sessionSleepStateByStart,
             gravitySparse = gravitySparse,
             detectionFunnel = detectionFunnel,
-            mainNightBlocks = mainGroup.map { SleepStageTotals.NightBlock(it.start, it.end) },
+            mainNightBlocks = mainGroup.map { SleepStageTotals.NightBlock(it.start, it.end, it.cloudEpisodeType) },
         )
     }
 

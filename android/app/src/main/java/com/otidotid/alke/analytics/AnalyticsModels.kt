@@ -107,6 +107,7 @@ data class DetectedSleep(
      * [restingHR] and [avgHRV] are left null on one rather than filtered out downstream.
      */
     val hrOnly: Boolean = false,
+    val cloudEpisodeType: String? = null,
 )
 
 /**

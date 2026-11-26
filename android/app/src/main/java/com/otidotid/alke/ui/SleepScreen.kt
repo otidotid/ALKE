@@ -917,7 +917,7 @@ fun SleepScreen(
                     // resolves but history exists (#940), keep the old "real data over a zeroed gauge"
                     // fallback to the latest score.
                     score = if (night != null) heroPerformanceScore(night, days, imported, napSleepMinByDay)
-                            else tilesModel?.performance?.latest,
+                            else if (navDays.isEmpty()) tilesModel?.performance?.latest else null,
                     asleepMin = model?.stages?.asleep,
                     source = restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
                     overline = nightLabel,
@@ -942,10 +942,22 @@ fun SleepScreen(
                         debtMin = model?.selectedNightDebtMin)
                 }
             }
+            if (night == null) {
+                val episodes = navDays.getOrNull(nightOffset).orEmpty()
+                if (episodes.isNotEmpty()) item(key = "sleep-episodes-without-main") {
+                    AlkeCard(padding = Metrics.space14, tint = Palette.restColor) {
+                        Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
+                            Text("No main sleep recorded", style = AlkeType.subhead, color = Palette.textPrimary)
+                            SleepEpisodeGroups(episodes, updateEpisode, deleteEpisode)
+                        }
+                    }
+                }
+            }
             // If the user hides architecture, the post-wake assessment still has a visible home.
             if (SleepSection.STAGES in hiddenSections) item(key = "sleep-hypopnea-risk") {
                 SleepHypopneaCard(hypopneaAssessment, onOpen = { showHypopneaDetail = true })
             }
+            item(key = "sleep-intelligence-settings") { CloudSleepSettingsRow() }
             // Arrange and Alarms live in the header.
             // Analytical cards render in the user's saved order (SleepLayoutPrefs), minus the hidden set.
             // Reordered via the Arrange sheet OR by long-press hold-to-drag on the card (#sleep-layout,
@@ -1825,7 +1837,7 @@ private fun NapsCard(
     debtMin: Double? = null,
 ) {
     val is24h = ClockPrefs.uses24Hour(LocalContext.current)
-    var expanded by remember(main.deviceId,main.startTs) { mutableStateOf(false) }
+    var mainExpanded by remember(main.deviceId,main.startTs) { mutableStateOf(false) }
     val total = mainMin?.let { it + creditedMin }
     AlkeCard(padding = Metrics.space14, tint = Palette.restColor) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
@@ -1852,7 +1864,8 @@ private fun NapsCard(
                     "${(total / target * 100.0).roundToInt()}% of daily target",
                     style=AlkeType.footnote,color=Palette.textSecondary)
             }
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Metrics.space10)) {
+            Row(Modifier.fillMaxWidth().clickable { mainExpanded = !mainExpanded },
+                verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Metrics.space10)) {
                 Icon(Icons.Filled.Bedtime,null,tint=Palette.restColor)
                 Column(Modifier.weight(1f)) {
                     Text("Main sleep",style=AlkeType.subhead,color=Palette.textPrimary)
@@ -1861,23 +1874,8 @@ private fun NapsCard(
                 }
                 Text(mainMin?.let { durationText(it) } ?: "—",style=AlkeType.subhead,color=Palette.restBright)
             }
-            Box(Modifier.fillMaxWidth().height(Metrics.divider).background(Palette.hairline))
-            Row(Modifier.fillMaxWidth().clickable(enabled=naps.isNotEmpty()) { expanded = !expanded },
-                verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Metrics.space10)) {
-                Icon(Icons.Filled.WbSunny,null,tint=Palette.restBright)
-                Column(Modifier.weight(1f)) {
-                    Text("Supplemental sleep",style=AlkeType.subhead,color=Palette.textPrimary)
-                    Text(if (naps.isEmpty()) "No additional sessions" else "${naps.size} recorded session(s)",
-                        style=AlkeType.footnote,color=Palette.textSecondary)
-                }
-                Text(if (naps.isEmpty()) "—" else durationText(creditedMin),
-                    style=AlkeType.subhead,color=Palette.restBright)
-                if(naps.isNotEmpty()) Icon(Icons.Filled.ChevronRight,null,
-                    modifier=Modifier.graphicsLayer(rotationZ=if(expanded) 90f else 0f),tint=Palette.textSecondary)
-            }
-            if (expanded) naps.forEach { nap ->
-                NapRow(nap,onEditNapTimes,onDeleteNap)
-            }
+            if (mainExpanded) EpisodePhysiology(main)
+            SleepEpisodeGroups(naps, onEditNapTimes, onDeleteNap)
             Box(Modifier.fillMaxWidth().height(Metrics.divider).background(Palette.hairline))
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
                 Text("Sleep debt",style=AlkeType.footnote,color=Palette.textSecondary)
@@ -1887,6 +1885,51 @@ private fun NapsCard(
             MainSleepFooter(main = main, naps = naps, habitualMidsleepSec = habitualMidsleepSec, activeIsOura = activeIsOura)
         }
     }
+}
+
+@Composable
+private fun SleepEpisodeGroups(rows: List<SleepSession>,
+    edit: (SleepSession, Long, Long) -> Unit, delete: (SleepSession) -> Unit) {
+    val groups = rows.groupBy { when (it.cloudEpisodeType) {
+        "DAY_SLEEP" -> "Day sleep"
+        "NAP" -> "Nap"
+        else -> "Other sleep"
+    } }
+    for (label in listOf("Day sleep", "Nap", "Other sleep")) {
+        val sessions = groups[label].orEmpty()
+        if (label == "Other sleep" && sessions.isEmpty()) continue
+        var expanded by remember(label, sessions.map { it.deviceId to it.startTs }) { mutableStateOf(false) }
+        Box(Modifier.fillMaxWidth().height(Metrics.divider).background(Palette.hairline))
+        Row(Modifier.fillMaxWidth().clickable(enabled = sessions.isNotEmpty()) { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Metrics.space10)) {
+            Icon(Icons.Filled.WbSunny, null, tint = Palette.restBright)
+            Text(label, modifier = Modifier.weight(1f), style = AlkeType.subhead, color = Palette.textPrimary)
+            val minutes = com.otidotid.alke.analytics.SupplementalSleepCredit.minutes(sessions, emptyList())
+            Text(if (minutes > 0) durationText(minutes) else if (sessions.isEmpty()) "—" else "Recorded",
+                style = AlkeType.subhead, color = Palette.restBright)
+            if (sessions.isNotEmpty()) Icon(Icons.Filled.ChevronRight, if (expanded) "Collapse" else "Expand",
+                modifier = Modifier.graphicsLayer(rotationZ = if (expanded) 90f else 0f), tint = Palette.textSecondary)
+        }
+        if (expanded) sessions.forEach { session ->
+            androidx.compose.runtime.key(session.deviceId, session.startTs) { NapRow(session, edit, delete) }
+        }
+    }
+}
+
+@Composable
+private fun EpisodePhysiology(row: SleepSession) {
+    val stages = SleepStageTotals.minutes(SleepStageTotals.clampStagesToOnset(row.stagesJSON, row.effectiveStartTs))
+    val values = buildList {
+        if (stages != null && stages.inBed > 0.0) {
+            add("Efficiency ${(100.0 * stages.asleep / stages.inBed).roundToInt()}%")
+            add("Deep ${durationText(stages.deep)}")
+            add("REM ${durationText(stages.rem)}")
+        }
+        row.restingHr?.let { add("Resting HR $it bpm") }
+        row.avgHrv?.takeIf { it.isFinite() }?.let { add("HRV ${it.roundToInt()} ms") }
+    }
+    Text(if (values.isEmpty()) "Episode metrics unavailable" else values.joinToString(" · "),
+        style = AlkeType.footnote, color = Palette.textSecondary)
 }
 
 /**
@@ -2247,12 +2290,10 @@ private fun NapRow(
             }
         }
         if (showWhy) {
-            Text(uiString(R.string.l10n_sleep_screen_about_this_nap_e2719b9b), style = AlkeType.subhead, color = Palette.textPrimary)
-            Text(
-                uiString(R.string.l10n_sleep_screen_logged_as_a_nap_wrong_tap_4285d23e),
-                style = AlkeType.footnote,
-                color = Palette.textTertiary,
-            )
+            EpisodePhysiology(nap)
+            Text(if (nap.userEdited) "Times edited manually" else if (nap.cloudEpisodeType != null)
+                "Estimated by Sleep Intelligence" else "Recorded sleep session",
+                style = AlkeType.footnote, color = Palette.textTertiary)
         }
     }
 

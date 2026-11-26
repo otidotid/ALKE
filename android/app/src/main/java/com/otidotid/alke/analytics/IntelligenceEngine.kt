@@ -917,6 +917,7 @@ object IntelligenceEngine {
         // cached). Kept separate from [skinFamilyByOwner] (which coalesces unknown → WHOOP5 for the skin
         // scale); this must NOT coalesce so a ring can't be cached as a WHOOP.
         val cacheFamilyByOwner = HashMap<String, DeviceFamily?>()
+        val sleepHistoryByOwner = mutableMapOf<String, com.otidotid.alke.data.CloudSleepLedger.History?>()
 
         for (offset in 0 until maxDays) {
             val dayStart = nowLocalMidnight - offset * SECONDS_PER_DAY
@@ -942,6 +943,11 @@ object IntelligenceEngine {
             // live straps > imports, or a locked override). Falls back to [importedDeviceId] when no
             // owner source is supplied or the registry yields no owner.
             val owner = resolveDayOwner(repo, ownerSource, candidatePriorities, day, from, to, importedDeviceId)
+            val sleepHistory = sleepHistoryByOwner.getOrPut(owner) {
+                repo.cloudSleep?.history(owner, windowStart - StreamReadCap.LOOKBACK_SECONDS, nowSeconds)
+            }
+            val cloudDay = sleepHistory?.takeIf { it.touches(from, to) }
+            val cloudOnly = cloudDay?.covers(from, to) == true
 
             // ── #1005 BATTERY: per-day reuse (see [dayScanCache]) ───────────────────────────────────
             // Reuse this night's already-scored result when its scored inputs are provably unchanged since we
@@ -957,7 +963,7 @@ object IntelligenceEngine {
             // UN-coalesced registered WHOOP family (null for a ring/import/unknown → never cached; a ring's
             // providedSleep could change a day without an HR move), memoised per owner. WHOOP4 and WHOOP5 are
             // both cacheable. Mirrors the Swift gate's inline DeviceFamily.forRegistryDevice.
-            val cacheOwnerFamily: DeviceFamily? = if (dayCacheEligible) {
+            val cacheOwnerFamily: DeviceFamily? = if (dayCacheEligible && cloudDay == null) {
                 if (!cacheFamilyByOwner.containsKey(owner)) {
                     cacheFamilyByOwner[owner] = ownerSource?.registeredWhoopFamily(owner)
                 }
@@ -1131,7 +1137,7 @@ object IntelligenceEngine {
             // night" is checked rather than assumed. A day that HAS stored sessions is left alone whoever
             // owns it: inferring a night from heart rate when the device recorded a real one would be
             // strictly worse evidence replacing better.
-            val providedSleep: List<DetectedSleep> = if (grav.size < 2) {
+            val priorSleep: List<DetectedSleep> = if (!cloudOnly && grav.size < 2) {
                 val stored = repo.sleepSessionsForDevice(owner, from, to, 4000)
                     .mapNotNull { AnalyticsEngine.sleepSessionFromProvided(it) }
                 when {
@@ -1173,6 +1179,19 @@ object IntelligenceEngine {
 
             val tScore0 = System.nanoTime()
             dayPrepNanos += tScore0 - tPrep0
+            val cloudEpisodes = cloudDay?.episodes.orEmpty().filter { it.start >= from && it.end <= to &&
+                AnalyticsEngine.dayString(it.end, tzOffsetSeconds) == day }
+            val blocked = if (cloudEpisodes.isEmpty()) emptyList() else
+                repo.cloudSleep?.exclusions(owner, from, to).orEmpty()
+            val stagedCloud = cloudEpisodes.filter { episode ->
+                blocked.none { (a,b) -> a < episode.end && episode.start < b }
+            }.mapNotNull { episode ->
+                val json = SleepStageHealer.restageFromSamples(episode.start, episode.end, grav, hr, rr, resp,
+                    useExperimentalSleepV2, steps, useMotionAwareWake) ?: return@mapNotNull null
+                AnalyticsEngine.sleepSessionFromProvided(SleepSession(owner, episode.start, episode.end, stagesJSON = json))
+                    ?.copy(cloudEpisodeType = episode.type)
+            }
+            val providedSleep = priorSleep.filter { cloudDay?.owns(it.start) != true } + stagedCloud
             val res = AnalyticsEngine.analyzeDay(
                 day = day,
                 // #1770 follow-up: route the Effort funnel through the SAME per-day recorder as the
@@ -1213,6 +1232,8 @@ object IntelligenceEngine {
                 useMotionAwareWake = useMotionAwareWake,
                 // #804 Fix A: the owner's own device-provided hypnogram (empty for WHOOP/non-ring days).
                 providedSleep = providedSleep,
+                cloudOwnsStart = cloudDay?.let { it::owns },
+                skipLocalSleepDetection = cloudOnly,
                 // Sleep & Rest test mode (Test Centre E5): thread the trace sink straight through. null (the
                 // default) keeps analyzeDay's byte-identical untraced path; when the caller passed a non-null
                 // sink (mode on), detectSleep's gate trace + the Rest sub-score line route to the .sleep-tagged
@@ -1239,7 +1260,7 @@ object IntelligenceEngine {
             // the same rows, so they now agree with the gate too.
             val sleepRrRows = AnalyticsEngine.hrvDiagnosticRows(
                 rr, res.mainNightBlocks,
-                res.sleepSessions.map { SleepStageTotals.NightBlock(it.start, it.end) },
+                res.sleepSessions.map { SleepStageTotals.NightBlock(it.start, it.end, it.cloudEpisodeType) },
             )
             val sleepRr = sleepRrRows.map { it.rrMs.toDouble() }
             // #1331: the RSA gate's inputs, carried to the resp diagnostic below. Declared out here because

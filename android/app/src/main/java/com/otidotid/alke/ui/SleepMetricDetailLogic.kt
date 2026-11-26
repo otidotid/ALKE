@@ -60,7 +60,8 @@ internal fun buildSleepMetricPoints(
             // source of truth the Today Rest score uses (RestScorer.restFromDaily, the composite the
             // sleep_performance series carries) — not a local hours-vs-need approximation. Keeps the
             // graph and the score in agreement. (#614 follow-up)
-            "performance" -> RestScorer.restFromDaily(d)?.takeIf { it in 0.0..100.0 }
+            "performance" -> RestScorer.dailyRestFromDaily(d, napSleepMinByDay[d.day] ?: 0.0,
+                imported.performance[d.day])?.takeIf { it in 0.0..100.0 }
             "efficiency"  -> d.efficiency?.let { if (it <= 1.0) it * 100.0 else it }
             "consistency" -> {
                 val idx = days.indexOf(d)
@@ -72,7 +73,8 @@ internal fun buildSleepMetricPoints(
                     (100.0 * (1.0 - sd / 90.0)).coerceIn(0.0, 100.0)
                 }
             }
-            "hours_vs_needed" -> d.totalSleepMin?.takeIf { it > 0.0 }?.let { minOf(100.0, it / needMin * 100.0) }
+            "hours_vs_needed" -> SleepDebt.creditedSleepMin(d.totalSleepMin, napSleepMinByDay[d.day] ?: 0.0)
+                ?.let { minOf(100.0, it / (imported.needMin[d.day] ?: needMin).coerceAtLeast(1.0) * 100.0) }
             "restorative" -> {
                 val dp = d.deepMin ?: return@mapNotNull null
                 val rm = d.remMin ?: return@mapNotNull null

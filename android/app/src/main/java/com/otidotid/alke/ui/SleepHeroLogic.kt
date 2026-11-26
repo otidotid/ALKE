@@ -105,11 +105,12 @@ internal fun calendarNightsAgo(
  */
 internal fun heroPerformanceScore(
     night: HeroNight?, days: List<DailyMetric>, imported: ImportedSleepSeries,
+    napSleepMinByDay: Map<String, Double> = emptyMap(),
 ): Double? {
     val wakeDay = night?.dayKey ?: return null
-    imported.performance[wakeDay]?.let { return it }
-    val daily = days.lastOrNull { it.day == wakeDay } ?: return null
-    return RestScorer.restFromDaily(daily)
+    val daily = days.lastOrNull { it.day == wakeDay } ?: return imported.performance[wakeDay]
+    return RestScorer.dailyRestFromDaily(daily, napSleepMinByDay[wakeDay] ?: 0.0,
+        imported.performance[wakeDay])
 }
 
 /**

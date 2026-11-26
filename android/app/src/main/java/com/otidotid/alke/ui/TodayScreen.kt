@@ -1023,12 +1023,12 @@ fun TodayScreen(
     // as the caption; the tile previously showed hours where the score belonged (#248). resolvedSeries
     // merges imported + computed sleep_performance (imported-wins), so an importer sees the export's
     // figure and a Bluetooth-only user sees the on-device composite. Null until loaded / no night yet.
+    val sleepDataRevision by com.otidotid.alke.data.SleepDataRevision.revision.collectAsStateWithLifecycle()
     var restScoreForDay by remember { mutableStateOf<Double?>(null) }
-    LaunchedEffect(days, selectedDayKey, selectedDayOffset) {
+    LaunchedEffect(days, selectedDayKey, selectedDayOffset, sleepDataRevision, viewModel.activeStrapId) {
         val byDay = runCatching {
-            viewModel.repo.resolvedSeries("sleep_performance", "my-whoop", "0000-00-00", "9999-99-99",
-                strapDeviceId = viewModel.activeStrapId)
-                .values.associate { it.first to it.second }
+            loadDailyRestSeries(viewModel.repo, viewModel.activeStrapId, days,
+                selectedDay.minusDays(2).toString(), selectedDayKey)
         }.getOrDefault(emptyMap())
         // #977: the tail-fallback (latest scored night) is now freshness-gated. A live 5.0 whose sleep never
         // scores used to pin Rest to the weeks-old series tail forever while Charge advanced; if that tail is
@@ -1047,11 +1047,10 @@ fun TodayScreen(
     // day (oldest → newest, nulls dropped, mirrors remember14's windowing of the DailyMetric series), and
     // feed it to the Rest tile instead. Now the sparkline tracks the Rest score. Empty until loaded.
     var restCompositeSpark by remember { mutableStateOf<List<Double>>(emptyList()) }
-    LaunchedEffect(days, selectedDay, keyMetricsWindowDays) {
+    LaunchedEffect(days, selectedDay, keyMetricsWindowDays, sleepDataRevision, viewModel.activeStrapId) {
         val byDay = runCatching {
-            viewModel.repo.resolvedSeries("sleep_performance", "my-whoop", "0000-00-00", "9999-99-99",
-                strapDeviceId = viewModel.activeStrapId)
-                .values.associate { it.first to it.second }
+            loadDailyRestSeries(viewModel.repo, viewModel.activeStrapId, days,
+                selectedDay.minusDays((keyMetricsWindowDays - 1).toLong()).toString(), selectedDay.toString())
         }.getOrDefault(emptyMap())
         val cutoff = selectedDay.minusDays((keyMetricsWindowDays - 1).toLong()).toString()
         val end = selectedDay.toString()

@@ -310,3 +310,36 @@ private fun sumGroupStages(group: List<SleepSession>): StageMins? {
  *  gate the audit flagged. Mirrors the engine's `TimeZone.getDefault().getOffset(...)`. (#547) */
 internal fun uiTzOffsetSec(): Long =
     TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000L
+
+/** ALKE daily Rest (distinct from imported Night Sleep Performance and Charge).
+ * Limit the extra sleep read to requested days + preceding-day context. No raw-stream reprocessing. */
+internal suspend fun loadDailyRestSeries(
+    repo: com.otidotid.alke.data.WhoopRepository,
+    id: String,
+    days: List<DailyMetric>,
+    from: String,
+    to: String,
+): Map<String, Double> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val base = repo.resolvedSeries("sleep_performance","my-whoop",from,to,strapDeviceId=id)
+        .values.toMap().toMutableMap()
+    if (days.isEmpty()) return@withContext base
+    val zone = java.time.ZoneId.systemDefault()
+    val lower = runCatching { java.time.LocalDate.parse(from).minusDays(1)
+        .atStartOfDay(zone).toEpochSecond() }.getOrDefault(0L)
+    val upper = runCatching { java.time.LocalDate.parse(to).plusDays(2)
+        .atStartOfDay(zone).toEpochSecond() }.getOrDefault(System.currentTimeMillis()/1000L)
+    val imported = repo.sleepSessionsUnion(id,lower,upper)
+    val computed = repo.computedSleepSessionsUnion(id,lower,upper)
+    val merged = com.otidotid.alke.data.WhoopRepository.mergeSleepRichness(imported,computed) {
+        localDayString(it.endTs)
+    }
+    val habitual = repo.habitualMidsleepSec(id)
+    val credit = napSleepMinutesByDay(merged,habitual)
+    for (day in days.filter { it.day in from..to }) {
+        val extra = credit[day.day] ?: 0.0
+        if (extra > 0.0) com.otidotid.alke.analytics.RestScorer.dailyRestFromDaily(
+            day,extra,base[day.day]
+        )?.let { base[day.day] = it }
+    }
+    base
+}

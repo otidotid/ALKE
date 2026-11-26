@@ -979,9 +979,20 @@ class WhoopRepository(
         ) ?: return
         val plan = com.otidotid.alke.analytics.SleepGroupEdit.plan(group, safeStartTs, safeEndTs)
         if (plan.clipped.isEmpty()) return
-        dao.upsertSleepSessions(plan.clipped)
+        val allowedKeys = group.mapTo(hashSetOf()) { it.deviceId to it.startTs }
+        val saved = transactor.run {
+            if (plan.clipped.any { row ->
+                dao.sleepSessionsOverlapping(row.effectiveStartTs,row.endTs).any { other ->
+                    other.deviceId == row.deviceId && (other.deviceId to other.startTs) !in allowedKeys
+                }
+            }) return@run false
+            dao.upsertSleepSessions(plan.clipped)
+            true
+        }
+        if (!saved) return
         reconcileAutoWorkoutsForSleep(group.first().deviceId.removeSuffix("-alke"), plan.clipped)
         plan.dropped.forEach { deleteSleepSession(it) }
+        SleepDataRevision.changed()
     }
 
     /** Remove a sleep session entirely , the delete half of [updateSleepSessionTimes] with no
@@ -1007,6 +1018,7 @@ class WhoopRepository(
             dao.insertDismissedSleep(listOf(DismissedSleep(session.deviceId, session.startTs, session.endTs)))
         }
         dao.deleteSleepSession(session.deviceId, session.startTs)
+        SleepDataRevision.changed()
     }
 
     /** Undo a [deleteSleepSession] (#65): lift the tombstone and restore the deleted row into its ORIGINAL
@@ -1017,6 +1029,7 @@ class WhoopRepository(
     suspend fun undoDeleteSleepSession(session: SleepSession) {
         dao.deleteDismissedSleep(session.deviceId, session.startTs)
         dao.upsertSleepSessions(listOf(session))
+        SleepDataRevision.changed()
     }
 
     /** Lift a deleted-sleep tombstone by (deviceId, startTs) (#65 "Allow re-detection" escape hatch): the
@@ -1133,6 +1146,7 @@ class WhoopRepository(
             ) != -1L
         }
         if (!inserted) return false
+        SleepDataRevision.changed()
         reconcileAutoWorkoutsForSleep(strapDeviceId, listOf(SleepSession(computedId, safeStartTs, safeEndTs, userEdited = true)))
         return true
     }

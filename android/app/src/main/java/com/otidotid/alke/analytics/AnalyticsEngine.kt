@@ -1739,6 +1739,22 @@ object RestScorer {
      * truth so the persisted sleep_performance series and the Charge "Rest quality" term agree. Mirrors
      * Swift `AnalyticsEngine.Rest.composite(daily:)`.
      */
+    /** ALKE daily Rest: replace only the existing duration component with credited actual sleep.
+     * This is a product accounting policy, not a validated physiological recovery score.
+     * The original night-only scorer remains the Charge and sleep-quality input. */
+    fun dailyRestFromDaily(daily: DailyMetric, supplementalMin: Double = 0.0,
+                          importedPerformance: Double? = null): Double? {
+        val main = daily.totalSleepMin?.takeIf { it.isFinite() && it > 0.0 }
+        val extra = supplementalMin.takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+        if (main == null || extra == 0.0) return importedPerformance ?: restFromDaily(daily)
+        val base = restFromDaily(daily) ?: return importedPerformance
+        val need = defaultSleepNeedHours * 60.0
+        val oldDuration = (main / need).coerceIn(0.0, 1.0)
+        val newDuration = ((main + extra) / need).coerceIn(0.0, 1.0)
+        return ((base + 100.0 * wDuration * (newDuration - oldDuration))
+            .coerceIn(0.0, 100.0) * 100.0).roundToInt() / 100.0
+    }
+
     fun restFromDaily(daily: DailyMetric, consistency: Double? = null): Double? {
         val tstMin = daily.totalSleepMin ?: return null
         val eff = daily.efficiency ?: return null

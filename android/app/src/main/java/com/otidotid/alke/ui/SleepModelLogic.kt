@@ -201,12 +201,7 @@ internal fun buildSleepModel(
     // is `metric { … }` over repo.days. Where the WHOOP export carried the figure verbatim
     // (metricSeries), it wins per day; the on-device recomputation fills the rest.
     val performance = metric(days, todayKey) { d ->
-        imported.performance[d.day]                       // WHOOP's own 0–100 figure wins per day
-            // else the REAL Rest composite (RestScorer.restFromDaily) — the SAME single source of
-            // truth the Today Rest score, the metric-detail overlay (below) and iOS SleepView
-            // (AnalyticsEngine.Rest.composite(daily:)) read. The old hours-vs-need proxy ceilinged
-            // live 5.0 nights at 100% here while every other surface showed the ~85% composite (#298).
-            ?: com.otidotid.alke.analytics.RestScorer.restFromDaily(d)
+        RestScorer.dailyRestFromDaily(d, napSleepMinByDay[d.day] ?: 0.0, imported.performance[d.day])
     }
     val efficiency = metric(days, todayKey) { d ->
         d.efficiency?.let { if (it <= 1.0) it * 100.0 else it }
@@ -224,7 +219,8 @@ internal fun buildSleepModel(
     }
     val hoursVsNeeded = metric(days, todayKey) { d ->
         val need = imported.needMin[d.day] ?: needMin   // imported need wins per day
-        d.totalSleepMin?.takeIf { it > 0.0 && need > 0.0 }?.let { it / need * 100.0 }
+        SleepDebt.creditedSleepMin(d.totalSleepMin, napSleepMinByDay[d.day] ?: 0.0)
+            ?.takeIf { need > 0.0 }?.let { it / need * 100.0 }
     }
     val restorative = metric(days, todayKey) { d ->
         val dp = d.deepMin; val rm = d.remMin; val sl = d.totalSleepMin

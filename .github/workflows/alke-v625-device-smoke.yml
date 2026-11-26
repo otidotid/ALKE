@@ -1,15 +1,20 @@
-name: ALKE v625 Independent Device Smoke
+name: ALKE v625 Demo APK and Optional Emulator
 on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_emulator:
+        description: Run optional independent emulator smoke instead of manual device review
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
   group: alke-device-smoke-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  emulator-smoke:
+  demo-apk:
     if: github.head_ref == 'alke/v625-premium-redesign' || github.ref_name == 'alke/v625-premium-redesign'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
@@ -37,7 +42,32 @@ jobs:
             sleep $((attempt * 8))
           done
           ./gradlew -PstagingRelease --no-daemon :app:assembleDemoDebug
+      - name: Validate and package isolated demo APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/demo/debug/app-demo-debug.apk
+          test -s "$apk"
+          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/alke-demo-badging.txt"
+          read -r package_line < "$RUNNER_TEMP/alke-demo-badging.txt"
+          echo "$package_line" | grep -q "name='com.otidotid.alke.demo.debug'"
+          echo "$package_line" | grep -q "versionCode='625'"
+          unzip -t "$apk" >/dev/null
+          ! unzip -Z1 "$apk" | grep -Eq '(\.p12$|\.jks$|\.keystore$|local\.properties$|\.noopbak$|\.alkebak$)'
+          mkdir -p demo-output
+          cp "$apk" demo-output/ALKE-v625-DEMO.apk
+          cd demo-output
+          sha256sum ALKE-v625-DEMO.apk > ALKE-v625-DEMO.apk.sha256
+      - name: Upload ALKE v625 demo APK for manual smoke test
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-v625-DEMO
+          path: demo-output/*
+          if-no-files-found: error
+          retention-days: 14
       - name: Enable KVM for isolated Android 34 emulator
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_emulator }}
         shell: bash
         run: |
           set -euo pipefail
@@ -47,6 +77,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           sudo chmod a+rw /dev/kvm
       - name: Boot isolated emulator and exercise navigation
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_emulator }}
         uses: reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed # v2.34.0
         with:
           api-level: 34
@@ -71,7 +102,7 @@ jobs:
             adb -s emulator-5554 install -g android/app/build/outputs/apk/demo/debug/app-demo-debug.apk
             ALKE_SMOKE_SERIAL=emulator-5554 python3 android/tools/v625_device_smoke.py
       - name: Upload independent evidence (even on failure)
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.run_emulator }}
         uses: actions/upload-artifact@v4
         with:
           name: ALKE-v625-Device-Smoke-Evidence

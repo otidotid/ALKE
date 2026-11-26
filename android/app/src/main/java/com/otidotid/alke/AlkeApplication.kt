@@ -53,7 +53,7 @@ class AlkeApplication : Application() {
         runCatching { com.otidotid.alke.location.GpsSession.initialize(this) }
         // #1008: pin the pre-change Overnight-only default for existing installs before anything
         // reads it. Idempotent; a no-op on fresh installs and on every launch after the first.
-        com.otidotid.alke.ui.AlkePrefs.migrateContinuousHrvOvernightDefault(this)
+        // v627: all-day HRV capture no longer reads the legacy overnight preference.
         // A private owner-backup APK imports on its first launch. Do NOT schedule
         // any application work that might open the new Room database before the
         // private bootstrap has validated/recovered it. Following the successful

@@ -32,7 +32,7 @@ import kotlin.math.roundToInt
  *
  * The controls, their prefs and their wiring are UNCHANGED: [AppViewModel.applyPowerSaving] still reads
  * every value from [AlkePrefs], so moving the surface cannot alter behaviour. The master gates the
- * sub-options — the threshold slider, "Pause HRV capture" and "Low refresh" only appear (and only apply)
+ * sub-options — the threshold slider and "Low refresh" only appear (and only apply)
  * while Power saving is on.
  */
 @Composable
@@ -47,15 +47,13 @@ fun PowerSavingScreen(vm: AppViewModel) {
             vm.setPowerSavingBatteryPct(powerSavingBatteryPct)
         }
     }
-    var pauseHrvOnPowerSave by remember { mutableStateOf(AlkePrefs.pauseHrvOnPowerSave(context)) }
     var lowRefresh by remember { mutableStateOf(AlkePrefs.lowRefresh(context)) }
 
     ScreenScaffold(
         title = stringResource(R.string.power_saving),
         subtitle = "Ease the load on your strap when its battery is running low.",
     ) {
-    // #477 Power saving. Two BENIGN battery levers only: the offload-cadence stretch (%-gated) and
-    // the HRV-capture pause (Battery-Saver-gated). The riskier connection-priority idle throttle is
+    // #477 Power saving: offload cadence and low refresh only. HRV capture stays enabled. The riskier connection-priority idle throttle is
     // deliberately not surfaced here — it stays dormant pending on-strap validation (#478).
     SettingsCard(
         icon = Icons.Filled.BatteryStd,
@@ -112,36 +110,6 @@ fun PowerSavingScreen(vm: AppViewModel) {
                         thumbColor = Palette.accent,
                         activeTrackColor = Palette.accent,
                         inactiveTrackColor = Palette.surfaceInset,
-                    ),
-                )
-            }
-            SettingsRowDivider()
-            // HRV pause: a sub-option of power saving, ON by default when the master is on.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.power_saving_hrv_pause), style = AlkeType.subhead, color = Palette.textPrimary)
-                    Text(
-                        stringResource(R.string.power_saving_hrv_pause_desc),
-                        style = AlkeType.footnote,
-                        color = Palette.textTertiary,
-                    )
-                }
-                Switch(
-                    checked = pauseHrvOnPowerSave,
-                    onCheckedChange = {
-                        pauseHrvOnPowerSave = it
-                        vm.setPauseHrvOnPowerSave(it)
-                    },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Palette.surfaceBase,
-                        checkedTrackColor = Palette.accent,
-                        uncheckedThumbColor = Palette.textSecondary,
-                        uncheckedTrackColor = Palette.surfaceInset,
-                        uncheckedBorderColor = Palette.hairline,
                     ),
                 )
             }

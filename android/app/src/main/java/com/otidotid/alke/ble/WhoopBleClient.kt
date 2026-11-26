@@ -9401,8 +9401,8 @@ class WhoopBleClient(
                 val captureWantNow = screenWantsRealtime || continuousCaptureWantsNow()
                 if (wantsRealtime != captureWantNow && keepStreamForData && !screenWantsRealtime) {
                     log(
-                        if (captureWantNow) "Continuous HRV: overnight window opened; arming the realtime stream (#927)"
-                        else "Continuous HRV: overnight window closed; realtime stream disarmed until tonight (#927)",
+                        if (captureWantNow) "Continuous HRV: arming the all-day realtime stream"
+                        else "Continuous HRV: realtime stream released",
                     )
                 }
                 reconcileRealtime()   // recomputes wantsRealtime from the fresh predicate; toggles only on an edge
@@ -9548,39 +9548,13 @@ class WhoopBleClient(
         reconcileRealtime()
     }
 
-    /** #927: the continuous-capture side of the realtime want, window-gated. True while the "Continuous
-     *  HRV capture" preference wants the stream held open AND, when "overnight only" is on, the local
-     *  wall clock sits inside the nightly window (the reused quiet-hours window, 22:00 → 07:00 by
-     *  default). RE-DERIVED at every arm site (reconcile / keep-alive tick / post-bond arm) instead of
-     *  precomputed, so a reconnect outside the window can never arm the stream from a stale value.
-     *  Mirrors the Swift `continuousCaptureWantsNow`. */
-    private fun continuousCaptureWantsNow(): Boolean {
-        if (!keepStreamForData) return false
-        // #477: optional power-saving pause — while power saving is ACTIVE (battery ≤ threshold or Battery
-        // Saver, discharging), release the held-open continuous-capture stream (its own toggle, default
-        // off). Battery-%-aware like the offload/defer levers, via the shared idleThrottleActive gate. The
-        // realtime stream is one of the larger drains; a Live screen still arms it on demand
-        // (screenWantsRealtime is checked separately in reconcileRealtime), so this only drops the
-        // BACKGROUND capture the user opted into. Re-arms automatically once off power save.
-        if (pauseCaptureBatteryPct > 0) {
-            val (batteryPct, charging) = batteryPctAndCharging()
-            if (idleThrottleActive(batteryPct, charging, pauseCaptureBatteryPct)) return false
-        }
-        val cal = java.util.Calendar.getInstance()
-        val minuteOfDay = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
-        return continuousHrvStreamWanted(
-            continuousHrv = true,
-            overnightOnly = AlkePrefs.continuousHrvOvernight(context),
-            minuteOfDay = minuteOfDay,
-            startMin = NotifPrefs.getInt(context, NotifPrefs.QUIET_START, 22 * 60),
-            endMin = NotifPrefs.getInt(context, NotifPrefs.QUIET_END, 7 * 60),
-        )
-    }
+    /** All-day HRV capture follows connection intent only; no overnight or battery pause. */
+    private fun continuousCaptureWantsNow(): Boolean = keepStreamForData
 
     /**
      * Single reconciler for the realtime-HR stream. The stream should be armed while EITHER a screen
      * wants it ([screenWantsRealtime]) OR the continuous-capture preference wants it ([keepStreamForData],
-     * window-gated by #927 overnight-only via [continuousCaptureWantsNow]).
+     * via [continuousCaptureWantsNow]).
      * We arm (TOGGLE_REALTIME_HR 1) / disarm (TOGGLE_REALTIME_HR 0) ONLY on the false↔true edge of that
      * derived want — so a Live screen closing while the preference still wants it does NOT disarm, and
      * turning the preference off with no screen open DOES disarm. The toggle only reaches the strap once

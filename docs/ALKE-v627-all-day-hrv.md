@@ -29,3 +29,11 @@ Worker /v1/sleep/detect and Android transport support a rolling 24-hour snapshot
 ## Regression gate updates
 
 Reviewed TodayScreen against v626: only the Rest score/sparkline loader block changed. WorkoutsScreen and HrEventVisuals retain the previous blob hashes. Activity R1's handler is unchanged byte-for-byte; only the Sleep route, helper block and deployment build ID are new. Both Worker test suites now run in Personal Quality Gate and a standalone Node workflow. Sleep summary uses actual estimated asleep minutes, existing local sleep target and selected-day debt; no simulated scores. Cloud contract remains disabled until the Android scheduler, durable episode classification, single-detector cutover and late sync integration are finished.
+
+
+## v627 design consolidation (owner-approved)
+
+- One pinned daily Rest/total/target/debt summary; one main Sleep Architecture and Hypopnea assessment; one collapsed Sleep Details entry for physiology, balance ledger, trends, body clock and optional historical marks.
+- Hide redundant Rest/debt/target tiles only in the compact Sleep grid. Shared Today-hosted grid and protected HR/Workouts visuals stay unchanged. Existing raw records, backup schema, preferences, section IDs and individual metrics are retained.
+- Main-sleep Hours vs Target retains its original definition. Daily fulfillment explicitly combines non-overlapping credited sleep and the same target. The prior failed imported-figures regression retains its main-sleep assertions and adds a daily-fulfillment assertion. Imported source values are not overwritten.
+- **Remaining release blockers:** a single cloud-driven detector with durable category provenance and late-data reconciliation, full episode stage/efficiency aggregation, and canonical persisted daily Rest feeding Charge and its contributor breakdown. The current duration-credit Rest is an interim implementation, not the final scientific model. No changes to the physiological baseline or fabricated post-nap HRV. Do not release or deploy production until these are complete and validated.

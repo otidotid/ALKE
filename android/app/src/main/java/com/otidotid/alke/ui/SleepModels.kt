@@ -99,6 +99,8 @@ internal data class SleepModel(
     // Day-specific hero values use the existing calculations, not latest-history tiles.
     val selectedNightEfficiency: Double? = null,
     val selectedNightDebtMin: Double? = null,
+    // Separate from the main-sleep hours-vs-target metric. No duplicate score or raw data.
+    val dailyFulfillment: Metric = Metric(null, null, null, emptyList()),
 )
 
 /** The night the ◀/▶ chevrons selected: its MAIN session, the day-metric key it resolves to, its

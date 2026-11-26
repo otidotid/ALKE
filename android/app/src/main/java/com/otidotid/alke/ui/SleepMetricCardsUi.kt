@@ -61,12 +61,12 @@ import kotlin.math.roundToInt
  * so the tiles render read-only when hosted.
  */
 @Composable
-internal fun NightDetailHostCard(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
-    MetricGrid(m, onMetricClick = onMetricClick)
+internal fun NightDetailHostCard(m: SleepModel, onMetricClick: (String) -> Unit = {}, compact: Boolean = false) {
+    MetricGrid(m, onMetricClick = onMetricClick, compact = compact)
 }
 
 @Composable
-private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
+private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}, compact: Boolean = false) {
     val tiles = listOf<@Composable (Modifier) -> Unit>(
         { mod ->
             SparkTile(
@@ -100,7 +100,7 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
         },
         { mod ->
             SparkTile(
-                mod, "Hours vs Needed",
+                mod, "Main sleep vs target",
                 value = pctValue(m.hoursVsNeeded.latest),
                 caption = tileCaption(m.hoursVsNeeded.latestDay, m.hoursVsNeeded.latest, m.hoursVsNeeded.typical, "%"),
                 accent = m.hoursVsNeeded.latest?.let { Palette.recoveryColor(minOf(100.0, it)) } ?: Palette.textPrimary,
@@ -131,11 +131,11 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        SectionHeader("Night detail", overline = "Metrics", trailing = "vs typical")
+        SectionHeader(if (compact) "Main sleep physiology" else "Night detail", overline = "Metrics", trailing = "vs typical")
 
         // Sleep Debt is the actionable summary for the section, so it leads at the full
         // two-column width. The remaining six peer metrics keep the established 2 × 3 grid.
-        SparkTile(
+        if (!compact) SparkTile(
             Modifier.fillMaxWidth(), "Sleep Debt",
             value = m.sleepDebt.latest?.let { durationText(it) } ?: "—",
             caption = debtCaption(m.sleepDebt.latest),
@@ -146,7 +146,8 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
 
         // Two-up rows; IntrinsicSize.Max + fillMaxHeight keep row neighbors equal height even when
         // large font scales grow one tile past the tileHeight floor. No empty cells.
-        tiles.chunked(2).forEach { rowTiles ->
+        val visibleTiles = if (compact) tiles.filterIndexed { index, _ -> index != 0 && index != 3 } else tiles
+        visibleTiles.chunked(2).forEach { rowTiles ->
             Row(
                 modifier = Modifier.height(IntrinsicSize.Max),
                 horizontalArrangement = Arrangement.spacedBy(Metrics.gap),

@@ -50,7 +50,8 @@ class PremiumV625DesignLockTest {
         val indexes=keys.map { insight.indexOf(it) }
         assertTrue(indexes.all { it>=0 } && indexes.zipWithNext().all { it.first<it.second })
         val sleep=ui("SleepScreen.kt")
-        assertTrue(sleep.contains("Sleep Balance"))
+        assertTrue(sleep.contains("Sleep Details"))
+        assertTrue(sleep.contains("TOTAL DAILY SLEEP"))
         assertTrue(sleep.contains("model?.selectedNightEfficiency"))
         assertTrue(sleep.contains("model?.selectedNightDebtMin"))
         assertTrue(ui("SleepModelLogic.kt").contains("localDebtByDay[effectiveDay]"))

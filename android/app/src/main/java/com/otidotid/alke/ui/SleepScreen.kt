@@ -378,9 +378,7 @@ fun SleepScreen(
     var sleepSectionOrder by remember { mutableStateOf(SleepLayoutPrefs.order(context)) }
     var hiddenSections by remember { mutableStateOf(SleepLayoutPrefs.hidden(context)) }
     var showSleepArrange by remember { mutableStateOf(false) }
-    var showSleepBalance by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    var showNightPhysiology by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    var showSleepClock by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showSleepDetails by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     // #sleep-layout (hold-to-drag): the hoisted list state (the drag math needs layoutInfo + scrollBy) and
     // the live drag state, mirroring Today (TodayScreen.kt §today-layout). The frame loop runs ONLY while a
     // card is lifted: each frame it retries the swap (so a card held still at a viewport edge keeps
@@ -939,7 +937,7 @@ fun SleepScreen(
                         mainStart = chosen.heroOnsetTs ?: chosen.session.effectiveStartTs,
                         mainEnd = chosen.heroWakeTs ?: chosen.session.endTs,
                         creditedMin = napSleepMinByDay[chosen.dayKey] ?: 0.0,
-                        targetMin = model?.sleepDebtLedger?.needMin,
+                        targetMin = imported.needMin[chosen.dayKey] ?: model?.sleepDebtLedger?.needMin,
                         debtMin = model?.selectedNightDebtMin)
                 }
             }
@@ -955,25 +953,28 @@ fun SleepScreen(
             // #sleep-layout: persist the live hold-to-drag reorder when the gesture drops (the in-memory
             // `sleepSectionOrder` already moved live in the frame loop; this writes it through).
             val persistSleepOrder = { SleepLayoutPrefs.setOrder(context, sleepSectionOrder) }
-            val balanceSections = setOf(SleepSection.SLEEP_DEBT, SleepSection.ASLEEP_DURATION,
-                SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY)
+            // Keep the architecture near the summary. All remaining charts live behind ONE disclosure.
+            // Preserve stable section IDs, relative detail order, user visibility and underlying records.
             val visibleSections = sleepSectionOrder.filterNot { it in hiddenSections }
-            val firstBalance = visibleSections.firstOrNull { it in balanceSections }
-            visibleSections.forEach { section ->
-              if (section == firstBalance && tilesModel != null) {
-                  item(key = "sleep-balance-disclosure") {
-                      AlkePanel(Modifier.fillMaxWidth(), onClick = { showSleepBalance = !showSleepBalance }) {
+            val detailSections = visibleSections.filter { it != SleepSection.STAGES }
+            val orderedSections = visibleSections.filter { it == SleepSection.STAGES } + detailSections
+            val firstDetail = detailSections.firstOrNull()
+            orderedSections.forEach { section ->
+              if (section == firstDetail) {
+                  item(key = "sleep-details-disclosure") {
+                      AlkePanel(Modifier.fillMaxWidth(), onClick = { showSleepDetails = !showSleepDetails }) {
                           Row(verticalAlignment = Alignment.CenterVertically) {
                               Column(Modifier.weight(1f)) {
-                                  Text("Sleep Balance", style = AlkeType.headline, color = Palette.textPrimary)
-                                  Text("Sleep needed · debt · duration · consistency", style = AlkeType.caption, color = Palette.textSecondary)
+                                  Text("Sleep Details", style = AlkeType.headline, color = Palette.textPrimary)
+                                  Text("Physiology · balance · trends · body clock", style = AlkeType.caption, color = Palette.textSecondary)
                               }
-                              Icon(Icons.Filled.ChevronRight, if (showSleepBalance) "Collapse Sleep Balance" else "Expand Sleep Balance", tint = Palette.accent)
+                              Icon(Icons.Filled.ChevronRight, if (showSleepDetails) "Collapse Sleep Details" else "Expand Sleep Details",
+                                  modifier = Modifier.graphicsLayer(rotationZ = if (showSleepDetails) 90f else 0f), tint = Palette.accent)
                           }
                       }
                   }
               }
-              if (section in balanceSections && !showSleepBalance) return@forEach
+              if (section != SleepSection.STAGES && !showSleepDetails) return@forEach
               val k = SLEEP_SECTION_KEY_PREFIX + section.raw
               when (section) {
                 SleepSection.SLEEP_MARKS -> item(key = k) {
@@ -1067,8 +1068,7 @@ fun SleepScreen(
                             SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                                 Column {
                                     Spacer(Modifier.height(Metrics.selectorTopUp))
-                                    PremiumLink("Body Clock", if(showSleepClock) "Collapse" else "Circadian rhythm and sleep timing", { showSleepClock = !showSleepClock })
-                                    if(showSleepClock) BodyClockDialCard(
+                                    BodyClockDialCard(
                                         estimate = phase,
                                         actualBedHour = localClockHour(session.effectiveStartTs),
                                         actualWakeHour = localClockHour(session.endTs),
@@ -1083,8 +1083,7 @@ fun SleepScreen(
                         SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                             Column {
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
-                                PremiumLink("Night Physiology", if(showNightPhysiology) "Collapse" else "Recorded night metrics and respiratory rate", { showNightPhysiology = !showNightPhysiology })
-                                if(showNightPhysiology) NightDetailHostCard(m, onMetricClick = { detailMetricKey = it })
+                                NightDetailHostCard(m, onMetricClick = { detailMetricKey = it }, compact = true)
                             }
                         }
                     }
@@ -1831,7 +1830,7 @@ private fun NapsCard(
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
                 Column {
-                    Text("TOTAL SLEEP",style=AlkeType.overline,color=Palette.textTertiary)
+                    Text("TOTAL DAILY SLEEP",style=AlkeType.overline,color=Palette.textTertiary)
                     Text(total?.let { durationText(it) } ?: "—",style=AlkeType.number(32f),color=Palette.textPrimary)
                 }
                 Column(horizontalAlignment=Alignment.End) {
@@ -1840,13 +1839,17 @@ private fun NapsCard(
                 }
             }
             if (total != null && total > 0) {
-                val remaining = ((targetMin ?: total) - total).coerceAtLeast(0.0)
+                val target = targetMin?.takeIf { it.isFinite() && it > 0.0 }
+                val remaining = ((target ?: total) - total).coerceAtLeast(0.0)
                 Row(Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(5.dp)),
                     horizontalArrangement=Arrangement.spacedBy(2.dp)) {
                     if ((mainMin ?: 0.0) > 0.0) Box(Modifier.weight(mainMin!!.toFloat()).height(7.dp).background(Palette.restColor))
                     if (creditedMin > 0.0) Box(Modifier.weight(creditedMin.toFloat()).height(7.dp).background(Palette.restBright))
                     if (remaining > 0.0) Box(Modifier.weight(remaining.toFloat()).height(7.dp).background(Palette.surfaceInset))
                 }
+                if (target != null) Text(
+                    "${(total / target * 100.0).roundToInt()}% of daily target",
+                    style=AlkeType.footnote,color=Palette.textSecondary)
             }
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Metrics.space10)) {
                 Icon(Icons.Filled.Bedtime,null,tint=Palette.restColor)

@@ -219,6 +219,10 @@ internal fun buildSleepModel(
     }
     val hoursVsNeeded = metric(days, todayKey) { d ->
         val need = imported.needMin[d.day] ?: needMin   // imported need wins per day
+        d.totalSleepMin?.takeIf { it > 0.0 && need > 0.0 }?.let { it / need * 100.0 }
+    }
+    val dailyFulfillment = metric(days, todayKey) { d ->
+        val need = imported.needMin[d.day] ?: debtNeedMin
         SleepDebt.creditedSleepMin(d.totalSleepMin, napSleepMinByDay[d.day] ?: 0.0)
             ?.takeIf { need > 0.0 }?.let { it / need * 100.0 }
     }
@@ -302,6 +306,7 @@ internal fun buildSleepModel(
         selectedNightEfficiency = latest.efficiency?.takeIf { it.isFinite() && it > 0 }
             ?.let { if(it <= 1.0) it * 100.0 else it }?.takeIf { it <= 100.0 },
         selectedNightDebtMin = localDebtByDay[effectiveDay],
+        dailyFulfillment = dailyFulfillment,
     )
 }
 

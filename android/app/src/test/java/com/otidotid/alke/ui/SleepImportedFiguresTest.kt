@@ -194,6 +194,10 @@ class SleepImportedFiguresTest {
         assertEquals(440.0, m.sleepDebtLedger.nights.last().sleptMin, 1e-9)
         assertEquals(-40.0, m.sleepDebtLedger.nights.last().deltaMin, 1e-9)
         assertEquals(392.0 / 480.0 * 100.0, m.hoursVsNeeded.latest!!, 1e-9)
+        assertEquals(440.0 / 480.0 * 100.0, m.dailyFulfillment.latest!!, 1e-9)
+        assertEquals(392.0, m.stages.asleep, 1e-9)
+        val sameDay = day("2026-06-02", 392.0)
+        assertTrue(RestScorer.dailyRestFromDaily(sameDay, 48.0)!! > RestScorer.restFromDaily(sameDay)!!)
     }
 
     @Test

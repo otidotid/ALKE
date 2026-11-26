@@ -25,7 +25,7 @@ internal fun sleepMetricSpec(key: String): SleepMetricSpec = when (key) {
     "performance"     -> SleepMetricSpec("Rest", "%", Palette.restColor) { "${it.roundToInt()}" }
     "efficiency"      -> SleepMetricSpec("Sleep Efficiency", "%", Palette.statusPositive) { "${it.roundToInt()}" }
     "consistency"     -> SleepMetricSpec("Consistency", "%", Palette.metricCyan) { "${it.roundToInt()}" }
-    "hours_vs_needed" -> SleepMetricSpec("Hours vs Needed", "%", Palette.restColor) { "${it.roundToInt()}" }
+    "hours_vs_needed" -> SleepMetricSpec("Main sleep vs target", "%", Palette.restColor) { "${it.roundToInt()}" }
     "restorative"     -> SleepMetricSpec("Restorative", "%", Palette.sleepREM) { "${it.roundToInt()}" }
     "respiratory"     -> SleepMetricSpec("Respiratory Rate", "rpm", Palette.metricPurple) { String.format(Locale.US, "%.1f", it) }
     "sleep_debt"      -> SleepMetricSpec("Sleep Debt", "min", Palette.metricRose) { "${it.roundToInt()}" }   // #691: minutes, not decimal hours
@@ -73,7 +73,7 @@ internal fun buildSleepMetricPoints(
                     (100.0 * (1.0 - sd / 90.0)).coerceIn(0.0, 100.0)
                 }
             }
-            "hours_vs_needed" -> SleepDebt.creditedSleepMin(d.totalSleepMin, napSleepMinByDay[d.day] ?: 0.0)
+            "hours_vs_needed" -> d.totalSleepMin?.takeIf { it > 0.0 }
                 ?.let { minOf(100.0, it / (imported.needMin[d.day] ?: needMin).coerceAtLeast(1.0) * 100.0) }
             "restorative" -> {
                 val dp = d.deepMin ?: return@mapNotNull null

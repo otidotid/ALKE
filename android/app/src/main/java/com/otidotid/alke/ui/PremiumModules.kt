@@ -25,6 +25,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /** Shared v624-derived surface tokens for consolidated premium modules. */
 internal object PremiumSurface {
@@ -157,23 +159,38 @@ internal fun PremiumJournalTile(label:String,value:String,icon:androidx.compose.
 }
 @Composable
 internal fun PremiumSparkline(values:List<Double>,color:Color,modifier:Modifier) {
-    val points=remember(values){values.filter { it.isFinite() }}
+    val fractions=remember(values){premiumSparklineFractions(values)}
     androidx.compose.foundation.Canvas(modifier) {
-        if(points.size>=2) {
-            val low=points.minOrNull()?:0.0
-            val span=((points.maxOrNull()?:low)-low).coerceAtLeast(0.01)
+        if(fractions.size>=2) {
+            val lineWidth=2.dp.toPx()
             fun point(index:Int)=androidx.compose.ui.geometry.Offset(
-                size.width*index/(points.size-1),size.height*(0.9f-0.8f*((points[index]-low)/span).toFloat()))
-            for(index in 1 until points.size) drawLine(color,point(index-1),point(index),strokeWidth=2.dp.toPx(),
+                size.width*index/(fractions.size-1),size.height*(0.9f-0.8f*fractions[index]))
+            for(index in 1 until fractions.size) drawLine(color,point(index-1),point(index),strokeWidth=lineWidth,
                 cap=androidx.compose.ui.graphics.StrokeCap.Round)
         }
     }
 }
 
-/** Scope fast BLE state to the leaf, not all of Me. */
+/** Compute normalized points only when values change; preserve the v625 draw geometry. */
+internal fun premiumSparklineFractions(values:List<Double>):List<Float> {
+    val points=values.filter { it.isFinite() }
+    if(points.size<2) return emptyList()
+    val low=points.minOrNull()?:0.0
+    val span=((points.maxOrNull()?:low)-low).coerceAtLeast(0.01)
+    return points.map { ((it-low)/span).toFloat() }
+}
+
+internal fun premiumWearableStatus(connected:Boolean,bonded:Boolean):String =
+    if(connected) if(bonded) "Connected" else "Pairing" else "Not connected"
+
+/** Scope fast BLE state to the leaf, not all of Me, and emit only actual status transitions. */
 @Composable
 internal fun PremiumWearableLink(vm:AppViewModel,onClick:()->Unit) {
-    val live by vm.live.collectAsStateWithLifecycle()
-    val status=if(live.connected) if(live.bonded) "Connected" else "Pairing" else "Not connected"
+    val statuses=remember(vm) {
+        vm.live.map { premiumWearableStatus(it.connected,it.bonded) }.distinctUntilChanged()
+    }
+    val status by statuses.collectAsStateWithLifecycle(
+        initialValue = premiumWearableStatus(vm.live.value.connected,vm.live.value.bonded)
+    )
     PremiumLink("Wearable devices",status,onClick, icon = Icons.Filled.Sensors)
 }

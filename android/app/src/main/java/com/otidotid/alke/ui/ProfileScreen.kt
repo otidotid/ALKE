@@ -14,6 +14,10 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -33,9 +37,12 @@ internal fun ProfileScreen(onOpenSettings: () -> Unit) {
     val profile = remember(context) { ProfileStore.from(context) }
     var revision by remember { mutableIntStateOf(0) }
     @Suppress("UNUSED_VARIABLE") val tick = revision
+    val scope = rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null && !ProfileAvatarStore.setAvatarFromUri(context, uri)) {
-            Toast.makeText(context, "Couldn't use that photo. Try another.", Toast.LENGTH_LONG).show()
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { ProfileAvatarStore.setAvatarFromUri(context, uri) }
+            if (!ok) Toast.makeText(context, "Couldn't use that photo. Try another.", Toast.LENGTH_LONG).show()
         }
     }
 

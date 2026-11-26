@@ -58,8 +58,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.platform.LocalContext
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import com.otidotid.alke.R
@@ -2123,10 +2121,6 @@ internal fun AlkeMeExperience(
     onNavigate: (Destination) -> Unit = {},
 ) {
     val context = LocalContext.current
-    var profileRevision by remember { mutableIntStateOf(0) }
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null && ProfileAvatarStore.setAvatarFromUri(context, uri)) profileRevision++
-    }
     var showDockEditor by remember { mutableStateOf(false) }
     var personalSettingsExpanded by rememberSaveable { mutableStateOf(false) }
     var moreToolsExpanded by rememberSaveable { mutableStateOf(false) }
@@ -2141,7 +2135,6 @@ internal fun AlkeMeExperience(
         onOpenSelfHostedPush = onOpenSelfHostedPush,
         showSettingsBody = personalSettingsExpanded,
         meHeader = {
-            profileRevision
             AlkePanel(Modifier.fillMaxWidth(), onClick = { onNavigate(Destination.Profile) }) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ProfileAvatar(size = 54.dp, contentDescription = "Profile photo")

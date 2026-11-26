@@ -201,11 +201,8 @@ object ProfileAvatarStore {
             }
         }.getOrNull() ?: ExifInterface.ORIENTATION_NORMAL
 
-        // Pass 2: sub-sampled decode (power-of-two) to get under ~2× the cap cheaply.
-        var sample = 1
-        while (srcW / (sample * 2) >= MAX_DIMEN && srcH / (sample * 2) >= MAX_DIMEN) {
-            sample *= 2
-        }
+        // Bound the longest dimension, including very wide or tall photos.
+        val sample = avatarDecodeSampleSize(srcW, srcH)
         val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sample }
         val decoded = resolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, decodeOpts)
@@ -224,6 +221,15 @@ object ProfileAvatarStore {
         val out = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
         if (out !== decoded) decoded.recycle()
         return out
+    }
+
+    /** Power-of-two decode sample; the longest decoded edge stays below 2× MAX_DIMEN. */
+    internal fun avatarDecodeSampleSize(width: Int, height: Int): Int {
+        require(width > 0 && height > 0)
+        val longest = maxOf(width, height)
+        var sample = 1
+        while (longest / sample >= MAX_DIMEN * 2) sample *= 2
+        return sample
     }
 
     /** One post-concatenated step of an EXIF correction: either a clockwise rotate or an axis scale. */

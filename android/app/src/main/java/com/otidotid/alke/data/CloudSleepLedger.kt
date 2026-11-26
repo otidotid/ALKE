@@ -66,12 +66,26 @@ internal class CloudSleepLedger(
         val added = transaction.run {
             val history = history(id, snapshot.start, snapshot.end)
             if (history.modes.lastOrNull()?.enabled != true) return@run 0
-            val reserved = exclusions(id, snapshot.start, snapshot.end).toMutableList()
-            reserved += history.episodes.map { it.start to it.end }
+            val reserved = exclusions(id, snapshot.start, snapshot.end)
+            val stored = history.episodes.toMutableList()
             val rows = response.episodes.mapNotNull { episode ->
                 if (!history.covers(episode.start, episode.end) ||
                     reserved.any { (a,b) -> a < episode.end && episode.start < b }) return@mapNotNull null
-                reserved += episode.start to episode.end
+                val conflicts = stored.filter { it.start < episode.end && episode.start < it.end }
+                if (conflicts.isNotEmpty()) {
+                    // A later complete main sleep may enclose an earlier provisional nap.
+                    // Protect edited sessions, previous main sleeps and ambiguous partial overlap.
+                    if (episode.type != "MAIN_SLEEP" || conflicts.any { it.type == "MAIN_SLEEP" ||
+                            it.start < episode.start || it.end > episode.end }) return@mapNotNull null
+                    for (old in conflicts) {
+                        dao.removeCloudSleepEstimate(source(id), old.start)
+                        val derived = dao.sleepSession("$id-alke", old.start)
+                        if (derived != null && !derived.userEdited && derived.endTs == old.end)
+                            dao.deleteSleepSession(derived.deviceId, derived.startTs)
+                    }
+                    stored.removeAll(conflicts.toSet())
+                }
+                stored += episode
                 val payload = JSONObject().put("id",episode.id).put("type",episode.type).put("end",episode.end)
                     .put("schema",CloudSleepProtocol.SCHEMA).put("source","cloud-ai")
                 EventRow(source(id), episode.start, EPISODE, payload.toString(), synced = 1)

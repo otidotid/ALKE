@@ -917,6 +917,7 @@ object IntelligenceEngine {
         // cached). Kept separate from [skinFamilyByOwner] (which coalesces unknown → WHOOP5 for the skin
         // scale); this must NOT coalesce so a ring can't be cached as a WHOOP.
         val cacheFamilyByOwner = HashMap<String, DeviceFamily?>()
+        val windowStart = nowSeconds - maxDays.toLong() * SECONDS_PER_DAY - StreamReadCap.LOOKBACK_SECONDS
         val sleepHistoryByOwner = mutableMapOf<String, com.otidotid.alke.data.CloudSleepLedger.History?>()
 
         for (offset in 0 until maxDays) {
@@ -944,7 +945,7 @@ object IntelligenceEngine {
             // owner source is supplied or the registry yields no owner.
             val owner = resolveDayOwner(repo, ownerSource, candidatePriorities, day, from, to, importedDeviceId)
             val sleepHistory = sleepHistoryByOwner.getOrPut(owner) {
-                repo.cloudSleep?.history(owner, windowStart - StreamReadCap.LOOKBACK_SECONDS, nowSeconds)
+                repo.cloudSleep?.history(owner, windowStart, nowSeconds)
             }
             val cloudDay = sleepHistory?.takeIf { it.touches(from, to) }
             val cloudOnly = cloudDay?.covers(from, to) == true
@@ -1628,7 +1629,6 @@ object IntelligenceEngine {
         // the cross-source duplicate (#107): the strap source carries imported WHOOP rows AND manual /
         // re-labelled rows (both under [importedDeviceId]); apple-health / health-connect carry Health
         // imports , a detected bout overlapping ANY of them is skipped below.
-        val windowStart = nowSeconds - maxDays.toLong() * SECONDS_PER_DAY - StreamReadCap.LOOKBACK_SECONDS
         val realWorkouts = repo.workouts(importedDeviceId, windowStart, nowSeconds) +
             repo.workouts("apple-health", windowStart, nowSeconds) +
             repo.workouts("health-connect", windowStart, nowSeconds)

@@ -587,7 +587,8 @@ object AnalyticsEngine {
         // re-derive from `rr` over each session's own stages instead of reading restingHR/avgHRV, so the
         // only way to scope them is through the session set itself — which is precisely the "one forgotten
         // call site" a scattered filter invites.
-        val physiologySessions = matched.filter { !it.hrOnly }.ifEmpty { matched }
+        val physiologyCandidates = if (matched.any { it.cloudEpisodeType != null }) mainGroup else matched
+        val physiologySessions = physiologyCandidates.filter { !it.hrOnly }.ifEmpty { physiologyCandidates }
         // #2522: use the gated lowest five-minute bin from the primary session, not its whole-session
         // mean. Choosing the session first preserves #2358's nap protection; a shorter nap must not
         // supply the daily RHR when the main night has no HR. #804's device-provided value still wins.

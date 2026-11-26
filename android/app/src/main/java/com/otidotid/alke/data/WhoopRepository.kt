@@ -2509,10 +2509,12 @@ class WhoopRepository(
             val rows = dao.sleepSessions("$owner-alke", OnlineFirstWindow.clampSecond(from), to, limit)
             val history = cloudSleep?.history(owner, from, to)
             val episodes = history?.episodes.orEmpty().associateBy { it.start }
-            rows.onEach { row ->
-                episodes[row.startTs]?.takeIf { it.end == row.endTs || row.userEdited }?.let {
-                    row.cloudEpisodeType = it.type
-                }
+            rows.filter { row ->
+                val episode = episodes[row.startTs]?.takeIf { it.end == row.endTs || row.userEdited }
+                row.cloudEpisodeType = episode?.type
+                // A subsequent confirmed import, workout or dismissal wins even before the next rescore.
+                episode == null || row.userEdited ||
+                    cloudSleep?.exclusions(owner, row.effectiveStartTs, row.endTs).isNullOrEmpty()
             }
         })
     }

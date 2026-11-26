@@ -10,7 +10,7 @@ permissions:
   actions: read
 concurrency:
   group: alke-v625-personal-release
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   verify-and-publish:
     runs-on: ubuntu-24.04
@@ -21,7 +21,7 @@ jobs:
       SOURCE_SHA: b71115edfabbf939f628fa205262c134e2a0569b
       MERGE_SHA: 0c65fd81bf7b17e701b5bdd289b5c9e201624dbc
       SIGNED_SHA: ee57cc91885afe32cbfa0b372bef896ceb423ed85a9c17255a8813e1edf298a8
-      TAG: v1.0.0-alpha.22.33-premium-redesign.625
+      TAG: v1.0.0-alpha.22.35-premium-redesign.625
     steps:
       - name: Verify source and successful quality gates
         shell: bash

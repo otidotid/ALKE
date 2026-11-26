@@ -1,0 +1,33 @@
+name: ALKE v627 Worker Sleep Contract
+on:
+  push:
+    branches: [alke/v627-sleep-intelligence]
+    paths:
+      - cloud-coach/worker.js
+      - cloud-coach/sleep-detection.test.mjs
+      - .github/workflows/alke-v627-sleep-worker-review.yml
+permissions:
+  contents: read
+jobs:
+  worker-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Worker syntax and mock-provider regression
+        run: |
+          node --check cloud-coach/worker.js
+          node --test cloud-coach/activity-sensitivity.test.mjs cloud-coach/sleep-detection.test.mjs
+      - name: Package candidate Worker (not production deployment)
+        run: |
+          mkdir -p review
+          cp cloud-coach/worker.js review/worker.js
+          (cd review && sha256sum worker.js > worker.js.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-v627-Worker-Sleep-Contract-DRAFT
+          path: review/
+          if-no-files-found: error

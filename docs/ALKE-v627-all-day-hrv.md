@@ -24,3 +24,8 @@ Daily Rest credits valid supplemental asleep minutes through the existing durati
 ## Cloud Sleep protocol (draft, not enabled)
 
 Worker /v1/sleep/detect and Android transport support a rolling 24-hour snapshot of 5-minute measured HR, motion, valid RMSSD and coverage; independent consent, activity bearer token, enable flag ENABLE_SLEEP_AI_DETECTION, separate D1 quota, strict result schema, missing data and exclusion gates, completed episodes only. The 70% floor reuses an engineering transport quality gate; no clinical threshold, no arbitrary nap/day sleep duration split, no generated stages or score. No phone-side classifier. This commit does not yet schedule or persist sleep inference and deliberately does not enable it or remove the legacy detector until cutover and late-data reconciliation are validated. Groq model is not clinically validated; the tests use mocked responses only.
+
+
+## Regression gate updates
+
+Reviewed TodayScreen against v626: only the Rest score/sparkline loader block changed. WorkoutsScreen and HrEventVisuals retain the previous blob hashes. Activity R1's handler is unchanged byte-for-byte; only the Sleep route, helper block and deployment build ID are new. Both Worker test suites now run in Personal Quality Gate and a standalone Node workflow. Sleep summary uses actual estimated asleep minutes, existing local sleep target and selected-day debt; no simulated scores. Cloud contract remains disabled until the Android scheduler, durable episode classification, single-detector cutover and late sync integration are finished.

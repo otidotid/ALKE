@@ -938,7 +938,9 @@ fun SleepScreen(
                         activeIsOura = activeIsOura,
                         mainStart = chosen.heroOnsetTs ?: chosen.session.effectiveStartTs,
                         mainEnd = chosen.heroWakeTs ?: chosen.session.endTs,
-                        creditedMin = napSleepMinByDay[chosen.dayKey] ?: 0.0)
+                        creditedMin = napSleepMinByDay[chosen.dayKey] ?: 0.0,
+                        targetMin = model?.sleepDebtLedger?.needMin,
+                        debtMin = model?.selectedNightDebtMin)
                 }
             }
             // If the user hides architecture, the post-wake assessment still has a visible home.
@@ -1819,19 +1821,31 @@ private fun NapsCard(
     mainStart: Long = main.effectiveStartTs,
     mainEnd: Long = main.endTs,
     creditedMin: Double = 0.0,
+    targetMin: Double? = null,
+    debtMin: Double? = null,
 ) {
     val is24h = ClockPrefs.uses24Hour(LocalContext.current)
     var expanded by remember(main.deviceId,main.startTs) { mutableStateOf(false) }
     val total = mainMin?.let { it + creditedMin }
     AlkeCard(padding = Metrics.space14, tint = Palette.restColor) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
-            Text("TOTAL SLEEP",style=AlkeType.overline,color=Palette.textTertiary)
-            Text(total?.let { durationText(it) } ?: "—",style=AlkeType.number(32f),color=Palette.textPrimary)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                Column {
+                    Text("TOTAL SLEEP",style=AlkeType.overline,color=Palette.textTertiary)
+                    Text(total?.let { durationText(it) } ?: "—",style=AlkeType.number(32f),color=Palette.textPrimary)
+                }
+                Column(horizontalAlignment=Alignment.End) {
+                    Text("SLEEP TARGET",style=AlkeType.overline,color=Palette.textTertiary)
+                    Text(targetMin?.takeIf { it.isFinite() && it>0.0 }?.let { durationText(it) } ?: "—",style=AlkeType.subhead,color=Palette.textPrimary)
+                }
+            }
             if (total != null && total > 0) {
+                val remaining = ((targetMin ?: total) - total).coerceAtLeast(0.0)
                 Row(Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(5.dp)),
                     horizontalArrangement=Arrangement.spacedBy(2.dp)) {
                     if ((mainMin ?: 0.0) > 0.0) Box(Modifier.weight(mainMin!!.toFloat()).height(7.dp).background(Palette.restColor))
                     if (creditedMin > 0.0) Box(Modifier.weight(creditedMin.toFloat()).height(7.dp).background(Palette.restBright))
+                    if (remaining > 0.0) Box(Modifier.weight(remaining.toFloat()).height(7.dp).background(Palette.surfaceInset))
                 }
             }
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Metrics.space10)) {
@@ -1861,6 +1875,11 @@ private fun NapsCard(
                 NapRow(nap,onEditNapTimes,onDeleteNap)
             }
             Box(Modifier.fillMaxWidth().height(Metrics.divider).background(Palette.hairline))
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                Text("Sleep debt",style=AlkeType.footnote,color=Palette.textSecondary)
+                Text(debtMin?.takeIf { it.isFinite() && it>=0.0 }?.let { durationText(it) } ?: "—",
+                    style=AlkeType.subhead,color=Palette.textPrimary)
+            }
             MainSleepFooter(main = main, naps = naps, habitualMidsleepSec = habitualMidsleepSec, activeIsOura = activeIsOura)
         }
     }

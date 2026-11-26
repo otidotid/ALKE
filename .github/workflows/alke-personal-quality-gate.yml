@@ -68,8 +68,8 @@ jobs:
             fi
             sleep $((attempt * 8))
           done
-      - name: Cloud activity sensitivity contract tests
-        run: node --test cloud-coach/activity-sensitivity.test.mjs
+      - name: Cloud activity and sleep contract tests
+        run: node --test cloud-coach/activity-sensitivity.test.mjs cloud-coach/sleep-detection.test.mjs
       - name: Targeted Personal release tests
         working-directory: android
         run: |

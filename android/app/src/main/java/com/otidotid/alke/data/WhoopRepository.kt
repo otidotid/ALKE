@@ -2360,6 +2360,20 @@ class WhoopRepository(
         ).singleOrNull { it.day == day }
     }
 
+    /** Resolve the exact Rest input of the computed Charge selected by the daily merge. */
+    internal suspend fun restUsedForCharge(activeId: String, display: DailyMetric): Double? = transactor.run {
+        val day = display.day
+        val imported = unionByDay(importedSourceIds(activeId).map { dao.dailyMetricsRange(it, day, day) })
+        if (imported.singleOrNull()?.recovery != null) return@run null
+        val computed = unionByDay(computedSourceIds(activeId).map { dao.dailyMetricsRange(it, day, day) })
+            .singleOrNull() ?: return@run null
+        if (computed.recovery == null || computed.recovery != display.recovery) return@run null
+        val version = scoreInputDetails(computed.deviceId, day, "recovery")?.algorithmVersion
+        if (version?.endsWith("+" + com.otidotid.alke.analytics.UnifiedSleepRest.VERSION) != true) return@run null
+        metricSeries(computed.deviceId, com.otidotid.alke.analytics.UnifiedSleepRest.KEY, day, day)
+            .singleOrNull()?.value?.takeIf { it.isFinite() && it in 0.0..100.0 }
+    }
+
     /** Count the same merged day set as [daysMerged] using SQL, without loading every DailyMetric. */
     suspend fun daysMergedCount(deviceId: String): Int {
         val sourceIds = (importedSourceIds(deviceId) + computedSourceIds(deviceId) + ACTIVITY_FILE_SOURCE).distinct()

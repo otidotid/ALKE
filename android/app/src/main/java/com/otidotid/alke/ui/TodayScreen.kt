@@ -2083,6 +2083,7 @@ fun TodayScreen(
             properties = DialogProperties(usePlatformDefaultWidth = false),
         ) {
             ChargeBreakdownSheet(
+                vm = viewModel,
                 days = days,
 				chargeBaselines = chargeBaselines,
                 displayDay = displayMetric,
@@ -5393,6 +5394,7 @@ private fun TodayLayoutEditorDialog(
  */
 @Composable
 internal fun ChargeBreakdownSheet(
+    vm: AppViewModel,
     days: List<DailyMetric>,
 	chargeBaselines: ChargeBaselines.Resolved?,
     displayDay: DailyMetric?,
@@ -5410,6 +5412,13 @@ internal fun ChargeBreakdownSheet(
     // not offer to.
     onOpenTrend: (() -> Unit)? = null,
 ) {
+    val readDay = carriedDay ?: displayDay
+    val revision by com.otidotid.alke.data.SleepDataRevision.revision.collectAsStateWithLifecycle()
+    val dailyRest by androidx.compose.runtime.key(vm.activeStrapId, readDay, revision) {
+        androidx.compose.runtime.produceState<Double?>(null) {
+            value = readDay?.let { vm.repo.restUsedForCharge(vm.activeStrapId, it) }
+        }
+    }
     Surface(modifier = Modifier.fillMaxSize(), color = Palette.surfaceBase) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -5439,11 +5448,12 @@ internal fun ChargeBreakdownSheet(
                 // The breakdown self-gates: a calibrating night (empty drivers) renders nothing here, the
                 // Contributors + Readiness below still give an honest read, never a blank sheet.
                 RecoveryDriversSection(
-    chargeBaselines = chargeBaselines,
-    displayDay = displayDay,
-    carriedDay = carriedDay,
-)
-                RecoveryContributorsSection(day = displayDay, carriedDay = carriedDay)
+                    chargeBaselines = chargeBaselines,
+                    displayDay = displayDay,
+                    carriedDay = carriedDay,
+                    dailyRest = dailyRest,
+                )
+                RecoveryContributorsSection(day = displayDay, carriedDay = carriedDay, dailyRest = dailyRest)
                 // S4: the SEPARATE Readiness block now lives here behind the Charge-ring tap (today-only,
                 // matching the old inline gate). A one-word read (Push / Maintain / Rest) stays on the hero.
                 if (showReadiness) ReadinessSection(days, carriedDay = carriedDay)
@@ -5558,15 +5568,17 @@ private fun RecoveryDriversSection(
     chargeBaselines: ChargeBaselines.Resolved?,
     displayDay: DailyMetric?,
     carriedDay: DailyMetric? = null,
+    dailyRest: Double? = null,
 ) {
     // Read the row the Charge ring itself reads: today's own when scored, else the carried last-scored
     // day (#543) so the breakdown matches the carried ring instead of vanishing at the rollover. The
     // baselines already carry both recalibration epochs (#2315), applied where they were resolved (#2525).
-    val snapshot = remember(chargeBaselines, displayDay, carriedDay) {
+    val snapshot = remember(chargeBaselines, displayDay, carriedDay, dailyRest) {
         ResolvedReadinessSnapshot.resolve(
             baselines = chargeBaselines,
             displayDay = displayDay,
             carriedDay = carriedDay,
+            dailyRest = dailyRest,
         )
     }
     val drivers = snapshot.drivers
@@ -5723,7 +5735,7 @@ private fun DriverRow(driver: ChargeDriver) {
 // Suppressed entirely until at least one contributor has a value.
 
 @Composable
-private fun RecoveryContributorsSection(day: DailyMetric?, carriedDay: DailyMetric? = null) {
+private fun RecoveryContributorsSection(day: DailyMetric?, carriedDay: DailyMetric? = null, dailyRest: Double? = null) {
     // The row the contributors read from: today's own when it carries recovery, else the carried last
     // scored day (#543) so the bars don't all read "No Data" at the rollover while live HR ticks. The
     // overline stamps "Last night · <date>" when carrying so the prior read isn't passed off as today's.
@@ -5756,9 +5768,9 @@ private fun RecoveryContributorsSection(day: DailyMetric?, carriedDay: DailyMetr
             )
             // Sleep, hours in bed against an 8h target. Blue (sleep world).
             ContributorBar(
-                label = uiString(R.string.l10n_today_screen_sleep_3cac34e6),
-                readout = sleepMin?.let { sleepValue(cd) } ?: NO_DATA,
-                fraction = sleepMin?.let { (it / 60.0) / 8.0 },
+                label = if (dailyRest != null) "Daily Rest" else uiString(R.string.l10n_today_screen_sleep_3cac34e6),
+                readout = dailyRest?.let { "${it.roundToInt()}%" } ?: sleepMin?.let { sleepValue(cd) } ?: NO_DATA,
+                fraction = dailyRest?.div(100.0) ?: sleepMin?.let { (it / 60.0) / 8.0 },
                 color = Palette.sleepLight,
             )
             // Respiratory, stability around a typical 12–20 rpm span. Deep blue (sleep world).

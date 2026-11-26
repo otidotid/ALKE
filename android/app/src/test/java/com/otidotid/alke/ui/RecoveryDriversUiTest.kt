@@ -52,6 +52,17 @@ class RecoveryDriversUiTest {
         return past + today
     }
 
+    @Test fun carriedChargeUsesItsPersistedRestInTheSleepDriver() {
+        val days = scoredHistory()
+        val carried = days.last()
+        val snapshot = ResolvedReadinessSnapshot.resolve(
+            resolved(days, carried.day), null, carriedDay = carried, dailyRest = 83.0,
+        )
+        assertEquals(carried.day, snapshot.day)
+        val sleep = snapshot.drivers.single { it.label == ChargeDriverLabel.SLEEP_QUALITY }
+        assertEquals(83.0, sleep.value, 1e-9)
+    }
+
     @Test fun scoredDayProducesDriverRows() {
         val days = scoredHistory()
         val rows = drivers(days, days.last())

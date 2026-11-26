@@ -30,6 +30,7 @@ internal data class ResolvedReadinessSnapshot(
             baselines: ChargeBaselines.Resolved?,
             displayDay: DailyMetric?,
             carriedDay: DailyMetric? = null,
+            dailyRest: Double? = null,
         ): ResolvedReadinessSnapshot {
             val readDay = carriedDay ?: displayDay
             return ResolvedReadinessSnapshot(
@@ -37,7 +38,7 @@ internal data class ResolvedReadinessSnapshot(
                 carriedDay = carriedDay,
                 readDay = readDay,
                 baselines = baselines,
-                drivers = recoveryChargeDrivers(baselines, readDay),
+                drivers = recoveryChargeDrivers(baselines, readDay, dailyRest),
                 confidence = readDay?.let { chargeConfidenceTier(baselines, it) },
             )
         }

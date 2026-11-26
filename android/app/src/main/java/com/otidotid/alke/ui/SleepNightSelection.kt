@@ -2,6 +2,7 @@ package com.otidotid.alke.ui
 
 import com.otidotid.alke.analytics.AnalyticsEngine
 import com.otidotid.alke.analytics.SleepStageTotals
+import com.otidotid.alke.analytics.SupplementalSleepCredit
 import com.otidotid.alke.data.DailyMetric
 import com.otidotid.alke.data.SleepSession
 import java.util.TimeZone
@@ -49,8 +50,14 @@ internal fun selectNight(
     // matches AnalyticsEngine.analyzeDay instead of rendering phantom naps (#555). A single-block day is
     // byte-identical to the prior behaviour. (#518/#555/#561)
     val group = mainSleepGroup(blocks, habitualMidsleepSec)
+    val groupKeys = group.map { it.deviceId to it.startTs }.toHashSet()
     val groupStarts = group.map { it.startTs }.toHashSet()
-    val napBlocks = blocks.filter { it.startTs !in groupStarts }
+    val mainSpan = SupplementalSleepCredit.Span(
+        group.minOfOrNull { it.effectiveStartTs } ?: session.effectiveStartTs,
+        group.maxOfOrNull { it.endTs } ?: session.endTs,
+    )
+    val napBlocks = blocks.filter { (it.deviceId to it.startTs) !in groupKeys &&
+        !mainSpan.overlaps(SupplementalSleepCredit.span(it)) }
         .sortedBy { it.effectiveStartTs }
     // Drop a spurious leading pre-sleep awake stub from the hero's RECONSTRUCTION so the hypnogram and the
     // summed minutes start where the displayed bedtime (the main block's onset) does (#736). A night can
@@ -172,14 +179,20 @@ internal fun mainSleepGroup(blocks: List<SleepSession>, habitualMidsleepSec: Lon
 internal fun napSleepMinutesByDay(
     sleeps: List<SleepSession>,
     habitualMidsleepSec: Long? = null,
-): Map<String, Double> = sleeps
-    .groupBy { localDayString(it.endTs) }
-    .mapValues { (_, blocks) ->
-        val mainStarts = mainSleepGroup(blocks, habitualMidsleepSec).mapTo(hashSetOf()) { it.startTs }
-        blocks.asSequence()
-            .filter { it.startTs !in mainStarts }
-            .sumOf { decodedAsleepMinutes(it.stagesJSON, it.effectiveStartTs) }
+): Map<String, Double> {
+    val byDay = sleeps.groupBy { localDayString(it.endTs) }
+    val groups = byDay.mapValues { (_, blocks) -> mainSleepGroup(blocks, habitualMidsleepSec) }
+    val reserved = groups.values.mapNotNull { group ->
+        if (group.isEmpty()) null else SupplementalSleepCredit.Span(
+            group.minOf { it.effectiveStartTs },group.maxOf { it.endTs })
     }
+    return byDay.mapValues { (day, blocks) ->
+        val mainKeys = groups[day].orEmpty().mapTo(hashSetOf()) { it.deviceId to it.startTs }
+        val supplemental = blocks.filter { (it.deviceId to it.startTs) !in mainKeys }
+            .filter { row -> reserved.none { it.overlaps(SupplementalSleepCredit.span(row)) } }
+        SupplementalSleepCredit.minutes(supplemental, reserved)
+    }
+}
 
 /**
  * The day's main-night bridged SPAN (onset -> wake), the same window [mainSleepGroup] bridges into one

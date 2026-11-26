@@ -6,3 +6,11 @@ Approved owner change: remove separate HRV enable, overnight and battery-pause s
 
 
 Release scope: v627 includes the already-tested Adaptive Activity Worker R1 from commit 247254369c8c8e05b7e8ae19f5f10cb6458f183a; no change in Android activity protocol. New nap insert checks all existing sleep intervals atomically and does not overwrite existing main sleep; non-AI/non-legacy-auto workouts also block insertion. It does not repair historical overlap, late main sleep reconciliation, nap provenance, or daily scoring. No new cloud sleep classifier yet: Walch et al. (2019), DOI 10.1093/sleep/zsz180 is an overnight Apple Watch validation, not a WHOOP daytime nap model. The 2024 wearable research recommendations (DOI 10.1093/sleep/zsad325) discuss limitations for daytime sleep. No invented HRV or sleep credit. Existing local nap detection and score policy remain in this release until the scientific design is validated. Worker is packaged for manual deploy; no changes to Groq secrets or endpoint auth.
+
+
+## Supplemental sleep accounting work in progress
+
+- Shared interval union/subtraction gives credit only to estimated asleep stages within recorded bounds; no duplicate time, no wake or unknown-stage credit. Ambiguous overlapping summary-only stages receive no inferred credit.
+- Sleep screen and local debt use the new accounting, and separately entered non-overlapping sessions survive imported-day precedence. Existing rows are not deleted. Main sleep still owns its existing scoring baseline.
+- The v627 release remains blocked pending complete cloud nap detection, explicit episode provenance, late main-sleep reconciliation, and coherent Rest/Charge integration. No arbitrary Nap/Daytime threshold or unvalidated AI physiological bonus has been added.
+- Evidence: https://pubmed.ncbi.nlm.nih.gov/20626612/ ; https://pubmed.ncbi.nlm.nih.gov/38149978/ ; https://pubmed.ncbi.nlm.nih.gov/31579900/ . These support multisignal research and limitations, not an already-validated WHOOP nap classifier.

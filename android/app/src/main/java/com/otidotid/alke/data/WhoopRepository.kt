@@ -2500,7 +2500,12 @@ class WhoopRepository(
             return com.otidotid.alke.analytics.AnalyticsEngine.dayString(s.endTs, offsetSec)
         }
         val importedDays = imported.mapTo(HashSet(), ::endDay)
-        val computedKept = computed.filter { endDay(it) !in importedDays }
+        val computedKept = computed.filter { row ->
+            endDay(row) !in importedDays || (row.userEdited && imported.none {
+                com.otidotid.alke.analytics.SupplementalSleepCredit.span(it)
+                    .overlaps(com.otidotid.alke.analytics.SupplementalSleepCredit.span(row))
+            })
+        }
         return (imported + computedKept).sortedBy { it.effectiveStartTs }
     }
 
@@ -3479,7 +3484,14 @@ class WhoopRepository(
                 if (comp != null && dayRichness(comp) > dayRichness(imp)) {
                     out.addAll(comp)   // richer computed day survives a poorer import
                 } else {
-                    out.addAll(imp)    // imported wins its day (unchanged rule)
+                    out.addAll(imp)    // imported remains the main-night authority
+                    // Preserve a separately entered session, not an overlapping computed twin.
+                    comp.orEmpty().filter { row ->
+                        row.userEdited && imported.none {
+                            com.otidotid.alke.analytics.SupplementalSleepCredit.span(it)
+                                .overlaps(com.otidotid.alke.analytics.SupplementalSleepCredit.span(row))
+                        }
+                    }.forEach(out::add)
                 }
             }
             for ((day, comp) in computedByDay) if (day !in importedByDay) out.addAll(comp)

@@ -1779,8 +1779,7 @@ private fun Hero(
             // is efficiency-derived. Window fallback only for a stage-less stub day, unchanged from before.
             val mainStages = groupStages
                 ?: parseSessionStages(SleepStageTotals.clampStagesToOnset(session.stagesJSON, session.effectiveStartTs))
-            val mainMin = mainStages?.let { it.awake + it.light + it.deep + it.rem }
-                ?: (session.endTs - session.effectiveStartTs) / 60.0
+            val mainMin = mainStages?.let { it.light + it.deep + it.rem }
             NapsCard(
                 main = session,
                 mainMin = mainMin,
@@ -1808,7 +1807,7 @@ private fun NapsCard(
     // The day's MAIN-sleep minutes = the whole main-night's summed DECODED stage minutes (iOS
     // `night.stages.total`): the bridged group's `sumGroupStages` or the single block's own decoded
     // stages. Computed by the caller. NOT `main`'s own window — that undercounts a bridged night.
-    mainMin: Double,
+    mainMin: Double?,
     naps: List<SleepSession>,
     onEditNapTimes: (SleepSession, Long, Long) -> Unit,
     onDeleteNap: (SleepSession) -> Unit,
@@ -1818,7 +1817,9 @@ private fun NapsCard(
     // Active strap is an Oura ring → a computed night's provenance reads "Oura" not "On-device" (C4).
     activeIsOura: Boolean = false,
 ) {
-    val napMin = naps.sumOf { (it.endTs - it.effectiveStartTs) / 60.0 }
+    val napMin = com.otidotid.alke.analytics.SupplementalSleepCredit.minutes(
+        naps, listOf(com.otidotid.alke.analytics.SupplementalSleepCredit.span(main)),
+    )
     AlkeCard(padding = Metrics.space14, tint = Palette.restColor) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
             Text(uiString(R.string.l10n_sleep_screen_daytime_sleep_871c03ca), style = AlkeType.overline, color = Palette.textTertiary)
@@ -1826,9 +1827,9 @@ private fun NapsCard(
             if (naps.isNotEmpty()) {
                 // Main / Nap(s) / Total split — only meaningful once a nap exists. Total = main + naps.
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    NapSummaryCell("Main sleep", durationText(mainMin), Modifier.weight(1f))
-                    NapSummaryCell("Nap(s)", durationText(napMin), Modifier.weight(1f))
-                    NapSummaryCell("Total", durationText(mainMin + napMin), Modifier.weight(1f))
+                    NapSummaryCell("Main sleep", mainMin?.let { durationText(it) } ?: "—", Modifier.weight(1f))
+                    NapSummaryCell("Supplemental", durationText(napMin), Modifier.weight(1f))
+                    NapSummaryCell("Total asleep", mainMin?.let { durationText(it + napMin) } ?: "—", Modifier.weight(1f))
                 }
             }
             if (naps.isEmpty()) {

@@ -1,0 +1,33 @@
+name: ALKE Worker Adaptive Trial
+on:
+  push:
+    branches: [alke/activity-worker-adaptive-trial]
+    paths: ['cloud-coach/**', '.github/workflows/alke-worker-adaptive-trial.yml']
+permissions:
+  contents: read
+jobs:
+  worker-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Worker syntax and regression tests
+        run: |
+          node --check cloud-coach/worker.js
+          node --test cloud-coach/activity-sensitivity.test.mjs
+      - name: Package complete Worker for manual Cloudflare deployment
+        run: |
+          mkdir -p worker-output
+          cp cloud-coach/worker.js worker-output/worker.js
+          (cd worker-output && sha256sum worker.js > worker.js.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALKE-v626-Worker-Adaptive-Trial
+          path: worker-output/*
+          retention-days: 7
+          if-no-files-found: error

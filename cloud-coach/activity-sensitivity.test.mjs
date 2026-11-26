@@ -86,3 +86,44 @@ test('HIGH walking accepts partial counter evidence but never guesses gait or st
   assert.ok(logs.some(x=>x.includes('"accepted"')));
   assert.ok(logs.every(x=>!x.includes(token)&&!x.includes('WALKING')&&!x.includes('CLIMBING_STAIRS')));
 });
+
+
+test('v626 worker trial: sparse cadence, generic exercise and unchanged client safeguards',async t=>{
+  const original=globalThis.fetch;
+  t.after(()=>{globalThis.fetch=original;});
+  let prediction={type:'RUNNING',startBin:0,endBin:6,confidence:'HIGH'};
+  globalThis.fetch=async(url,options)=>{
+    const payload=JSON.parse(options.body);
+    assert.ok(payload.messages[0].content.includes('treadmill'));
+    assert.ok(payload.messages[0].content.includes('generic WORKOUT'));
+    return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify({activities:[prediction]})}}],usage:{total_tokens:100}}),{status:200});
+  };
+  const measured=[145,0.4,65,null,1,1], missing=[145,0.4,null,null,1,1];
+  const weakCadence=[145,0.4,22,null,1,1], zero=[145,0.4,0,null,1,1];
+  async function detect(mode,first,excluded=[]){
+    const bins=[...first,...Array.from({length:30-first.length},()=>missing)];
+    const response=await worker.fetch(req(mode,bins,excluded),env);
+    assert.equal(response.status,200,await response.clone().text());
+    const result=(await response.json()).activityDetection;
+    for(const a of result.activities) assert.equal(a.confidence,'HIGH');
+    return result.activities;
+  }
+  assert.equal((await detect('HIGH',[measured,missing,measured,missing,measured,missing])).length,1);
+  assert.equal((await detect('MEDIUM',[measured,missing,measured,missing,measured,missing])).length,0);
+  assert.equal((await detect('MEDIUM',[measured,measured,missing,measured,measured,missing])).length,1);
+  assert.equal((await detect('LOW',[measured,missing,measured,missing,measured,missing])).length,0);
+  assert.equal((await detect('HIGH',Array(6).fill(missing))).length,0);
+  assert.equal((await detect('HIGH',[weakCadence,missing,weakCadence,missing,weakCadence,missing])).length,0);
+  assert.equal((await detect('HIGH',[measured,zero,measured,missing,measured,missing])).length,0);
+  assert.equal((await detect('HIGH',[measured,[145,0.4,null,null,0.1,1],measured,missing,measured,missing])).length,0);
+  assert.equal((await detect('HIGH',Array(6).fill(measured),[[now-900,now-870]])).length,0);
+  prediction={type:'WORKOUT',startBin:0,endBin:6,confidence:'HIGH'};
+  assert.equal((await detect('HIGH',Array(6).fill(missing))).length,1);
+  assert.equal((await detect('MEDIUM',Array(6).fill(missing))).length,0);
+  assert.equal((await detect('HIGH',Array(6).fill([145,0,null,null,1,1]))).length,0);
+  assert.equal((await detect('HIGH',Array(6).fill([null,0.4,65,null,0,1]))).length,0);
+  prediction={...prediction,confidence:'MODERATE'};
+  assert.equal((await detect('HIGH',Array(6).fill(missing))).length,0);
+  prediction={type:'CLIMBING_STAIRS',startBin:0,endBin:6,confidence:'HIGH'};
+  assert.equal((await detect('HIGH',Array(6).fill(measured))).length,0);
+});

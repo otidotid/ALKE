@@ -1,0 +1,89 @@
+name: ALKE v626 Publish Verified Personal F34C
+on:
+  push:
+    branches: [alke/v626-offline-release]
+    paths:
+      - .github/workflows/alke-v626-publish.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: alke-v626-personal-release
+  cancel-in-progress: true
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SIGNATURE_BLOCK: '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'
+      SOURCE_SHA: f4ede8e57836b92de5352e427f5dfdb8b36fab51
+      MERGE_SHA: 40be6d99e0e108314d75fcbe0093e00b45d6889c
+      SIGNED_SHA: 5f8187f7b79b767e3aff21bdddebf473899d7a770f32134af100ec2a7666899b
+      TAG: v1.0.0-alpha.22.36-final-audit.626
+    steps:
+      - name: Verify source and successful quality gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/45809931197 --jq .conclusion)" = success
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/45809931197 --jq .head_sha)" = "$SOURCE_SHA"
+          gh run watch 45811904496 --repo "$GITHUB_REPOSITORY" --exit-status --interval 20
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/45811904496 --jq .conclusion)" = success
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/45811904496 --jq .head_sha)" = "$MERGE_SHA"
+          test "$(gh api repos/$GITHUB_REPOSITORY/git/commits/$SOURCE_SHA --jq .tree.sha)" = "$(gh api repos/$GITHUB_REPOSITORY/git/commits/$MERGE_SHA --jq .tree.sha)"
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/artifacts/15112832136 --jq .digest)" = "sha256:20da874a73beb8cb9bea8694dd69021f0b89f37d996a9cfb0b89f61cd1836759"
+          gh run download 45809931197 --repo "$GITHUB_REPOSITORY" --name ALKE-Personal-Validated-Unsigned --dir input
+      - name: Reconstruct exact offline-signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-output
+          python - <<'PY'
+          import base64, hashlib, os, pathlib, struct, zlib, zipfile
+          source = pathlib.Path('input/ALKE-personal-v626-unsigned.apk').read_bytes()
+          assert hashlib.sha256(source).hexdigest() == '6549d62144f9ba1fbe271ab959bab3555621433cbe146899ff992921c1bcbd42'
+          compressed = base64.b64decode(os.environ['SIGNATURE_BLOCK'], validate=True)
+          assert hashlib.sha256(compressed).hexdigest() == '3ca4c880e3a04d99b7f41a6e769d60772691b0ed700f5e4d26d11acc7fc79cf4'
+          block = zlib.decompress(compressed)
+          assert len(block) == 10836
+          tail = bytearray(source[34710956:])
+          eocd = tail.rfind(b'PK\x05\x06')
+          assert eocd >= 0
+          struct.pack_into('<I', tail, eocd + 16, 34717696)
+          apk = source[:34706860] + block + tail
+          digest = hashlib.sha256(apk).hexdigest()
+          assert digest == os.environ['SIGNED_SHA']
+          out = pathlib.Path('release-output/ALKE-v626-F34C.apk')
+          out.write_bytes(apk)
+          with zipfile.ZipFile(out) as z:
+              assert z.testzip() is None
+              assert not any(n.lower().endswith(('.p12','.jks','.keystore','.alkebak','.noopbak','local.properties')) for n in z.namelist())
+          out.with_suffix('.apk.sha256').write_text(digest+'  '+out.name+'\n', encoding='ascii')
+          PY
+      - name: Independently verify APK package and original certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=release-output/ALKE-v626-F34C.apk
+          signer="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -1)"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" > signature.txt
+          cat signature.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' signature.txt
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' signature.txt
+          grep -Fq 'certificate SHA-256 digest: f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877' signature.txt
+          "$aapt" dump badging "$apk" > badging.txt
+          grep -Fq "package: name='com.otidotid.alke.personal.debug' versionCode='626'" badging.txt
+          (cd release-output && sha256sum -c ALKE-v626-F34C.apk.sha256)
+      - name: Publish signed ALKE v626 GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing overwrite"
+            exit 1
+          fi
+          gh release create "$TAG" release-output/ALKE-v626-F34C.apk release-output/ALKE-v626-F34C.apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$MERGE_SHA" --title "ALKE v626 — Final Consistency and Performance Audit (Personal F34C)" --prerelease --notes "Finalization of approved v625: reduced redundant BLE UI updates, cached sparkline normalization, bounded avatar decoding and off-main-thread profile photo processing. Protected HR and All Sessions unchanged. Full Personal quality gates required before and after merge. Original F34C signature v2/v3 verified; SHA-256 included. Update in place; do not uninstall. Real-device performance, BLE and provider measurements remain unverified; no measured savings claimed. Private signing key and password never uploaded."
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

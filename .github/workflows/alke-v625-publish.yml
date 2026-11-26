@@ -1,0 +1,88 @@
+name: ALKE v625 Publish Verified Personal F34C
+on:
+  push:
+    branches: [alke/v625-offline-release]
+    paths:
+      - .github/workflows/alke-v625-publish.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: alke-v625-personal-release
+  cancel-in-progress: false
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SIGNATURE_BLOCK: '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'
+      SOURCE_SHA: b71115edfabbf939f628fa205262c134e2a0569b
+      MERGE_SHA: 0c65fd81bf7b17e701b5bdd289b5c9e201624dbc
+      SIGNED_SHA: ee57cc91885afe32cbfa0b372bef896ceb423ed85a9c17255a8813e1edf298a8
+      TAG: v1.0.0-alpha.22.33-premium-redesign.625
+    steps:
+      - name: Verify source and successful quality gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/45796649911 --jq .conclusion)" = success
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/45796649911 --jq .head_sha)" = "$SOURCE_SHA"
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/45806160727 --jq .conclusion)" = success
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/45806160727 --jq .head_sha)" = "$MERGE_SHA"
+          test "$(gh api repos/$GITHUB_REPOSITORY/git/commits/$SOURCE_SHA --jq .tree.sha)" = "$(gh api repos/$GITHUB_REPOSITORY/git/commits/$MERGE_SHA --jq .tree.sha)"
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/artifacts/15105886848 --jq .digest)" = "sha256:0ff8915bc3c975039609f2ad4fd5e536ffcd38111cdae2fee214c38165c73e88"
+          gh run download 45796649911 --repo "$GITHUB_REPOSITORY" --name ALKE-Personal-Validated-Unsigned --dir input
+      - name: Reconstruct exact offline-signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-output
+          python - <<'PY'
+          import base64, hashlib, os, pathlib, struct, zlib, zipfile
+          source = pathlib.Path('input/ALKE-personal-v625-unsigned.apk').read_bytes()
+          assert hashlib.sha256(source).hexdigest() == 'fbe4089436bbfc4114bd7f2f76eecaf16fb9cf50b6080311c1e9ca21b8af92e1'
+          compressed = base64.b64decode(os.environ['SIGNATURE_BLOCK'], validate=True)
+          assert hashlib.sha256(compressed).hexdigest() == '971500aefc104fae73d160d431601ab3e2478871c2b08ae9d47a4e58060354a4'
+          block = zlib.decompress(compressed)
+          assert len(block) == 9860
+          tail = bytearray(source[34707836:])
+          eocd = tail.rfind(b'PK\x05\x06')
+          assert eocd >= 0
+          struct.pack_into('<I', tail, eocd + 16, 34713600)
+          apk = source[:34703740] + block + tail
+          digest = hashlib.sha256(apk).hexdigest()
+          assert digest == os.environ['SIGNED_SHA']
+          out = pathlib.Path('release-output/ALKE-v625-F34C.apk')
+          out.write_bytes(apk)
+          with zipfile.ZipFile(out) as z:
+              assert z.testzip() is None
+              assert not any(n.lower().endswith(('.p12','.jks','.keystore','.alkebak','.noopbak','local.properties')) for n in z.namelist())
+          out.with_suffix('.apk.sha256').write_text(digest+'  '+out.name+'\n', encoding='ascii')
+          PY
+      - name: Independently verify APK package and original certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=release-output/ALKE-v625-F34C.apk
+          signer="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          aapt="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -1)"
+          "$signer" verify --min-sdk-version 26 --verbose --print-certs "$apk" > signature.txt
+          cat signature.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' signature.txt
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' signature.txt
+          grep -Fq 'certificate SHA-256 digest: f34c6210ef774d588a426a784a09bb452f01b6c5f18bec64b03e209a0420e877' signature.txt
+          "$aapt" dump badging "$apk" > badging.txt
+          grep -Fq "package: name='com.otidotid.alke.personal.debug' versionCode='625'" badging.txt
+          (cd release-output && sha256sum -c ALKE-v625-F34C.apk.sha256)
+      - name: Publish signed ALKE v625 GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing overwrite"
+            exit 1
+          fi
+          gh release create "$TAG" release-output/ALKE-v625-F34C.apk release-output/ALKE-v625-F34C.apk.sha256 --repo "$GITHUB_REPOSITORY" --target "$MERGE_SHA" --title "ALKE v625 — Premium Redesign (Personal F34C)" --prerelease --notes "Approved premium redesign, Me shortcut icons, retained Today Hypopnea and Sleep Breathing Quality, protected HR graph and All Sessions. Personal quality gates passed before and after merge. Original F34C certificate verified (v2/v3). SHA-256 included. Direct update; do not uninstall existing ALKE. Manual demo smoke accepted; emulator skipped. No signing key or password uploaded."
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url,assets --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

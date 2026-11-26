@@ -121,6 +121,17 @@ jobs:
             done
             echo "Verified Robolectric SDK: $version"
           done
+      - name: JaCoCo bytecode budget (fail fast with exact measured size)
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew -PstagingRelease --no-daemon :app:testPersonalDebugUnitTest \\
+            --tests 'com.otidotid.alke.analytics.IntelligenceEngineJacocoBudgetTest' || {
+              find app/build/test-results -name '*IntelligenceEngineJacocoBudgetTest*.xml' -exec cat {} \\;
+              exit 1
+            }
+          find app/build/test-results -name '*IntelligenceEngineJacocoBudgetTest*.xml' -exec grep -E 'instrumented Code length=' {} \\; || true
       - name: Targeted Personal release tests
         working-directory: android
         run: |

@@ -591,6 +591,140 @@ object IntelligenceEngine {
      *  matching the Swift `historyDays` default. */
     const val EFFORT_RESCORE_HISTORY_DAYS: Int = 4000
 
+    /** Compute the existing whole-night RR diagnostic independently of the scoring coroutine. */
+    private fun emitNightRrDiagnostics(
+        res: DayResult, sleepRrRows: List<com.otidotid.alke.data.RrInterval>, sleepRr: List<Double>,
+        hrvOverCountByDay: MutableMap<String, Boolean>, dayDiag: (String) -> Unit,
+    ): Pair<Double, String> {
+        val h = HrvAnalyzer.analyzeRaw(sleepRr)
+        val ms = { v: Double? -> v?.let { String.format(java.util.Locale.US, "%.0f", it) } ?: "nil" }
+        val rej = if (h.nInput > 0) String.format(java.util.Locale.US, "%.0f", 100.0 * (1.0 - h.nClean.toDouble() / h.nInput)) else "0"
+        // #257: coverage (sum of NN ÷ wall-clock span; > 1.0 is impossible without double-counted
+        // R-R) + exact-duplicate beat count, so a "reads ~2x too high" report is self-diagnosing
+        // from the always-on log instead of hand-computing beat density.
+        val ts = sleepRrRows.map { it.ts }
+        // Computed ONCE and reused for both the formatted field and the verdict below:
+        // collapsedCoverage sorts and de-dups the whole night's R-R (tens of thousands of rows on a
+        // dense capture), and this runs per day across a full re-score.
+        val covVal = HrvAnalyzer.rrCoverage(ts, sleepRr)
+        val cov = String.format(java.util.Locale.US, "%.2f", covVal)
+        // #550: collapsedCov previews a same-second R-R de-dup — well below `coverage` ⇒ the
+        // over-count is same-second (a dedup fix would work); still high ⇒ cross-second overlap.
+        val colCovVal = HrvAnalyzer.collapsedCoverage(ts, sleepRr)
+        val colCov = String.format(java.util.Locale.US, "%.2f", colCovVal)
+        val dup = HrvAnalyzer.duplicateBeatCount(ts, sleepRr)
+        // #550: state the CONCLUSION, not just the evidence. Reading coverage against collapsedCov
+        // is what distinguishes a same-second over-count (a de-dup would fix it) from a cross-second
+        // one (it would not) — a rule that lived only in the comments above, so triaging an
+        // "HRV reads ~2x high" report required knowing it. Now the line says which.
+        val verdict = HrvAnalyzer.classifyCoverage(covVal, colCovVal)
+        // #550 follow-up: having stated the conclusion, ACT on it. SDNN is a spread over every
+        // interval, so an over-counted night inflates it directly — a ring whose banked R-R covers
+        // 1.25x its wall-clock reads ~197 ms across a sleeping night, against a 40-100 ms
+        // physiological range. Printing that number beside the verdict that says it cannot be
+        // trusted invites it to be read as a measurement, so it is withheld instead; the
+        // `rrIntegrity=` field on the same line says why. meanNN is NOT withheld: mean rate
+        // survives an over-count. RMSSD is not withheld FROM THIS LINE either, but it no longer
+        // reaches the card, the daily row or the baseline on an over-counted night — the gate that
+        // stops it lives in `SleepStager.sessionAvgHRV` (#1118). Printing the computed value here
+        // while the app refused to use it is a known wart: matching SDNN's `withheld` treatment
+        // needs room this method does not have, since its JaCoCo budget is already at the ratchet.
+        // Twin of the Swift line.
+        // P7' follow-up: the over-count verdict is necessary but NOT sufficient. The 2026-08-06
+        // Oura night measured coverage 1.03 / PLAUSIBLE — no duplication at all, its records
+        // tiling the timeline at a fill ratio of 0.990 — and still printed SDNN 174 ms. A BANKED
+        // stream stamps a whole record of intervals on one timestamp, so its stored values are a
+        // decomposition of a record period, not beat-to-beat measurements: the per-record SUM is
+        // right to ~1% (meanNN and RHR stay correct and WHOOP-validated) while the individual
+        // intervals are not. Gate on that too. Twin of the Swift line.
+        val accVal = HrvAnalyzer.beatAccurateFraction(ts, sleepRr)
+        
+        val acc = String.format(java.util.Locale.US, "%.2f", accVal)
+        val sdnnField =
+            if (HrvAnalyzer.beatSpreadIsTrustworthy(verdict) &&
+                HrvAnalyzer.beatValuesAreTrustworthy(accVal)) "${ms(h.sdnn)}ms" else "withheld"
+        
+        dayDiag("hrv diag day=${res.daily.day} rmssd=${ms(h.rmssd)}ms sdnn=$sdnnField meanNN=${ms(h.meanNN)}ms " +
+            "rr=${h.nInput}/${h.nClean} rejected=$rej% coverage=$cov collapsedCov=$colCov dupBeats=$dup " +
+            "beatAccurate=$acc " +
+            "rrIntegrity=${verdict.raw}")
+        // #1008: on an OVER-COUNT night only, dump a raw-row sample around the densest second so the
+        // over-count's MECHANISM is readable from the always-on log (near-equal copies vs distinct
+        // trains vs a tagged channel) — clean nights stay quiet. srcChannel rides from the read model.
+        // #1118: flag this night's HRV as over-counted (same verdict the diag logs) so the HRV
+        // card can mark the reading unverified until the two-channel de-dup lands.
+        hrvOverCountByDay[res.daily.day] =
+            (verdict == HrvAnalyzer.RrCoverageVerdict.CROSS_SECOND_OVER_COUNT ||
+                verdict == HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT)
+        if (verdict == HrvAnalyzer.RrCoverageVerdict.CROSS_SECOND_OVER_COUNT ||
+            verdict == HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT) {
+            // Built ONCE for all three diagnostics below. Each call materialised its own copy of
+            // the night's ords — ~70k elements, on a path that runs ~21 times per analyzeRecent,
+            // every 15 minutes — so two of the three were pure waste. (#1510) Twin of the Swift hoist.
+            val rrOrds = sleepRrRows.map { it.ord }
+            val sample = HrvAnalyzer.densestSecondWindowSample(
+                ts, sleepRr, sleepRrRows.map { it.srcChannel },
+                rrOrds,
+            )
+            if (sample.isNotEmpty()) dayDiag("hrv rrsample day=${res.daily.day} $sample")
+            // #1331/#1008: the sample above shows ords for a handful of seconds; this counts them
+            // across the WHOLE night, which is what decides whether the fix belongs at ingest.
+            val deliveries = HrvAnalyzer.deliveryHistogram(ts, sleepRr, rrOrds)
+            if (deliveries.isNotEmpty()) dayDiag("$deliveries day=${res.daily.day}")
+            // #1505: the histogram above counts deliveries per second but never compares what they
+            // wrote. If the live and historical copies are the same beat in two units, a duplicated
+            // second holds two values 1024/1000 apart; if they are different beats, the ratios
+            // scatter. One pair cannot tell those apart — a night's worth can. Measurement only,
+            // takes no view on the answer. Swift twin.
+            val dupPairs = HrvAnalyzer.duplicatePairRatios(ts, sleepRr, rrOrds)
+            if (dupPairs.isNotEmpty()) dayDiag("$dupPairs day=${res.daily.day}")
+            // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy
+            // beside the raw so the candidate de-dup can be validated vs WHOOP + @artemc's Polar
+            // before it becomes the read path. Instrumentation only — shipped HRV/resp unchanged.
+            // If de-dup works: coverage→~1.0, beatAccurate high (would pass #1127's RSA gate →
+            // resp returns = the #1331 fix), rmssd/sdnn physiological. Twin of the Swift line.
+            // Two candidates so validation isn't confounded: EXACT-dup collapse (rrTolMs 0 — same
+            // ts AND value, no real-beat loss) is the safe floor; the ~40 ms collapse is the
+            // aggressive UPPER BOUND (catches the two-channel twins but can over-merge two real
+            // neighbours within 40 ms). Log both so we can see where the real de-dup sits. Twin.
+            // #1331 RETIRED (two of them). `xsec` — the 40 ms collapse widened to a 1-second
+            // window — was a strict UPPER BOUND that over-merges real beats, kept only to size how
+            // far a cross-second collapse COULD get. It has now produced that number in the field:
+            // covXsec 0.80 with beatAccXsec 0.26, i.e. it eats real beats exactly as its own
+            // comment predicted. And the same-second TOLERANCE SWEEP (20/34/60) was sizing a fix
+            // already ruled out — every affected night reads CROSS_SECOND_OVER_COUNT, so no
+            // same-second tolerance can reach duplicates that straddle the boundary.
+            //
+            // Both cost real work on the phones least able to spare it: this block runs for EVERY
+            // night of an affected strap, analyzeRecent re-scores ~21 days every 15 minutes, and
+            // each collapseOverCount SORTS the night's ~50-70k intervals. Six sorts per night
+            // became two. What survives is the honest floor (`ex`, exact duplicates only —
+            // provably no real-beat loss) and the incumbent candidate (`dd`, 40 ms same-second).
+            // The delivery histogram above supersedes what both retired measurements reached for,
+            // and costs one pass instead of nine. Twin of the Swift block.
+            val ex = HrvAnalyzer.collapseOverCount(ts, sleepRr, 0.0)
+            val dd = HrvAnalyzer.collapseOverCount(ts, sleepRr)
+            val hDd = HrvAnalyzer.analyzeRaw(dd.second)
+            val covEx = HrvAnalyzer.rrCoverage(ex.first, ex.second)
+            val covDd = HrvAnalyzer.rrCoverage(dd.first, dd.second)
+            val accDd = HrvAnalyzer.beatAccurateFraction(dd.first, dd.second)
+            dayDiag("hrv dedup day=${res.daily.day} exactN=${ex.second.size}/${sleepRr.size} " +
+                "covExact=${String.format(java.util.Locale.US, "%.2f", covEx)} | ch40N=${dd.second.size} " +
+                "cov40=${String.format(java.util.Locale.US, "%.2f", covDd)} " +
+                "beatAcc40=${String.format(java.util.Locale.US, "%.2f", accDd)} " +
+                "rmssd40=${ms(hDd.rmssd)}ms sdnn40=${ms(hDd.sdnn)}ms meanNN40=${ms(hDd.meanNN)}ms " +
+                "| collapse candidates only; the DELIVERY histogram above sizes the fix")
+            // #1118 sweep: the same-second collapse at a range of tolerances, so a capture shows
+            // WHICH tolerance the over-count actually responds to instead of only the one 40 ms
+            // point. 34 ms is the two-optical-channel twin spacing; 0 is exact-duplicates-only.
+            // The 0 and 40 points are NOT recomputed: `ex` and `dd` above ARE those collapses
+            // (collapseOverCount's default tolerance is 40), and each collapse sorts the night's
+            // intervals — ~50k on an over-count night. Reusing them keeps the sweep to three extra
+            // passes instead of five on a block that runs for EVERY night of an affected strap.
+        }
+        return accVal to verdict.raw
+    }
+
     /** Preserve sleep cache mapping and existing workout enrichment without growing the scoring coroutine. */
     private fun appendScoredSessionRows(
         res: DayResult, day: String, computedId: String, sleepRows: MutableList<SleepSession>,
@@ -1476,132 +1610,9 @@ object IntelligenceEngine {
             var respGateAcc: Double? = null
             var respGateIntegrity: String? = null
             if (sleepRr.isNotEmpty()) {
-                val h = HrvAnalyzer.analyzeRaw(sleepRr)
-                val ms = { v: Double? -> v?.let { String.format(java.util.Locale.US, "%.0f", it) } ?: "nil" }
-                val rej = if (h.nInput > 0) String.format(java.util.Locale.US, "%.0f", 100.0 * (1.0 - h.nClean.toDouble() / h.nInput)) else "0"
-                // #257: coverage (sum of NN ÷ wall-clock span; > 1.0 is impossible without double-counted
-                // R-R) + exact-duplicate beat count, so a "reads ~2x too high" report is self-diagnosing
-                // from the always-on log instead of hand-computing beat density.
-                val ts = sleepRrRows.map { it.ts }
-                // Computed ONCE and reused for both the formatted field and the verdict below:
-                // collapsedCoverage sorts and de-dups the whole night's R-R (tens of thousands of rows on a
-                // dense capture), and this runs per day across a full re-score.
-                val covVal = HrvAnalyzer.rrCoverage(ts, sleepRr)
-                val cov = String.format(java.util.Locale.US, "%.2f", covVal)
-                // #550: collapsedCov previews a same-second R-R de-dup — well below `coverage` ⇒ the
-                // over-count is same-second (a dedup fix would work); still high ⇒ cross-second overlap.
-                val colCovVal = HrvAnalyzer.collapsedCoverage(ts, sleepRr)
-                val colCov = String.format(java.util.Locale.US, "%.2f", colCovVal)
-                val dup = HrvAnalyzer.duplicateBeatCount(ts, sleepRr)
-                // #550: state the CONCLUSION, not just the evidence. Reading coverage against collapsedCov
-                // is what distinguishes a same-second over-count (a de-dup would fix it) from a cross-second
-                // one (it would not) — a rule that lived only in the comments above, so triaging an
-                // "HRV reads ~2x high" report required knowing it. Now the line says which.
-                val verdict = HrvAnalyzer.classifyCoverage(covVal, colCovVal)
-                // #550 follow-up: having stated the conclusion, ACT on it. SDNN is a spread over every
-                // interval, so an over-counted night inflates it directly — a ring whose banked R-R covers
-                // 1.25x its wall-clock reads ~197 ms across a sleeping night, against a 40-100 ms
-                // physiological range. Printing that number beside the verdict that says it cannot be
-                // trusted invites it to be read as a measurement, so it is withheld instead; the
-                // `rrIntegrity=` field on the same line says why. meanNN is NOT withheld: mean rate
-                // survives an over-count. RMSSD is not withheld FROM THIS LINE either, but it no longer
-                // reaches the card, the daily row or the baseline on an over-counted night — the gate that
-                // stops it lives in `SleepStager.sessionAvgHRV` (#1118). Printing the computed value here
-                // while the app refused to use it is a known wart: matching SDNN's `withheld` treatment
-                // needs room this method does not have, since its JaCoCo budget is already at the ratchet.
-                // Twin of the Swift line.
-                // P7' follow-up: the over-count verdict is necessary but NOT sufficient. The 2026-08-06
-                // Oura night measured coverage 1.03 / PLAUSIBLE — no duplication at all, its records
-                // tiling the timeline at a fill ratio of 0.990 — and still printed SDNN 174 ms. A BANKED
-                // stream stamps a whole record of intervals on one timestamp, so its stored values are a
-                // decomposition of a record period, not beat-to-beat measurements: the per-record SUM is
-                // right to ~1% (meanNN and RHR stay correct and WHOOP-validated) while the individual
-                // intervals are not. Gate on that too. Twin of the Swift line.
-                val accVal = HrvAnalyzer.beatAccurateFraction(ts, sleepRr)
+                val (accVal, integrity) = emitNightRrDiagnostics(res, sleepRrRows, sleepRr, hrvOverCountByDay, ::dayDiag)
                 respGateAcc = accVal
-                val acc = String.format(java.util.Locale.US, "%.2f", accVal)
-                val sdnnField =
-                    if (HrvAnalyzer.beatSpreadIsTrustworthy(verdict) &&
-                        HrvAnalyzer.beatValuesAreTrustworthy(accVal)) "${ms(h.sdnn)}ms" else "withheld"
-                respGateIntegrity = verdict.raw
-                dayDiag("hrv diag day=${res.daily.day} rmssd=${ms(h.rmssd)}ms sdnn=$sdnnField meanNN=${ms(h.meanNN)}ms " +
-                    "rr=${h.nInput}/${h.nClean} rejected=$rej% coverage=$cov collapsedCov=$colCov dupBeats=$dup " +
-                    "beatAccurate=$acc " +
-                    "rrIntegrity=${verdict.raw}")
-                // #1008: on an OVER-COUNT night only, dump a raw-row sample around the densest second so the
-                // over-count's MECHANISM is readable from the always-on log (near-equal copies vs distinct
-                // trains vs a tagged channel) — clean nights stay quiet. srcChannel rides from the read model.
-                // #1118: flag this night's HRV as over-counted (same verdict the diag logs) so the HRV
-                // card can mark the reading unverified until the two-channel de-dup lands.
-                hrvOverCountByDay[res.daily.day] =
-                    (verdict == HrvAnalyzer.RrCoverageVerdict.CROSS_SECOND_OVER_COUNT ||
-                        verdict == HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT)
-                if (verdict == HrvAnalyzer.RrCoverageVerdict.CROSS_SECOND_OVER_COUNT ||
-                    verdict == HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT) {
-                    // Built ONCE for all three diagnostics below. Each call materialised its own copy of
-                    // the night's ords — ~70k elements, on a path that runs ~21 times per analyzeRecent,
-                    // every 15 minutes — so two of the three were pure waste. (#1510) Twin of the Swift hoist.
-                    val rrOrds = sleepRrRows.map { it.ord }
-                    val sample = HrvAnalyzer.densestSecondWindowSample(
-                        ts, sleepRr, sleepRrRows.map { it.srcChannel },
-                        rrOrds,
-                    )
-                    if (sample.isNotEmpty()) dayDiag("hrv rrsample day=${res.daily.day} $sample")
-                    // #1331/#1008: the sample above shows ords for a handful of seconds; this counts them
-                    // across the WHOLE night, which is what decides whether the fix belongs at ingest.
-                    val deliveries = HrvAnalyzer.deliveryHistogram(ts, sleepRr, rrOrds)
-                    if (deliveries.isNotEmpty()) dayDiag("$deliveries day=${res.daily.day}")
-                    // #1505: the histogram above counts deliveries per second but never compares what they
-                    // wrote. If the live and historical copies are the same beat in two units, a duplicated
-                    // second holds two values 1024/1000 apart; if they are different beats, the ratios
-                    // scatter. One pair cannot tell those apart — a night's worth can. Measurement only,
-                    // takes no view on the answer. Swift twin.
-                    val dupPairs = HrvAnalyzer.duplicatePairRatios(ts, sleepRr, rrOrds)
-                    if (dupPairs.isNotEmpty()) dayDiag("$dupPairs day=${res.daily.day}")
-                    // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy
-                    // beside the raw so the candidate de-dup can be validated vs WHOOP + @artemc's Polar
-                    // before it becomes the read path. Instrumentation only — shipped HRV/resp unchanged.
-                    // If de-dup works: coverage→~1.0, beatAccurate high (would pass #1127's RSA gate →
-                    // resp returns = the #1331 fix), rmssd/sdnn physiological. Twin of the Swift line.
-                    // Two candidates so validation isn't confounded: EXACT-dup collapse (rrTolMs 0 — same
-                    // ts AND value, no real-beat loss) is the safe floor; the ~40 ms collapse is the
-                    // aggressive UPPER BOUND (catches the two-channel twins but can over-merge two real
-                    // neighbours within 40 ms). Log both so we can see where the real de-dup sits. Twin.
-                    // #1331 RETIRED (two of them). `xsec` — the 40 ms collapse widened to a 1-second
-                    // window — was a strict UPPER BOUND that over-merges real beats, kept only to size how
-                    // far a cross-second collapse COULD get. It has now produced that number in the field:
-                    // covXsec 0.80 with beatAccXsec 0.26, i.e. it eats real beats exactly as its own
-                    // comment predicted. And the same-second TOLERANCE SWEEP (20/34/60) was sizing a fix
-                    // already ruled out — every affected night reads CROSS_SECOND_OVER_COUNT, so no
-                    // same-second tolerance can reach duplicates that straddle the boundary.
-                    //
-                    // Both cost real work on the phones least able to spare it: this block runs for EVERY
-                    // night of an affected strap, analyzeRecent re-scores ~21 days every 15 minutes, and
-                    // each collapseOverCount SORTS the night's ~50-70k intervals. Six sorts per night
-                    // became two. What survives is the honest floor (`ex`, exact duplicates only —
-                    // provably no real-beat loss) and the incumbent candidate (`dd`, 40 ms same-second).
-                    // The delivery histogram above supersedes what both retired measurements reached for,
-                    // and costs one pass instead of nine. Twin of the Swift block.
-                    val ex = HrvAnalyzer.collapseOverCount(ts, sleepRr, 0.0)
-                    val dd = HrvAnalyzer.collapseOverCount(ts, sleepRr)
-                    val hDd = HrvAnalyzer.analyzeRaw(dd.second)
-                    val covEx = HrvAnalyzer.rrCoverage(ex.first, ex.second)
-                    val covDd = HrvAnalyzer.rrCoverage(dd.first, dd.second)
-                    val accDd = HrvAnalyzer.beatAccurateFraction(dd.first, dd.second)
-                    dayDiag("hrv dedup day=${res.daily.day} exactN=${ex.second.size}/${sleepRr.size} " +
-                        "covExact=${String.format(java.util.Locale.US, "%.2f", covEx)} | ch40N=${dd.second.size} " +
-                        "cov40=${String.format(java.util.Locale.US, "%.2f", covDd)} " +
-                        "beatAcc40=${String.format(java.util.Locale.US, "%.2f", accDd)} " +
-                        "rmssd40=${ms(hDd.rmssd)}ms sdnn40=${ms(hDd.sdnn)}ms meanNN40=${ms(hDd.meanNN)}ms " +
-                        "| collapse candidates only; the DELIVERY histogram above sizes the fix")
-                    // #1118 sweep: the same-second collapse at a range of tolerances, so a capture shows
-                    // WHICH tolerance the over-count actually responds to instead of only the one 40 ms
-                    // point. 34 ms is the two-optical-channel twin spacing; 0 is exact-duplicates-only.
-                    // The 0 and 40 points are NOT recomputed: `ex` and `dd` above ARE those collapses
-                    // (collapseOverCount's default tolerance is 40), and each collapse sorts the night's
-                    // intervals — ~50k on an over-count night. Reusing them keeps the sweep to three extra
-                    // passes instead of five on a block that runs for EVERY night of an affected strap.
-                }
+                respGateIntegrity = integrity
             } else if (res.sleepSessions.isEmpty()) {
                 // #1244: no in-sleep R-R AND no detected session (past the >=200-HR gate) = the "HR tracked,
                 // no sleep" case. Emit a counts-only reason line naming the inputs the stager had, so the

@@ -642,7 +642,7 @@ object IntelligenceEngine {
     /** Stage cloud-owned episode bounds using the existing on-device stage computation. */
     private suspend fun resolveProvidedSleep(
         repo: WhoopRepository, owner: String, from: Long, to: Long, day: String,
-        tzOffsetSeconds: Int, cloudDay: com.otidotid.alke.data.CloudSleepLedger.History?,
+        tzOffsetSeconds: Long, cloudDay: com.otidotid.alke.data.CloudSleepLedger.History?,
         priorSleep: List<DetectedSleep>, grav: List<com.otidotid.alke.data.GravitySample>,
         hr: List<com.otidotid.alke.data.HrSample>, rr: List<com.otidotid.alke.data.RrInterval>,
         resp: List<com.otidotid.alke.data.RespSample>, steps: List<com.otidotid.alke.data.StepSample>,

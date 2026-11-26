@@ -1100,19 +1100,27 @@ class WhoopRepository(
      *  (userEdited = true, startTsAdjusted = null), so the recompute overlap guard preserves it and it is
      *  NEVER folded into the night's main sleep (which would mislabel the awake daytime gap as light
      *  sleep). Purely additive , the DAO's IGNORE-on-conflict makes a same-onset add a no-op. */
-    suspend fun addManualNap(strapDeviceId: String, startTs: Long, endTs: Long) {
+    suspend fun addManualNap(strapDeviceId: String, startTs: Long, endTs: Long): Boolean {
         // #940 belt-and-braces (same rule as updateSleepSessionTimes): a manually-added session
         // can't end in the future or invert; a future nap would otherwise own the tab's newest day
         // as an all-awake phantom exactly like the bad edit did. The clamped end is used verbatim.
         val (safeStartTs, safeEndTs) = com.otidotid.alke.analytics.SleepEditGuard.clampedEditWindow(
             startTs, endTs, System.currentTimeMillis() / 1000L,
-        ) ?: return
+        ) ?: return false
         val computedId = computedDeviceId(strapDeviceId)
         val stagesJSON = com.otidotid.alke.analytics.SleepStageHealer.restageFromRaw(this, strapDeviceId, safeStartTs, safeEndTs)
             ?: com.otidotid.alke.analytics.AnalyticsEngine.encodeStages(
                 listOf(com.otidotid.alke.analytics.StageSegment(start = safeStartTs, end = safeEndTs, stage = "wake")),
             )
-        dao.insertSleepSession(
+        // Recheck every persisted interval atomically immediately before the insert.
+        // Adjacent sessions are legal; no positive overlap is legal for a new nap.
+        val inserted = transactor.run {
+            if (dao.sleepSessionsOverlapping(safeStartTs, safeEndTs).isNotEmpty()) return@run false
+            if (dao.workoutsOverlapping(safeStartTs, safeEndTs).any {
+                    it.source != com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE &&
+                    it.source != "auto-detected"
+                }) return@run false
+            dao.insertSleepSession(
             SleepSession(
                 deviceId = computedId,
                 startTs = safeStartTs,
@@ -1122,8 +1130,11 @@ class WhoopRepository(
                 userEdited = true,
                 startTsAdjusted = null,
             ),
-        )
+            ) != -1L
+        }
+        if (!inserted) return false
         reconcileAutoWorkoutsForSleep(strapDeviceId, listOf(SleepSession(computedId, safeStartTs, safeEndTs, userEdited = true)))
+        return true
     }
 
     /** Asleep fraction (light+deep+rem ÷ total in-bed) of a segment-array [stagesJSON], or null when the

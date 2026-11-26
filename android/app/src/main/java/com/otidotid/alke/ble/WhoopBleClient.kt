@@ -4902,7 +4902,12 @@ class WhoopBleClient(
                     AutoNapAction.ACCEPT -> if (candidate != null && candidate.end > highWater) {
                         // Nap Detection ON is the master automation switch. A conservative NAP verdict
                         // follows the same overlap-guarded persistence path as a manually accepted nap.
-                        repository.addManualNap(deviceId, candidate.start, candidate.end)
+                        if (!repository.addManualNap(deviceId, candidate.start, candidate.end)) {
+                            // Existing sleep/workout owns the time; don't log a false success or rescore.
+                            NapPrefs.setHighWaterTs(context, candidate.end)
+                            log("Nap detection: existing session conflict or duplicate; not inserted.")
+                            return@launch
+                        }
                         NapStore.dismiss(context, NapStore.idFor(candidate), nowSec)
                         NapPrefs.setHighWaterTs(context, candidate.end)
                         forcePostBackfillAnalysis.set(true)

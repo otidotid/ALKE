@@ -17,30 +17,35 @@ class AlkeMeDisclosureContractTest {
         error("ALKE Experience source missing")
     }
 
-    @Test fun moreToolsAndSettingsUseTheSameIconAccordion() {
+    @Test fun firstTwoLayersAreNavigationOnly() {
         val source = experience()
-        val me = source.substringAfter("fun AlkeMeExperience(")
-            .substringBefore("/** The real ALKE dock editor")
-        assertTrue(me.contains("AlkeMeDisclosureHeader(\n                title = \"More Tools\""))
-        assertTrue(me.contains("icon = Icons.Filled.Apps"))
-        assertTrue(me.contains("AlkeMeDisclosureHeader(\n                title = \"Settings\""))
-        assertTrue(me.contains("icon = Icons.Filled.Settings"))
-        assertTrue(me.contains("expanded = moreToolsExpanded"))
-        assertTrue(me.contains("expanded = personalSettingsExpanded"))
-        assertTrue(me.contains("showSettingsBody = personalSettingsExpanded"))
-        assertTrue(me.contains("AlkeLinkRow(\"All Modules\""))
-        assertTrue(me.contains("AlkeLinkRow(\"Notifications\""))
-        assertFalse(me.contains("AlkeExpandableSection(\n                \"More tools\""))
-        assertFalse(me.contains("AlkeLinkRow(\n                \"Settings\""))
+        val me = source.substringAfter("fun AlkeMeExperience(").substringBefore("fun AlkeMeGroupExperience(")
+        val groups = source.substringAfter("fun AlkeMeGroupExperience(").substringBefore("fun MeDockSettings(")
+        for (title in listOf("Your Profile", "Wearable", "Data Management", "Health & Fitness",
+            "Intelligence", "Notifications & Haptics", "Appearance", "All Modules", "General")) {
+            assertTrue("Missing approved Me entry: $title", me.contains(title))
+        }
+        for (section in listOf(me, groups)) {
+            assertFalse(section.contains("AlkeMeDisclosureHeader("))
+            assertFalse(section.contains("collapsible = true"))
+            assertFalse(section.contains("var expanded"))
+        }
+        assertTrue(me.contains("MeNavigationCard("))
+        assertTrue(groups.contains("MeNavigationRow("))
+        assertTrue(groups.contains("onDetail(MeSettingsPage.ACTIVITY)"))
+        assertTrue(groups.contains("onDetail(MeSettingsPage.SLEEP)"))
     }
 
-    @Test fun sharedAccordionMatchesMeLinkRowIconAndCardDimensions() {
+    @Test fun navigationRowsUseOneIconAndCardContract() {
         val source = experience()
-        val header = source.substringAfter("private fun AlkeMeDisclosureHeader(")
-            .substringBefore("private fun AlkeLinkRow(")
-        assertTrue(header.contains("Modifier.size(43.dp)"))
-        assertTrue(header.contains("RoundedCornerShape(17.dp)"))
-        assertTrue(header.contains("stateDescription = if (expanded)"))
-        assertTrue(header.contains("onToggle"))
+        val row = source.substringAfter("private fun MeNavigationRow(").substringBefore("private fun MeNavigationCard(")
+        assertTrue(row.contains("Icon(icon,"))
+        assertTrue(row.contains("Icons.Filled.ChevronRight"))
+        assertTrue(row.contains(".clickable(onClick = onClick)"))
+        val dock = source.substringAfter("private fun AlkeDockEditorDialog(")
+        assertFalse(dock.contains("Icon(destination.icon"))
+        val modules = source.substringAfter("fun AlkeAllModulesExperience(").substringBefore("/** Layer 1")
+        assertFalse(modules.contains("var expanded"))
+        assertTrue(modules.contains("MeNavigationCard("))
     }
 }

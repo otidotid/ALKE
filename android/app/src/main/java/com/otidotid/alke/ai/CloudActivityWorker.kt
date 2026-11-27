@@ -187,10 +187,12 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                     val known = repo.cloudActivityExclusions(id,from,to)
                     val day = Instant.ofEpochSecond(from).atZone(ZoneId.systemDefault()).toLocalDate().toString()
                     val resting = repo.dayMerged(id,day)?.restingHr
+                    val steps = repo.cloudStepSamplesUnion(id,from-1,to-1,1800)
                     val bins = CloudActivityProtocol.bins(from,
                         repo.hrSamplesUnion(id,from,to-1,1800),
                         repo.gravitySamplesUnion(id,from-1,to-1,1800),
-                        repo.cloudStepSamplesUnion(id,from-1,to-1,1800),profile.stepTicksPerStep)
+                        steps,profile.stepTicksPerStep)
+                    val gait = CloudActivityProtocol.gaitEvidence(from,steps)
                     val excluded = CloudActivityProtocol.excludes(known,from,to)
                     if (excluded.size == 1 && excluded[0].first <= from && excluded[0].second >= to) {
                         CloudActivitySettings.finishWindow(c,from,deferred,now)
@@ -202,7 +204,7 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                     }
                     val usable = eligible.count { CloudActivityProtocol.usable(bins[it]) }
                     val sensitivity = CloudActivitySettings.sensitivity(c)
-                    val hash = CloudActivityProtocol.sha256("$id:$sensitivity:$resting:$bins")
+                    val hash = CloudActivityProtocol.sha256("$id:$sensitivity:$resting:$bins:$gait")
                     // Do not pay the cloud again for identical sensor evidence after an offload.
                     if (ActivityRetryPolicy.sameEvidence(retry,hash)) {
                         CloudActivitySettings.deferSensorWindow(c,from,deferred,now,hash,6*3600L)
@@ -222,7 +224,7 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                             CloudActivitySettings.status(c,"Insufficient sensor data")
                         }
                     } else {
-                        val snapshot = CloudActivityProtocol.Snapshot(from,bins,resting,excluded,sensitivity)
+                        val snapshot = CloudActivityProtocol.Snapshot(from,bins,resting,excluded,sensitivity,gait)
                         if (CloudActivitySettings.token(c) != token) return@withContext Result.success()
                         CloudActivitySettings.status(c,"Waiting for cloud analysis")
                         val result = CloudActivityClient().detect(snapshot,token)
@@ -230,7 +232,7 @@ class CloudActivityWorker(context: Context, params: WorkerParameters): Coroutine
                         val reply = result.response
                         if (reply == null) {
                             val message = when(result.code) {
-                                400 -> if (sensitivity != ActivitySensitivity.MEDIUM) "Sensitivity requires updated cloud Worker" else "Cloud snapshot unavailable"
+                                400 -> if (gait != null || sensitivity != ActivitySensitivity.MEDIUM) "Activity detection requires updated cloud Worker" else "Cloud snapshot unavailable"
                                 401,403 -> "Check Activity access token"
                                 429 -> "Cloud quota reached · retry later"
                                 503 -> "Cloud unavailable or disabled"

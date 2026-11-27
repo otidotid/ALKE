@@ -63,7 +63,7 @@ import kotlinx.coroutines.withContext
  *     the live [DataBackup.importFrom] now also rejects a foreign-but-valid SQLite (Mac/GRDB or other-app DB).
  */
 @Composable
-fun BackupSyncScreen() {
+fun BackupSyncScreen(onOpenAccount: (() -> Unit)? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -165,7 +165,10 @@ fun BackupSyncScreen() {
         title = "Backup & History",
         subtitle = "Choose Google Drive or a local folder. Both create a complete backup of ALKE data and settings.",
     ) {
-        item { GoogleAccountCard() }
+        item {
+            if (onOpenAccount == null) GoogleAccountCard()
+            else GoogleAccountCard(backupOnly = true, onOpenAccount = onOpenAccount)
+        }
 
         // Local Folder: full backup and restore through Android's folder picker.
         item {
@@ -185,7 +188,7 @@ fun BackupSyncScreen() {
                     // at a cloud sync app (per the tip above) also uploads that readable file there.
                     // Say so plainly next to the folder picker, before anyone turns auto-backup on.
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(
+                        if (!LocalMeDetailStyle.current) Icon(
                             Icons.Filled.Warning,
                             contentDescription = null,
                             tint = Palette.statusWarning,
@@ -324,7 +327,7 @@ fun BackupSyncScreen() {
                         BackupSync.isBackupStale(lastMs, System.currentTimeMillis())
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(
+                            if (!LocalMeDetailStyle.current) Icon(
                                 Icons.Filled.Warning,
                                 contentDescription = null,
                                 tint = Palette.statusWarning,

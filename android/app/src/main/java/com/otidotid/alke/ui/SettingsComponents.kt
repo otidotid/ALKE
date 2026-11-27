@@ -52,8 +52,25 @@ internal fun SettingsDisclosureGroup(
     subtitle: String,
     expanded: Boolean,
     onToggle: () -> Unit,
+    forceOpen: Boolean = false,
     content: @Composable () -> Unit,
 ) {
+    if (forceOpen) { content(); return }
+    if (LocalMeDetailStyle.current) {
+        AlkeCard(padding = 16.dp) {
+            Row(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = AlkeType.title2, color = Palette.textPrimary)
+                    Text(subtitle, style = AlkeType.subhead, color = Palette.textSecondary)
+                }
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = Palette.textTertiary, modifier = Modifier.size(20.dp).rotate(if (expanded) 0f else -90f))
+            }
+            if (expanded) content()
+        }
+        return
+    }
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 0f else -90f,
         label = uiString(R.string.l10n_settings_screen_advancedchevron_f22dfa01),
@@ -115,7 +132,9 @@ internal fun SettingsCard(
     collapsible: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val expanded = !collapsible || SettingsAccordionState.expandedTitle == title
+    val detailStyle = LocalMeDetailStyle.current
+    var detailExpanded by androidx.compose.runtime.saveable.rememberSaveable(title) { mutableStateOf(true) }
+    val expanded = !collapsible || if (detailStyle) detailExpanded else SettingsAccordionState.expandedTitle == title
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 0f else -90f,
         label = "settings-card-chevron",
@@ -132,7 +151,8 @@ internal fun SettingsCard(
                             interactionSource = interaction,
                             indication = null,
                         ) {
-                            SettingsAccordionState.expandedTitle = if (expanded) null else title
+                            if (detailStyle) detailExpanded = !expanded
+                            else SettingsAccordionState.expandedTitle = if (expanded) null else title
                         }
                         .semantics {
                             stateDescription = if (expanded) "Expanded" else "Collapsed"
@@ -142,13 +162,13 @@ internal fun SettingsCard(
                 } else Modifier,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Overline("Settings")
+                if (!detailStyle) Overline("Settings")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Icon(icon, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(18.dp))
+                    if (!detailStyle) Icon(icon, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(18.dp))
                     Text(title, style = AlkeType.title2, color = Palette.textPrimary, modifier = Modifier.weight(1f))
                     if (collapsible) {
                         Icon(
@@ -255,7 +275,7 @@ internal fun SettingsNoteRow(icon: ImageVector, iconTint: Color, text: String) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(16.dp))
+        if (!LocalMeDetailStyle.current) Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(16.dp))
         Text(text, style = AlkeType.footnote, color = Palette.textSecondary)
     }
 }

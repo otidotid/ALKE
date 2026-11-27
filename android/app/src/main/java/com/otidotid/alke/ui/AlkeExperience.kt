@@ -2293,9 +2293,7 @@ private fun AlkeDockEditorDialog(onDismiss: () -> Unit) {
                             }.padding(vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(destination.icon, contentDescription = null, tint = A.muted,
-                            modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(10.dp))
+
                         Text(alkeModuleLabel(destination), modifier = Modifier.weight(1f),
                             color = A.white, fontSize = 13.sp)
                         Text(if (canAdd) "Add" else "Full",

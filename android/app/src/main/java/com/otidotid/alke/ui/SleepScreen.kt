@@ -957,7 +957,7 @@ fun SleepScreen(
             if (SleepSection.STAGES in hiddenSections) item(key = "sleep-hypopnea-risk") {
                 SleepHypopneaCard(hypopneaAssessment, onOpen = { showHypopneaDetail = true })
             }
-            item(key = "sleep-intelligence-settings") { CloudSleepSettingsRow() }
+            // Cloud Sleep setup and detailed status live in Automations, not the sleep results feed.
             // Arrange and Alarms live in the header.
             // Analytical cards render in the user's saved order (SleepLayoutPrefs), minus the hidden set.
             // Reordered via the Arrange sheet OR by long-press hold-to-drag on the card (#sleep-layout,
@@ -1015,8 +1015,7 @@ fun SleepScreen(
                 }
                 SleepSection.STAGES -> item(key = k) {
                     SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
-                    Column {
-                    Spacer(Modifier.height(Metrics.selectorTopUp))
+                    Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
                     // #1537: the night's heart rate for the Classic view's line chart. Loaded here
                     // because Hero takes data rather than a repo, and keyed on the night so paging the
                     // carousel refetches. 60-second buckets, matching the iOS Sleep tab's hrBuckets call.
@@ -1032,7 +1031,7 @@ fun SleepScreen(
                             emptyList()
                         }
                     }
-                    Text("Sleep Architecture",style=AlkeType.headline,color=Palette.textPrimary)
+                    SectionHeader(title = "Sleep Architecture")
                     Hero(
                 display = display,
                 activeIsOura = activeIsOura,

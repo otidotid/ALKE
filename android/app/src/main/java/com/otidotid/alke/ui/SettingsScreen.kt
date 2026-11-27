@@ -1970,7 +1970,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Icon(
+                        if (!LocalMeDetailStyle.current) Icon(
                             Icons.Filled.Info,
                             contentDescription = null,
                             tint = Palette.accent,
@@ -3129,7 +3129,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
+                        if (!LocalMeDetailStyle.current) Icon(
                             Icons.Filled.Info,
                             contentDescription = null,
                             tint = Palette.accent,
@@ -3161,7 +3161,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    Icon(
+                    if (!LocalMeDetailStyle.current) Icon(
                         Icons.Filled.Info,
                         contentDescription = null,
                         tint = Palette.statusWarning,

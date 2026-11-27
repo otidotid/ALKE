@@ -2005,6 +2005,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
             title = uiString(R.string.l10n_settings_screen_advanced_4d064726),
             subtitle = "Experimental probes, diagnostics, raw-sensor export, and the Trends report. Tucked away to keep the everyday screen tidy.",
             expanded = page == MeSettingsPage.ADVANCED || advancedOpen,
+            forceOpen = page == MeSettingsPage.ADVANCED,
             onToggle = {
                 advancedOpen = !advancedOpen; SettingsDisclosurePrefs.write(
                 AlkePrefs.of(

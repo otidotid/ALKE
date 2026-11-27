@@ -32,7 +32,9 @@ class PremiumV625DesignLockTest {
         }
         // v627: user approved only the daily Rest resolver change in Today and new Sleep Worker route.
         // Full WorkoutsScreen and HrEventVisuals hashes above remain unchanged.
-        assertEquals("656aa13cb08f5da2121f31066d65ca34a3096a97",gitBlob(File(root(),"cloud-coach/worker.js")))
+        // v629: owner-approved post-sync cloud activity evidence and classification update.
+        // Pin the reviewed Worker blob; all three approved UI surface hashes remain unchanged.
+        assertEquals("5a34dda12c4220283c026b8b46176d78081c634b",gitBlob(File(root(),"cloud-coach/worker.js")))
     }
     @Test fun consolidatedRoutesAndExistingPinIds() {
         val nav=ui("AppRoot.kt")

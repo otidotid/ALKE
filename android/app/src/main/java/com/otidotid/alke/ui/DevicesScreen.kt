@@ -230,6 +230,11 @@ fun DevicesScreen(
             }
         }
 
+        // Temporary physical Huawei protocol diagnostic; never present in release variants.
+        if (com.otidotid.alke.BuildConfig.DEBUG) {
+            item { HuaweiDiagnosticCard() }
+        }
+
         if (devices == null) {
             // The registry resolves a beat after launch. Show a calm pending note in that brief window.
             item {

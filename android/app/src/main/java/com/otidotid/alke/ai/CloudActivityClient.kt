@@ -107,10 +107,23 @@ internal object CloudActivityProtocol {
             val t = start + i*BIN
             val hs = h[i.toLong()].orEmpty().filter { it.ts in t until t+BIN }
             val ms = motionBins[i.toLong()].orEmpty()
-            val stepRows = s.filter { it.ts in t-1 until t+BIN }
-            val stepCount = if (ticksPerStep.isFinite() && ticksPerStep >= 0.5 &&
-                stepRows.count { it.ts >= t } >= 21) {
-                StepsCounter.stepsInWindow(stepRows)?.let { (it/ticksPerStep).roundToInt().takeIf { n -> n in 0..150 } }
+            // Historical offloads can have irregular timestamps. Measure observed time
+            // coverage from short, same-device counter intervals, not row count.
+            val stepGroups = s.filter { it.ts in t-1 until t+BIN }.groupBy { it.deviceId }.values
+            fun covered(rows: List<StepSample>) = rows.zipWithNext().sumOf { (a,b) ->
+                (b.ts-a.ts).takeIf { it in 1L..5L } ?: 0L
+            }
+            val stepRows = stepGroups.maxByOrNull { covered(it) }.orEmpty()
+            val stepCount = if (ticksPerStep.isFinite() && ticksPerStep >= 0.5 && covered(stepRows) >= 21L) {
+                // Never count across a long gap or extrapolate missing seconds.
+                val segments = ArrayList<MutableList<StepSample>>()
+                for (row in stepRows) {
+                    val last = segments.lastOrNull()
+                    if (last == null || row.ts-last.last().ts > 5L) segments.add(mutableListOf(row))
+                    else last.add(row)
+                }
+                val measured = segments.mapNotNull { StepsCounter.stepsInWindow(it) }
+                measured.takeIf { it.isNotEmpty() }?.sum()?.let { (it/ticksPerStep).roundToInt().takeIf { n -> n in 0..150 } }
                 // A zero-tick/unknown counter result is not promoted to a measured zero.
             } else null
             listOf(hs.takeIf { it.isNotEmpty() }?.map { it.bpm }?.average()?.let { rounded(it) },

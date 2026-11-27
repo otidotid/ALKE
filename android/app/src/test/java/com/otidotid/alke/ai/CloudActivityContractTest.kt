@@ -4,6 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import com.otidotid.alke.data.HrSample
 import com.otidotid.alke.data.GravitySample
+import com.otidotid.alke.data.StepSample
 import java.io.File
 
 class CloudActivityContractTest {
@@ -30,13 +31,37 @@ class CloudActivityContractTest {
         assertTrue(ActivityRetryPolicy.canSubmit(2))
         assertTrue(ActivityRetryPolicy.canSubmit(30))
         assertTrue(ActivityRetryPolicy.awaitLateSensor(8999L,1800L))
-        assertFalse(ActivityRetryPolicy.awaitLateSensor(9000L,1800L))
+        assertTrue(ActivityRetryPolicy.awaitLateSensor(9000L,1800L))
+        assertTrue(ActivityRetryPolicy.awaitLateSensor(1800L+6*86400L-1,1800L))
+        assertFalse(ActivityRetryPolicy.awaitLateSensor(1800L+6*86400L,1800L))
         val waiting = ActivityRetryPolicy.waitForSensor(900L,1800L)
         assertEquals(1,waiting.failures)
         assertEquals(2700L,waiting.nextAt)
         assertNull(ActivityRetryPolicy.due(listOf(waiting),1800L,1800L))
         assertEquals(waiting,ActivityRetryPolicy.due(listOf(waiting),2700L,2700L))
         assertEquals(waiting,ActivityRetryPolicy.decode(ActivityRetryPolicy.encode(listOf(waiting)),2700L).single())
+    }
+    @Test fun postSyncRearmsOnlySensorRetriesAndIdenticalEvidenceIsNotResubmitted() {
+        val hash = CloudActivityProtocol.sha256("observed evidence")
+        val waiting = ActivityRetryPolicy.waitForSensor(900L,1800L,hash,21600L)
+        val provider = ActivityRetryPolicy.fail(null,0L,1800L)
+        val restored = ActivityRetryPolicy.decode(ActivityRetryPolicy.encode(listOf(waiting,provider)),1800L)
+        val rearmed = ActivityRetryPolicy.wakeSensor(restored,1800L)
+        assertEquals(provider,rearmed.first())
+        assertEquals(1800L,rearmed.last().nextAt)
+        assertTrue(ActivityRetryPolicy.sameEvidence(rearmed.last(),hash))
+        assertFalse(ActivityRetryPolicy.sameEvidence(rearmed.last(),CloudActivityProtocol.sha256("late offload")))
+    }
+    @Test fun historicalCadenceUsesObservedIntervalsRatherThanSampleCount() {
+        val steps = (900L..925L step 5L).map { StepSample("strap",it,((it-900L)*2).toInt(),2) }
+        val bins = CloudActivityProtocol.bins(900L,emptyList(),emptyList(),steps,1.0)
+        assertEquals(50,bins[0][2])
+        val mixed = steps.mapIndexed { index,row -> row.copy(deviceId=if (index%2==0) "strap" else "other") }
+        assertNull(CloudActivityProtocol.bins(900L,emptyList(),emptyList(),mixed,1.0)[0][2])
+        val classed = (900L until 930L).map { StepSample("strap",it,((it-900L)*2).toInt(),2) }
+        val gait = CloudActivityProtocol.gaitEvidence(900L,classed)
+        assertEquals(listOf(0,30,30),gait?.get(0))
+        assertNull(CloudActivityProtocol.gaitEvidence(900L,classed.map { it.copy(activityClass=null) }))
     }
     @Test fun publicStatusDoesNotExposeTechnicalDetails() {
         assertEquals("AI Detection Active",ActivityRetryPolicy.displayStatus(true,true,"Cloud analysis complete · 0 new activities"))

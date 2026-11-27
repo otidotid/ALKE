@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /**
@@ -129,9 +130,14 @@ class SleepStagerHrOnlySessionsTest {
         assertTrue("expected the cloud-only resolver to follow the legacy helper", to > from)
         val expr = src.substring(from, to)
         assertTrue("the fallback must sit inside the absent-gravity gate", expr.contains("return if (!cloudOnly && grav.size < 2)"))
-        assertTrue("the pass must use the guarded helper", src.contains("val priorSleep = resolvePriorSleep(repo, owner, importedDeviceId, from, to, day, cloudOnly, grav, hr, rr, resp, ::dayDiag)"))
-        assertTrue("the resolved sleep must pass through cloud ownership filtering",
-            src.contains("return priorSleep.filter { cloudDay?.owns(it.start) != true } + stagedCloud"))
+        assertTrue("the pass must use the absent-gravity guarded helper even during cloud consent",
+            src.contains("val priorSleep = resolvePriorSleep(repo, owner, importedDeviceId, from, to, day, false, grav, hr, rr, resp, ::dayDiag)"))
+        assertTrue("cloud consent alone must not discard prior sleep",
+            src.contains("return priorSleep + stagedCloud"))
+        assertFalse("cloud consent alone must not disable local sleep detection",
+            src.contains("skipLocalSleepDetection = cloudOnly"))
+        assertFalse("cloud consent alone must not filter local candidates",
+            src.contains("cloudOwnsStart = cloudDay?.let { it::owns }"))
         assertTrue("IntelligenceEngine must call the HR-only fallback",
             expr.contains("SleepStager.hrOnlySessions("))
         assertTrue("and must only run when the device supplied no hypnogram of its own",

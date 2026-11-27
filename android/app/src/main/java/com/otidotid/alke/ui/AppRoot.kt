@@ -1042,7 +1042,9 @@ fun AppRoot(
                     MeDetailStyle(onBack = { nav.popBackStack() }) { AlkeLimitationsScreen() }
                 }
                 composable(Destination.BackupSync.route) {
-                    MeDetailStyle(onBack = { nav.popBackStack() }) { BackupSyncScreen() }
+                    MeDetailStyle(onBack = { nav.popBackStack() }) {
+                        BackupSyncScreen(onOpenAccount = { nav.navigate(MeSettingsPage.ACCOUNT.route) })
+                    }
                 }
                 composable(Destination.Notifications.route) {
                     MeDetailStyle(onBack = { nav.popBackStack() }) { NotificationsSettingsScreen(viewModel) }
@@ -1115,7 +1117,9 @@ fun AppRoot(
                                 MeSettingsPage.SLEEP -> AutomationsScreen(viewModel, MeAutomationPage.SLEEP)
                                 MeSettingsPage.HAPTICS -> AutomationsScreen(viewModel, MeAutomationPage.HAPTICS)
                                 MeSettingsPage.ALERTS -> AutomationsScreen(viewModel, MeAutomationPage.ALERTS)
-                                MeSettingsPage.ACCOUNT -> ScreenScaffold(title = page.title) { GoogleAccountCard() }
+                                MeSettingsPage.ACCOUNT -> ScreenScaffold(title = page.title) {
+                                    GoogleAccountCard(accountOnly = true, onOpenBackup = { nav.navigate(Destination.BackupSync.route) })
+                                }
                                 MeSettingsPage.DOCK -> MeDockSettings(onBack = { nav.popBackStack() })
                                 MeSettingsPage.ALARMS -> SmartAlarmScreen(viewModel)
                                 else -> SettingsScreen(

@@ -43,6 +43,7 @@ internal fun HuaweiDiagnosticCard() {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Huawei GT 5 — connection diagnostic")
             Text("Development only. Tests the Bluetooth link, not pairing or health sync. WHOOP settings remain unchanged.")
+            HuaweiSystemPairButton(enabled = !busy) { report = it }
             Button(enabled = !busy, onClick = {
                 busy = true
                 report = null

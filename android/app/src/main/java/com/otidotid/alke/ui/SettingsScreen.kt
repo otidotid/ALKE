@@ -1265,7 +1265,6 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
             }
         }
         }
-        if (page == MeSettingsPage.PROFILE) GoogleAccountCard()
 
         // Steps calibration was persisted but inaccessible after the v588 UI rework.
         if (shows(MeSettingsPage.CALIBRATION)) {
@@ -2015,6 +2014,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
             },
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Metrics.screenRowSpacing)) {
+                if (page == MeSettingsPage.ALL) {
                 SettingsCard(
                     collapsible = true,
                     icon = Icons.Filled.CloudSync,
@@ -2028,6 +2028,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         fullWidth = true,
                         onClick = onOpenSelfHostedPush,
                     )
+                }
                 }
                 // --- Experimental · WHOOP 5 / MG --- (hidden when the user is confidently on a 4.0, #22)
                 // Developer-only 5/MG controls now live in Test Centre. Keep the implementation below during
@@ -3075,14 +3076,15 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
         }
 
         // --- About ---
-        if (shows(MeSettingsPage.ABOUT)) {
+        if (shows(MeSettingsPage.ABOUT, MeSettingsPage.PROVENANCE)) {
         SettingsCard(
             collapsible = true,
             icon = Icons.Filled.Info,
-            title = uiString(R.string.l10n_settings_screen_about_6b21fb79),
-            blurb = uiString(R.string.alke_brand_tagline),
+            title = if (page == MeSettingsPage.PROVENANCE) page.title else uiString(R.string.l10n_settings_screen_about_6b21fb79),
+            blurb = if (page == MeSettingsPage.PROVENANCE) "Measured, imported and estimated readings." else uiString(R.string.alke_brand_tagline),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (shows(MeSettingsPage.PROVENANCE)) {
                 AlkeCard {
                     val latest = recentDays.lastOrNull()
                     val computedId = "${vm.deviceId}-alke"
@@ -3111,6 +3113,8 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         )
                     }
                 }
+                }
+                if (shows(MeSettingsPage.ABOUT)) {
                 // Accessible legal and privacy information. No employment questionnaire or
                 // forced informational onboarding step; user can revisit this at any time.
                 AlkeCard(
@@ -3241,6 +3245,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         }
                         Text("›", style = AlkeType.title2, color = Palette.accent)
                     }
+                }
                 }
             }
         }

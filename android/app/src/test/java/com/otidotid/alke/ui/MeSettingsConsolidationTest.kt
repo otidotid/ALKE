@@ -18,47 +18,47 @@ class MeSettingsConsolidationTest {
             ?: error("Me source missing: $path")).readText()
     }
 
-    @Test fun meRendersOriginalSettingsWithAllCallbacks() {
+    @Test fun meRoutesToOriginalSettingsControlsWithoutRootAccordion() {
         val me = source("src/main/java/com/otidotid/alke/ui/AlkeExperience.kt")
-        val segment = me.substringAfter("fun AlkeMeExperience(")
-            .substringBefore("/** The real ALKE dock editor")
-        assertTrue(segment.contains("SettingsScreen("))
-        assertTrue(segment.contains("onOpenBackupSync = onBackupRestore"))
-        assertTrue(segment.contains("onOpenTestCentre = onOpenTestCentre"))
-        assertTrue(segment.contains("onOpenSelfHostedPush = onOpenSelfHostedPush"))
-        // SettingsScreen owns Steps controls internally; there is no separate
-        // onOpenStepsCalibration callback in the production API.
-        assertTrue(segment.contains("showSettingsBody = personalSettingsExpanded"))
-        assertFalse(segment.contains("AlkeLinkRow(\"My profile\""))
-        assertFalse(segment.contains("AlkeLinkRow(\"Settings\""))
-        assertTrue(segment.contains("PremiumLink(\"Customize Dock\""))
-        assertTrue(segment.contains("{ showDockEditor = true }"))
-        assertTrue(segment.contains("AlkeDockEditorDialog(onDismiss = { showDockEditor = false })"))
+        val segment = me.substringAfter("fun AlkeMeExperience(").substringBefore("fun AlkeMeGroupExperience(")
+        assertFalse(segment.contains("SettingsScreen("))
+        assertFalse(segment.contains("personalSettingsExpanded"))
+        val groups = me.substringAfter("fun AlkeMeGroupExperience(").substringBefore("fun MeDockSettings(")
+        for (page in MeSettingsPage.entries.filter { it != MeSettingsPage.ALL }) {
+            assertTrue("Unreachable settings page ${page.name}", groups.contains("MeSettingsPage.${page.name}"))
+        }
+        assertTrue(me.contains("AlkeDockEditorDialog(onDismiss = { showDockEditor = false })"))
+        org.junit.Assert.assertEquals(MeGroup.entries.size, MeGroup.entries.map { it.route }.distinct().size)
+        org.junit.Assert.assertEquals(MeSettingsPage.entries.size, MeSettingsPage.entries.map { it.route }.distinct().size)
     }
 
-    @Test fun settingsScreenPreservesControlsInsideOneScrollColumn() {
+    @Test fun settingsKeepExistingBindingsAndScopedDetailCards() {
         val settings = source("src/main/java/com/otidotid/alke/ui/SettingsScreen.kt")
-        assertTrue(settings.contains("title = \"Me\""))
-        assertTrue(settings.contains("meHeader()"))
+        assertTrue(settings.contains("page: MeSettingsPage"))
         assertTrue(settings.contains("SettingsCard("))
         assertTrue(settings.contains("onClick = onOpenTestCentre"))
-        // Backup & History has one visible home in Me:
-        // Google Drive / Local Folder. The callback remains wired there.
+        assertTrue(settings.contains("forceOpen = page == MeSettingsPage.ADVANCED"))
         assertFalse(settings.contains("title = \"Backup & History\""))
-        assertFalse(settings.contains("text = \"Open Backup & History\""))
+        val components = source("src/main/java/com/otidotid/alke/ui/SettingsComponents.kt")
+        assertTrue(components.contains("if (!detailStyle) Icon("))
+        assertTrue(components.contains("if (forceOpen)"))
+        val scaffolds = source("src/main/java/com/otidotid/alke/ui/Components.kt")
+        assertTrue(scaffolds.contains("LocalMeDetailStyle.current"))
+        assertTrue(scaffolds.contains("MeDetailHeader(title, subtitle)"))
     }
 
     @Test fun settingsModuleIsRetiredButLegacyRouteStillResolves() {
         val nav = source("src/main/java/com/otidotid/alke/ui/AppRoot.kt")
         assertTrue(nav.contains("composable(Destination.Settings.route)"))
         assertTrue(nav.contains("popUpTo(Destination.Settings.route) { inclusive = true }"))
-        assertTrue(nav.contains("ProfileScreen(onOpenSettings = { nav.navigateTopLevel(Destination.More.route) })"))
+        assertTrue(nav.contains("popUpTo(Destination.Profile.route) { inclusive = true }"))
         val dock = nav.substringAfter("internal val configurableBottomBarDestinations")
             .substringBefore("internal object BottomBarModuleStore")
         assertFalse(dock.contains("Destination.Settings,"))
-        val meEntry = nav.substringAfter("composable(Destination.More.route)")
-            .substringBefore("composable(Destination.AlkeAllModules.route)")
-        assertFalse(meEntry.contains("onSettings ="))
-        assertTrue(meEntry.contains("onOpenSelfHostedPush ="))
+        assertFalse(dock.contains("Destination.MeDetailPage,"))
+        assertTrue(nav.contains("page = page,"))
+        assertTrue(nav.contains("onOpenSelfHostedPush ="))
+        assertTrue(nav.contains("GoogleAccountCard(accountOnly = true"))
+        assertTrue(nav.contains("BackupSyncScreen(onOpenAccount ="))
     }
 }

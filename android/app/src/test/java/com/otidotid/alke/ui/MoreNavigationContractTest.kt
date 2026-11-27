@@ -36,7 +36,7 @@ class MoreNavigationContractTest {
 
         assertTrue(
             "More destinations must be pushed so Back returns to More",
-            source.contains("AlkeAllModulesExperience(onNavigate = { nav.navigate(it) })"),
+            source.contains("AlkeAllModulesExperience(onNavigate = { nav.navigate(it) }, onBack = { nav.popBackStack() })"),
         )
         assertFalse(
             "More destinations must not clear the stack through navigateTopLevel",
@@ -44,7 +44,7 @@ class MoreNavigationContractTest {
         )
         assertTrue(
             "ALKE All Modules must use the push callback from the route",
-            source.contains("AlkeAllModulesExperience(onNavigate = { nav.navigate(it) })"),
+            source.contains("AlkeAllModulesExperience(onNavigate = { nav.navigate(it) }, onBack = { nav.popBackStack() })"),
         )
         val userDir = File(System.getProperty("user.dir") ?: ".")
         val alkeFile = listOf(

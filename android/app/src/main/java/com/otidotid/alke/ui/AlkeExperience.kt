@@ -2051,148 +2051,191 @@ fun AlkeHeartRateTimelineExperience(
  * No route, feature, saved preference or data is removed.
  */
 @Composable
-fun AlkeAllModulesExperience(onNavigate: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(setOf("Insights", "Activity")) }
+fun AlkeAllModulesExperience(onNavigate: (String) -> Unit, onBack: (() -> Unit)? = null) {
     val groups = alkeAllModulesGroups(BottomBarModuleStore.selected)
     val pinnedLabels = mutableListOf<String>()
     for (destination in BottomBarModuleStore.selected) pinnedLabels += alkeModuleLabel(destination)
     AlkePage {
-        AlkeHeading("All modules", "Explore features not already in your dock or Me.")
-        AlkePanel(Modifier.fillMaxWidth()) {
-            Text("PINNED MODULES", color = A.gold, fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold, letterSpacing = 1.3.sp)
-            val pinned = BottomBarModuleStore.selected
-            Text(
-                if (pinned.isEmpty()) "Your dock has only Today and Me."
-                else pinnedLabels.joinToString("  ·  "),
-                color = A.white, fontSize = 13.sp,
-            )
-            Text("Customize your dock in Me. Pinned modules and Me shortcuts are not repeated below.",
-                color = A.muted, fontSize = 11.sp, lineHeight = 16.sp)
+        MePageHeader("All Modules", onBack)
+        MeNavigationCard("PINNED MODULES") {
+            Text(if (pinnedLabels.isEmpty()) "Today and Me" else pinnedLabels.joinToString(" · "),
+                color = A.white, fontSize = 13.sp)
+            Text("Manage your dock in Me → Appearance.", color = A.muted, fontSize = 12.sp)
         }
         groups.forEach { group ->
-            val isOpen = group.header in expanded
-            AlkePanel(Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            expanded = if (isOpen) expanded - group.header else expanded + group.header
-                        }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(if (group.header == "Settings") "Others" else group.header,
-                        color = A.white, fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text("${group.items.size}", color = A.muted, fontSize = 12.sp)
-                    Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Filled.ChevronRight, contentDescription = if (isOpen) "Collapse" else "Expand",
-                        tint = A.cyan, modifier = Modifier
-                            .size(20.dp).graphicsLayer { rotationZ = if (isOpen) 90f else 0f })
-                }
-                if (isOpen) {
-                    group.items.forEach { dest ->
-                        AlkeLinkRow(
-                            title = alkeModuleLabel(dest),
-                            subtitle = "Open module",
-                            icon = dest.icon,
-                            onClick = { onNavigate(dest.route) },
-                            accent = A.cyan,
-                        )
-                    }
+            MeNavigationCard(if (group.header == "Settings") "Others" else group.header) {
+                group.items.forEach { dest ->
+                    MeNavigationRow(title = alkeModuleLabel(dest), subtitle = "Open module",
+                        icon = dest.icon, onClick = { onNavigate(dest.route) })
                 }
             }
         }
     }
 }
 
+/** Layer 1 and layer 2 deliberately share one row, card and spacing contract. */
+@Composable
+private fun MeNavigationRow(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick).padding(vertical = 10.dp, horizontal = 4.dp)
+            .heightIn(min = 48.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(A.cyan.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = A.cyan, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, color = A.white, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text(subtitle, color = A.muted, fontSize = 12.sp, lineHeight = 16.sp,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = A.muted, modifier = Modifier.size(19.dp))
+    }
+}
+
+@Composable
+private fun MeNavigationCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    AlkePanel(Modifier.fillMaxWidth()) {
+        Text(title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+            color = A.muted, letterSpacing = 1.sp)
+        content()
+    }
+}
+
+@Composable
+private fun MePageHeader(title: String, onBack: (() -> Unit)? = null) {
+    AlkePanel(Modifier.fillMaxWidth()) {
+        if (onBack != null) TextButton(onClick = onBack) { Text("Back", color = A.cyan) }
+        Text(title, color = A.white, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
 @Composable
 internal fun AlkeMeExperience(
     vm: AppViewModel,
-    onNotifications: () -> Unit,
-    unreadCount: Int,
-    onDevices: () -> Unit,
+    onGroup: (MeGroup) -> Unit,
     onModules: () -> Unit,
-    onSources: () -> Unit,
-    onBackupRestore: () -> Unit,
-    onOpenTestCentre: () -> Unit,
-    onOpenSelfHostedPush: () -> Unit,
-    onNavigate: (Destination) -> Unit = {},
 ) {
-    val context = LocalContext.current
-    var showDockEditor by remember { mutableStateOf(false) }
-    var personalSettingsExpanded by rememberSaveable { mutableStateOf(false) }
-    var moreToolsExpanded by rememberSaveable { mutableStateOf(false) }
+    val live by vm.live.collectAsStateWithLifecycle()
+    AlkePage {
+        MePageHeader("Me")
+        AlkePanel(Modifier.fillMaxWidth(), onClick = { onGroup(MeGroup.PROFILE) }) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ProfileAvatar(size = 54.dp, contentDescription = "Profile photo")
+                Column(Modifier.weight(1f)) {
+                    Text("Your Profile", color = A.white, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Personal information & account", color = A.muted, fontSize = 12.sp)
+                }
+                Icon(Icons.Filled.ChevronRight, "Open profile", tint = A.muted)
+            }
+        }
+        MeNavigationCard("CONNECTIONS") {
+            MeNavigationRow("Wearable", if (live.connected) "Connected · battery & sync" else "Connection, battery & sync",
+                Icons.Filled.Sensors) { onGroup(MeGroup.WEARABLE) }
+            MeNavigationRow("Data Management", "Sources, imports & backup", Icons.Filled.Storage) { onGroup(MeGroup.DATA) }
+        }
+        MeNavigationCard("PERSONALIZATION") {
+            MeNavigationRow("Health & Fitness", "Heart rate, wellness & training", Icons.Filled.MonitorHeart) { onGroup(MeGroup.HEALTH) }
+            MeNavigationRow("Intelligence", "AI activity, sleep & coach", Icons.Filled.AutoAwesome) { onGroup(MeGroup.INTELLIGENCE) }
+            MeNavigationRow("Notifications & Haptics", "Alerts, reminders & wrist feedback", Icons.Filled.NotificationsNone) { onGroup(MeGroup.NOTIFICATIONS) }
+            MeNavigationRow("Appearance", "Measurement display & dock", Icons.Filled.Tune) { onGroup(MeGroup.APPEARANCE) }
+        }
+        MeNavigationCard("SYSTEM") {
+            MeNavigationRow("All Modules", "Explore ALKE", Icons.Filled.Apps, onModules)
+            MeNavigationRow("General", "Language, privacy & diagnostics", Icons.Filled.Settings) { onGroup(MeGroup.GENERAL) }
+        }
+        AlkePanel(Modifier.fillMaxWidth()) {
+            Text("ALKE · Strength × Rest", color = A.muted, fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        }
+    }
+}
 
-    // Me is the only home of settings. Reuse the COMPLETE existing SettingsScreen
-    // body rather than duplicating hundreds of controls or reimplementing settings
-    // callbacks. SettingsScreen provides one scrollable scaffold for the full page.
-    SettingsScreen(
-        vm = vm,
-        onOpenTestCentre = onOpenTestCentre,
-        onOpenBackupSync = onBackupRestore,
-        onOpenSelfHostedPush = onOpenSelfHostedPush,
-        showSettingsBody = personalSettingsExpanded,
-        meHeader = {
-            AlkePanel(Modifier.fillMaxWidth(), onClick = { onNavigate(Destination.Profile) }) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ProfileAvatar(size = 54.dp, contentDescription = "Profile photo")
-                    Column(Modifier.weight(1f)) {
-                        Text("Your Profile", color = A.white, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Personal details & Google account", color = A.muted, fontSize = 12.sp)
-                    }
-                    Icon(Icons.Filled.ChevronRight, "Open profile", tint = A.cyan)
+@Composable
+internal fun AlkeMeGroupExperience(
+    group: MeGroup,
+    unreadCount: Int,
+    onBack: () -> Unit,
+    onDetail: (MeSettingsPage) -> Unit,
+    onNavigate: (Destination) -> Unit,
+    onUpdatesInbox: () -> Unit,
+) {
+    AlkePage {
+        MePageHeader(group.title, onBack)
+        MeNavigationCard("SETTINGS") {
+            when (group) {
+                MeGroup.PROFILE -> {
+                    MeNavigationRow("Personal Information", "Photo, age & sex", Icons.Filled.AccountCircle) { onDetail(MeSettingsPage.PROFILE) }
+                    MeNavigationRow("Google Account", "Account connection", Icons.Filled.CloudSync) { onDetail(MeSettingsPage.ACCOUNT) }
+                }
+                MeGroup.WEARABLE -> {
+                    MeNavigationRow("Devices", "Pair and manage your wearable", Icons.Filled.Sensors) { onNavigate(Destination.Devices) }
+                    MeNavigationRow("Connection & Sync", "Background sync and HRV capture", Icons.Filled.CloudSync) { onDetail(MeSettingsPage.STRAP) }
+                    MeNavigationRow("Power Saving", "Battery and sync policy", Icons.Filled.BatterySaver) { onNavigate(Destination.PowerSaving) }
+                    MeNavigationRow("Device Capabilities", "Supported readings and limits", Icons.Filled.MonitorHeart) { onNavigate(Destination.AlkeLimitations) }
+                }
+                MeGroup.DATA -> {
+                    MeNavigationRow("Data Sources", "Health Connect and file imports", Icons.Filled.Storage) { onNavigate(Destination.DataSources) }
+                    MeNavigationRow("Backup & Restore", "Google Drive or local folder", Icons.Filled.CloudSync) { onNavigate(Destination.BackupSync) }
+                    MeNavigationRow("Fused Record", "Review merged records", Icons.Filled.Insights) { onNavigate(Destination.FusedRecord) }
+                    MeNavigationRow("Data Provenance", "How readings are sourced", Icons.Filled.MonitorHeart) { onDetail(MeSettingsPage.PROVENANCE) }
+                    MeNavigationRow("Self-hosted Sync", "Optional server export", Icons.Filled.Storage) { onNavigate(Destination.SelfHostedPush) }
+                }
+                MeGroup.HEALTH -> {
+                    MeNavigationRow("Heart Rate & Effort", "Max HR, zones and effort calculation", Icons.Filled.MonitorHeart) { onDetail(MeSettingsPage.HEART) }
+                    MeNavigationRow("Wellness & Training", "Health tracking and workout preferences", Icons.Filled.Favorite) { onDetail(MeSettingsPage.WELLNESS) }
+                    MeNavigationRow("Steps & Daily Cycle", "Daily boundary and step calibration", Icons.Filled.DirectionsWalk) { onDetail(MeSettingsPage.CALIBRATION) }
+                    MeNavigationRow("Charge Baseline", "Readiness score calibration", Icons.Filled.BatterySaver) { onDetail(MeSettingsPage.CHARGE) }
+                }
+                MeGroup.INTELLIGENCE -> {
+                    MeNavigationRow("Activity Detection", "Automatic cloud activity analysis", Icons.Filled.DirectionsRun) { onDetail(MeSettingsPage.ACTIVITY) }
+                    MeNavigationRow("Sleep Intelligence", "Automatic sleep and nap analysis", Icons.Filled.Bedtime) { onDetail(MeSettingsPage.SLEEP) }
+                    MeNavigationRow("AI Coach", "Intelligence and data preferences", Icons.Filled.AutoAwesome) { onDetail(MeSettingsPage.COACH) }
+                }
+                MeGroup.NOTIFICATIONS -> {
+                    MeNavigationRow("Notification Settings", "Phone and wearable alerts", Icons.Filled.NotificationsNone) { onNavigate(Destination.Notifications) }
+                    MeNavigationRow("Wrist Feedback", "Haptics, gestures and inactivity", Icons.Filled.Sensors) { onDetail(MeSettingsPage.HAPTICS) }
+                    MeNavigationRow("Health & Battery Alerts", "Illness signals and charging alerts", Icons.Filled.BatterySaver) { onDetail(MeSettingsPage.ALERTS) }
+                    MeNavigationRow("Personal Reminders", "Journal and stress check-ins", Icons.Filled.Favorite) { onDetail(MeSettingsPage.REMINDERS) }
+                    MeNavigationRow("Alarms", "Wake and wind-down reminders", Icons.Filled.Bedtime) { onDetail(MeSettingsPage.ALARMS) }
+                    MeNavigationRow("Updates Inbox", if (unreadCount > 0) "$unreadCount unread updates" else "Release and app updates",
+                        Icons.Filled.NotificationsNone, onUpdatesInbox)
+                }
+                MeGroup.APPEARANCE -> {
+                    MeNavigationRow("Measurement Display", "Units and effort scale", Icons.Filled.ShowChart) { onDetail(MeSettingsPage.DISPLAY) }
+                    MeNavigationRow("Customize Dock", "Choose and reorder tabs", Icons.Filled.Apps) { onDetail(MeSettingsPage.DOCK) }
+                }
+                MeGroup.GENERAL -> {
+                    MeNavigationRow("Language & Time", "Language and clock format", Icons.Filled.Settings) { onDetail(MeSettingsPage.GENERAL) }
+                    MeNavigationRow("About & Privacy", "Legal, version and support", Icons.Filled.AccountCircle) { onDetail(MeSettingsPage.ABOUT) }
+                    MeNavigationRow("Advanced & Diagnostics", "Logs and technical settings", Icons.Filled.Tune) { onDetail(MeSettingsPage.ADVANCED) }
+                    MeNavigationRow("Test Centre", "Test modes and ground truth", Icons.Filled.Insights) { onNavigate(Destination.TestCentre) }
                 }
             }
-            AlkePanel(Modifier.fillMaxWidth()) {
-                AlkeSectionTitle("Connected Sources")
-                PremiumWearableLink(vm,onDevices)
-                PremiumLink("Health Connect & imports", "Manage external data and provenance", onSources, icon = Icons.Filled.MonitorHeart)
-                PremiumLink("Google Drive / Local Folder",
-                    if (BackupSyncPrefs.autoEnabled(context)) "Automatic backup enabled" else "Backup, restore and verified archive",
-                    onBackupRestore, icon = Icons.Filled.CloudSync)
-                PremiumLink("Fused Record", "Review source provenance", { onNavigate(Destination.FusedRecord) }, icon = Icons.Filled.Storage)
-                PremiumLink("Device capabilities", "Supported readings and limitations", { onNavigate(Destination.AlkeLimitations) }, icon = Icons.Filled.Sensors)
-            }
-            AlkePanel(Modifier.fillMaxWidth()) {
-                AlkeSectionTitle("Preferences")
-                PremiumLink("Customize Dock", "Choose and reorder your navigation", { showDockEditor = true }, icon = Icons.Filled.Apps)
-                var smartExpanded by rememberSaveable { mutableStateOf(false) }
-                PremiumLink("Smart Settings", if(smartExpanded) "Collapse" else "Automations · notifications · power saving", { smartExpanded = !smartExpanded }, icon = Icons.Filled.Settings)
-                if(smartExpanded) {
-                    PremiumLink("Automations", "Wearable actions and detection", { onNavigate(Destination.Automations) }, icon = Icons.Filled.AutoAwesome)
-                    PremiumLink("Power saving", "Manage battery and sync policy", { onNavigate(Destination.PowerSaving) }, icon = Icons.Filled.BatterySaver)
-                    PremiumLink("Notification preferences", "Alerts and reminders", { onNavigate(Destination.Notifications) }, icon = Icons.Filled.NotificationsNone)
-                }
-            }
-            AlkeMeDisclosureHeader(
-                title = "More Tools",
-                subtitle = "All modules and notification controls",
-                icon = Icons.Filled.Apps,
-                expanded = moreToolsExpanded,
-                onToggle = { moreToolsExpanded = !moreToolsExpanded },
-                accent = A.gold,
-            )
-            if (moreToolsExpanded) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(start = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    AlkeLinkRow("All Modules", "Explore the complete ALKE toolkit", Icons.Filled.Apps, onModules, A.gold)
-                    AlkeLinkRow("Notifications", "Updates inbox", Icons.Filled.NotificationsNone, onNotifications)
-                    AlkeLinkRow("Advanced & Diagnostics", "Test Centre and ground truth", Icons.Filled.Tune, onOpenTestCentre)
-                }
-            }
-            AlkeMeDisclosureHeader(
-                title = "Settings",
-                subtitle = "Profile, display and app preferences",
-                icon = Icons.Filled.Settings,
-                expanded = personalSettingsExpanded,
-                onToggle = { personalSettingsExpanded = !personalSettingsExpanded },
-            )
-        },
-    )
+        }
+    }
+}
+
+/** Dock editing retains the original persisted store and reordering controls. */
+@Composable
+internal fun MeDockSettings(onBack: () -> Unit) {
+    var showDockEditor by rememberSaveable { mutableStateOf(false) }
+    AlkePage {
+        MePageHeader("Customize Dock", onBack)
+        AlkePanel(Modifier.fillMaxWidth()) {
+            Text("Navigation", color = A.white, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("Today and Me stay fixed. Choose up to three other modules.", color = A.muted, fontSize = 12.sp)
+            TextButton(onClick = { showDockEditor = true }) { Text("Edit dock", color = A.cyan) }
+        }
+    }
     if (showDockEditor) AlkeDockEditorDialog(onDismiss = { showDockEditor = false })
 }
 
@@ -2225,9 +2268,7 @@ private fun AlkeDockEditorDialog(onDismiss: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(destination.icon, contentDescription = null, tint = A.cyan,
-                            modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(9.dp))
+                        
                         Text(alkeModuleLabel(destination), modifier = Modifier.weight(1f),
                             color = A.white, fontSize = 12.sp, maxLines = 1)
                         TextButton(onClick = { BottomBarModuleStore.move(context, destination, -1) }) {
@@ -2252,9 +2293,7 @@ private fun AlkeDockEditorDialog(onDismiss: () -> Unit) {
                             }.padding(vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(destination.icon, contentDescription = null, tint = A.muted,
-                            modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(10.dp))
+
                         Text(alkeModuleLabel(destination), modifier = Modifier.weight(1f),
                             color = A.white, fontSize = 13.sp)
                         Text(if (canAdd) "Add" else "Full",

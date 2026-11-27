@@ -552,7 +552,9 @@ fun SettingsScreen(
     onOpenSelfHostedPush: () -> Unit = {},
     meHeader: @Composable () -> Unit = {},
     showSettingsBody: Boolean = true,
+    page: MeSettingsPage = MeSettingsPage.ALL,
 ) {
+    fun shows(vararg pages: MeSettingsPage) = page == MeSettingsPage.ALL || page in pages
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val live by vm.live.collectAsStateWithLifecycle()
@@ -934,8 +936,8 @@ fun SettingsScreen(
     // Settings are now embedded directly in the Me tab, using its single scrolling
     // scaffold. The former Settings screen remains only as a compatibility route.
     ScreenScaffold(
-        title = "Me",
-        subtitle = "Your preferences, devices and data, in one place.",
+        title = if (page == MeSettingsPage.ALL) "Me" else page.title,
+        subtitle = if (page == MeSettingsPage.ALL) "Your preferences, devices and data, in one place." else null,
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the static time-of-day sky settles
         // into the theme canvas behind the top of the list, exactly like the liquid Today. This is a long,
         // scroll-heavy list with NO hero gauge, so the liquid finish here is just the sky + liquidPress on
@@ -967,6 +969,7 @@ fun SettingsScreen(
         // Day streak (#569): consecutive days with a Charge score, computed on-device from your own
         // history. Uses AlkeCard directly (not SettingsSection) to keep the wiring self-contained.
         val streaks by vm.streaks.collectAsStateWithLifecycle()
+        if (shows(MeSettingsPage.PROFILE)) {
         AlkeCard(tint = Palette.chargeColor) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
@@ -992,15 +995,23 @@ fun SettingsScreen(
                 )
             }
         }
+        }
 
         // --- Profile ---
+        if (shows(MeSettingsPage.PROFILE, MeSettingsPage.HEART, MeSettingsPage.DISPLAY)) {
         SettingsCard(
-            collapsible = true,
+            collapsible = false,
             icon = Icons.Outlined.Person,
-            title = uiString(R.string.l10n_settings_screen_profile_ff4fc027),
-            blurb = "Profile photo, body profile and heart-rate settings in one place.",
+            title = if (page == MeSettingsPage.ALL) uiString(R.string.l10n_settings_screen_profile_ff4fc027) else page.title,
+            blurb = when (page) {
+                MeSettingsPage.PROFILE -> "Personal information and photo."
+                MeSettingsPage.HEART -> "Heart rate and effort calculation."
+                MeSettingsPage.DISPLAY -> "Measurement units and display preferences."
+                else -> "Personal information and measurement preferences."
+            },
         ) {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (shows(MeSettingsPage.PROFILE)) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1056,7 +1067,8 @@ fun SettingsScreen(
                         onSelect = { mutate { profile.sex = it.tag } },
                     )
                 }
-                SettingsRowDivider()
+                }
+                if (shows(MeSettingsPage.HEART)) {
                 SettingsFormRow(label = uiString(R.string.l10n_settings_screen_max_heart_rate_3d4ed858)) {
                     Column(horizontalAlignment = Alignment.End) {
                         StepperField(
@@ -1138,7 +1150,8 @@ fun SettingsScreen(
                         }
                     }
                 }
-                SettingsRowDivider()
+                }
+                if (shows(MeSettingsPage.DISPLAY)) {
 SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     SegmentedPillControl(
                         items = listOf(UnitSystem.METRIC, UnitSystem.IMPERIAL),
@@ -1214,17 +1227,8 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         },
                     )
                 }
-                // #1545: sits directly under the Effort SCALE row on purpose. It shipped in the
-                // experimental block beside the sleep-staging toggles, where @dofimn could not find it —
-                // a setting built for a specific report is no use if the person who asked for it cannot
-                // locate it. The two rows are different concepts (that one is the display AXIS, this one
-                // is the computation RECIPE) but a user asking "how is my Effort worked out" reaches for
-                // the same place for both, and each row's own caption separates them.
-                // #1545: Effort on Banister's EXPONENTIAL TRIMP instead of Edwards' heart-rate zones.
-                // Edwards pays nothing below 50% HRR, so an hour of lifting — hard sets averaged against
-                // the rests — can score near zero. Default OFF: it re-scores the whole window against a
-                // different recipe. Both scales top out at 100 via their own log denominator. Mirrors iOS.
-                SettingsRowDivider()
+                }
+                if (shows(MeSettingsPage.HEART)) {
                 var banisterEffort by remember { mutableStateOf(AlkePrefs.banisterEffort(context)) }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1257,10 +1261,13 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     style = AlkeType.caption,
                     color = Palette.textTertiary,
                 )
+                }
             }
+        }
         }
 
         // Steps calibration was persisted but inaccessible after the v588 UI rework.
+        if (shows(MeSettingsPage.CALIBRATION)) {
         SettingsCard(
             collapsible = true,
             icon = Icons.Filled.Sensors,
@@ -1320,11 +1327,13 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
             Text("Changing the boundary re-scores daily Steps, effort and calories without deleting raw data.",
                 style = AlkeType.caption, color = Palette.textTertiary)
         }
+        }
 
         // ALKE DESIGN LOCK: Appearance controls intentionally removed from user-facing
         // Settings. Locale and clock format are operational preferences, preserved here.
         // All historical preference keys/data and optional implementation remain untouched
         // for selective restoration from the pre-lock backup branch.
+        if (shows(MeSettingsPage.GENERAL)) {
         SettingsCard(
             collapsible = true,
             icon = Icons.Filled.Brightness6,
@@ -1386,7 +1395,9 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
             }
             SettingsRowDivider()
         }
+        }
 
+        if (shows(MeSettingsPage.COACH)) {
         SettingsCard(
             collapsible = true,
             icon = Icons.Filled.ViewAgenda,
@@ -1400,11 +1411,13 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                 )
             }
         }
+        }
         // ALKE DESIGN LOCK: Background image & App icon selection UI removed.
         // BackgroundImageStore, launcher aliases, persisted preferences and media
         // remain intact for a targeted UI-only restoration when needed.
 
         // --- Strap ---
+        if (shows(MeSettingsPage.STRAP)) {
         SettingsCard(
             collapsible = true,
             icon = Icons.Filled.Sensors,
@@ -1957,7 +1970,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Icon(
+                        if (!LocalMeDetailStyle.current) Icon(
                             Icons.Filled.Info,
                             contentDescription = null,
                             tint = Palette.accent,
@@ -1980,16 +1993,19 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                 }
             }
         }
+        }
 
 
         // Lower-frequency sections collapse behind a single default-closed disclosure (S3) so the
         // screen opens at the everyday handful instead of the full wall of cards. Nothing is removed;
         // the experimental probes, diagnostics, raw-capture export and Trends report all stay one tap
         // away. Mirrors the iOS SettingsView "Advanced" disclosure and the Test Centre Advanced group.
+        if (shows(MeSettingsPage.ADVANCED)) {
         SettingsDisclosureGroup(
             title = uiString(R.string.l10n_settings_screen_advanced_4d064726),
             subtitle = "Experimental probes, diagnostics, raw-sensor export, and the Trends report. Tucked away to keep the everyday screen tidy.",
-            expanded = advancedOpen,
+            expanded = page == MeSettingsPage.ADVANCED || advancedOpen,
+            forceOpen = page == MeSettingsPage.ADVANCED,
             onToggle = {
                 advancedOpen = !advancedOpen; SettingsDisclosurePrefs.write(
                 AlkePrefs.of(
@@ -1999,6 +2015,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
             },
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Metrics.screenRowSpacing)) {
+                if (page == MeSettingsPage.ALL) {
                 SettingsCard(
                     collapsible = true,
                     icon = Icons.Filled.CloudSync,
@@ -2012,6 +2029,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         fullWidth = true,
                         onClick = onOpenSelfHostedPush,
                     )
+                }
                 }
                 // --- Experimental · WHOOP 5 / MG --- (hidden when the user is confidently on a 4.0, #22)
                 // Developer-only 5/MG controls now live in Test Centre. Keep the implementation below during
@@ -2665,15 +2683,18 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                 }
             } // end Advanced disclosure content Column
         } // end SettingsDisclosureGroup("Advanced")
+        }
 
         // --- Health & wellness (v5 opt-in toggles) ---
+        if (shows(MeSettingsPage.WELLNESS, MeSettingsPage.REMINDERS, MeSettingsPage.COACH)) {
         SettingsCard(
             collapsible = true,
             icon = Icons.Filled.Science,
-            title = uiString(R.string.l10n_settings_screen_health_wellness_93475778),
-            blurb = "Optional, on-device wellness signals. Each is off by default, computed only on this phone from data you already have, and never a medical diagnosis.",
+            title = if (page == MeSettingsPage.ALL) uiString(R.string.l10n_settings_screen_health_wellness_93475778) else page.title,
+            blurb = "Choose the features you want to use.",
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (page == MeSettingsPage.ALL) {
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_illness_heads_up_97e10035),
                     detail = "Watches your resting heart rate, HRV and skin temperature for the pattern that often shows up before you feel unwell, and surfaces a gentle heads-up. An observation about your own numbers, not a diagnosis.",
@@ -2684,6 +2705,8 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     },
                 )
                 SettingsRowDivider()
+                }
+                if (shows(MeSettingsPage.WELLNESS)) {
                 // #801 — not offered on a male profile (it would just sit at "Learning your pattern"). Hidden
                 // when off for a male profile so it can't be enabled here; still shown when already on so it
                 // can be turned off — mirroring HealthScreen's cycle opt-in gate (cycleOptInApplies). The
@@ -2729,8 +2752,12 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     },
                 )
                 SettingsRowDivider()
+                }
+                if (page == MeSettingsPage.ALL) {
                 CloudActivitySetupRow()
                 SettingsRowDivider()
+                }
+                if (shows(MeSettingsPage.REMINDERS)) {
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_journal_reminder_journal_reminder_0fdc0d9c),
                     detail = uiString(R.string.l10n_journal_reminder_show_a_today_card_reminding_you_to_log_your_journal_8228bc77),
@@ -2741,6 +2768,8 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     },
                 )
                 SettingsRowDivider()
+                }
+                if (shows(MeSettingsPage.WELLNESS)) {
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_keep_screen_on_during_a_workout_42d27284),
                     detail = "Holds the screen awake while you're recording a workout, so your live heart rate stays visible without the phone dimming. Only applies during a recording. The screen sleeps normally the rest of the time. Leaving it on does use a bit more battery, and means your unlocked screen stays visible for the whole workout, so flip it off if that's a concern.",
@@ -2763,6 +2792,8 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     },
                 )
                 SettingsRowDivider()
+                }
+                if (shows(MeSettingsPage.REMINDERS)) {
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_stress_check_ins_haptic_bf2746ba),
                     detail = "Lets ALKE notice a fresh HRV dip while you're still and offer a minute to breathe. \"Stress\" here is an autonomic proxy from your own baseline, never a diagnosis. The strap gives one light confirming buzz; no push notification.",
@@ -2788,6 +2819,8 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     )
                 }
                 SettingsRowDivider()
+                }
+                if (shows(MeSettingsPage.WELLNESS)) {
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_rhythm_experimental_12d357da),
                     detail = "An experimental picture of your beat-to-beat timing: a Poincaré scatter and plain regularity stats from quiet resting windows. Not an ECG and not a diagnosis; you'll read a short disclaimer and accept before it turns on.",
@@ -2807,6 +2840,8 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     },
                 )
                 SettingsRowDivider()
+                }
+                if (shows(MeSettingsPage.COACH)) {
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_share_on_device_signals_with_the_b3fd747e),
                     detail = "When the opt-in Coach is set up with your own key, also include a short summary of your strongest on-device patterns and Lab Book markers in its context. Summary only; no raw data leaves your phone. Requires the Coach's own data consent first.",
@@ -2816,13 +2851,16 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         AlkePrefs.setCoachSignals(context, it)
                     },
                 )
+                }
             }
+        }
         }
 
         // --- Test Centre (the diagnostic home, #507/#509) ---
         // A nav row into the Test Centre: the single home for the diagnostic, log and test controls (spec
         // section 7). The strap log, recalibrate, scheduled export and experimental toggles also live there
         // on the same bindings, so this is a faster door to the full set without growing this screen.
+        if (shows(MeSettingsPage.ALL)) {
         SettingsCard(
             collapsible = true,
             icon = Icons.Filled.BugReport,
@@ -2837,6 +2875,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                 onClick = onOpenTestCentre,
             )
         }
+        }
 
         // --- Charge (Recovery) advanced ---
         // A manual reset for the personal Charge baseline. If a bad first week poisons it — worn while
@@ -2845,6 +2884,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
         // Recalibrate re-learns it from tonight onward. Writes now-seconds to BOTH alke.hrvBaselineEpoch
         // and alke.recoveryBaselineEpoch (so HRV plus resting HR / respiration / skin temp re-anchor);
         // foldHistory drops every night before that epoch and re-seeds. Mirrors the iOS/Mac button.
+        if (shows(MeSettingsPage.CHARGE)) {
         SettingsCard(
             collapsible = true,
             icon = Icons.Filled.Favorite,
@@ -2876,6 +2916,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     onClick = { showRecalibrateConfirm = true },
                 )
             }
+        }
         }
 
         backupFailure?.let { failure ->
@@ -3036,13 +3077,15 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
         }
 
         // --- About ---
+        if (shows(MeSettingsPage.ABOUT, MeSettingsPage.PROVENANCE)) {
         SettingsCard(
             collapsible = true,
             icon = Icons.Filled.Info,
-            title = uiString(R.string.l10n_settings_screen_about_6b21fb79),
-            blurb = uiString(R.string.alke_brand_tagline),
+            title = if (page == MeSettingsPage.PROVENANCE) page.title else uiString(R.string.l10n_settings_screen_about_6b21fb79),
+            blurb = if (page == MeSettingsPage.PROVENANCE) "Measured, imported and estimated readings." else uiString(R.string.alke_brand_tagline),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (shows(MeSettingsPage.PROVENANCE)) {
                 AlkeCard {
                     val latest = recentDays.lastOrNull()
                     val computedId = "${vm.deviceId}-alke"
@@ -3071,6 +3114,8 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         )
                     }
                 }
+                }
+                if (shows(MeSettingsPage.ABOUT)) {
                 // Accessible legal and privacy information. No employment questionnaire or
                 // forced informational onboarding step; user can revisit this at any time.
                 AlkeCard(
@@ -3084,7 +3129,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
+                        if (!LocalMeDetailStyle.current) Icon(
                             Icons.Filled.Info,
                             contentDescription = null,
                             tint = Palette.accent,
@@ -3116,7 +3161,7 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    Icon(
+                    if (!LocalMeDetailStyle.current) Icon(
                         Icons.Filled.Info,
                         contentDescription = null,
                         tint = Palette.statusWarning,
@@ -3202,7 +3247,9 @@ SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
                         Text("›", style = AlkeType.title2, color = Palette.accent)
                     }
                 }
+                }
             }
+        }
         }
 
 

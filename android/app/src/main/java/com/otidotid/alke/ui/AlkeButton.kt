@@ -194,7 +194,7 @@ fun AlkeButton(
         ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (leadingIcon != null) {
+        if (leadingIcon != null && !LocalMeDetailStyle.current) {
             Icon(
                 imageVector = leadingIcon,
                 contentDescription = null, // the text labels the button

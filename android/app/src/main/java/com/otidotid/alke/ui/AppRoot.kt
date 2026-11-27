@@ -205,6 +205,8 @@ internal enum class Destination(
     PowerSaving("power_saving", R.string.nav_power_saving, Icons.Filled.BatteryStd),
     Profile("profile", R.string.l10n_settings_screen_profile_ff4fc027, Icons.Filled.AccountCircle),
     Settings("settings", R.string.nav_settings, Icons.Filled.Settings),
+    MeGroupPage("me_group/{group}", R.string.nav_settings, Icons.Filled.Settings),
+    MeDetailPage("me_detail/{page}", R.string.nav_settings, Icons.Filled.Settings),
     // Experimental and intentionally absent from More: reachable only through Settings > Advanced.
     SelfHostedPush("self_hosted_push", R.string.nav_self_hosted_push, Icons.Filled.CloudSync),
     // Nested Settings destination shared by the Settings row and a blank WHOOP 4.0 Steps tile (#1515).
@@ -948,7 +950,9 @@ fun AppRoot(
                     CoachSettingsScreen(vm = viewModel(coachEntry))
                 }
                 composable(Destination.Explore.route) { PremiumTrendsStudio(viewModel, "Explore") }
-                composable(Destination.Automations.route) { AutomationsScreen(viewModel) }
+                composable(Destination.Automations.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) { AutomationsScreen(viewModel) }
+                }
                 composable(Destination.SmartAlarm.route) { SmartAlarmScreen(viewModel) }
                 composable(Destination.Workouts.route) {
                     AlkeTrainingExperience(
@@ -1023,26 +1027,41 @@ fun AppRoot(
                         onWorkouts = { nav.navigateTopLevel(Destination.Workouts.route) },
                         onMetric = { nav.navigate("vital_detail/$it") })
                 }
-                composable(Destination.FusedRecord.route) { FusedRecordRoute(viewModel) }
-                composable(Destination.Devices.route) {
-                    DevicesScreen(
-                        viewModel,
-                        onUseFileImport = { nav.navigateTopLevel(Destination.DataSources.route) },
-                    )
+                composable(Destination.FusedRecord.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) { FusedRecordRoute(viewModel) }
                 }
-                composable(Destination.DataSources.route) { DataSourcesScreen(viewModel) }
-                composable(Destination.AlkeLimitations.route) { AlkeLimitationsScreen() }
-                composable(Destination.BackupSync.route) { BackupSyncScreen() }
-                composable(Destination.Notifications.route) { NotificationsSettingsScreen(viewModel) }
-                composable(Destination.PowerSaving.route) { PowerSavingScreen(viewModel) }
+                composable(Destination.Devices.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) {
+                        DevicesScreen(viewModel, onUseFileImport = { nav.navigate(Destination.DataSources.route) })
+                    }
+                }
+                composable(Destination.DataSources.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) { DataSourcesScreen(viewModel) }
+                }
+                composable(Destination.AlkeLimitations.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) { AlkeLimitationsScreen() }
+                }
+                composable(Destination.BackupSync.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) {
+                        BackupSyncScreen(onOpenAccount = { nav.navigate(MeSettingsPage.ACCOUNT.route) })
+                    }
+                }
+                composable(Destination.Notifications.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) { NotificationsSettingsScreen(viewModel) }
+                }
+                composable(Destination.PowerSaving.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) { PowerSavingScreen(viewModel) }
+                }
                 composable(Destination.Profile.route) {
-                    // The legacy profile view still works from Today/avatar; all settings
-                    // it links to now live directly in Me, not a separate Settings page.
-                    ProfileScreen(onOpenSettings = { nav.navigateTopLevel(Destination.More.route) })
+                    // All existing avatar shortcuts enter the same canonical personal information page.
+                    LaunchedEffect(Unit) {
+                        nav.navigate(MeGroup.PROFILE.route) {
+                            popUpTo(Destination.Profile.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
                 }
                 composable(Destination.Settings.route) {
-                    // Keep legacy settings route names for old saved/deep navigation, but
-                    // redirect to the canonical Me tab so there is no parallel settings UI.
                     LaunchedEffect(Unit) {
                         nav.navigate(Destination.More.route) {
                             popUpTo(Destination.Settings.route) { inclusive = true }
@@ -1050,32 +1069,72 @@ fun AppRoot(
                         }
                     }
                 }
-                composable(Destination.SelfHostedPush.route) { SelfHostedPushScreen() }
-                composable(Destination.TestCentre.route) {
-                    TestCentreScreen(viewModel, onOpenGroundTruthCollector = {
-                        nav.navigate(Destination.GroundTruthCollector.route)
-                    })
+                composable(Destination.SelfHostedPush.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) { SelfHostedPushScreen() }
                 }
-                composable(Destination.GroundTruthCollector.route) { GroundTruthCollectorScreen(viewModel) }
-                // The "More" page — the iOS More tab's twin: a navigated ScreenScaffold page hosting the
-                // full grouped destination list (was a pull-up sheet). A row pushes its destination so
-                // Android Back returns to More instead of skipping straight to Today.
+                composable(Destination.TestCentre.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) {
+                        TestCentreScreen(viewModel, onOpenGroundTruthCollector = {
+                            nav.navigate(Destination.GroundTruthCollector.route)
+                        })
+                    }
+                }
+                composable(Destination.GroundTruthCollector.route) {
+                    MeDetailStyle(onBack = { nav.popBackStack() }) { GroundTruthCollectorScreen(viewModel) }
+                }
                 composable(Destination.More.route) {
                     AlkeMeExperience(
                         vm = viewModel,
-                        onNotifications = { showUpdatesInbox = true },
-                        unreadCount = updateStore.unreadCount,
-                        onDevices = { nav.navigate(Destination.Devices.route) },
+                        onGroup = { nav.navigate(it.route) },
                         onModules = { nav.navigate(Destination.AlkeAllModules.route) },
-                        onSources = { nav.navigate(Destination.DataSources.route) },
-                        onBackupRestore = { nav.navigate(Destination.BackupSync.route) },
-                        onOpenTestCentre = { nav.navigate(Destination.TestCentre.route) },
-                        onOpenSelfHostedPush = { nav.navigate(Destination.SelfHostedPush.route) },
-                        onNavigate = { nav.navigate(it.route) },
                     )
                 }
+                composable(Destination.MeGroupPage.route) { entry ->
+                    val group = MeGroup.from(entry.arguments?.getString("group"))
+                    if (group != null) {
+                        AlkeMeGroupExperience(
+                            group = group,
+                            unreadCount = updateStore.unreadCount,
+                            onBack = { nav.popBackStack() },
+                            onDetail = { nav.navigate(it.route) },
+                            onNavigate = { nav.navigate(it.route) },
+                            onUpdatesInbox = { showUpdatesInbox = true },
+                        )
+                    } else {
+                        LaunchedEffect(Unit) { nav.popBackStack() }
+                    }
+                }
+                composable(Destination.MeDetailPage.route) { entry ->
+                    val page = MeSettingsPage.from(entry.arguments?.getString("page"))
+                    if (page == null) {
+                        LaunchedEffect(Unit) { nav.popBackStack() }
+                    } else {
+                        MeDetailStyle(onBack = { nav.popBackStack() }) {
+                            when (page) {
+                                MeSettingsPage.ACTIVITY -> ScreenScaffold(title = page.title) {
+                                    AlkeCard(padding = 16.dp) { CloudActivitySetupRow() }
+                                }
+                                MeSettingsPage.SLEEP -> AutomationsScreen(viewModel, MeAutomationPage.SLEEP)
+                                MeSettingsPage.HAPTICS -> AutomationsScreen(viewModel, MeAutomationPage.HAPTICS)
+                                MeSettingsPage.ALERTS -> AutomationsScreen(viewModel, MeAutomationPage.ALERTS)
+                                MeSettingsPage.ACCOUNT -> ScreenScaffold(title = page.title) {
+                                    GoogleAccountCard(accountOnly = true, onOpenBackup = { nav.navigate(Destination.BackupSync.route) })
+                                }
+                                MeSettingsPage.DOCK -> MeDockSettings(onBack = { nav.popBackStack() })
+                                MeSettingsPage.ALARMS -> SmartAlarmScreen(viewModel)
+                                else -> SettingsScreen(
+                                    vm = viewModel,
+                                    onOpenTestCentre = { nav.navigate(Destination.TestCentre.route) },
+                                    onOpenBackupSync = { nav.navigate(Destination.BackupSync.route) },
+                                    onOpenSelfHostedPush = { nav.navigate(Destination.SelfHostedPush.route) },
+                                    page = page,
+                                )
+                            }
+                        }
+                    }
+                }
                 composable(Destination.AlkeAllModules.route) {
-                    AlkeAllModulesExperience(onNavigate = { nav.navigate(it) })
+                    AlkeAllModulesExperience(onNavigate = { nav.navigate(it) }, onBack = { nav.popBackStack() })
                 }
             }
         }

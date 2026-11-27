@@ -277,8 +277,10 @@ private fun StrapAlarmCard(vm: AppViewModel) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Overline("Morning")
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Alarm, contentDescription = null, tint = Palette.accent)
-                    Spacer(Modifier.width(10.dp))
+                    if (!LocalMeDetailStyle.current) {
+                        Icon(Icons.Filled.Alarm, contentDescription = null, tint = Palette.accent)
+                        Spacer(Modifier.width(10.dp))
+                    }
                     Text(uiString(R.string.l10n_smart_alarm_screen_strap_wake_alarm_1828fff3), style = AlkeType.title2, color = Palette.textPrimary)
                 }
             }
@@ -387,8 +389,10 @@ private fun WindowCard(
     ) {
         ScenicHeroBackground(modifier = Modifier.matchParentSize(), domain = DomainTheme.Rest)
         Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Shield, contentDescription = null, tint = DomainTheme.Rest.color)
-            Spacer(Modifier.width(12.dp))
+            if (!LocalMeDetailStyle.current) {
+                Icon(Icons.Filled.Shield, contentDescription = null, tint = DomainTheme.Rest.color)
+                Spacer(Modifier.width(12.dp))
+            }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Overline("Guaranteed wake")
                 if (enabled) {
@@ -489,8 +493,10 @@ private fun AlarmSettingsCard(content: @Composable () -> Unit) {
     AlkeCard(padding = 20.dp) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Alarm, contentDescription = null, tint = Palette.accent)
-                Spacer(Modifier.width(10.dp))
+                if (!LocalMeDetailStyle.current) {
+                    Icon(Icons.Filled.Alarm, contentDescription = null, tint = Palette.accent)
+                    Spacer(Modifier.width(10.dp))
+                }
                 Text(uiString(R.string.l10n_smart_alarm_screen_wake_alarm_37af3ecf), style = AlkeType.headline, color = Palette.textPrimary)
             }
             content()
@@ -507,8 +513,10 @@ private fun WindDownCard(vm: AppViewModel) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Overline("Evening")
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Bedtime, contentDescription = null, tint = DomainTheme.Rest.color)
-                    Spacer(Modifier.width(10.dp))
+                    if (!LocalMeDetailStyle.current) {
+                        Icon(Icons.Filled.Bedtime, contentDescription = null, tint = DomainTheme.Rest.color)
+                        Spacer(Modifier.width(10.dp))
+                    }
                     Text(uiString(R.string.l10n_smart_alarm_screen_wind_down_nudge_5ca87a0f), style = AlkeType.title2, color = Palette.textPrimary)
                 }
             }
@@ -527,8 +535,10 @@ private fun ExplanationCard() {
     AlkeCard(padding = 20.dp) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Bedtime, contentDescription = null, tint = Palette.accent)
-                Spacer(Modifier.width(10.dp))
+                if (!LocalMeDetailStyle.current) {
+                    Icon(Icons.Filled.Bedtime, contentDescription = null, tint = Palette.accent)
+                    Spacer(Modifier.width(10.dp))
+                }
                 Text(uiString(R.string.l10n_smart_alarm_screen_how_the_smart_wake_works_8cf34930), style = AlkeType.headline, color = Palette.textPrimary)
             }
             Text(

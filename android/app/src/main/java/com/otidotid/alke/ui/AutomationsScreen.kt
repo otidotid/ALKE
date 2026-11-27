@@ -64,7 +64,7 @@ import com.otidotid.alke.analytics.ClockFormat
  * and the illness watch are real + persisted (ViewModel-backed).
  */
 @Composable
-fun AutomationsScreen(viewModel: AppViewModel) {
+fun AutomationsScreen(viewModel: AppViewModel, page: MeAutomationPage = MeAutomationPage.ALL) {
     val live by viewModel.live.collectAsStateWithLifecycle()
 
     // Double-tap action (parity since 4.2.8) — real + persisted via the ViewModel (AlkePrefs). The
@@ -119,12 +119,12 @@ fun AutomationsScreen(viewModel: AppViewModel) {
     // reproduced by the LazyColumn), so spacing is byte-identical; only on-screen sections compose + get
     // accessibility-walked on scroll.
     LazyScreenScaffold(
-        title = uiString(R.string.l10n_automations_screen_automations_82542d6d),
-        subtitle = "Make the strap do things: tap to act, walk away to lock, train by feel.",
+        title = if (page == MeAutomationPage.ALL) uiString(R.string.l10n_automations_screen_automations_82542d6d) else page.title,
+        subtitle = null,
     ) {
         // #haptics (#1115): per-event in-session haptic toggles, default ON (opt-out) — turn off any cue you
         // find noisy; the feature keeps working, just without that wrist buzz.
-        item {
+        if (page == MeAutomationPage.ALL || page == MeAutomationPage.HAPTICS) item {
         SettingsSection(
             icon = Icons.Filled.Vibration,
             title = uiString(R.string.haptics_section_title),
@@ -163,7 +163,7 @@ fun AutomationsScreen(viewModel: AppViewModel) {
         // Double-tap (parity since 4.2.8): a real, persisted action picker bound to the ViewModel, with a
         // Test action button. Mirrors AutomationsView.swift's Picker (Apple-applicable subset only; no
         // lockScreen / runShortcut on Android).
-        item {
+        if (page == MeAutomationPage.ALL || page == MeAutomationPage.HAPTICS) item {
         SettingsSection(
             icon = Icons.Filled.TouchApp,
             title = uiString(R.string.l10n_automations_screen_double_tap_8d2f1646),
@@ -199,7 +199,7 @@ fun AutomationsScreen(viewModel: AppViewModel) {
         }
 
         // Haptic coaching.
-        item {
+        if (page == MeAutomationPage.ALL || page == MeAutomationPage.HAPTICS) item {
         SettingsSection(
             icon = Icons.Filled.Bolt,
             title = uiString(R.string.l10n_automations_screen_haptic_coaching_e2fab286),
@@ -229,7 +229,7 @@ fun AutomationsScreen(viewModel: AppViewModel) {
         // every wake/alarm control lives in one place. Automations is just inputs-to-actions now.
 
         // Inactivity reminder (#419) — real + persisted via InactivityPrefs; opt-in, default OFF.
-        item {
+        if (page == MeAutomationPage.ALL || page == MeAutomationPage.HAPTICS) item {
         SettingsSection(
             icon = Icons.Filled.Timer,
             title = uiString(R.string.l10n_automations_screen_inactivity_reminder_ca49b1ba),
@@ -326,16 +326,16 @@ fun AutomationsScreen(viewModel: AppViewModel) {
         // On-device short-nap detection (PR #569 reimpl) — opt-in, default OFF. Detected on the offload
         // hook; a confident nap is offered as a review card you accept (it becomes a nap session) or
         // dismiss. NEVER auto-written.
-        item {
+        if (page == MeAutomationPage.ALL || page == MeAutomationPage.SLEEP) item {
             val device = viewModel.activeStrapId
             val revision by com.otidotid.alke.ai.CloudSleepSettings.revision.collectAsStateWithLifecycle()
             val cloud = remember(device, revision) { com.otidotid.alke.ai.CloudSleepSettings.token(ctx, device) != null }
-            CloudSleepSettingsRow()
+            AlkeCard(padding = 16.dp) { CloudSleepSettingsRow() }
             if (!cloud) NapDetectionSection(viewModel)
         }
 
         // Illness early-warning (real + persisted; opt-OUT — the watch has always run on Android).
-        item {
+        if (page == MeAutomationPage.ALL || page == MeAutomationPage.ALERTS) item {
         SettingsSection(
             icon = Icons.Filled.MonitorHeart,
             title = uiString(R.string.l10n_automations_screen_illness_early_warning_453ab477),
@@ -352,7 +352,7 @@ fun AutomationsScreen(viewModel: AppViewModel) {
         }
 
         // Battery alerts (real + persisted; opt-OUT, default ON — #368, thanks @ujix).
-        item {
+        if (page == MeAutomationPage.ALL || page == MeAutomationPage.ALERTS) item {
         SettingsSection(
             icon = Icons.Filled.BatteryStd,
             title = uiString(R.string.l10n_automations_screen_battery_alerts_f3679d60),
@@ -535,16 +535,14 @@ private fun SettingsSection(
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Overline("Automation")
+                    if (!LocalMeDetailStyle.current) Overline("Automation")
                     if (active) Overline("ON", color = Palette.accent)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        tint = if (active) Palette.accent else Palette.textSecondary,
-                    )
-                    Spacer(Modifier.width(10.dp))
+                    if (!LocalMeDetailStyle.current) {
+                        Icon(icon, contentDescription = null, tint = if (active) Palette.accent else Palette.textSecondary)
+                        Spacer(Modifier.width(10.dp))
+                    }
                     Text(title, style = AlkeType.title2, color = Palette.textPrimary)
                 }
             }

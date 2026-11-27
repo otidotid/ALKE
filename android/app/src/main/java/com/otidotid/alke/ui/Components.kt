@@ -1333,7 +1333,9 @@ fun ScreenScaffold(
             // When BOTH title and subtitle are null the large-title header block is omitted entirely, so a
             // screen can supply its own custom header in `content` (iOS Today's compact top bar) — mirroring
             // the iOS ScreenScaffold which only renders the header `if title != nil || subtitle != nil`.
-            if (title != null || subtitle != null) {
+            if (LocalMeDetailStyle.current && leading == null && trailing == null) {
+                MeDetailHeader(title, subtitle)
+            } else if (title != null || subtitle != null) {
                 Row(verticalAlignment = Alignment.Top) {
                     if (leading != null) {
                         leading()
@@ -1445,7 +1447,9 @@ fun LazyScreenScaffold(
     // entirely when both title and subtitle are null (a screen supplying its own custom header). Matches
     // ScreenScaffold's header block so the eager + lazy scaffolds read identically.
     val header: (@Composable () -> Unit)? =
-        if (title != null || subtitle != null || leading != null || trailing != null) {
+        if (LocalMeDetailStyle.current && leading == null && trailing == null) {
+            { MeDetailHeader(title, subtitle) }
+        } else if (title != null || subtitle != null || leading != null || trailing != null) {
             {
                 Row(verticalAlignment = Alignment.Top) {
                     if (leading != null) {

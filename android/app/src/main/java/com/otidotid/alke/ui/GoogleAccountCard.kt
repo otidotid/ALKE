@@ -62,7 +62,7 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 
 @Composable
-internal fun GoogleAccountCard() {
+internal fun GoogleAccountCard(accountOnly: Boolean = false, backupOnly: Boolean = false, onOpenAccount: () -> Unit = {}, onOpenBackup: () -> Unit = {}) {
     val context = LocalContext.current
     val controller = remember(context) {
         GoogleSignInController(context.applicationContext)
@@ -323,7 +323,8 @@ internal fun GoogleAccountCard() {
                 }
         }
 
-    LaunchedEffect(account?.accountId) {
+    LaunchedEffect(account?.accountId, accountOnly) {
+        if (accountOnly) return@LaunchedEffect
         val accountId = account?.accountId ?: return@LaunchedEffect
         if (!drivePrefs.getBoolean("configured.$accountId", false)) return@LaunchedEffect
         driveController.authorize(
@@ -805,8 +806,8 @@ internal fun GoogleAccountCard() {
 
     SettingsCard(
         icon = Icons.Filled.AccountCircle,
-        title = "Google Drive",
-        blurb = "Sign in for verified full backup, full restore on a new phone, and read-only archived history.",
+        title = if (accountOnly) "Google Account" else "Google Drive",
+        blurb = if (accountOnly) "Manage your connected Google account." else "Verified backup, restore and archived history.",
     collapsible = true,
     ) {
         Column(
@@ -814,7 +815,12 @@ internal fun GoogleAccountCard() {
         ) {
             val currentAccount = account
 
-            if (currentAccount == null) {
+            if (backupOnly) {
+                Text(if (currentAccount == null) "Google account not connected" else currentAccount.email,
+                    style = AlkeType.subhead, color = Palette.textSecondary)
+                AlkeButton(text = if (currentAccount == null) "Connect Google Account" else "Manage Google Account",
+                    kind = AlkeButtonKind.Secondary, fullWidth = true, onClick = onOpenAccount)
+            } else if (currentAccount == null) {
                 Text(
                     text = "Not signed in",
                     style = AlkeType.subhead,
@@ -940,6 +946,11 @@ internal fun GoogleAccountCard() {
                 )
             }
 
+            if (accountOnly) {
+                errorMessage?.let { Text(it, style = AlkeType.footnote, color = Palette.statusCritical) }
+                AlkeButton(text = "Backup & Restore", kind = AlkeButtonKind.Secondary, fullWidth = true, onClick = onOpenBackup)
+            }
+            if (!accountOnly) {
             if (driveAuthorized && currentAccount != null) {
                 Text(
                     if (autoHistoryConfigured) "Automatic encrypted cloud history: enabled" else
@@ -1390,6 +1401,7 @@ internal fun GoogleAccountCard() {
                 style = AlkeType.footnote,
                 color = Palette.textTertiary,
             )
+            } // Drive-only controls
         }
     }
 }

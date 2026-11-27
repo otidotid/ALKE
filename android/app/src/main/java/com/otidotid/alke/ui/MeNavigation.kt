@@ -30,7 +30,7 @@ enum class MeSettingsPage(val title: String) {
     ADVANCED("Advanced & Diagnostics"), CHARGE("Charge Baseline"), ABOUT("About & Privacy"),
     ACTIVITY("Activity Detection"), SLEEP("Sleep Intelligence"), HAPTICS("Wrist Feedback"),
     ALERTS("Health & Battery Alerts"), ACCOUNT("Google Account"), PROVENANCE("Data Provenance"),
-    DOCK("Customize Dock");
+    DOCK("Customize Dock"), ALARMS("Alarms");
     val route get() = "me_detail/" + name
     companion object {
         fun from(key: String?) = entries.firstOrNull { it.name == key && it != ALL }

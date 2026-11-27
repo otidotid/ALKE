@@ -1313,12 +1313,12 @@ private fun SettingsSectionTC(
     AlkeCard(padding = 20.dp, tint = Palette.accent) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Overline("Test Centre")
+                if (!LocalMeDetailStyle.current) Overline("Test Centre")
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    androidx.compose.material3.Icon(
+                    if (!LocalMeDetailStyle.current) androidx.compose.material3.Icon(
                         icon, contentDescription = null, tint = Palette.accent,
                         modifier = Modifier.size(18.dp),
                     )

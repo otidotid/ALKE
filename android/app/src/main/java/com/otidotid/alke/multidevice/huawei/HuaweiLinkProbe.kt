@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Debug-only, explicitly requested hardware diagnostic. It opens one temporary RFCOMM
- * socket and sends only the documented LPv2 LinkParams and device-status queries. No binding, keys,
+ * socket and sends the documented LPv2 link, device-status and security-negotiation queries. No binding, keys,
  * account changes, wearable settings, health reads/writes or WHOOP calls.
  */
 @SuppressLint("MissingPermission")
@@ -37,6 +37,8 @@ internal object HuaweiLinkProbe {
             transport.close()
         }, TIMEOUT_SECONDS, TimeUnit.SECONDS)
         var linkReport: String? = null
+        var capabilities: HuaweiAuthCapabilities.Parameters? = null
+        var awaitingSecurity = false
         try {
             transport.connect()
             stage = "Requesting link parameters"
@@ -51,15 +53,31 @@ internal object HuaweiLinkProbe {
                 for (message in decoder.feed(buffer.copyOf(n))) {
                     if (linkReport == null && message.service == 1 && message.command == 1) {
                         linkReport = describe(message)
+                        capabilities = runCatching { HuaweiAuthCapabilities.parse(message) }.getOrNull()
                         stage = "Reading device status"
                         transport.write(HuaweiAuthCapabilities.statusRequest())
-                    } else if (linkReport != null && message.service == 1 && message.command == 0x16) {
+                    } else if (!awaitingSecurity && linkReport != null && message.service == 1 && message.command == 0x16) {
                         val status = HuaweiAuthCapabilities.parseStatus(message)
-                        return@withContext "$linkReport\nDevice status: ${status ?: "unknown"}"
+                        linkReport = "$linkReport\nDevice status: ${status ?: "unknown"}"
+                        val params = capabilities
+                        if (status !in listOf(0, 1, 255) || params?.supportType != 4 ||
+                            params.encryptMethod !in listOf(0, 1)) {
+                            return@withContext "$linkReport\nSecurity negotiation not attempted: unsupported or missing capability."
+                        }
+                        // Disposable identity for the debug probe only. Never reuse it as a
+                        // persistent binding identity, and never request PIN or start HiChain bind.
+                        val probeId = java.util.UUID.randomUUID().toString().replace("-", "")
+                        val model = android.os.Build.MODEL.take(40).ifBlank { "Android" }
+                        stage = "Reading security negotiation"
+                        awaitingSecurity = true
+                        transport.write(HuaweiSecurityNegotiation.request(params, probeId, model))
+                    } else if (awaitingSecurity && message.service == 1 && message.command == 0x33) {
+                        val next = HuaweiSecurityNegotiation.parse(message)
+                        return@withContext "$linkReport\nSecurity negotiation (temporary probe identity): ${next.name}\nNo binding or key exchange attempted."
                     }
                 }
             }
-            linkReport?.plus("\nDevice status unavailable.") ?: "Link response unavailable. No authentication attempted."
+            linkReport?.plus("\n$stage: response unavailable.") ?: "Link response unavailable. No authentication attempted."
         } catch (_: SecurityException) {
             "Bluetooth permission missing. No authentication attempted."
         } catch (_: IOException) {

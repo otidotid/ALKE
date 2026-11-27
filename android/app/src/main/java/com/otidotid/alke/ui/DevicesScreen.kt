@@ -378,7 +378,10 @@ fun DevicesScreen(
         strapCompare?.let { c -> item { CompareCard(c) } }
 
         if (removedDevices.isNotEmpty()) {
-            item { Overline("Removed", modifier = Modifier.padding(top = 4.dp)) }
+            item {
+                if (LocalMeDetailStyle.current) AlkeCard(padding = 16.dp) { Text("Removed devices", style = AlkeType.headline, color = Palette.textPrimary) }
+                else Overline("Removed", modifier = Modifier.padding(top = 4.dp))
+            }
             items(removedDevices) { device ->
                 DeviceCard(
                     device = device,
@@ -395,7 +398,10 @@ fun DevicesScreen(
             }
         }
 
-        item { WhoopFirstFooter() }
+        item {
+            if (LocalMeDetailStyle.current) AlkeCard(padding = 16.dp) { WhoopFirstFooter() }
+            else WhoopFirstFooter()
+        }
     }
 
     // --- Add a device (guided, branching wizard: WHOOP family · HR strap · coming-soon rows) ---
@@ -829,7 +835,7 @@ private fun DeviceCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.Top,
             ) {
-                Icon(
+                if (!LocalMeDetailStyle.current) Icon(
                     imageVector = deviceIcon(device),
                     contentDescription = null,
                     tint = if (isActive) Palette.accent else Palette.textSecondary,
@@ -1217,7 +1223,7 @@ private fun MenuItem(
     val color = if (destructive) Palette.statusCritical else Palette.textPrimary
     DropdownMenuItem(
         text = { Text(label, style = AlkeType.body, color = color) },
-        leadingIcon = { Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp)) },
+        leadingIcon = if (LocalMeDetailStyle.current) null else ({ Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp)) }),
         onClick = onClick,
     )
 }
@@ -1246,7 +1252,7 @@ private fun WhoopFirstFooter() {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Icon(
+        if (!LocalMeDetailStyle.current) Icon(
             Icons.Filled.FavoriteBorder,
             contentDescription = null,
             tint = Palette.textTertiary,
@@ -1954,7 +1960,7 @@ private fun CapabilityInfoRow(icon: androidx.compose.ui.graphics.vector.ImageVec
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Icon(icon, contentDescription = null, tint = Palette.textTertiary, modifier = Modifier.size(14.dp))
+        if (!LocalMeDetailStyle.current) Icon(icon, contentDescription = null, tint = Palette.textTertiary, modifier = Modifier.size(14.dp))
         Text(text, style = AlkeType.caption, color = Palette.textSecondary)
     }
 }
@@ -1970,7 +1976,7 @@ private fun OuraLocalStateNote() {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Icon(Icons.Filled.Info, contentDescription = null, tint = Palette.statusWarning, modifier = Modifier.size(14.dp))
+        if (!LocalMeDetailStyle.current) Icon(Icons.Filled.Info, contentDescription = null, tint = Palette.statusWarning, modifier = Modifier.size(14.dp))
         Text(
             uiString(R.string.l10n_devices_screen_paired_locally_alke_owns_this_ring_30c16190),
             style = AlkeType.caption,

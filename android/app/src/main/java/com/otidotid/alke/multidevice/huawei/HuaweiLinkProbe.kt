@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Debug-only, explicitly requested hardware diagnostic. It opens one temporary RFCOMM
- * socket and sends only the documented LPv2 LinkParams request. No binding, keys,
+ * socket and sends only the documented LPv2 LinkParams and device-status queries. No binding, keys,
  * account changes, wearable settings, health reads/writes or WHOOP calls.
  */
 @SuppressLint("MissingPermission")
@@ -36,6 +36,7 @@ internal object HuaweiLinkProbe {
             expired.set(true)
             transport.close()
         }, TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        var linkReport: String? = null
         try {
             transport.connect()
             stage = "Requesting link parameters"
@@ -43,25 +44,30 @@ internal object HuaweiLinkProbe {
             val decoder = HuaweiLinkFrames.Decoder()
             val buffer = ByteArray(4096)
             var remaining = 131072
-            var report: String? = null
-            while (remaining > 0 && !expired.get() && report == null) {
+            while (remaining > 0 && !expired.get()) {
                 val n = transport.read(buffer)
                 if (n <= 0) throw IOException("Socket ended")
                 remaining -= n
                 for (message in decoder.feed(buffer.copyOf(n))) {
-                    if (message.service == 1 && message.command == 1) {
-                        report = describe(message)
-                        break
+                    if (linkReport == null && message.service == 1 && message.command == 1) {
+                        linkReport = describe(message)
+                        stage = "Reading device status"
+                        transport.write(HuaweiAuthCapabilities.statusRequest())
+                    } else if (linkReport != null && message.service == 1 && message.command == 0x16) {
+                        val status = HuaweiAuthCapabilities.parseStatus(message)
+                        return@withContext "$linkReport\nDevice status: ${status ?: "unknown"}"
                     }
                 }
             }
-            report ?: "Link response unavailable. No authentication attempted."
+            linkReport?.plus("\nDevice status unavailable.") ?: "Link response unavailable. No authentication attempted."
         } catch (_: SecurityException) {
             "Bluetooth permission missing. No authentication attempted."
         } catch (_: IOException) {
-            "$stage: " + if (expired.get()) "timed out." else "connection closed or unavailable."
+            val reason = if (expired.get()) "timed out." else "connection closed or unavailable."
+            linkReport?.plus("\n$stage: $reason") ?: "$stage: $reason"
         } catch (_: IllegalArgumentException) {
-            "$stage: unsupported or malformed response. No authentication attempted."
+            linkReport?.plus("\n$stage: unsupported or malformed response.") ?:
+                "$stage: unsupported or malformed response. No authentication attempted."
         } catch (_: IllegalStateException) {
             "$stage: Bluetooth transport unavailable."
         } finally {

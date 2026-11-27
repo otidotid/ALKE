@@ -53,7 +53,8 @@ internal object CloudActivityProtocol {
         val sport: String get() = types.getValue(type)
     }
     data class Snapshot(val start: Long, val bins: List<List<Number?>>, val restingHr: Int?,
-        val excluded: List<Pair<Long, Long>>, val sensitivity: ActivitySensitivity = ActivitySensitivity.MEDIUM) {
+        val excluded: List<Pair<Long, Long>>, val sensitivity: ActivitySensitivity = ActivitySensitivity.MEDIUM,
+        val gaitEvidence: List<List<Int>?>? = null) {
         val end get() = start + bins.size * BIN
         fun body(): JSONObject = JSONObject().apply {
             put("schemaVersion", SCHEMA)
@@ -64,6 +65,7 @@ internal object CloudActivityProtocol {
             put("restingHr", restingHr?.takeIf { it in 30..120 } ?: JSONObject.NULL)
             put("bins", JSONArray(bins.map { b -> JSONArray(b.map { it ?: JSONObject.NULL }) }))
             put("excludedIntervals", JSONArray(excluded.map { JSONArray(listOf(it.first, it.second)) }))
+            gaitEvidence?.let { put("gaitEvidence", JSONArray(it.map { row -> row?.let { v -> JSONArray(v) } ?: JSONObject.NULL })) }
             put("requestId", sha256(toString()))
         }
     }
@@ -107,16 +109,41 @@ internal object CloudActivityProtocol {
             val t = start + i*BIN
             val hs = h[i.toLong()].orEmpty().filter { it.ts in t until t+BIN }
             val ms = motionBins[i.toLong()].orEmpty()
-            val stepRows = s.filter { it.ts in t-1 until t+BIN }
-            val stepCount = if (ticksPerStep.isFinite() && ticksPerStep >= 0.5 &&
-                stepRows.count { it.ts >= t } >= 21) {
-                StepsCounter.stepsInWindow(stepRows)?.let { (it/ticksPerStep).roundToInt().takeIf { n -> n in 0..150 } }
+            // Historical offloads can have irregular timestamps. Measure observed time
+            // coverage from short, same-device counter intervals, not row count.
+            val stepGroups = s.filter { it.ts in t-1 until t+BIN }.groupBy { it.deviceId }.values
+            fun covered(rows: List<StepSample>) = rows.zipWithNext().sumOf { (a,b) ->
+                (b.ts-a.ts).takeIf { it in 1L..5L } ?: 0L
+            }
+            val stepRows = stepGroups.maxByOrNull { covered(it) }.orEmpty()
+            val stepCount = if (ticksPerStep.isFinite() && ticksPerStep >= 0.5 && covered(stepRows) >= 21L) {
+                // Never count across a long gap or extrapolate missing seconds.
+                val segments = ArrayList<MutableList<StepSample>>()
+                for (row in stepRows) {
+                    val last = segments.lastOrNull()
+                    if (last == null || row.ts-last.last().ts > 5L) segments.add(mutableListOf(row))
+                    else last.add(row)
+                }
+                val measured = segments.mapNotNull { StepsCounter.stepsInWindow(it) }
+                measured.takeIf { it.isNotEmpty() }?.sum()?.let { (it/ticksPerStep).roundToInt().takeIf { n -> n in 0..150 } }
                 // A zero-tick/unknown counter result is not promoted to a measured zero.
             } else null
             listOf(hs.takeIf { it.isNotEmpty() }?.map { it.bpm }?.average()?.let { rounded(it) },
                 ms.takeIf { it.isNotEmpty() }?.let { rounded(sqrt(it.map { p -> p.second*p.second }.average())) },
                 stepCount, null, rounded(hs.size/30.0), rounded(ms.size/30.0))
         }
+    }
+    // Native WHOOP activityClass telemetry is optional corroboration, not an ALKE classifier.
+    // Counts are measured samples, never synthetic cadence or inferred elevation.
+    fun gaitEvidence(start: Long, steps: List<StepSample>): List<List<Int>?>? {
+        val rows = steps.filter { it.ts in start until start+WINDOW && it.activityClass != null }
+            .distinctBy { it.ts }.groupBy { (it.ts-start)/BIN }
+        val evidence = List(30) { i ->
+            rows[i.toLong()].orEmpty().groupBy { it.deviceId }.values.maxByOrNull { it.size }?.let { group ->
+                listOf(group.count { it.activityClass == 1 },group.count { it.activityClass == 2 },group.size)
+            }
+        }
+        return evidence.takeIf { it.any { row -> row != null } }
     }
     private fun rounded(v: Double): Double = kotlin.math.round(v*1000.0)/1000.0
     fun usable(b: List<Number?>): Boolean = b[1] != null && (b[5]?.toDouble() ?: 0.0) >= 0.7 &&

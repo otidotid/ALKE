@@ -5,9 +5,10 @@ const token = 'test-only-'.repeat(4);
 const now = Math.floor(Date.now()/1000/30)*30;
 const bin = [110,0.4,22,null,1,1];
 const env = {ENABLE_ACTIVITY_AI_DETECTION:'true', ACTIVITY_ACCESS_TOKEN:token, GROQ_API_KEY:'mock-test-only', DB:{prepare(){return {run:async()=>({meta:{changes:1}}),bind(){return this;}};}}};
-function req(mode,bins=Array.from({length:30},()=>bin),excludedIntervals=[]) {
+function req(mode,bins=Array.from({length:30},()=>bin),excludedIntervals=[],gaitEvidence) {
   const body={schemaVersion:'activity-detection-v1',requestId:'a'.repeat(64),activityConsent:true,startTs:now-900,restingHr:60,bins,excludedIntervals};
   if(mode!==undefined) body.sensitivity=mode;
+  if(gaitEvidence!==undefined) body.gaitEvidence=gaitEvidence;
   return new Request('https://example.test/v1/activity/detect',{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify(body)});
 }
 test('duration policies, compatibility and strict evidence checks',async t=>{
@@ -27,7 +28,7 @@ test('duration policies, compatibility and strict evidence checks',async t=>{
   prediction={...prediction,endBin:3};
   assert.equal((await result(undefined)).activities.length,1);assert.equal((await result('LOW')).activities.length,0);
   prediction={...prediction,endBin:6};assert.equal((await result('LOW')).activities.length,1);
-  prediction={type:'WORKOUT',startBin:0,endBin:6,confidence:'HIGH'};
+  prediction={type:'CYCLING',startBin:0,endBin:6,confidence:'HIGH'};
   assert.equal((await result('HIGH')).activities.length,1);assert.equal((await result('MEDIUM')).activities.length,0);
   prediction={...prediction,endBin:10};
   assert.equal((await result('MEDIUM')).activities.length,1);assert.equal((await result('LOW')).activities.length,0);
@@ -88,13 +89,13 @@ test('HIGH walking accepts partial counter evidence but never guesses gait or st
 });
 
 
-test('v626 worker trial: sparse cadence, generic exercise and unchanged client safeguards',async t=>{
+test('v629: sparse cadence, ambiguity rejection and unchanged client safeguards',async t=>{
   const original=globalThis.fetch;
   t.after(()=>{globalThis.fetch=original;});
   let prediction={type:'RUNNING',startBin:0,endBin:6,confidence:'HIGH'};
   globalThis.fetch=async(url,options)=>{
     const payload=JSON.parse(options.body);
-    assert.ok(payload.messages[0].content.includes('treadmill'));
+    assert.ok(payload.messages[0].content.includes('chronological sequence'));
     assert.ok(payload.messages[0].content.includes('generic WORKOUT'));
     return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify({activities:[prediction]})}}],usage:{total_tokens:100}}),{status:200});
   };
@@ -118,7 +119,7 @@ test('v626 worker trial: sparse cadence, generic exercise and unchanged client s
   assert.equal((await detect('HIGH',[measured,[145,0.4,null,null,0.1,1],measured,missing,measured,missing])).length,0);
   assert.equal((await detect('HIGH',Array(6).fill(measured),[[now-900,now-870]])).length,0);
   prediction={type:'WORKOUT',startBin:0,endBin:6,confidence:'HIGH'};
-  assert.equal((await detect('HIGH',Array(6).fill(missing))).length,1);
+  assert.equal((await detect('HIGH',Array(6).fill(missing))).length,0);
   assert.equal((await detect('MEDIUM',Array(6).fill(missing))).length,0);
   assert.equal((await detect('HIGH',Array(6).fill([145,0,null,null,1,1]))).length,0);
   assert.equal((await detect('HIGH',Array(6).fill([null,0.4,65,null,0,1]))).length,0);
@@ -126,4 +127,29 @@ test('v626 worker trial: sparse cadence, generic exercise and unchanged client s
   assert.equal((await detect('HIGH',Array(6).fill(missing))).length,0);
   prediction={type:'CLIMBING_STAIRS',startBin:0,endBin:6,confidence:'HIGH'};
   assert.equal((await detect('HIGH',Array(6).fill(measured))).length,0);
+});
+
+test('v629 native gait corroboration, missing data, and no generic exertion auto-log',async t=>{
+  const original=globalThis.fetch;
+  t.after(()=>{globalThis.fetch=original;});
+  const bins=Array.from({length:30},()=>[145,0.4,null,null,1,1]);
+  const gait=Array.from({length:30},()=>[0,25,30]);
+  let prediction={type:'RUNNING',startBin:0,endBin:10,confidence:'HIGH'};
+  globalThis.fetch=async()=>new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify({activities:[prediction]})}}],usage:{total_tokens:100}}),{status:200});
+  async function detect(g,rows=bins){
+    const response=await worker.fetch(req('MEDIUM',rows,[],g),env);
+    assert.equal(response.status,200,await response.clone().text());
+    return (await response.json()).activityDetection.activities;
+  }
+  assert.equal((await detect(gait)).length,1);
+  assert.equal((await detect(undefined)).length,0);
+  assert.equal((await detect(Array.from({length:30},()=>[0,8,10]))).length,0);
+  assert.equal((await detect(Array.from({length:30},()=>[25,0,30]))).length,0);
+  const missingMotion=bins.map((b,i)=>i===4?[145,null,null,null,1,0]:b);
+  assert.equal((await detect(gait,missingMotion)).length,0);
+  prediction={...prediction,type:'WORKOUT'};
+  assert.equal((await detect(gait)).length,0);
+  assert.equal((await detect(undefined)).length,0);
+  const invalid=await worker.fetch(req('MEDIUM',bins,[],Array.from({length:30},()=>[20,20,30])),env);
+  assert.equal(invalid.status,400);
 });

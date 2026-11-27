@@ -151,7 +151,7 @@ class AlkeApplication : Application() {
             successfulOffloadSink = {
                 SelfHostedPushScheduler.enqueueAfterSuccessfulOffload(applicationContext)
                 com.otidotid.alke.ai.CloudSleepSettings.schedule(applicationContext, immediate = true)
-                com.otidotid.alke.ai.CloudActivityScheduler.request(applicationContext)
+                com.otidotid.alke.ai.CloudActivityScheduler.afterOffload(applicationContext)
             },
         ).apply {
             // #1881: the same fact seeds the connect gate, closing the launch race where the radio can

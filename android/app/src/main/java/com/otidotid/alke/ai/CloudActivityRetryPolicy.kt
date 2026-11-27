@@ -5,7 +5,7 @@ internal data class ActivityRetryWindow(val start: Long, val failures: Int, val 
 
 internal object ActivityRetryPolicy {
     const val MAX_FAILURES = 6
-    const val RETENTION = 6 * 86400L
+    const val RETENTION = 86400L
     fun decode(raw: String?, now: Long): List<ActivityRetryWindow> =
         raw.orEmpty().split(',').mapNotNull { item ->
             val p = item.split(':')

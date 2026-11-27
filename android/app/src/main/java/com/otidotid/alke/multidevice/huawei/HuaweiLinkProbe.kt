@@ -106,6 +106,14 @@ internal object HuaweiLinkProbe {
         return buildString {
             append("Huawei RFCOMM LinkParams response received.\n")
             append("TLV tags:lengths: ").append(metadata.joinToString(", ")).append('\n')
+            val modern = runCatching { HuaweiAuthCapabilities.parse(message) }.getOrNull()
+            if (modern != null) {
+                append("Device support type: ").append(modern.supportType ?: "unknown").append('\n')
+                append("Authentication version: ").append(modern.authVersion ?: "unknown").append('\n')
+                append("Authentication algorithm: ").append(modern.authAlgorithm ?: "unknown").append('\n')
+                append("Bond state: ").append(modern.bondState ?: "unknown").append('\n')
+                append("Encryption method: ").append(modern.encryptMethod ?: "unknown").append('\n')
+            }
             if (legacy != null) {
                 append("Protocol version: ").append(legacy.protocolVersion).append('\n')
                 append("Max frame/link: ").append(legacy.maxFrameSize).append('/').append(legacy.maxLinkSize).append('\n')

@@ -1117,6 +1117,7 @@ fun AppRoot(
                                 MeSettingsPage.ALERTS -> AutomationsScreen(viewModel, MeAutomationPage.ALERTS)
                                 MeSettingsPage.ACCOUNT -> ScreenScaffold(title = page.title) { GoogleAccountCard() }
                                 MeSettingsPage.DOCK -> MeDockSettings(onBack = { nav.popBackStack() })
+                                MeSettingsPage.ALARMS -> SmartAlarmScreen(viewModel)
                                 else -> SettingsScreen(
                                     vm = viewModel,
                                     onOpenTestCentre = { nav.navigate(Destination.TestCentre.route) },
@@ -1129,7 +1130,7 @@ fun AppRoot(
                     }
                 }
                 composable(Destination.AlkeAllModules.route) {
-                    AlkeAllModulesExperience(onNavigate = { nav.navigate(it) })
+                    AlkeAllModulesExperience(onNavigate = { nav.navigate(it) }, onBack = { nav.popBackStack() })
                 }
             }
         }

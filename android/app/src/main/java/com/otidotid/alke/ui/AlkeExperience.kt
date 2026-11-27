@@ -2051,56 +2051,22 @@ fun AlkeHeartRateTimelineExperience(
  * No route, feature, saved preference or data is removed.
  */
 @Composable
-fun AlkeAllModulesExperience(onNavigate: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(setOf("Insights", "Activity")) }
+fun AlkeAllModulesExperience(onNavigate: (String) -> Unit, onBack: (() -> Unit)? = null) {
     val groups = alkeAllModulesGroups(BottomBarModuleStore.selected)
     val pinnedLabels = mutableListOf<String>()
     for (destination in BottomBarModuleStore.selected) pinnedLabels += alkeModuleLabel(destination)
     AlkePage {
-        AlkeHeading("All modules", "Explore features not already in your dock or Me.")
-        AlkePanel(Modifier.fillMaxWidth()) {
-            Text("PINNED MODULES", color = A.gold, fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold, letterSpacing = 1.3.sp)
-            val pinned = BottomBarModuleStore.selected
-            Text(
-                if (pinned.isEmpty()) "Your dock has only Today and Me."
-                else pinnedLabels.joinToString("  ·  "),
-                color = A.white, fontSize = 13.sp,
-            )
-            Text("Customize your dock in Me. Pinned modules and Me shortcuts are not repeated below.",
-                color = A.muted, fontSize = 11.sp, lineHeight = 16.sp)
+        MePageHeader("All Modules", onBack)
+        MeNavigationCard("PINNED MODULES") {
+            Text(if (pinnedLabels.isEmpty()) "Today and Me" else pinnedLabels.joinToString(" · "),
+                color = A.white, fontSize = 13.sp)
+            Text("Manage your dock in Me → Appearance.", color = A.muted, fontSize = 12.sp)
         }
         groups.forEach { group ->
-            val isOpen = group.header in expanded
-            AlkePanel(Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            expanded = if (isOpen) expanded - group.header else expanded + group.header
-                        }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(if (group.header == "Settings") "Others" else group.header,
-                        color = A.white, fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text("${group.items.size}", color = A.muted, fontSize = 12.sp)
-                    Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Filled.ChevronRight, contentDescription = if (isOpen) "Collapse" else "Expand",
-                        tint = A.cyan, modifier = Modifier
-                            .size(20.dp).graphicsLayer { rotationZ = if (isOpen) 90f else 0f })
-                }
-                if (isOpen) {
-                    group.items.forEach { dest ->
-                        AlkeLinkRow(
-                            title = alkeModuleLabel(dest),
-                            subtitle = "Open module",
-                            icon = dest.icon,
-                            onClick = { onNavigate(dest.route) },
-                            accent = A.cyan,
-                        )
-                    }
+            MeNavigationCard(if (group.header == "Settings") "Others" else group.header) {
+                group.items.forEach { dest ->
+                    MeNavigationRow(title = alkeModuleLabel(dest), subtitle = "Open module",
+                        icon = dest.icon, onClick = { onNavigate(dest.route) })
                 }
             }
         }
@@ -2239,7 +2205,7 @@ internal fun AlkeMeGroupExperience(
                     MeNavigationRow("Wrist Feedback", "Haptics, gestures and inactivity", Icons.Filled.Sensors) { onDetail(MeSettingsPage.HAPTICS) }
                     MeNavigationRow("Health & Battery Alerts", "Illness signals and charging alerts", Icons.Filled.BatterySaver) { onDetail(MeSettingsPage.ALERTS) }
                     MeNavigationRow("Personal Reminders", "Journal and stress check-ins", Icons.Filled.Favorite) { onDetail(MeSettingsPage.REMINDERS) }
-                    MeNavigationRow("Alarms", "Wake and wind-down reminders", Icons.Filled.Bedtime) { onNavigate(Destination.SmartAlarm) }
+                    MeNavigationRow("Alarms", "Wake and wind-down reminders", Icons.Filled.Bedtime) { onDetail(MeSettingsPage.ALARMS) }
                     MeNavigationRow("Updates Inbox", if (unreadCount > 0) "$unreadCount unread updates" else "Release and app updates",
                         Icons.Filled.NotificationsNone, onUpdatesInbox)
                 }

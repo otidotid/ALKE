@@ -1,0 +1,119 @@
+package com.otidotid.alke.multidevice.huawei
+
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * Debug-only, explicitly requested hardware diagnostic. It opens one temporary RFCOMM
+ * socket and sends only the documented LPv2 LinkParams request. No binding, keys,
+ * account changes, wearable settings, health reads/writes or WHOOP calls.
+ */
+@SuppressLint("MissingPermission")
+internal object HuaweiLinkProbe {
+    private const val TIMEOUT_SECONDS = 15L
+
+    suspend fun candidates(context: Context): List<BluetoothDevice> = withContext(Dispatchers.IO) {
+        val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
+            ?: return@withContext emptyList()
+        if (!adapter.isEnabled) return@withContext emptyList()
+        HuaweiRfcommTransport.bondedCandidates(adapter).sortedBy { it.address }
+    }
+
+    suspend fun run(device: BluetoothDevice): String = withContext(Dispatchers.IO) {
+        val transport = HuaweiRfcommTransport(device)
+        val scheduler = Executors.newSingleThreadScheduledExecutor()
+        val expired = AtomicBoolean(false)
+        var stage = "Opening Bluetooth socket"
+        val timeout = scheduler.schedule({
+            expired.set(true)
+            transport.close()
+        }, TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        try {
+            transport.connect()
+            stage = "Requesting link parameters"
+            transport.write(HuaweiLinkNegotiation.request())
+            val decoder = HuaweiLinkFrames.Decoder()
+            val buffer = ByteArray(4096)
+            var remaining = 131072
+            var report: String? = null
+            while (remaining > 0 && !expired.get() && report == null) {
+                val n = transport.read(buffer)
+                if (n <= 0) throw IOException("Socket ended")
+                remaining -= n
+                for (message in decoder.feed(buffer.copyOf(n))) {
+                    if (message.service == 1 && message.command == 1) {
+                        report = describe(message)
+                        break
+                    }
+                }
+            }
+            report ?: "Link response unavailable. No authentication attempted."
+        } catch (_: SecurityException) {
+            "Bluetooth permission missing. No authentication attempted."
+        } catch (_: IOException) {
+            "$stage: " + if (expired.get()) "timed out." else "connection closed or unavailable."
+        } catch (_: IllegalArgumentException) {
+            "$stage: unsupported or malformed response. No authentication attempted."
+        } catch (_: IllegalStateException) {
+            "$stage: Bluetooth transport unavailable."
+        } finally {
+            timeout.cancel(false)
+            transport.close()
+            scheduler.shutdownNow()
+        }
+    }
+
+    /**
+     * Safe diagnostic: only protocol parameters and TLV tag/length metadata.
+     * Never return raw packets, nonce, device address, account ID or keys.
+     */
+    fun describe(message: HuaweiLinkFrames.Message): String {
+        require(message.service == 1 && message.command == 1)
+        val metadata = ArrayList<String>()
+        val payload = message.payload
+        var i = 0
+        while (i < payload.size) {
+            if (payload.size - i < 2) {
+                metadata.add("truncated")
+                break
+            }
+            val tag = payload[i++].toInt() and 255
+            var length = 0
+            var shift = 0
+            var ended = false
+            while (i < payload.size && shift <= 21) {
+                val b = payload[i++].toInt() and 255
+                length = length or ((b and 127) shl shift)
+                if (b and 128 == 0) { ended = true; break }
+                shift += 7
+            }
+            if (!ended || length > payload.size - i) {
+                metadata.add("unsupported TLV length")
+                break
+            }
+            metadata.add("%02X:%d".format(java.util.Locale.ROOT, tag, length))
+            i += length
+        }
+        val legacy = runCatching { HuaweiLinkNegotiation.parseLegacyResponse(message) }.getOrNull()
+        return buildString {
+            append("Huawei RFCOMM LinkParams response received.\n")
+            append("TLV tags:lengths: ").append(metadata.joinToString(", ")).append('\n')
+            if (legacy != null) {
+                append("Protocol version: ").append(legacy.protocolVersion).append('\n')
+                append("Max frame/link: ").append(legacy.maxFrameSize).append('/').append(legacy.maxLinkSize).append('\n')
+                append("Legacy authentication field: ").append(legacy.authenticationVersion).append('\n')
+            } else {
+                append("Legacy parameter layout not recognized.\n")
+            }
+            append("Transport only. Not paired or authenticated. No health data read.")
+        }
+    }
+}

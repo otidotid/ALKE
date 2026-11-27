@@ -479,7 +479,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
     // confirm dialogs below the scaffold are untouched.
     LazyScreenScaffold(
         title = uiString(R.string.l10n_data_sources_screen_data_sources_5e43d6bb),
-        subtitle = "Everything stays on this phone. Bring your history in once, then it's yours.",
+        subtitle = "Manage connected data and imports. Cloud services are optional and controlled separately.",
     ) {
         // --- WHOOP data (cached history) ---
         item {
@@ -512,6 +512,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
         item {
         SourceCard(
             title = uiString(R.string.l10n_data_sources_screen_health_connect_be6bca3e),
+            expandedByDefault = true,
             icon = Icons.Filled.MonitorHeart,
             subtitle = "Manual or scheduled import. Workout Only imports exercise sessions, distance and GPS route when available. " +
                 "Workout + Activity also imports supported steps and calorie activity. Sleep, HR, HRV, SpO₂, " +
@@ -858,7 +859,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
                         .semantics(mergeDescendants = true) {},
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(
+                    if (!LocalMeDetailStyle.current) Icon(
                         Icons.Filled.SettingsInputAntenna,
                         contentDescription = null,
                         tint = Palette.statusWarning,
@@ -980,8 +981,26 @@ private fun SourceCard(
     icon: ImageVector,
     subtitle: String,
     tint: Color = Palette.accent,
+    expandedByDefault: Boolean = false,
     content: @Composable () -> Unit,
 ) {
+    if (LocalMeDetailStyle.current) {
+        var expanded by androidx.compose.runtime.saveable.rememberSaveable(title) { mutableStateOf(expandedByDefault) }
+        AlkeCard(padding = 16.dp, tint = tint) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, style = AlkeType.headline, color = Palette.textPrimary, modifier = Modifier.weight(1f))
+                    Text(if (expanded) "Hide" else "Show", style = AlkeType.caption, color = Palette.accent)
+                }
+                Text(subtitle, style = AlkeType.footnote, color = Palette.textSecondary,
+                    maxLines = if (expanded) Int.MAX_VALUE else 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (expanded) content()
+            }
+        }
+        return
+    }
     // A frosted, domain-tinted card: a tinted source glyph chip + title, the explainer line, then
     // the source's status pill + connect/import action(s). Replaces the old flat surface.
     AlkeCard(padding = 18.dp, tint = tint) {
@@ -1053,8 +1072,10 @@ private fun BackupButton(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
+        if (!LocalMeDetailStyle.current) {
+            Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+        }
         Text(label, style = AlkeType.headline, color = ink)
     }
 }

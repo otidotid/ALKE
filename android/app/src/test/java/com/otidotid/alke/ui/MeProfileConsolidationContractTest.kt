@@ -22,49 +22,33 @@ class MeProfileConsolidationContractTest {
         assertFalse(experience.contains("Open my profile"))
         assertTrue(root.contains("composable(Destination.Profile.route)"))
     }
-    @Test
-    fun meStartsWithProfileAndKeepsApprovedPremiumGroups() {
-        val source = source("AlkeExperience.kt")
-
-        val me = source.substringAfter("fun AlkeMeExperience(")
-            .substringBefore("/** The real ALKE dock editor")
-        val profile = me.indexOf("Text(\"Your Profile\"")
-        val sources = me.indexOf("AlkeSectionTitle(\"Connected Sources\")")
-        val prefs = me.indexOf("AlkeSectionTitle(\"Preferences\")")
-        assertTrue(profile >= 0 && profile < sources && sources < prefs)
-        assertTrue(me.contains("onNavigate(Destination.Profile)"))
-        assertTrue(me.contains("PremiumWearableLink(vm,onDevices)"))
-        assertTrue(me.contains("PremiumLink(\"Health Connect & imports\""))
-        assertTrue(me.contains("PremiumLink(\"Google Drive / Local Folder\""))
-        val backupLink = me.substringAfter("PremiumLink(\"Google Drive / Local Folder\"")
-            .substringBefore("PremiumLink(\"Fused Record\"")
-        assertTrue("Backup shortcut must preserve the original callback and display its icon",
-            backupLink.contains("onBackupRestore, icon = Icons.Filled.CloudSync)"))
-        assertTrue(me.contains("PremiumLink(\"Smart Settings\""))
-
-        assertFalse(
-            source.contains("AlkeSectionTitle(\"Profile\")")
-        )
-
-        assertFalse(source.contains("Change photo"))
-        assertFalse(source.contains("Choose photo"))
-        assertFalse(source.contains("Text(\"Remove\""))
+    @Test fun meStartsWithProfileAndKeepsApprovedPremiumGroups() {
+        val me = source("AlkeExperience.kt").substringAfter("fun AlkeMeExperience(")
+            .substringBefore("fun AlkeMeGroupExperience(")
+        val profile = me.indexOf("Your Profile")
+        val wearable = me.indexOf("Wearable")
+        val preferences = me.indexOf("Health & Fitness")
+        assertTrue(profile >= 0 && profile < wearable && wearable < preferences)
+        assertTrue(me.contains("onGroup(MeGroup.PROFILE)"))
+        assertTrue(me.contains("onGroup(MeGroup.DATA)"))
+        assertFalse(me.contains("Smart Settings"))
+        assertFalse(me.contains("Change photo"))
+        assertFalse(me.contains("Choose photo"))
+        val nav = source("AppRoot.kt")
+        assertTrue(nav.contains("nav.navigate(MeGroup.PROFILE.route)"))
     }
 
-    @Test
-    fun premiumMeShortcutsRenderLeadingVectorsAndSleepCardIdentifiesRiskWithoutEvidence() {
+    @Test fun meGroupsPreserveCanonicalControlsAndSleepCardIdentifiesRiskWithoutEvidence() {
         val experience = source("AlkeExperience.kt")
-        val me = experience.substringAfter("fun AlkeMeExperience(")
-            .substringBefore("/** The real ALKE dock editor")
-        assertTrue(me.contains("icon = Icons.Filled.MonitorHeart"))
-        assertTrue(me.contains("icon = Icons.Filled.CloudSync"))
-        assertTrue(me.contains("icon = Icons.Filled.Storage"))
-        assertTrue(me.contains("icon = Icons.Filled.Sensors"))
-        assertTrue(me.contains("icon = Icons.Filled.Apps"))
-        assertTrue(me.contains("icon = Icons.Filled.Settings"))
-        assertTrue(me.contains("icon = Icons.Filled.AutoAwesome"))
-        assertTrue(me.contains("icon = Icons.Filled.BatterySaver"))
-        assertTrue(me.contains("icon = Icons.Filled.NotificationsNone"))
+        val groups = experience.substringAfter("fun AlkeMeGroupExperience(").substringBefore("fun MeDockSettings(")
+        for (target in listOf("MeSettingsPage.PROFILE", "MeSettingsPage.ACCOUNT", "Destination.BackupSync",
+            "Destination.Devices", "Destination.DataSources", "MeSettingsPage.ACTIVITY",
+            "MeSettingsPage.SLEEP", "MeSettingsPage.DOCK")) {
+            assertTrue("Missing route $target", groups.contains(target))
+        }
+        val account = source("GoogleAccountCard.kt")
+        assertTrue(account.contains("accountOnly"))
+        assertTrue(account.contains("backupOnly"))
         val premium = source("PremiumModules.kt")
         assertTrue(premium.contains("Icon(icon, contentDescription=null"))
         assertTrue(premium.contains("PremiumLink(\"Wearable devices\",status,onClick, icon = Icons.Filled.Sensors)"))

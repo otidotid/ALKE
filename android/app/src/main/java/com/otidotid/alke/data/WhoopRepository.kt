@@ -1814,6 +1814,12 @@ class WhoopRepository(
     suspend fun stepSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =
         dao.stepSamples(deviceId, from, to, limit)
 
+    /** Cloud-only historical sensor read, active source wins duplicate timestamps. Counter
+     * deltas are computed within a single device by the snapshot aggregator. */
+    internal suspend fun cloudStepSamplesUnion(activeDeviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT): List<StepSample> =
+        rawWhoopSourceIds(activeDeviceId).flatMap { dao.stepSamples(it, from, to, limit) }
+            .distinctBy { it.ts }.sortedBy { it.ts }
+
     suspend fun stepSampleBefore(deviceId: String, onset: Long): StepSample? =
         dao.stepSampleBefore(deviceId, onset)
 

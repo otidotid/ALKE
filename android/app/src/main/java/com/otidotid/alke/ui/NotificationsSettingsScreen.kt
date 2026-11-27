@@ -631,7 +631,7 @@ private fun DeliveryNote() {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(
+            if (!LocalMeDetailStyle.current) Icon(
                 Icons.Filled.Info,
                 contentDescription = null,
                 tint = Palette.accent,
@@ -659,7 +659,7 @@ private fun DeliveryNote() {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Icon(
+            if (!LocalMeDetailStyle.current) Icon(
                 Icons.AutoMirrored.Filled.OpenInNew,
                 contentDescription = null,
                 tint = Palette.accent,
@@ -726,8 +726,8 @@ private fun AppRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // App glyph in a rounded inset tile (stand-in for the real macOS app icon).
-        Box(
+        // Decorative app glyphs are excluded from Me detail pages.
+        if (!LocalMeDetailStyle.current) Box(
             modifier = Modifier
                 .size(34.dp)
                 .clip(RoundedCornerShape(8.dp))
@@ -788,7 +788,7 @@ private fun PatternMenu(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            Icon(
+            if (!LocalMeDetailStyle.current) Icon(
                 Icons.Filled.GraphicEq,
                 contentDescription = null,
                 tint = Palette.textSecondary,
@@ -854,7 +854,7 @@ private fun PillButton(label: String, icon: ImageVector, enabled: Boolean, onCli
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+        if (!LocalMeDetailStyle.current) Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
         Text(label, style = AlkeType.caption, color = tint)
     }
 }
@@ -962,9 +962,9 @@ private fun AlertSection(
     AlkeCard(padding = 20.dp, tint = Palette.accent) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Overline(overline)
+                if (!LocalMeDetailStyle.current) Overline(overline)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(icon, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(18.dp))
+                    if (!LocalMeDetailStyle.current) Icon(icon, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(18.dp))
                     Text(title, style = AlkeType.title2, color = Palette.textPrimary)
                 }
             }

@@ -73,7 +73,7 @@ internal object HuaweiPairingDiagnostic {
                 send(listOf(HuaweiLinkNegotiation.request()))
                 val parameters = HuaweiAuthCapabilities.parse(receive(1))
                 require(parameters.supportType == 4)
-                require(parameters.authVersion in 1..3 && parameters.encryptMethod in 0..1)
+                require(parameters.authVersion in 1..3 && parameters.effectiveEncryptMethod in 0..1)
                 val frameBudget = minOf(requireNotNull(parameters.sliceSize), 512)
                 require(frameBudget in 64..512)
                 stage = "Device status"

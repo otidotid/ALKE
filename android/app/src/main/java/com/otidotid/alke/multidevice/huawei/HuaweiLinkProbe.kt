@@ -61,7 +61,7 @@ internal object HuaweiLinkProbe {
                         linkReport = "$linkReport\nDevice status: ${status ?: "unknown"}"
                         val params = capabilities
                         if (status !in listOf(0, 1, 255) || params?.supportType != 4 ||
-                            params.encryptMethod !in listOf(0, 1)) {
+                            params.effectiveEncryptMethod !in listOf(0, 1)) {
                             return@withContext "$linkReport\nSecurity negotiation not attempted: unsupported or missing capability."
                         }
                         // Disposable identity for the debug probe only. Never reuse it as a
@@ -73,7 +73,7 @@ internal object HuaweiLinkProbe {
                         transport.write(HuaweiSecurityNegotiation.request(params, probeId, model))
                     } else if (awaitingSecurity && message.service == 1 && message.command == 0x33) {
                         val next = HuaweiSecurityNegotiation.parse(message)
-                        return@withContext "$linkReport\nSecurity negotiation (temporary probe identity): ${next.name}\nNo binding or key exchange attempted."
+                        return@withContext "$linkReport\nSecurity negotiation (temporary probe identity): ${next.name}\n${describeSecurity(message)}\nNo binding or key exchange attempted."
                     }
                 }
             }
@@ -93,6 +93,12 @@ internal object HuaweiLinkProbe {
             transport.close()
             scheduler.shutdownNow()
         }
+    }
+
+    private fun describeSecurity(message: HuaweiLinkFrames.Message): String {
+        val fields = HuaweiTlv.decode(message.payload)
+        val tags = fields.joinToString(", ") { "%02X:%d".format(java.util.Locale.ROOT, it.tag, it.value.size) }
+        return "Security response TLV tags:lengths: $tags"
     }
 
     /**
@@ -136,7 +142,8 @@ internal object HuaweiLinkProbe {
                 append("Authentication version: ").append(modern.authVersion ?: "unknown").append('\n')
                 append("Authentication algorithm: ").append(modern.authAlgorithm ?: "unknown").append('\n')
                 append("Bond state: ").append(modern.bondState ?: "unknown").append('\n')
-                append("Encryption method: ").append(modern.encryptMethod ?: "unknown").append('\n')
+                append("Encryption method: ").append(modern.encryptMethod ?: "not advertised").append('\n')
+                append("Effective encryption method: ").append(modern.effectiveEncryptMethod ?: "unknown").append(if (modern.encryptMethod == null && modern.effectiveEncryptMethod != null) " (LPv2 default)" else "").append('\n')
             }
             if (legacy != null) {
                 append("Protocol version: ").append(legacy.protocolVersion).append('\n')

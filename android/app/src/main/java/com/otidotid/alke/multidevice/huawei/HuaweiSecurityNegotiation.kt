@@ -23,7 +23,7 @@ internal object HuaweiSecurityNegotiation {
 
     fun request(parameters: HuaweiAuthCapabilities.Parameters, clientId: String, model: String): ByteArray {
         require(parameters.supportType == 4)
-        require(parameters.encryptMethod == 0 || parameters.encryptMethod == 1)
+        require(parameters.effectiveEncryptMethod == 0 || parameters.effectiveEncryptMethod == 1)
         require(clientId.matches(Regex("[0-9A-Fa-f]{32}")))
         val phone = model.toByteArray(Charsets.UTF_8)
         require(phone.size in 1..120)
@@ -41,7 +41,7 @@ internal object HuaweiSecurityNegotiation {
         field(4, byteArrayOf(0))
         field(6, byteArrayOf())
         field(7, phone)
-        if (parameters.encryptMethod == 1) field(13, byteArrayOf(1))
+        if (parameters.effectiveEncryptMethod == 1) field(13, byteArrayOf(1))
         return HuaweiLinkFrames.encode(1, 0x33, out.toByteArray())
     }
 

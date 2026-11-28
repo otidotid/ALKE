@@ -15,7 +15,13 @@ internal object HuaweiAuthCapabilities {
         val authAlgorithm: Int?,
         val bondState: Int?,
         val encryptMethod: Int?,
-    )
+    ) {
+        // LPv2 type-4/auth-v1 watch omits 0C when using the baseline PIN cipher.
+        // Keep the advertised value separate from the effective wire default.
+        val effectiveEncryptMethod: Int?
+            get() = encryptMethod ?: if (protocolVersion == 2 && supportType == 4 &&
+                authVersion == 1) 0 else null
+    }
 
     fun parse(message: HuaweiLinkFrames.Message): Parameters {
         require(message.service == 1 && message.command == 1)

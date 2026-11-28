@@ -45,6 +45,28 @@ class HuaweiAuthCapabilitiesTest {
             HuaweiLinkFrames.Message(1, 1, byteArrayOf(1, 1, 2))).supportType)
     }
 
+    @Test fun gt5ReportedTagLayoutUsesBaselineWithoutInventingAdvertisedValue() {
+        // Reconstruct only the observed tag lengths and reported nonsecret values.
+        val payload = byteArrayOf(1, 1, 2, 2, 2, 3, 0xfe.toByte(),
+            3, 2, 3, 0xde.toByte(), 4, 2, 0, 1, 5, 18, 0, 1) + ByteArray(16) +
+            byteArrayOf(7, 1, 4, 9, 1, 0, 13, 1, 0, 15, 1, 0, 16, 1, 0)
+        val message = HuaweiLinkFrames.Message(1, 1, payload)
+        val p = HuaweiAuthCapabilities.parse(message)
+        assertNull(p.encryptMethod)
+        assertNull(p.authAlgorithm)
+        assertEquals(0, p.effectiveEncryptMethod)
+        assertNull(p.copy(supportType = 3).effectiveEncryptMethod)
+        assertNull(p.copy(authVersion = 2).effectiveEncryptMethod)
+        assertEquals(1, p.copy(encryptMethod = 1).effectiveEncryptMethod)
+        assertEquals(7, p.copy(encryptMethod = 7).effectiveEncryptMethod)
+        val request = HuaweiLinkFrames.Decoder().feed(HuaweiSecurityNegotiation.request(
+            p, "00112233445566778899aabbccddeeff", "Test phone")).single()
+        assertEquals(0x33, request.command)
+        assertNull(HuaweiTlv.one(HuaweiTlv.decode(request.payload), 13))
+        assertTrue(HuaweiLinkProbe.describe(message).contains("Effective encryption method: 0 (LPv2 default)"))
+        assertTrue(runCatching { HuaweiFirstBind.request(p, false) }.isFailure)
+    }
+
     @Test fun statusReadIsQueryOnly() {
         val frame = HuaweiLinkFrames.Decoder()
             .feed(HuaweiAuthCapabilities.statusRequest()).single()

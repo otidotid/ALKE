@@ -23,7 +23,7 @@ internal object HuaweiFirstBind {
     }
 
     private fun validate(p: HuaweiAuthCapabilities.Parameters) {
-        require(p.supportType == 4 && p.authVersion in 1..3 && p.encryptMethod in 0..1) {
+        require(p.supportType == 4 && p.authVersion in 1..3 && p.effectiveEncryptMethod in 0..1) {
             "Unsupported first-bind parameters"
         }
     }
@@ -39,7 +39,7 @@ internal object HuaweiFirstBind {
         require(encrypted.size in 16..256)
         val key = protocolKey(requireNotNull(parameters.authVersion))
         val pin = try {
-            val cipher = if (parameters.encryptMethod == 1) {
+            val cipher = if (parameters.effectiveEncryptMethod == 1) {
                 require(iv.size in setOf(12, 16))
                 Cipher.getInstance("AES/GCM/NoPadding").apply {
                     init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, iv))

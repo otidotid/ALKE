@@ -45,8 +45,8 @@ android {
         minSdk = 26
         targetSdk = 34
         // ALKE Alpha 1: user-test build; no production signing or data migration changes.
-        versionCode = 633
-        versionName = "1.0.0-alpha.22.43-huawei-pairing-diagnostic"
+        versionCode = 634
+        versionName = "1.0.0-alpha.22.44-huawei-lpv2-capability"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_COACH_BASE_URL", "\"${cloudCoachBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")

@@ -230,8 +230,10 @@ fun DevicesScreen(
             }
         }
 
-        // Temporary physical Huawei protocol diagnostic; never present in release variants.
-        if (com.otidotid.alke.BuildConfig.DEBUG) {
+        // Explicit experimental physical test is available on the owner-only Personal tier.
+        // Never expose it in Demo or the public non-debug full release.
+        if (!com.otidotid.alke.BuildConfig.ENABLE_DEMO &&
+            (com.otidotid.alke.BuildConfig.DEBUG || com.otidotid.alke.BuildConfig.TIER == "personal")) {
             item { HuaweiDiagnosticCard() }
         }
 

@@ -8,6 +8,8 @@ import java.util.concurrent.TimeUnit
  * Experimental, opt-in native file exchange on the existing serialized GCM session.
  * It is intentionally not called by automatic sync before physical validation.
  */
+internal class HuaweiFileUnavailable : IOException("Authenticated file unavailable")
+
 internal class HuaweiFileSession(
     private val reads: HuaweiSessionReads,
     private val transport: HuaweiHiChainTransport,
@@ -26,12 +28,14 @@ internal class HuaweiFileSession(
             if (remaining <= 0) throw SocketTimeoutException("Huawei file transfer deadline")
             return minOf(8_000L, maxOf(1L, TimeUnit.NANOSECONDS.toMillis(remaining)))
         }
-        fun status(body: ByteArray) {
+        fun status(body: ByteArray, initial: Boolean = false) {
             val fields = HuaweiTlv.decode(body)
             HuaweiTlv.one(fields, 0x7f)?.let {
                 require(it.size == 4)
-                if (!it.contentEquals(byteArrayOf(0,1,0x86.toByte(),0xa0.toByte())))
+                if (!it.contentEquals(byteArrayOf(0,1,0x86.toByte(),0xa0.toByte()))) {
+                    if (initial) throw HuaweiFileUnavailable()
                     throw IOException("Huawei file request rejected")
+                }
             }
         }
         fun <T> query(command: Int, body: ByteArray, parse: (ByteArray) -> T): T {
@@ -39,7 +43,7 @@ internal class HuaweiFileSession(
             transport.send(reads.requestInitialization(service,command,body))
             return reads.receiveInitialization(transport.receive(command,service,timeLeft())).use {
                 if (!it.encrypted) throw IOException("Unauthenticated Huawei file metadata")
-                status(it.payload)
+                status(it.payload,command == HuaweiFileRead.INIT)
                 parse(it.payload)
             }
         }
@@ -90,6 +94,9 @@ internal class HuaweiFileSession(
                 transport.ignoreLateReply(service,HuaweiFileRead.COMPLETE)
                 return assembly.finish()
             }
+        } catch (e: HuaweiFileUnavailable) {
+            // A GCM-authenticated rejection of INIT leaves no transfer in flight.
+            throw e
         } catch (e: Exception) {
             // Do not reuse a session with an interrupted or ambiguous burst.
             reads.close()

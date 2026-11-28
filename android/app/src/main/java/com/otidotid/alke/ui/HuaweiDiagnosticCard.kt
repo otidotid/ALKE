@@ -30,7 +30,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * Temporary debug-build-only physical test entry. Does not add a device to the registry,
+ * Explicit experimental physical test entry for Personal and non-demo debug builds. Does not add a device to the registry,
  * change the active WHOOP, start a background job, or imply authenticated connectivity.
  */
 @SuppressLint("MissingPermission")
@@ -64,7 +64,7 @@ internal fun HuaweiDiagnosticCard() {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Huawei GT 5 — connection diagnostic")
-            Text("Development only. Authenticate and maintain a read-only session while ALKE runs. WHOOP settings remain unchanged.")
+            Text("Experimental. Authenticate and maintain a read-only session while ALKE runs. WHOOP settings remain unchanged.")
             HuaweiSystemPairButton(enabled = !busy) { report = it }
             Button(enabled = !busy, onClick = {
                 probeBusy = true
@@ -114,6 +114,7 @@ internal fun HuaweiDiagnosticCard() {
                 }
             }
             if (connection.running) TextButton(onClick = { HuaweiConnectionController.disconnect() }) { Text("Disconnect Huawei") }
+            HuaweiRecoveryCard(enabled = !busy)
             if (probeBusy) Text("Checking Bluetooth…")
             (report ?: connection.report)?.let { result ->
                 Text(result)

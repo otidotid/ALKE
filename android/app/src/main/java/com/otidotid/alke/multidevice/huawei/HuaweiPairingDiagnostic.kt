@@ -34,6 +34,7 @@ internal object HuaweiPairingDiagnostic {
             }, 60, TimeUnit.SECONDS)
             var stage = "Checking saved binding"
             var lastResponse = ""
+            var transportTrace = HuaweiHandshakeTrace()
             var existing: HuaweiCredentialStore.Binding? = null
             var provisional: ByteArray? = null
             var sessionKey: ByteArray? = null
@@ -52,20 +53,38 @@ internal object HuaweiPairingDiagnostic {
                     for (frame in frames) {
                         if (expired.get()) throw IOException("Huawei pairing timeout")
                         link.write(frame)
+                        transportTrace.sent(frame.size)
                     }
                 }
                 fun receive(command: Int): HuaweiLinkFrames.Message {
-                    while (pending.isEmpty()) {
-                        if (expired.get()) throw IOException("Huawei pairing timeout")
-                        val n = link.read(buffer)
-                        if (n <= 0 || n > buffer.size || expired.get())
-                            throw IOException("Huawei transport ended")
-                        remaining -= n
-                        if (remaining < 0) throw IOException("Huawei response limit")
-                        pending.addAll(decoder.feed(buffer.copyOf(n)))
-                    }
-                    return pending.removeFirst().also {
-                        require(it.service == 1 && it.command == command) { "Unexpected Huawei response" }
+                    while (true) {
+                        while (pending.isEmpty()) {
+                            if (expired.get()) throw IOException("Huawei pairing timeout")
+                            val n = try { link.read(buffer) } catch (e: IOException) {
+                                transportTrace.failure("socket read failed")
+                                throw e
+                            }
+                            if (n <= 0 || n > buffer.size || expired.get()) {
+                                transportTrace.failure(if (n <= 0) "socket EOF" else "read interrupted")
+                                throw IOException("Huawei transport ended")
+                            }
+                            transportTrace.received(n)
+                            remaining -= n
+                            if (remaining < 0) throw IOException("Huawei response limit")
+                            try {
+                                pending.addAll(decoder.feed(buffer.copyOf(n)))
+                            } catch (e: IllegalArgumentException) {
+                                transportTrace.failure("invalid LPv2 frame")
+                                throw e
+                            }
+                        }
+                        val message = pending.removeFirst()
+                        if (transportTrace.matches(message, command)) return message
+                        // Unrelated notifications must not be interpreted as handshake replies.
+                        // Drop only while awaiting HiChain; all other exchanges remain strict.
+                        require(command == 0x28 && transportTrace.unmatched <= 8) {
+                            "Unexpected Huawei response"
+                        }
                     }
                 }
                 stage = "Opening Bluetooth"
@@ -89,6 +108,7 @@ internal object HuaweiPairingDiagnostic {
                         frameBudget, allowProvisionalReadback = true).use { session ->
                         val label = if (op == HuaweiIsoExchange.Operation.BIND) "First bind" else "Reconnect"
                         lastResponse = ""
+                        transportTrace = HuaweiHandshakeTrace()
                         stage = "$label: send initial handshake"
                         send(session.begin())
                         repeat(4) {
@@ -134,7 +154,7 @@ internal object HuaweiPairingDiagnostic {
                 throw e
             } catch (_: Exception) {
                 // Do not include exception text, peer identifiers, payloads or credentials.
-                "$stage: ${if (expired.get()) "timed out" else "failed or unsupported"}. $lastResponse\nNo health data synced. Do not reset automatically."
+                "$stage: ${if (expired.get()) "timed out" else "failed or unsupported"}. $lastResponse\n${transportTrace.summary()}\nNo health data synced. Do not reset automatically."
             } finally {
                 existing?.close()
                 provisional?.fill(0)

@@ -126,26 +126,36 @@ internal class HuaweiFitnessSession(
             val samples = sortedMapOf<Long, HuaweiWorkoutDetail.Sample>()
             val splits = mutableListOf<HuaweiWorkoutDetail.Split>()
             if (includeDetails && ref.dataPages <= remainingPages) {
-                repeat(ref.dataPages) { index ->
-                    val page = query(HuaweiWorkoutDetail.DATA, HuaweiWorkoutDetail.request(ref.number, index, false),
-                        service = 0x17, parse = HuaweiWorkoutDetail::data)
-                    require(page.number == ref.number && page.page == index)
-                    for (sample in page.samples) {
-                        if (sample.timestamp !in row.start..row.end) continue
-                        val previous = samples.put(sample.timestamp, sample)
-                        require(previous == null || previous == sample)
-                    }
-                }
                 remainingPages -= ref.dataPages
+                try {
+                    repeat(ref.dataPages) { index ->
+                        val page = query(HuaweiWorkoutDetail.DATA, HuaweiWorkoutDetail.request(ref.number, index, false),
+                            service = 0x17, parse = HuaweiWorkoutDetail::data)
+                        require(page.number == ref.number && page.page == index)
+                        for (sample in page.samples) {
+                            if (sample.timestamp !in row.start..row.end) continue
+                            val previous = samples.put(sample.timestamp, sample)
+                            require(previous == null || previous == sample)
+                        }
+                    }
+                } catch (_: HuaweiFitnessRejected) {
+                    // An explicitly rejected optional stream must not discard the verified summary.
+                    // Never persist a truncated set of detail pages.
+                    samples.clear()
+                }
             }
             if (includeDetails && ref.pacePages <= remainingPages) {
-                repeat(ref.pacePages) { index ->
-                    val page = query(HuaweiWorkoutDetail.PACE, HuaweiWorkoutDetail.request(ref.number, index, true),
-                        service = 0x17, parse = HuaweiWorkoutDetail::pace)
-                    require(page.number == ref.number && page.page == index)
-                    splits.addAll(page.splits)
-                }
                 remainingPages -= ref.pacePages
+                try {
+                    repeat(ref.pacePages) { index ->
+                        val page = query(HuaweiWorkoutDetail.PACE, HuaweiWorkoutDetail.request(ref.number, index, true),
+                            service = 0x17, parse = HuaweiWorkoutDetail::pace)
+                        require(page.number == ref.number && page.page == index)
+                        splits.addAll(page.splits)
+                    }
+                } catch (_: HuaweiFitnessRejected) {
+                    splits.clear()
+                }
             }
             WorkoutBundle(row, samples.values.toList(), splits.toList())
         }

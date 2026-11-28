@@ -192,6 +192,22 @@ class HuaweiPairingProtocolTest {
         }
     }
 
+    @Test fun authenticatedWorkoutDetailRejectionsPreserveVerifiedSummaryAndSession() {
+        val watch = Watch().apply { rejectWorkoutDetails = true }
+        watch.open().use { link ->
+            protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {}, {},
+                onSession = { _, fitness ->
+                    val bundle = fitness.workoutBundles(60, 120).single()
+                    assertEquals(4, bundle.summary.number)
+                    assertTrue(bundle.samples.isEmpty())
+                    assertTrue(bundle.splits.isEmpty())
+                    assertEquals(123, fitness.totals().steps)
+                })
+        }
+        assertTrue(watch.events.contains("workout data rejected"))
+        assertTrue(watch.events.contains("workout pace rejected"))
+    }
+
     @Test fun rejectsPlaintextFitnessEvenAfterGcmProductInfo() {
         val watch = Watch().apply { plainFitness = true }
         watch.open().use { link ->
@@ -215,6 +231,7 @@ class HuaweiPairingProtocolTest {
         var plainFitness = false
         var onlyInitiatingCommands = false
         var rejectSleepCount = false
+        var rejectWorkoutDetails = false
         private var bound = false
 
         fun open() = Link()
@@ -284,13 +301,20 @@ class HuaweiPairingProtocolTest {
                             assertArrayEquals(bytes(0x81, 12, 3, 4, 0, 0, 0, 60, 4, 4, 0, 0, 0, 120),
                                 decryptRequest(body))
                             encryptedReply(command, bytes(0x81, 18, 2, 2, 0, 1, 0x85, 12,
-                                6, 2, 0, 4, 7, 2, 0, 0, 8, 2, 0, 0), service = 0x17)
+                                6, 2, 0, 4, 7, 2, 0, if (rejectWorkoutDetails) 1 else 0,
+                                8, 2, 0, if (rejectWorkoutDetails) 1 else 0), service = 0x17)
                         }
                         8 -> {
                             events += "workout totals"
                             assertArrayEquals(bytes(0x81, 4, 2, 2, 0, 4), decryptRequest(body))
                             encryptedReply(command, bytes(0x81, 25, 2, 2, 0, 4, 4, 4, 0, 0, 0, 60,
                                 5, 4, 0, 0, 0, 120, 0x14, 1, 1, 7, 4, 0, 0, 0, 100), service = 0x17)
+                        }
+                        10, 12 -> {
+                            check(rejectWorkoutDetails)
+                            decryptRequest(body)
+                            events += if (command == 10) "workout data rejected" else "workout pace rejected"
+                            encryptedReply(command, bytes(0x7f, 4, 0, 1, 0x86, 0xa1), service = 0x17)
                         }
                         else -> error("Unexpected workout command")
                     }

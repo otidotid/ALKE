@@ -118,7 +118,9 @@ internal object HuaweiPairingDiagnostic {
                     HuaweiTimelineSource.selectVerifiedDevice(context.applicationContext, deviceKey)
                     val sessionStart = android.os.SystemClock.elapsedRealtime()
                     var charge = info.batteryPercent
-                    var nextBattery = if (charge != null) android.os.SystemClock.elapsedRealtime() + 300_000L else Long.MAX_VALUE
+                    // Do not reissue a timed-out command on the same stream: a late reply
+                    // could be mistaken for the new response. Retry on fresh authentication.
+                    var nextBattery = if (charge != null) sessionStart + 300_000L else Long.MAX_VALUE
                     var nextHistory = 0L
                     var backfillEnd = 0L
                     var olderWindows = 0
@@ -146,7 +148,9 @@ internal object HuaweiPairingDiagnostic {
                         val elapsed = android.os.SystemClock.elapsedRealtime()
                         if (elapsed >= nextBattery) {
                             charge = fitness.batteryPercent()
-                            nextBattery = elapsed + 300_000L
+                            nextBattery = if (charge != null)
+                                android.os.SystemClock.elapsedRealtime() + 300_000L else Long.MAX_VALUE
+                            if (charge == null) telemetryNotes += "\nBattery refresh unavailable; retry on next authenticated session."
                             onStatus(true, charge, true)
                         }
                         val before = System.currentTimeMillis()

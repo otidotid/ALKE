@@ -95,6 +95,10 @@ internal object HuaweiRecoveryArchive {
                 require(!it.moveToFirst()) { "Invalid Huawei archive row" }
             }
         }
+        validateWorkoutLinks(db)
+    }
+
+    private fun validateWorkoutLinks(db: SQLiteDatabase) {
         for (table in listOf("workout_sample","workout_pace","workout_gps_candidate")) {
             val window = if (table == "workout_pace") "" else " AND d.ts BETWEEN s.start AND s.end"
             db.rawQuery("SELECT 1 FROM $table d WHERE NOT EXISTS (SELECT 1 FROM workout_summary s WHERE s.device=d.device AND s.start=d.start AND s.number=d.number$window) LIMIT 1",null).use {
@@ -229,6 +233,9 @@ internal object HuaweiRecoveryArchive {
                                 }
                             }
                         }
+                        // Verify relationships against the combined local + recovered rows.
+                        // Any inconsistency rolls back the entire import.
+                        validateWorkoutLinks(dest)
                         dest.setTransactionSuccessful()
                     } finally { dest.endTransaction() }
                 }

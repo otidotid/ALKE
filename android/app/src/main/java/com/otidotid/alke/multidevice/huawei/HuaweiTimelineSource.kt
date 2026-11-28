@@ -19,6 +19,8 @@ internal object HuaweiTimelineSource {
     private const val KEY = "verified_device"
     private val mutableRevision = MutableStateFlow(0L)
     val revision = mutableRevision.asStateFlow()
+    private val mutableStepRevision = MutableStateFlow(0L)
+    val stepRevision = mutableStepRevision.asStateFlow()
 
     fun selectVerifiedDevice(context: Context, deviceKey: String) {
         require(deviceKey.matches(Regex("[0-9a-f]{64}")))
@@ -33,7 +35,10 @@ internal object HuaweiTimelineSource {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null)
             ?.takeIf { it.matches(Regex("[0-9a-f]{64}")) }
 
-    @Synchronized fun changed() { mutableRevision.value += 1 }
+    @Synchronized fun changed(hrChanged: Boolean = true, stepsChanged: Boolean = true) {
+        if (hrChanged) mutableRevision.value += 1
+        if (stepsChanged) mutableStepRevision.value += 1
+    }
 
     data class Result(val buckets: List<HrBucket>, val huaweiBucketStarts: Set<Long>)
 

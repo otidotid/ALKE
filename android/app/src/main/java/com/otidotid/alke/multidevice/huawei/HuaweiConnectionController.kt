@@ -15,7 +15,8 @@ import kotlinx.coroutines.delay
 /** App-process-owned test connection, independent of the Devices screen and WHOOP. */
 internal object HuaweiConnectionController {
     data class State(val running: Boolean = false, val report: String? = null,
-        val authenticated: Boolean = false, val batteryPercent: Int? = null, val syncing: Boolean = false)
+        val authenticated: Boolean = false, val batteryPercent: Int? = null, val syncing: Boolean = false,
+        val previouslyAuthenticated: Boolean = false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutableState = MutableStateFlow(State())
     val state = mutableState.asStateFlow()
@@ -35,7 +36,8 @@ internal object HuaweiConnectionController {
                     result = HuaweiPairingDiagnostic.run(context.applicationContext, device, allowFirstBind,
                         onStatus = { authenticated, percent, syncing ->
                             mutableState.value = mutableState.value.copy(authenticated = authenticated,
-                                batteryPercent = percent?.takeIf { it in 0..100 }, syncing = syncing)
+                                batteryPercent = percent?.takeIf { it in 0..100 }, syncing = syncing,
+                                previouslyAuthenticated = mutableState.value.previouslyAuthenticated || authenticated)
                         }, onVerified = {
                             mutableState.value = mutableState.value.copy(running = true, report = it)
                         }, testFiles = fileProbe)
@@ -45,11 +47,13 @@ internal object HuaweiConnectionController {
                     allowFirstBind = false
                     if (result == HuaweiPairingDiagnostic.SESSION_ROTATION) {
                         failures = 0
-                        mutableState.value = State(true, "Refreshing Huawei authenticated session...")
+                        mutableState.value = State(true, "Refreshing Huawei authenticated session...",
+                            previouslyAuthenticated = mutableState.value.previouslyAuthenticated)
                         continue
                     }
                     if (result != HuaweiPairingDiagnostic.SESSION_LINK_LOST || ++failures > 3) break
-                    mutableState.value = State(true, "Huawei link lost; reconnecting saved binding ($failures/3).")
+                    mutableState.value = State(true, "Huawei link lost; reconnecting saved binding ($failures/3).",
+                        previouslyAuthenticated = mutableState.value.previouslyAuthenticated)
                     delay(2000L * failures)
                 }
                 mutableState.value = State(false, result)

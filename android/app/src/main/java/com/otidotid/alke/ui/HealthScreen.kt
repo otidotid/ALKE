@@ -2188,7 +2188,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
     val profile = remember { ProfileStore.from(context.applicationContext) }
     val isSeriesBacked = key in SERIES_BACKED_VITAL_KEYS
     val isStepsDetail = key == "steps_est"
-    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
+    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.stepRevision.collectAsStateWithLifecycle()
     // #1617: the ACTIVE strap's family, resolved brand-aware from the registry rather than from a live
     // flag. Null until the row loads, and null for a non-WHOOP device; both fall through to the neutral
     // empty-state copy, so this never claims a generation it has not established.

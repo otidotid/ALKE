@@ -229,7 +229,8 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
         require(records.all { it.epochSeconds in start until end })
         require(records.map { it.epochSeconds }.distinct().size == records.size)
         val db = writableDatabase
-        var changed = false
+        var hrChanged = false
+        var stepsChanged = false
         db.beginTransaction()
         try {
             for (row in records) {
@@ -248,12 +249,13 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
                 }
                 if (merged != old) {
                     check(db.insertWithOnConflict("minute", null, values, SQLiteDatabase.CONFLICT_REPLACE) != -1L)
-                    changed = true
+                    hrChanged = hrChanged || merged.heartRate != old?.heartRate
+                    stepsChanged = stepsChanged || merged.steps != old?.steps
                 }
             }
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
-        if (changed) HuaweiTimelineSource.changed()
+        HuaweiTimelineSource.changed(hrChanged, stepsChanged)
     }
 
     fun saveTotals(device: String, day: String, observed: Long, totals: HuaweiFitnessRead.Totals) {

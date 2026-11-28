@@ -56,17 +56,30 @@ internal class HuaweiFitnessSession(
     }
 
     /** Battery is the known mixed-mode read; only after authenticated ProductInfo. */
-    fun batteryPercent(): Int {
+    fun batteryPercent(): Int? {
         val service = HuaweiDeviceInfo.SERVICE
         val command = HuaweiDeviceInfo.BATTERY
         transport.resetTrace()
         transport.send(reads.requestInitialization(service, command, HuaweiDeviceInfo.query(command)))
-        return reads.receiveInitialization(transport.receive(command, service, 8000)).use { reply ->
-            if (!reply.encrypted) {
-                val fields = HuaweiTlv.decode(reply.payload)
-                require(fields.all { it.tag in 1..3 || it.tag == 0x7f } &&
-                    HuaweiTlv.one(fields, 1)?.size == 1)
+        val response = try {
+            transport.receive(command, service, 3000)
+        } catch (_: java.net.SocketTimeoutException) {
+            reads.finishInitializationWithoutReply(service, command)
+            transport.ignoreLateReply(service, command)
+            return null
+        }
+        return reads.receiveInitialization(response).use { reply ->
+            val fields = HuaweiTlv.decode(reply.payload)
+            val status = HuaweiTlv.one(fields, 0x7f)
+            if (status != null) {
+                require(status.size == 4)
+                if (!status.contentEquals(byteArrayOf(0,1,0x86.toByte(),0xa0.toByte()))) {
+                    if (!reply.encrypted) require(fields.size == 1)
+                    return@use null
+                }
             }
+            if (!reply.encrypted) require(fields.all { it.tag in 1..3 || it.tag == 0x7f } &&
+                HuaweiTlv.one(fields, 1)?.size == 1)
             HuaweiDeviceInfo.battery(HuaweiLinkFrames.Message(service, command, reply.payload))
         }
     }

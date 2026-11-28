@@ -31,6 +31,7 @@ internal class HuaweiRfcommTransport(
     private val guard = Any()
     @Volatile private var socket: BluetoothSocket? = null
     private val reader = Executors.newSingleThreadExecutor()
+    private val writer = Executors.newSingleThreadExecutor()
     // Accessed only by the serialized protocol worker. A deadline never starts a second socket read.
     private var inFlightRead: Future<ByteArray>? = null
 
@@ -89,9 +90,33 @@ internal class HuaweiRfcommTransport(
     @Synchronized
     override fun write(frame: ByteArray) {
         require(frame.isNotEmpty())
-        val output = connectedSocket().outputStream
-        output.write(frame)
-        output.flush()
+        val task = try {
+            writer.submit {
+                val output = connectedSocket().outputStream
+                output.write(frame)
+                output.flush()
+            }
+        } catch (e: java.util.concurrent.RejectedExecutionException) {
+            throw IOException("Huawei writer closed", e)
+        }
+        try {
+            task.get(8, TimeUnit.SECONDS)
+        } catch (_: TimeoutException) {
+            task.cancel(true)
+            close()
+            throw SocketTimeoutException("Huawei write deadline")
+        } catch (e: InterruptedException) {
+            task.cancel(true)
+            close()
+            Thread.currentThread().interrupt()
+            throw IOException("Huawei socket write interrupted", e)
+        } catch (e: ExecutionException) {
+            close()
+            throw IOException("Huawei socket write failed", e.cause)
+        } catch (e: java.util.concurrent.CancellationException) {
+            close()
+            throw IOException("Huawei writer closed", e)
+        }
     }
 
     private fun connectedSocket(): BluetoothSocket {
@@ -104,7 +129,10 @@ internal class HuaweiRfcommTransport(
         if (closed.compareAndSet(false, true)) {
             val pending = synchronized(guard) { socket.also { socket = null } }
             try { pending?.close() } catch (_: IOException) { }
-            reader.shutdownNow()
+            finally {
+                reader.shutdownNow()
+                writer.shutdownNow()
+            }
         }
     }
 

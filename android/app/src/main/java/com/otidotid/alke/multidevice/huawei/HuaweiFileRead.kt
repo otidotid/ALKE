@@ -71,7 +71,8 @@ internal object HuaweiFileRead {
         require(HuaweiTlv.unsigned(fields, 5, 1) == 0)
         val burst = requireNotNull(HuaweiTlv.unsigned(fields, 3, 2))
         val max = read32(fields, 4)
-        require(burst in 1..HuaweiLinkFrames.MAX_BODY && max in 1..MAX_FILE_BYTES.toLong())
+        // Burst is opaque unsigned metadata; maxBlock is the known byte limit.
+        require(max in 1..MAX_FILE_BYTES.toLong())
         return Parameters(id, burst, max.toInt())
     }
 

@@ -300,11 +300,11 @@ private fun AlkeHeader(
         }
 
         // Preserve single-device appearance; when Huawei authenticates, display separate readings.
-        if (huawei.authenticated) {
+        if (huawei.authenticated || (huawei.running && huawei.previouslyAuthenticated)) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp), horizontalAlignment = Alignment.End) {
                 AlkeDualBatteryLine(if (activeIsOura) "RING" else "WHOOP", battery,
                     !activeIsOura && live.charging == true)
-                AlkeDualBatteryLine("GT5", huawei.batteryPercent, false)
+                AlkeDualBatteryLine("GT5", huawei.batteryPercent, false, huawei.authenticated)
             }
         } else {
         // Option A: one matte battery chip, icon first, percentage second.
@@ -388,7 +388,7 @@ private fun AlkeHeader(
 }
 
 @Composable
-private fun AlkeDualBatteryLine(name: String, percent: Int?, charging: Boolean) {
+private fun AlkeDualBatteryLine(name: String, percent: Int?, charging: Boolean, connected: Boolean = true) {
     Row(
         Modifier.clip(RoundedCornerShape(50.dp)).background(Color(0xFF1B222D))
             .border(1.dp, Color(0xFF303B48), RoundedCornerShape(50.dp))
@@ -397,7 +397,7 @@ private fun AlkeDualBatteryLine(name: String, percent: Int?, charging: Boolean) 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        Text(name, color = A.muted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(name, color = if (connected) A.muted else A.muted.copy(alpha = 0.6f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         AlkeBatteryGlyph(percent, charging, Modifier.size(width = 23.dp, height = 13.dp))
         Text(percent?.let { "$it%" } ?: "—", color = if (percent == null) A.muted else A.white,
             fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
@@ -846,7 +846,7 @@ fun AlkeTodayExperience(
     // The existing Steps detail resolver provides real, imported, and estimated
     // readings with the same precedence as Progress. Show ONLY today's reading
     // in the Today tile; a prior date must never masquerade as today's steps.
-    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
+    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.stepRevision.collectAsStateWithLifecycle()
     val stepsModel by produceState<VitalDetailModel?>(
         initialValue = null, key1 = vm.activeStrapId, key2 = recentDays, key3 = huaweiStepsRevision,
     ) {
@@ -1705,7 +1705,7 @@ fun AlkeProgressExperience(
     // Reuse the original steps-history data resolver: real wearable measurements
     // first, then Apple/Health Connect imports, then the motion-model estimate.
     // One source of truth for both this overview and its detail chart.
-    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
+    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.stepRevision.collectAsStateWithLifecycle()
     val stepsModel by produceState<VitalDetailModel?>(
         initialValue = null, key1 = vm.activeStrapId, key2 = days, key3 = huaweiStepsRevision,
     ) {

@@ -141,6 +141,19 @@ class HuaweiPairingProtocolTest {
             watch.events.takeLast(4))
     }
 
+    @Test fun missingBatteryRefreshDoesNotAbortAuthenticatedFitness() {
+        val watch = Watch()
+        watch.open().use { link ->
+            protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {}, {},
+                onSession = { _, fitness ->
+                    watch.silentBattery = true
+                    assertNull(fitness.batteryPercent())
+                    watch.silentBattery = false
+                    assertEquals(123, fitness.totals().steps)
+                })
+        }
+    }
+
     @Test fun refreshesBatteryOnAuthenticatedSocketWithoutRebinding() {
         val watch = Watch()
         watch.open().use { link ->

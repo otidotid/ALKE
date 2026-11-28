@@ -75,8 +75,9 @@ internal class HuaweiFileSession(
                                 } else {
                                     val block = HuaweiFileRead.block(reply.payload)
                                     try {
-                                        require(block.bytes.size <= params.burst &&
-                                            block.bytes.size <= target - assembly.nextOffset)
+                                        // The burst field's units are not verified on GT5.
+                                        // Enforce the independent byte/offset/packet bounds.
+                                        require(block.bytes.size <= target - assembly.nextOffset)
                                         assembly.append(block)
                                     } finally { block.bytes.fill(0) }
                                 }

@@ -33,6 +33,7 @@ internal object HuaweiPairingDiagnostic {
                 link.close()
             }, 60, TimeUnit.SECONDS)
             var stage = "Checking saved binding"
+            var lastResponse = ""
             var existing: HuaweiCredentialStore.Binding? = null
             var provisional: ByteArray? = null
             var sessionKey: ByteArray? = null
@@ -74,8 +75,7 @@ internal object HuaweiPairingDiagnostic {
                 val parameters = HuaweiAuthCapabilities.parse(receive(1))
                 require(parameters.supportType == 4)
                 require(parameters.authVersion in 1..3 && parameters.effectiveEncryptMethod in 0..1)
-                val frameBudget = minOf(requireNotNull(parameters.sliceSize), 512)
-                require(frameBudget in 64..512)
+                val frameBudget = HuaweiAuthCapabilities.hiChainFrameBudget(parameters)
                 stage = "Device status"
                 send(listOf(HuaweiAuthCapabilities.statusRequest()))
                 require(HuaweiAuthCapabilities.parseStatus(receive(0x16)) in listOf(0, 1, 255))
@@ -87,9 +87,15 @@ internal object HuaweiPairingDiagnostic {
                 fun exchange(op: HuaweiIsoExchange.Operation, credential: ByteArray): ByteArray {
                     HuaweiHiChainSession(op, credential, identity, GROUP, System.currentTimeMillis(),
                         frameBudget, allowProvisionalReadback = true).use { session ->
+                        val label = if (op == HuaweiIsoExchange.Operation.BIND) "First bind" else "Reconnect"
+                        lastResponse = ""
+                        stage = "$label: send initial handshake"
                         send(session.begin())
                         repeat(4) {
-                            send(session.receive(receive(0x28)))
+                            stage = "$label: ${session.phase.name}"
+                            val reply = receive(0x28)
+                            lastResponse = HuaweiHiChainWire.safeResponseMetadata(reply)
+                            send(session.receive(reply))
                             if (session.phase == HuaweiHiChainSession.Phase.TERMINAL_UNVERIFIED)
                                 return session.takeProvisionalForVerification()
                         }
@@ -128,7 +134,7 @@ internal object HuaweiPairingDiagnostic {
                 throw e
             } catch (_: Exception) {
                 // Do not include exception text, peer identifiers, payloads or credentials.
-                "$stage: ${if (expired.get()) "timed out" else "failed or unsupported"}. No health data synced. Do not reset automatically."
+                "$stage: ${if (expired.get()) "timed out" else "failed or unsupported"}. $lastResponse\nNo health data synced. Do not reset automatically."
             } finally {
                 existing?.close()
                 provisional?.fill(0)

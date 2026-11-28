@@ -117,6 +117,33 @@ internal class HuaweiHiChainWire(
     }
 
     companion object {
+        /** No raw payload, PIN, token, identity, nonce or key is exposed. */
+        fun safeResponseMetadata(message: HuaweiLinkFrames.Message): String {
+            require(message.service == 1 && message.command == 0x28)
+            return runCatching {
+                val fields = HuaweiTlv.decode(message.payload)
+                val tags = fields.joinToString(", ") {
+                    "%02X:%d".format(java.util.Locale.ROOT, it.tag, it.value.size)
+                }
+                val type = HuaweiTlv.unsigned(fields, 4, 1)
+                val status = HuaweiTlv.one(fields, 0x7f)?.let {
+                    if (it.size in 1..4) it.fold(0L) { n, b -> (n shl 8) or (b.toLong() and 255) } else null
+                }
+                val jsonError = runCatching {
+                    val bytes = HuaweiTlv.one(fields, 1) ?: return@runCatching null
+                    if (bytes.size !in 2..8192 || type != 0) return@runCatching null
+                    val json = JSONObject(bytes.toString(Charsets.UTF_8))
+                    val payload = json.optJSONObject("payload")
+                    when {
+                        payload?.has("errorCode") == true -> payload.getInt("errorCode")
+                        json.has("errorCode") -> json.getInt("errorCode")
+                        else -> null
+                    }
+                }.getOrNull()
+                "HiChain response tags:lengths: $tags; type=${type ?: "unknown"}; status=${status ?: "none"}; errorCode=${jsonError ?: "none"}"
+            }.getOrDefault("HiChain response malformed (payload withheld)")
+        }
+
         private fun hex(bytes: ByteArray): String = bytes.joinToString("") { "%02X".format(it.toInt() and 255) }
         private fun parseHex(value: String, sizes: IntRange): ByteArray {
             require(value.length % 2 == 0 && value.length / 2 in sizes &&

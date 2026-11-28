@@ -40,6 +40,10 @@ internal object HuaweiAuthCapabilities {
         )
     }
 
+    /** Respect the advertised LPv2 full-frame limit for HiChain, not an arbitrary 512-byte cap. */
+    fun hiChainFrameBudget(parameters: Parameters): Int =
+        requireNotNull(parameters.sliceSize).also { require(it in 64..32772) }
+
     /** Status query only; never sends the alternative status-notification command. */
     fun statusRequest(): ByteArray =
         HuaweiLinkFrames.encode(1, 0x16, byteArrayOf(1, 0))

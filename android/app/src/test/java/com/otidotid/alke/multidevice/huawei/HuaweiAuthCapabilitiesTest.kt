@@ -34,6 +34,8 @@ class HuaweiAuthCapabilitiesTest {
         val p = HuaweiAuthCapabilities.parse(message)
         assertEquals(2, p.protocolVersion)
         assertEquals(1022, p.sliceSize)
+        assertEquals(1022, HuaweiAuthCapabilities.hiChainFrameBudget(p))
+        assertTrue(runCatching { HuaweiAuthCapabilities.hiChainFrameBudget(p.copy(sliceSize = 0)) }.isFailure)
         assertEquals(990, p.mtu)
         assertEquals(1, p.authVersion)
         assertEquals(4, p.supportType)

@@ -88,7 +88,7 @@ internal class HuaweiPairingProtocol(private val transport: HuaweiHiChainTranspo
                         saveVerified(reconnectCredential)
                     }
                     // Never expose the key or socket beyond the serialized owner.
-                    onSession?.invoke(verified, HuaweiFitnessSession(reads, transport, init.fitnessCommands))
+                    onSession?.invoke(verified, HuaweiFitnessSession(reads, transport, init.fitnessCommands, init.workoutCommands))
                     verified
                 }
             } finally {

@@ -18,16 +18,66 @@ import java.util.Locale
 internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
     context.applicationContext,
     File(context.noBackupFilesDir, "alke-huawei-fitness-v1.db").absolutePath,
-    null, 1,
+    null, 2,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE minute (device TEXT NOT NULL, ts INTEGER NOT NULL, steps INTEGER, hr INTEGER, spo2 INTEGER, PRIMARY KEY(device, ts))")
         db.execSQL("CREATE TABLE totals (device TEXT NOT NULL, day TEXT NOT NULL, observed INTEGER NOT NULL, steps INTEGER, distance INTEGER, PRIMARY KEY(device, day))")
         db.execSQL("CREATE INDEX minute_ts ON minute(ts)")
+        createHistoryTables(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        error("Explicit Huawei fitness migration required")
+        require(oldVersion == 1 && newVersion == 2) { "Explicit Huawei fitness migration required" }
+        createHistoryTables(db)
+    }
+
+    private fun createHistoryTables(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE legacy_sleep (device TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, native_type INTEGER NOT NULL, PRIMARY KEY(device, start))")
+        db.execSQL("CREATE TABLE workout_summary (device TEXT NOT NULL, start INTEGER NOT NULL, number INTEGER NOT NULL, end INTEGER NOT NULL, native_type INTEGER, status INTEGER, distance INTEGER, steps INTEGER, calories_raw INTEGER, elapsed INTEGER, active INTEGER, PRIMARY KEY(device, start, number))")
+    }
+
+    fun saveSleep(device: String, rows: List<HuaweiHistoryRead.SleepInterval>) {
+        require(device.matches(Regex("[0-9a-f]{64}")))
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (row in rows) {
+                val values = ContentValues().apply {
+                    put("device", device); put("start", row.start); put("end", row.end)
+                    put("native_type", row.nativeType)
+                }
+                check(db.insertWithOnConflict("legacy_sleep", null, values,
+                    SQLiteDatabase.CONFLICT_REPLACE) != -1L)
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+
+    fun saveWorkouts(device: String, rows: List<HuaweiHistoryRead.WorkoutSummary>) {
+        require(device.matches(Regex("[0-9a-f]{64}")))
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (row in rows) {
+                val values = ContentValues().apply {
+                    put("device", device); put("start", row.start); put("number", row.number)
+                    put("end", row.end)
+                    // Update present fields only; a sparse repeat must not erase prior metadata.
+                    row.nativeType?.let { put("native_type", it) }
+                    row.status?.let { put("status", it) }
+                    row.distanceMeters?.let { put("distance", it) }
+                    row.steps?.let { put("steps", it) }
+                    row.caloriesRaw?.let { put("calories_raw", it) }
+                    row.elapsedSeconds?.let { put("elapsed", it) }
+                    row.activeSeconds?.let { put("active", it) }
+                }
+                val count = db.update("workout_summary", values, "device=? AND start=? AND number=?",
+                    arrayOf(device, row.start.toString(), row.number.toString()))
+                if (count == 0) check(db.insertOrThrow("workout_summary", null, values) != -1L)
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
     }
 
     fun saveMinutes(device: String, start: Long, end: Long, records: List<HuaweiFitnessRead.Minute>) {

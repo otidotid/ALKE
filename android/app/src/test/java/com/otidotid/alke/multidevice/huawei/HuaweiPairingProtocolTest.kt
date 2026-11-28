@@ -119,6 +119,21 @@ class HuaweiPairingProtocolTest {
             watch.events.takeLast(4))
     }
 
+    @Test fun readsNativeSleepAndWorkoutSummaryWithoutSynthesizingStages() {
+        val watch = Watch()
+        watch.open().use { link ->
+            protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {}, {},
+                onSession = { _, fitness ->
+                    assertEquals(listOf(HuaweiHistoryRead.SleepInterval(60, 120, 6)),
+                        fitness.legacySleep(60, 120))
+                    assertEquals(listOf(HuaweiHistoryRead.WorkoutSummary(4, 60, 120,
+                        1, null, 100, null, null, null, null)), fitness.workoutSummaries(60, 120))
+                })
+        }
+        assertEquals(listOf("sleep count", "sleep page", "workout list", "workout totals"),
+            watch.events.takeLast(4))
+    }
+
     @Test fun rejectsPlaintextFitnessEvenAfterGcmProductInfo() {
         val watch = Watch().apply { plainFitness = true }
         watch.open().use { link ->
@@ -154,7 +169,7 @@ class HuaweiPairingProtocolTest {
                 assertEquals(frame.size - 5, ByteBuffer.wrap(frame, 1, 2).short.toInt())
                 assertEquals(0, unsigned(frame[3]))
                 val service = unsigned(frame[4])
-                assertTrue(service in setOf(1, 7, 0x1a))
+                assertTrue(service in setOf(1, 7, 0x17, 0x1a))
                 assertEquals(crc(frame.copyOfRange(0, frame.size - 2)),
                     ByteBuffer.wrap(frame, frame.size - 2, 2).short.toInt() and 0xffff)
                 val command = unsigned(frame[5])
@@ -185,7 +200,36 @@ class HuaweiPairingProtocolTest {
                             encryptedReply(command, bytes(0x81, 23, 2, 2, 0, 0, 3, 4, 0, 0, 0, 60,
                                 0x84, 11, 5, 1, 0, 6, 6, 0xc2, 1, 0, 42, 72, 98), service = 7)
                         }
+                        12 -> {
+                            events += "sleep count"
+                            assertArrayEquals(bytes(0x81, 0, 3, 4, 0, 0, 0, 60, 4, 4, 0, 0, 0, 120),
+                                decryptRequest(body))
+                            encryptedReply(command, bytes(0x81, 4, 2, 2, 0, 1), service = 7)
+                        }
+                        13 -> {
+                            events += "sleep page"
+                            assertArrayEquals(bytes(0x81, 4, 2, 2, 0, 0), decryptRequest(body))
+                            encryptedReply(command, bytes(0x81, 17, 2, 2, 0, 0,
+                                0x83, 11, 4, 1, 6, 5, 6, 0, 0, 0, 60, 0, 1), service = 7)
+                        }
                         else -> error("Unexpected fitness command")
+                    }
+                } else if (service == 0x17) {
+                    when (command) {
+                        7 -> {
+                            events += "workout list"
+                            assertArrayEquals(bytes(0x81, 12, 3, 4, 0, 0, 0, 60, 4, 4, 0, 0, 0, 120),
+                                decryptRequest(body))
+                            encryptedReply(command, bytes(0x81, 18, 2, 2, 0, 1, 0x85, 12,
+                                6, 2, 0, 4, 7, 2, 0, 0, 8, 2, 0, 0), service = 0x17)
+                        }
+                        8 -> {
+                            events += "workout totals"
+                            assertArrayEquals(bytes(0x81, 4, 2, 2, 0, 4), decryptRequest(body))
+                            encryptedReply(command, bytes(0x81, 25, 2, 2, 0, 4, 4, 4, 0, 0, 0, 60,
+                                5, 4, 0, 0, 0, 120, 0x14, 1, 1, 7, 4, 0, 0, 0, 100), service = 0x17)
+                        }
+                        else -> error("Unexpected workout command")
                     }
                 } else when (command) {
                     1 -> {
@@ -252,10 +296,10 @@ class HuaweiPairingProtocolTest {
                     }
                     3 -> {
                         events += "commands"
-                        assertArrayEquals(bytes(0x81, 24, 2, 1, 1, 3, 4, 0x30, 0x31, 0x35, 0x37,
-                            2, 1, 7, 3, 3, 3, 10, 11, 2, 1, 0x1a, 3, 2, 5, 6), decryptRequest(body))
-                        packet(command, bytes(0x81, 24, 2, 1, 1, 4, 4, 1, 1, 1, 1,
-                            2, 1, 7, 4, 3, 1, 1, 1, 2, 1, 0x1a, 4, 2, 1, 1))
+                        assertArrayEquals(bytes(0x81, 33, 2, 1, 1, 3, 4, 0x30, 0x31, 0x35, 0x37,
+                            2, 1, 7, 3, 5, 3, 10, 11, 12, 13, 2, 1, 0x17, 3, 2, 7, 8, 2, 1, 0x1a, 3, 2, 5, 6), decryptRequest(body))
+                        packet(command, bytes(0x81, 33, 2, 1, 1, 4, 4, 1, 1, 1, 1,
+                            2, 1, 7, 4, 5, 1, 1, 1, 1, 1, 2, 1, 0x17, 4, 2, 1, 1, 2, 1, 0x1a, 4, 2, 1, 1))
                     }
                     0x37 -> {
                         events += "expand"

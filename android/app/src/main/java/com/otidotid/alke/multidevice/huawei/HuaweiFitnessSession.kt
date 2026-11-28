@@ -7,14 +7,18 @@ internal class HuaweiFitnessSession(
     private val reads: HuaweiSessionReads,
     private val transport: HuaweiHiChainTransport,
     private val commands: Set<Int>,
+    private val workoutCommands: Set<Int> = emptySet(),
 ) {
     fun supports(command: Int) = command in commands
 
-    private fun <T> query(command: Int, body: ByteArray, parse: (ByteArray) -> T): T {
-        require(supports(command))
+    fun supportsLegacySleep() = supports(HuaweiHistoryRead.SLEEP_COUNT) && supports(HuaweiHistoryRead.SLEEP_PAGE)
+    fun supportsWorkoutSummaries() = setOf(7, 8).all { it in workoutCommands }
+
+    private fun <T> query(command: Int, body: ByteArray, service: Int = 7, parse: (ByteArray) -> T): T {
+        require(if (service == 7) supports(command) else service == 0x17 && command in workoutCommands)
         transport.resetTrace()
-        transport.send(reads.requestInitialization(7, command, body))
-        return reads.receiveInitialization(transport.receive(command, 7, 8000)).use {
+        transport.send(reads.requestInitialization(service, command, body))
+        return reads.receiveInitialization(transport.receive(command, service, 8000)).use {
             // Health records must be GCM-authenticated; never trust plaintext for scores.
             if (!it.encrypted) throw IOException("Unauthenticated fitness response")
             parse(it.payload)
@@ -22,15 +26,15 @@ internal class HuaweiFitnessSession(
     }
 
     fun totals(): HuaweiFitnessRead.Totals =
-        query(HuaweiFitnessRead.TOTALS, HuaweiFitnessRead.totalsRequest(), HuaweiFitnessRead::totals)
+        query(HuaweiFitnessRead.TOTALS, HuaweiFitnessRead.totalsRequest(), parse = HuaweiFitnessRead::totals)
 
     fun minutes(start: Long, end: Long, maxPages: Int = 96): List<HuaweiFitnessRead.Minute> {
         require(maxPages in 1..256 && end - start in 1..86400)
-        val count = query(HuaweiFitnessRead.COUNT, HuaweiFitnessRead.countRequest(start, end), HuaweiFitnessRead::count)
+        val count = query(HuaweiFitnessRead.COUNT, HuaweiFitnessRead.countRequest(start, end), parse = HuaweiFitnessRead::count)
         require(count <= maxPages) { "Fitness page limit; use a shorter time window" }
         val records = sortedMapOf<Long, HuaweiFitnessRead.Minute>()
         for (index in 0 until count) {
-            val page = query(HuaweiFitnessRead.PAGE, HuaweiFitnessRead.pageRequest(index), HuaweiFitnessRead::page)
+            val page = query(HuaweiFitnessRead.PAGE, HuaweiFitnessRead.pageRequest(index), parse = HuaweiFitnessRead::page)
             require(page.index == index) { "Mismatched fitness page" }
             for (minute in page.minutes) {
                 if (minute.epochSeconds !in start until end) continue
@@ -39,5 +43,37 @@ internal class HuaweiFitnessSession(
             }
         }
         return records.values.toList()
+    }
+
+    fun legacySleep(start: Long, end: Long): List<HuaweiHistoryRead.SleepInterval> {
+        require(supportsLegacySleep() && end - start in 1..86400)
+        val count = query(HuaweiHistoryRead.SLEEP_COUNT, HuaweiFitnessRead.countRequest(start, end),
+            parse = HuaweiFitnessRead::count)
+        require(count <= 96)
+        val rows = linkedMapOf<Long, HuaweiHistoryRead.SleepInterval>()
+        for (index in 0 until count) {
+            val page = query(HuaweiHistoryRead.SLEEP_PAGE, HuaweiFitnessRead.pageRequest(index),
+                parse = HuaweiHistoryRead::sleepPage)
+            require(page.index == index)
+            for (row in page.rows) {
+                if (row.start >= end || row.end <= start) continue
+                val old = rows.put(row.start, row)
+                require(old == null || old == row) { "Conflicting sleep intervals" }
+            }
+        }
+        return rows.values.sortedBy { it.start }
+    }
+
+    fun workoutSummaries(start: Long, end: Long): List<HuaweiHistoryRead.WorkoutSummary> {
+        require(supportsWorkoutSummaries() && end - start in 1..86400)
+        val refs = query(HuaweiHistoryRead.WORKOUT_LIST, HuaweiHistoryRead.workoutListRequest(start, end),
+            service = 0x17, parse = HuaweiHistoryRead::workoutList)
+        require(refs.size <= 64)
+        return refs.mapNotNull { ref ->
+            val row = query(HuaweiHistoryRead.WORKOUT_TOTALS, HuaweiHistoryRead.workoutTotalsRequest(ref.number),
+                service = 0x17, parse = HuaweiHistoryRead::workoutSummary)
+            require(row.number == ref.number)
+            row.takeIf { it.start < end && it.end > start }
+        }
     }
 }

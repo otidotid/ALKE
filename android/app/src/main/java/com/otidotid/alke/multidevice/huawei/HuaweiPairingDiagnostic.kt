@@ -113,6 +113,8 @@ internal object HuaweiPairingDiagnostic {
                     var nextHistory = 0L
                     var historyCount: Int? = null
                     var sourcePreview = "HR source comparison unavailable."
+                    var historySummary = "Sleep and workout not yet read."
+                    var historyRead = false
                     while (true) {
                         checkActive()
                         if (android.os.SystemClock.elapsedRealtime() - sessionStart >= 30 * 60 * 1000L)
@@ -146,12 +148,22 @@ internal object HuaweiPairingDiagnostic {
                             }.getOrDefault("HR source preview unavailable.")
                             nextHistory = now + 900
                         }
+                        if (!historyRead) {
+                            val end = now - now % 60
+                            val start = end - 86400
+                            val sleep = if (fitness.supportsLegacySleep()) fitness.legacySleep(start, end) else null
+                            sleep?.let { localStore.saveSleep(deviceKey, it) }
+                            val workouts = if (fitness.supportsWorkoutSummaries()) fitness.workoutSummaries(start, end) else null
+                            workouts?.let { localStore.saveWorkouts(deviceKey, it) }
+                            historySummary = "Legacy sleep intervals: ${sleep?.size ?: "not advertised"}; workout summaries: ${workouts?.size ?: "not advertised"}."
+                            historyRead = true
+                        }
                         val totalsText = totals?.let {
                             "Huawei totals: steps=${it.steps ?: "unavailable"}, distance=${it.distanceMeters ?: "unavailable"} m."
                         } ?: "Huawei totals not advertised."
                         val historyText = historyCount?.let { "GCM-verified minute records stored: $it." }
                             ?: "Minute history unavailable."
-                        onVerified("$header\n$totalsText\n$historyText\n$sourcePreview\nSaved in separate Huawei store; not merged into ALKE scores.\n$notes")
+                        onVerified("$header\n$totalsText\n$historyText\n$sourcePreview\n$historySummary\nSaved in separate Huawei store; not merged into ALKE scores.\n$notes")
                         // Check cancellation frequently. No second reader or background thread per poll.
                         repeat(120) {
                             checkActive()

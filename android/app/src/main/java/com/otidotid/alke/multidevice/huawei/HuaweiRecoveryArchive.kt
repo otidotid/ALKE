@@ -126,6 +126,8 @@ internal object HuaweiRecoveryArchive {
                         snapshot.beginTransaction()
                         try {
                             store.onCreate(snapshot)
+                            // Acquisition checkpoints are device-local, not transferable observations.
+                            snapshot.execSQL("DROP TABLE sync_window")
                             snapshot.version = VERSION
                             for ((table, columns) in tables) {
                                 source.query(table,columns.split(',').toTypedArray(),null,null,null,null,null).use { c ->

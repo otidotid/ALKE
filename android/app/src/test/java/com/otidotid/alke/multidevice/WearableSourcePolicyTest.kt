@@ -28,7 +28,7 @@ class WearableSourcePolicyTest {
             Metric.STEPS to listOf(h, w),
             Metric.GPS to listOf(h, Source.PHONE_GPS),
             Metric.WORKOUT_DETAIL to listOf(h, w),
-            Metric.SPO2 to listOf(h, w),
+            Metric.SPO2 to listOf(w, h),
         )
         assertEquals(Metric.values().toSet(), expected.keys)
         expected.forEach { (metric, sources) ->

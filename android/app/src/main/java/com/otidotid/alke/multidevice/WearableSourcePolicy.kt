@@ -23,9 +23,9 @@ internal object WearableSourcePolicy {
     )
 
     fun priority(metric: Metric): List<Source> = when (metric) {
-        Metric.HEART_RATE, Metric.STEPS, Metric.WORKOUT_DETAIL, Metric.SPO2 ->
+        Metric.HEART_RATE, Metric.STEPS, Metric.WORKOUT_DETAIL ->
             listOf(Source.HUAWEI, Source.WHOOP)
-        Metric.HRV, Metric.RR_INTERVAL, Metric.SLEEP ->
+        Metric.HRV, Metric.RR_INTERVAL, Metric.SLEEP, Metric.SPO2 ->
             listOf(Source.WHOOP, Source.HUAWEI)
         Metric.GPS -> listOf(Source.HUAWEI, Source.PHONE_GPS)
     }

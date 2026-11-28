@@ -14,6 +14,21 @@ import java.io.File
 @Config(application = Application::class, sdk = [34])
 @SQLiteMode(SQLiteMode.Mode.NATIVE)
 class HuaweiRecoveryArchiveTest {
+    @Test fun checkpointSurvivesReopenAndDoesNotEnterArchive() {
+        val context = RuntimeEnvironment.getApplication()
+        val device = HuaweiFitnessStore.deviceKey("33:44:55:66:77:88")
+        val now = 864000L
+        val window = HuaweiFitnessStore(context).use { db ->
+            val w = requireNotNull(db.nextHistoryWindow(device,"minute",now,3600))
+            db.saveMinutes(device,w.start,w.end,listOf(HuaweiFitnessRead.Minute(w.start,10,70,null)),checkpoint=true)
+            w
+        }
+        HuaweiFitnessStore(context).use { db ->
+            assertEquals(window.start,db.nextHistoryWindow(device,"minute",now,3600)?.end)
+            assertEquals(1,db.minutes(device,window.start,window.end).size)
+        }
+    }
+
     @Test fun snapshotIncludesCommittedWalRows() {
         val context = RuntimeEnvironment.getApplication()
         val device = HuaweiFitnessStore.deviceKey("11:22:33:44:55:66")

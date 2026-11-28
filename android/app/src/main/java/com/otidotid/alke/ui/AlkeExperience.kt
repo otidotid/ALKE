@@ -983,6 +983,10 @@ fun AlkeTodayExperience(
             AlkeMetricTile("Active Time", workoutMinutes?.let { niceMinutes(it) } ?: "—",
                 Icons.Filled.MonitorHeart, Modifier.weight(1f), A.blue, onTrain)
         }
+        stepsModel?.huaweiSteps?.get(LocalDate.now().toString())?.let { contribution ->
+            Text(contribution.label() + if(contribution.complete) "" else " · separate subtotal",
+                color = A.muted, fontSize = 10.sp)
+        }
         Text("Active Time reflects recorded workouts; unavailable activity is never estimated.",
             color = A.muted, fontSize = 10.sp)
         // Tapping this compact real/latest BPM card retains the existing detailed

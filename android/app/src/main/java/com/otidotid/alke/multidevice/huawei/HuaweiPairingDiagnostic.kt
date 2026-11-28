@@ -66,6 +66,7 @@ internal object HuaweiPairingDiagnostic {
         val protocol = HuaweiPairingProtocol(transport)
         var binding: HuaweiCredentialStore.Binding? = null
         var checkingBinding = true
+        var openingSocket = false
         var sessionStarted = false
         var canResume = false
         var fitnessStore: HuaweiFitnessStore? = null
@@ -82,7 +83,9 @@ internal object HuaweiPairingDiagnostic {
             val identity = binding?.identity ?: UUID.randomUUID().toString().replace("-", "").uppercase(Locale.ROOT)
             val model = Build.MODEL.take(30).ifBlank { "Android" }
             checkingBinding = false
+            openingSocket = true
             link.connect()
+            openingSocket = false
             protocol.authenticate(identity, model, binding?.credential, pending != null, allowFirstBind,
                 savePending = { credential ->
                     checkActive()
@@ -122,8 +125,7 @@ internal object HuaweiPairingDiagnostic {
                     // could be mistaken for the new response. Retry on fresh authentication.
                     var nextBattery = if (charge != null) sessionStart + 300_000L else Long.MAX_VALUE
                     var nextHistory = 0L
-                    var backfillEnd = 0L
-                    var olderWindows = 0
+                    var nextOlderNative = 0L
                     var historyCount: Int? = null
                     var sourcePreview = "HR source comparison unavailable."
                     var historySummary = "Sleep and workout not yet read."
@@ -173,7 +175,6 @@ internal object HuaweiPairingDiagnostic {
                             else localStore.saveMinutes(deviceKey, start, end, minutes)
                             val stored = localStore.minutes(deviceKey, start, end)
                             historyCount = stored.size
-                            if (backfillEnd == 0L) backfillEnd = start
                             // Read-only source selection on minute windows. Do not alter native WHOOP scoring.
                             sourcePreview = runCatching {
                                 val app = context.applicationContext as com.otidotid.alke.AlkeApplication
@@ -187,17 +188,30 @@ internal object HuaweiPairingDiagnostic {
                             }.getOrDefault("HR source preview unavailable.")
                             nextHistory = now + 900
                         }
-                        // One completed older hour per poll, without summing or advancing on failure.
-                        // A new connection restarts this bounded 24h recovery; idempotent upserts protect overlap.
-                        if (!minuteRejected && backfillEnd > 0L && olderWindows < 23) {
-                            val olderStart = backfillEnd - 3600
-                            val older = optionalFitness("Older minute history") { fitness.minutes(olderStart, backfillEnd) }
-                            if (older == null) minuteRejected = true
-                            else {
-                                localStore.saveMinutes(deviceKey, olderStart, backfillEnd, older)
-                                backfillEnd = olderStart
-                                olderWindows++
+                        // Persistent per-device coverage; no progress recorded before committed data.
+                        if (!minuteRejected && fitness.supportsMinuteHistory()) {
+                            localStore.nextHistoryWindow(deviceKey,"minute",now,3600)?.let { window ->
+                                val older = optionalFitness("Older minute history") { fitness.minutes(window.start,window.end) }
+                                if (older == null) minuteRejected = true
+                                else localStore.saveMinutes(deviceKey,window.start,window.end,older,checkpoint=true)
                             }
+                        }
+                        if (elapsed >= nextOlderNative) {
+                            if (!sleepRejected && fitness.supportsLegacySleep()) {
+                                localStore.nextHistoryWindow(deviceKey,"sleep",now,86400)?.let { window ->
+                                    val older = optionalFitness("Older sleep history") { fitness.legacySleep(window.start,window.end) }
+                                    if (older == null) sleepRejected = true
+                                    else localStore.saveSleepWindow(deviceKey,window,older)
+                                }
+                            }
+                            if (!workoutsRejected && fitness.supportsWorkoutSummaries()) {
+                                localStore.nextHistoryWindow(deviceKey,"workout",now,86400)?.let { window ->
+                                    val older = optionalFitness("Older workout history") { fitness.workoutBundles(window.start,window.end) }
+                                    if (older == null) workoutsRejected = true
+                                    else localStore.saveWorkoutWindow(deviceKey,window,older)
+                                }
+                            }
+                            nextOlderNative = android.os.SystemClock.elapsedRealtime()+120_000L
                         }
                         if (elapsed >= nextNativeHistory) {
                             val end = now - now % 60
@@ -209,10 +223,7 @@ internal object HuaweiPairingDiagnostic {
                             val workouts = if (!workoutsRejected && fitness.supportsWorkoutSummaries()) {
                                 optionalFitness("Workout history") { fitness.workoutBundles(start, end) }.also { if (it == null) workoutsRejected = true }
                             } else null
-                            workouts?.let {
-                                localStore.saveWorkouts(deviceKey, it.map { bundle -> bundle.summary })
-                                localStore.saveWorkoutDetails(deviceKey, it)
-                            }
+                            workouts?.let { localStore.saveWorkoutWindow(deviceKey,null,it) }
                             historySummary = "Legacy sleep intervals: ${sleep?.size ?: "unavailable"}; workout summaries: ${workouts?.size ?: "unavailable"}; workout samples: ${workouts?.sumOf { it.samples.size } ?: 0}; pace splits: ${workouts?.sumOf { it.splits.size } ?: 0}."
                             if (fileProbePending) {
                                 fileProbePending = false
@@ -227,7 +238,10 @@ internal object HuaweiPairingDiagnostic {
                         } ?: "Huawei totals unavailable."
                         val historyText = historyCount?.let { "GCM-verified minute records stored: $it." }
                             ?: "Minute history unavailable."
-                        onVerified("$header\n$totalsText\n$historyText\n$sourcePreview\n$historySummary\nSaved in separate Huawei store; historical HR timeline uses verified minute data. Scores unchanged.\n$notes$telemetryNotes")
+                        val lastRecord = localStore.latestRecord(deviceKey)?.let {
+                            java.time.Instant.ofEpochSecond(it).atZone(zone).toLocalDateTime().toString()
+                        } ?: "none"
+                        onVerified("Bluetooth bonded.\n$header\nLast stored record: $lastRecord\n$totalsText\n$historyText\n$sourcePreview\n$historySummary\nSaved in separate Huawei store; historical HR timeline uses verified minute data. Scores unchanged.\n$notes$telemetryNotes")
                         onStatus(true, charge, false)
                         // Check cancellation frequently. No second reader or background thread per poll.
                         repeat(120) {
@@ -245,9 +259,11 @@ internal object HuaweiPairingDiagnostic {
             return "Watch requests account selection. ALKE will not confirm a reset or switch account."
         } catch (_: HuaweiPairingProtocol.BindingRequired) {
             return "The watch requests a new pairing. Use first-time ALKE binding to confirm."
+        } catch (_: SecurityException) {
+            return "Nearby devices permission required to connect Huawei."
         } catch (e: Exception) {
             ensureActive()
-            if (canResume && e is IOException && (transport.trace.isRetryableLinkFailure() || expired.get()))
+            if (canResume && e is IOException && (openingSocket || transport.trace.isRetryableLinkFailure() || expired.get()))
                 return SESSION_LINK_LOST
             val stage = if (checkingBinding) "Checking saved binding" else if (sessionStarted)
                 "Huawei fitness session" else protocol.stage

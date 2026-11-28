@@ -86,6 +86,58 @@ internal object HuaweiStepSource {
         }.toMap()
     }
 
+    data class DayContribution(val steps: Long,val observedMinutes: Int,val expectedMinutes: Int,
+        val firstMinute: Long,val lastMinute: Long) {
+        val complete get() = observedMinutes == expectedMinutes
+        fun label(): String {
+            val zone = ZoneId.systemDefault()
+            val format = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+            val start = Instant.ofEpochSecond(firstMinute).atZone(zone).format(format)
+            val end = Instant.ofEpochSecond(lastMinute+60).atZone(zone).format(format)
+            return "GT5 recorded: ${java.text.NumberFormat.getIntegerInstance().format(steps)} steps · $observedMinutes/$expectedMinutes min ($start–$end)"
+        }
+    }
+
+    /** WHOOP 4 motion-derived daily totals are not independent minute deltas.
+     * Fuse only measured Huawei minutes; keep incomplete-day original totals separate. */
+    suspend fun contributions(context: Context): Map<String,DayContribution> = try {
+        withContext(Dispatchers.IO) {
+            val key = HuaweiTimelineSource.verifiedDeviceKey(context) ?: return@withContext emptyMap()
+            val zone = ZoneId.systemDefault()
+            val now = Instant.now().epochSecond
+            val today = Instant.ofEpochSecond(now).atZone(zone).toLocalDate()
+            val endNow = now-now%60
+            val from = today.minusDays(366).atStartOfDay(zone).toEpochSecond()
+            HuaweiFitnessStore(context.applicationContext).use { db ->
+                val first = db.firstStepTimestamp(key,from,endNow) ?: return@use emptyMap()
+                var day = Instant.ofEpochSecond(first).atZone(zone).toLocalDate()
+                buildMap {
+                    while(day<=today) {
+                        val start = day.atStartOfDay(zone).toEpochSecond()
+                        val end = minOf(day.plusDays(1).atStartOfDay(zone).toEpochSecond(),endNow)
+                        if(end>start && end-start<=172800) {
+                            val rows = buildList {
+                                var cursor = start
+                                while(cursor<end) {
+                                    val next = minOf(cursor+86400,end)
+                                    addAll(db.minutes(key,cursor,next))
+                                    cursor = next
+                                }
+                            }.filter { it.steps != null && it.steps in 0..500 && it.epochSeconds%60==0L }
+                            if(rows.isNotEmpty()) {
+                                val fused = fuseMinutes(rows,emptyList(),start,end)
+                                if(fused.observedSteps<=200000) put(day.toString(),DayContribution(
+                                    fused.observedSteps,fused.huaweiMinutes,((end-start)/60).toInt(),
+                                    rows.minOf { it.epochSeconds },rows.maxOf { it.epochSeconds }))
+                            }
+                        }
+                        day=day.plusDays(1)
+                    }
+                }
+            }
+        }
+    } catch(e: CancellationException) { throw e } catch(_: Exception) { emptyMap() }
+
     suspend fun historicalDays(context: Context): Map<String, Long> = try {
         withContext(Dispatchers.IO) {
             val key = HuaweiTimelineSource.verifiedDeviceKey(context) ?: return@withContext emptyMap()

@@ -18,7 +18,7 @@ import java.util.Locale
 internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
     context.applicationContext,
     File(context.noBackupFilesDir, "alke-huawei-fitness-v1.db").absolutePath,
-    null, 5,
+    null, 6,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE minute (device TEXT NOT NULL, ts INTEGER NOT NULL, steps INTEGER, hr INTEGER, spo2 INTEGER, PRIMARY KEY(device, ts))")
@@ -28,14 +28,77 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
         createWorkoutDetailTables(db)
         createGpsTable(db)
         createTruSleepTables(db)
+        createSyncWindows(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        require(oldVersion in 1..4 && newVersion == 5) { "Explicit Huawei fitness migration required" }
+        require(oldVersion in 1..5 && newVersion == 6) { "Explicit Huawei fitness migration required" }
         if (oldVersion == 1) createHistoryTables(db)
         if (oldVersion < 3) createWorkoutDetailTables(db)
         if (oldVersion < 4) createGpsTable(db)
-        createTruSleepTables(db)
+        if (oldVersion < 5) createTruSleepTables(db)
+        createSyncWindows(db)
+    }
+
+    private fun createSyncWindows(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE sync_window (device TEXT NOT NULL, kind TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, details_complete INTEGER NOT NULL, PRIMARY KEY(device,kind,start,end))")
+    }
+
+    /** Local acquisition ledger, never exported as health history. Only completed requests are marked.
+     * Scan newest missing closed windows first, over a conservative bounded 7-day horizon. */
+    data class Window(val start: Long,val end: Long)
+    fun nextHistoryWindow(device: String,kind: String,now: Long,seconds: Long): Window? {
+        require(kind in setOf("minute","sleep","workout") && seconds in setOf(3600L,86400L))
+        val boundary = Math.floorDiv(now,seconds)*seconds
+        val from = boundary - 7*86400
+        val db = writableDatabase
+        db.delete("sync_window","device=? AND end<?",arrayOf(device,from.toString()))
+        val fetched = db.query("sync_window",arrayOf("start"),"device=? AND kind=? AND start>=? AND end<=?",
+            arrayOf(device,kind,from.toString(),boundary.toString()),null,null,null).use { c ->
+            buildSet { while (c.moveToNext()) add(c.getLong(0)) }
+        }
+        // The current rolling read covers recent data; closed aligned windows are independently replayable.
+        var start = boundary-seconds
+        while (start>=from) {
+            if (start !in fetched) return Window(start,start+seconds)
+            start -= seconds
+        }
+        return null
+    }
+
+    private fun markWindow(db: SQLiteDatabase,device: String,kind: String,window: Window,details: Boolean = true) {
+        val row = ContentValues().apply {
+            put("device",device); put("kind",kind); put("start",window.start); put("end",window.end)
+            put("details_complete",if(details) 1 else 0)
+        }
+        check(db.insertWithOnConflict("sync_window",null,row,SQLiteDatabase.CONFLICT_REPLACE)!=-1L)
+    }
+
+    fun saveSleepWindow(device: String,window: Window,rows: List<HuaweiHistoryRead.SleepInterval>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            saveSleep(device,rows)
+            markWindow(db,device,"sleep",window)
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+
+    fun saveWorkoutWindow(device: String,window: Window?,bundles: List<HuaweiFitnessSession.WorkoutBundle>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            saveWorkouts(device,bundles.map { it.summary })
+            saveWorkoutDetails(device,bundles)
+            if(window!=null) markWindow(db,device,"workout",window,bundles.all { it.detailsComplete })
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+
+    fun latestRecord(device: String): Long? {
+        val db = readableDatabase
+        return db.rawQuery("SELECT MAX(t) FROM (SELECT MAX(ts) t FROM minute WHERE device=? UNION ALL SELECT MAX(end) t FROM legacy_sleep WHERE device=? UNION ALL SELECT MAX(end) t FROM workout_summary WHERE device=?)",
+            arrayOf(device,device,device)).use { c -> if(c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null }
     }
 
     private fun createTruSleepTables(db: SQLiteDatabase) {
@@ -223,7 +286,7 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
         } finally { db.endTransaction() }
     }
 
-    fun saveMinutes(device: String, start: Long, end: Long, records: List<HuaweiFitnessRead.Minute>) {
+    fun saveMinutes(device: String, start: Long, end: Long, records: List<HuaweiFitnessRead.Minute>, checkpoint: Boolean = false) {
         require(device.matches(Regex("[0-9a-f]{64}")))
         require(start < end && end - start <= 86400)
         require(records.all { it.epochSeconds in start until end })
@@ -253,6 +316,7 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
                     stepsChanged = stepsChanged || merged.steps != old?.steps
                 }
             }
+            if(checkpoint) markWindow(db,device,"minute",Window(start,end))
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
         HuaweiTimelineSource.changed(hrChanged, stepsChanged)

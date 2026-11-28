@@ -124,7 +124,8 @@ internal class HuaweiFitnessSession(
     }
 
     data class WorkoutBundle(val summary: HuaweiHistoryRead.WorkoutSummary,
-        val samples: List<HuaweiWorkoutDetail.Sample>, val splits: List<HuaweiWorkoutDetail.Split>)
+        val samples: List<HuaweiWorkoutDetail.Sample>, val splits: List<HuaweiWorkoutDetail.Split>,
+        val detailsComplete: Boolean = false)
 
     fun workoutSummaries(start: Long, end: Long): List<HuaweiHistoryRead.WorkoutSummary> =
         workoutBundles(start, end, includeDetails = false).map { it.summary }
@@ -142,6 +143,8 @@ internal class HuaweiFitnessSession(
             if (row.start >= end || row.end <= start) return@mapNotNull null
             val samples = sortedMapOf<Long, HuaweiWorkoutDetail.Sample>()
             val splits = mutableListOf<HuaweiWorkoutDetail.Split>()
+            var dataComplete = false
+            var paceComplete = false
             if (includeDetails && ref.dataPages <= remainingPages) {
                 remainingPages -= ref.dataPages
                 try {
@@ -155,6 +158,7 @@ internal class HuaweiFitnessSession(
                             require(previous == null || previous == sample)
                         }
                     }
+                    dataComplete = true
                 } catch (_: HuaweiFitnessRejected) {
                     // An explicitly rejected optional stream must not discard the verified summary.
                     // Never persist a truncated set of detail pages.
@@ -170,11 +174,12 @@ internal class HuaweiFitnessSession(
                         require(page.number == ref.number && page.page == index)
                         splits.addAll(page.splits)
                     }
+                    paceComplete = true
                 } catch (_: HuaweiFitnessRejected) {
                     splits.clear()
                 }
             }
-            WorkoutBundle(row, samples.values.toList(), splits.toList())
+            WorkoutBundle(row, samples.values.toList(), splits.toList(),dataComplete && paceComplete)
         }
     }
 }

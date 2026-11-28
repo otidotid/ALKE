@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            com.otidotid.alke.multidevice.huawei.HuaweiConnectionController.resumeSaved(applicationContext)
             // Permission results flow back into the BLE client's own runtime checks;
             // the UI simply reflects connection state. No blocking here.
         }
@@ -208,6 +209,14 @@ class MainActivity : ComponentActivity() {
                     AlkeRoot(widgetEntryRequest = widgetEntryRequest)
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!PersonalBackupBootstrap.needsInitialRestore(applicationContext) &&
+            CrashCapture.pendingCrash(this) == null) {
+            com.otidotid.alke.multidevice.huawei.HuaweiConnectionController.resumeSaved(applicationContext)
         }
     }
 

@@ -15,7 +15,7 @@ WHOOP is worn 24/7; Huawei is a complementary daytime device. No scheduled/manua
 | Steps | Huawei | WHOOP |
 | GPS | Huawei | phone GPS |
 | Workout detail | Huawei | WHOOP |
-| SpO2 | Huawei | WHOOP |
+| SpO2 | WHOOP | Huawei (compatible valid measurement) |
 
 Preserve existing header and WHOOP outline/percentage battery capsule, add Huawei outline/percentage in the same capsule separated by divider. Connection indicators independent, disconnected last known values dimmed, unknown battery not invented. Existing ALKE logo remains sync shortcut. No battery shortcut or general redesign. Respect v630 Me navigation. Preserve all existing algorithms, HR timeline and activity icons, AI workout detection, backup/restore, historical records and cloud contracts. No Fossil scope.
 

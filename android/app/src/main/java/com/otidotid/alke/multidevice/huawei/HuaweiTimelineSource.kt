@@ -73,10 +73,13 @@ internal object HuaweiTimelineSource {
     }
 
     fun combine(original: List<HrBucket>, whoopMinutes: List<HrBucket>,
-        huawei: List<HuaweiFitnessRead.Minute>, bucketSeconds: Long): Result {
+        huawei: List<HuaweiFitnessRead.Minute>, bucketSeconds: Long,
+        offWristMinutes: Set<Long> = emptySet()): Result {
         require(bucketSeconds >= 60 && bucketSeconds % 60 == 0L)
         fun bucket(ts: Long) = Math.floorDiv(ts, bucketSeconds) * bucketSeconds
-        val primary = huawei.filter { it.epochSeconds % 60L == 0L && it.heartRate != null &&
+        // Only timestamp-specific evidence may exclude a historical minute. Missing wear
+        // evidence is unknown, never inferred from the current watch status.
+        val primary = huawei.filter { it.epochSeconds !in offWristMinutes && it.epochSeconds % 60L == 0L && it.heartRate != null &&
             it.heartRate in 25..250 }.associateBy { it.epochSeconds }
         if (primary.isEmpty()) return Result(original, emptySet())
         val affected = primary.keys.map(::bucket).toSet()

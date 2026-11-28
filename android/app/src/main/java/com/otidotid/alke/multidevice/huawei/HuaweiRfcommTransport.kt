@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
-import java.io.Closeable
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -20,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 @SuppressLint("MissingPermission")
 internal class HuaweiRfcommTransport(
     private val device: BluetoothDevice,
-) : Closeable {
+) : HuaweiHiChainTransport.Link {
     private val closed = AtomicBoolean(false)
     private val guard = Any()
     @Volatile private var socket: BluetoothSocket? = null
@@ -42,14 +41,14 @@ internal class HuaweiRfcommTransport(
     }
 
     @Throws(IOException::class)
-    fun read(buffer: ByteArray): Int {
+    override fun read(buffer: ByteArray): Int {
         require(buffer.isNotEmpty())
         return connectedSocket().inputStream.read(buffer)
     }
 
     @Throws(IOException::class)
     @Synchronized
-    fun write(frame: ByteArray) {
+    override fun write(frame: ByteArray) {
         require(frame.isNotEmpty())
         val output = connectedSocket().outputStream
         output.write(frame)

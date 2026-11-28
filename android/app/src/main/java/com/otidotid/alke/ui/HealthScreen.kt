@@ -2188,6 +2188,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
     val profile = remember { ProfileStore.from(context.applicationContext) }
     val isSeriesBacked = key in SERIES_BACKED_VITAL_KEYS
     val isStepsDetail = key == "steps_est"
+    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
     // #1617: the ACTIVE strap's family, resolved brand-aware from the registry rather than from a live
     // flag. Null until the row loads, and null for a non-WHOOP device; both fall through to the neutral
     // empty-state copy, so this never claims a generation it has not established.
@@ -2222,7 +2223,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
     var refreshTick by remember { mutableStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
     if (isSeriesBacked) {
-        LaunchedEffect(key, refreshTick) {
+        LaunchedEffect(key, refreshTick, if (isStepsDetail) huaweiStepsRevision else 0L) {
             seriesDetail = buildSeriesVitalDetail(vm, key)
             seriesLoaded = true
         }
@@ -3221,12 +3222,19 @@ internal suspend fun buildSeriesVitalDetail(vm: AppViewModel, key: String): Vita
             .points.asSequence()
             .filter { it.value.isFinite() && it.value >= 0.0 }
             .associateBy({ it.day }, { VitalReading(it.day, it.value, it.source) })
+        val huawei = com.otidotid.alke.multidevice.huawei.HuaweiStepSource.historicalDays(
+            vm.getApplication<android.app.Application>())
+        val original = mergeStepsReadings(real, imported, est)
+        val readings = if (huawei.isEmpty()) original else
+            (original.filterNot { it.day in huawei } + huawei.map { (day, steps) ->
+                VitalReading(day, steps.toDouble(), com.otidotid.alke.multidevice.huawei.HuaweiStepSource.SOURCE_ID)
+            }).sortedBy { it.day }
         VitalDetailModel(
             key = key,
             title = uiString(R.string.l10n_health_screen_steps_cdde4f20),
             unit = uiString(R.string.steps_unit),
             color = Palette.metricCyan,
-            readings = mergeStepsReadings(real, imported, est),
+            readings = readings,
             format = { java.text.NumberFormat.getIntegerInstance().format(it.roundToInt()) },
         )
     }

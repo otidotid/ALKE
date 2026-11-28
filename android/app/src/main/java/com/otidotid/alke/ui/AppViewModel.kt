@@ -2424,6 +2424,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  not available on Android (no cheap windowed step source), so a 4.0 window simply shows no steps. */
     suspend fun workoutSteps(from: Long, to: Long): Int? {
         if (to <= from) return null
+        com.otidotid.alke.multidevice.huawei.HuaweiStepSource.workoutWindow(appContext, from, to)?.let { return it }
         val samples = runCatching { repository.stepSamples(deviceId, from, to) }.getOrDefault(emptyList())
         val ticks = com.otidotid.alke.analytics.StepsCounter.stepsInWindow(samples) ?: return null
         val scaled = (ticks.toDouble() / maxOf(profileStore.stepTicksPerStep, 0.5)).roundToInt()

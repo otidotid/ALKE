@@ -846,8 +846,9 @@ fun AlkeTodayExperience(
     // The existing Steps detail resolver provides real, imported, and estimated
     // readings with the same precedence as Progress. Show ONLY today's reading
     // in the Today tile; a prior date must never masquerade as today's steps.
+    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
     val stepsModel by produceState<VitalDetailModel?>(
-        initialValue = null, key1 = vm.activeStrapId, key2 = recentDays,
+        initialValue = null, key1 = vm.activeStrapId, key2 = recentDays, key3 = huaweiStepsRevision,
     ) {
         value = runCatching { buildSeriesVitalDetail(vm, "steps_est") }.getOrNull()
     }
@@ -1704,8 +1705,9 @@ fun AlkeProgressExperience(
     // Reuse the original steps-history data resolver: real wearable measurements
     // first, then Apple/Health Connect imports, then the motion-model estimate.
     // One source of truth for both this overview and its detail chart.
+    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
     val stepsModel by produceState<VitalDetailModel?>(
-        initialValue = null, key1 = vm.activeStrapId, key2 = days,
+        initialValue = null, key1 = vm.activeStrapId, key2 = days, key3 = huaweiStepsRevision,
     ) {
         value = runCatching { buildSeriesVitalDetail(vm, "steps_est") }.getOrNull()
     }

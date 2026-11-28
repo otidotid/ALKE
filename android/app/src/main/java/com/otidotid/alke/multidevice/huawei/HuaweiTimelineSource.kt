@@ -29,6 +29,10 @@ internal object HuaweiTimelineSource {
         }
     }
 
+    fun verifiedDeviceKey(context: Context): String? =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null)
+            ?.takeIf { it.matches(Regex("[0-9a-f]{64}")) }
+
     @Synchronized fun changed() { mutableRevision.value += 1 }
 
     data class Result(val buckets: List<HrBucket>, val huaweiBucketStarts: Set<Long>)

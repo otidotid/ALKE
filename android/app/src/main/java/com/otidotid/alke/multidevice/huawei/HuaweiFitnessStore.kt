@@ -196,6 +196,24 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
         }
     }
 
+    /** Indexed, allocation-light aggregation. Device/timestamp PK makes every aligned minute unique. */
+    fun stepCoverage(device: String, start: Long, end: Long): HuaweiStepSource.Coverage {
+        require(start < end && end-start <= 172800)
+        return readableDatabase.rawQuery(
+            "SELECT COUNT(*), COALESCE(SUM(steps),0) FROM minute WHERE device=? AND ts>=? AND ts<=? AND ts%60=0 AND steps BETWEEN 0 AND 500",
+            arrayOf(device,start.toString(),(end-60).toString())).use { c ->
+            check(c.moveToFirst())
+            HuaweiStepSource.Coverage(start,end,c.getInt(0),c.getLong(1))
+        }
+    }
+
+    fun firstStepTimestamp(device: String, from: Long, to: Long): Long? =
+        readableDatabase.rawQuery(
+            "SELECT MIN(ts) FROM minute WHERE device=? AND ts>=? AND ts<? AND steps IS NOT NULL",
+            arrayOf(device,from.toString(),to.toString())).use { c ->
+            if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null
+        }
+
     private fun Cursor.intOrNull(index: Int): Int? = if (isNull(index)) null else getInt(index)
 
     companion object {

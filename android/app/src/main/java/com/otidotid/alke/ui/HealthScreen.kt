@@ -2070,7 +2070,6 @@ internal data class VitalDetailModel(
     val format: (Double) -> String,
     /** #1847: why the screen is not showing what Settings asked for. Null when it is. */
     val fallbackNote: String? = null,
-    val huaweiSteps: Map<String,com.otidotid.alke.multidevice.huawei.HuaweiStepSource.DayContribution> = emptyMap(),
 ) {
     /** (day, value) projection the trend chart + range helpers consume — SAME order as [readings], so the
      *  chart, the header count, and the table can never drift apart. */
@@ -2299,17 +2298,6 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                 body = if (isStepsDetail) uiString(R.string.steps_loading) else "Fetching this metric's history.",
             )
             return@ScreenScaffold
-        }
-        if (isStepsDetail && !detail?.huaweiSteps.isNullOrEmpty()) {
-            AlkeCard {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Overline("Huawei GT5 contribution")
-                    Text("Separate observed subtotal — never add to the daily total.",style = AlkeType.footnote,color = Palette.textSecondary)
-                    detail?.huaweiSteps?.entries?.sortedByDescending { it.key }?.take(7)?.forEach { (day,reading) ->
-                        Text("$day · ${reading.label()}",style = AlkeType.footnote,color = Palette.textSecondary)
-                    }
-                }
-            }
         }
         if (detail == null || detail.points.isEmpty()) {
             if (key == "active_kcal") {
@@ -3234,13 +3222,16 @@ internal suspend fun buildSeriesVitalDetail(vm: AppViewModel, key: String): Vita
             .points.asSequence()
             .filter { it.value.isFinite() && it.value >= 0.0 }
             .associateBy({ it.day }, { VitalReading(it.day, it.value, it.source) })
-        val contributions = com.otidotid.alke.multidevice.huawei.HuaweiStepSource.contributions(
-            vm.getApplication<android.app.Application>())
-        val huawei = contributions.filterValues { it.complete }.mapValues { it.value.steps }
+        val app = vm.getApplication<android.app.Application>()
+        val profile = ProfileStore.from(app)
+        val coefficient = profile.stepsCalibrationCoefficient.takeIf { it.isFinite() && it>0 }
+            ?: profile.stepsManualOverride?.takeIf { it.isFinite() && it>0 }
+        val huawei = com.otidotid.alke.multidevice.huawei.HuaweiStepSource.fusedDays(
+            app,vm.repo,vm.activeStrapId,coefficient)
         val original = mergeStepsReadings(real, imported, est)
         val readings = if (huawei.isEmpty()) original else
-            (original.filterNot { it.day in huawei } + huawei.map { (day, steps) ->
-                VitalReading(day, steps.toDouble(), com.otidotid.alke.multidevice.huawei.HuaweiStepSource.SOURCE_ID)
+            (original.filterNot { it.day in huawei } + huawei.map { (day, fusion) ->
+                VitalReading(day, fusion.steps.toDouble(), fusion.source)
             }).sortedBy { it.day }
         VitalDetailModel(
             key = key,
@@ -3249,7 +3240,6 @@ internal suspend fun buildSeriesVitalDetail(vm: AppViewModel, key: String): Vita
             color = Palette.metricCyan,
             readings = readings,
             format = { java.text.NumberFormat.getIntegerInstance().format(it.roundToInt()) },
-            huaweiSteps = contributions,
         )
     }
     "active_kcal" -> {

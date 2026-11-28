@@ -983,9 +983,9 @@ fun AlkeTodayExperience(
             AlkeMetricTile("Active Time", workoutMinutes?.let { niceMinutes(it) } ?: "—",
                 Icons.Filled.MonitorHeart, Modifier.weight(1f), A.blue, onTrain)
         }
-        stepsModel?.huaweiSteps?.get(LocalDate.now().toString())?.let { contribution ->
-            Text(contribution.label() + if(contribution.complete) "" else " · separate subtotal",
-                color = A.muted, fontSize = 10.sp)
+        stepsModel?.readings?.lastOrNull { it.day == LocalDate.now().toString() &&
+            it.source.startsWith("GT5") }?.let { reading ->
+            Text("Steps · ${reading.source}", color = A.muted, fontSize = 10.sp)
         }
         Text("Active Time reflects recorded workouts; unavailable activity is never estimated.",
             color = A.muted, fontSize = 10.sp)

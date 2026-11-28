@@ -45,6 +45,29 @@ class HuaweiStepSourceTest {
         assertNull(HuaweiStepSource.fuseMinutes(h,emptyList(),0,60).completeSteps)
     }
 
+    @Test fun calibratedMotionOnlyFillsMissingHuaweiMinutes() {
+        fun g(t: Long,x: Double, id: String="whoop") =
+            com.otidotid.alke.data.GravitySample(id,t,x,0.0,0.0)
+        val h = listOf(minute(0,10),minute(120,0))
+        val raw = listOf(g(0,0.0),g(30,9.0),g(60,0.0),g(90,0.7),g(120,10.0),g(150,20.0))
+        val result = requireNotNull(HuaweiStepSource.fuseMotion(h,raw,0,180,10.0))
+        assertEquals(17L,result.steps)
+        assertEquals(2,result.huaweiMinutes)
+        assertEquals(1,result.fallbackMinutes)
+        assertEquals(0,result.missingMinutes)
+        assertEquals(result,HuaweiStepSource.fuseMotion(h+h,raw+raw,0,180,10.0))
+    }
+
+    @Test fun missingCalibrationOrCrossDeviceOrLongGapDoesNotInventSteps() {
+        fun g(t: Long,x: Double,id: String="whoop") =
+            com.otidotid.alke.data.GravitySample(id,t,x,0.0,0.0)
+        val h = listOf(minute(0,10))
+        val raw = listOf(g(60,0.0),g(90,10.0,"other"),g(240,20.0,"other"))
+        assertEquals(10L,HuaweiStepSource.fuseMotion(h,raw,0,300,10.0)?.steps)
+        assertEquals(4,HuaweiStepSource.fuseMotion(h,raw,0,300,null)?.missingMinutes)
+        assertNull(HuaweiStepSource.fuseMotion(emptyList(),raw,0,300,10.0))
+    }
+
     @Test fun completeCalendarDayOnlyAndDstIsHandled() {
         val zone = ZoneId.of("America/New_York")
         val date = LocalDate.of(2026,3,8)

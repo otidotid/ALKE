@@ -1,8 +1,14 @@
 package com.otidotid.alke.multidevice.huawei
 
 import android.content.Context
+import com.otidotid.alke.data.GravitySample
+import com.otidotid.alke.data.WhoopRepository
+import com.otidotid.alke.analytics.StepsEstimateEngine
+import kotlin.math.roundToLong
+import kotlin.math.sqrt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
@@ -10,8 +16,8 @@ import java.time.ZoneId
 
 /**
  * Huawei step deltas are observed minute counts, not WHOOP cumulative motion ticks.
- * A partial vendor day must never replace or be added to an overlapping WHOOP
- * full-day estimate. This resolver only promotes a completely observed window.
+ * Huawei wins every valid observed minute, including explicit zero. WHOOP 4
+ * fills gaps with the existing calibrated motion model, never an overlapping daily total.
  */
 internal object HuaweiStepSource {
     const val SOURCE_ID = "huawei-gt5"
@@ -86,21 +92,60 @@ internal object HuaweiStepSource {
         }.toMap()
     }
 
-    data class DayContribution(val steps: Long,val observedMinutes: Int,val expectedMinutes: Int,
-        val firstMinute: Long,val lastMinute: Long) {
-        val complete get() = observedMinutes == expectedMinutes
-        fun label(): String {
-            val zone = ZoneId.systemDefault()
-            val format = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-            val start = Instant.ofEpochSecond(firstMinute).atZone(zone).format(format)
-            val end = Instant.ofEpochSecond(lastMinute+60).atZone(zone).format(format)
-            return "GT5 recorded: ${java.text.NumberFormat.getIntegerInstance().format(steps)} steps · $observedMinutes/$expectedMinutes min ($start–$end)"
+    data class DailyFusion(val steps: Long, val huaweiMinutes: Int,
+        val fallbackMinutes: Int, val missingMinutes: Int) {
+        val source: String get() = when {
+            fallbackMinutes > 0 && missingMinutes > 0 -> "GT5 + WHOOP estimate (partial)"
+            fallbackMinutes > 0 -> "GT5 + WHOOP estimate"
+            missingMinutes > 0 -> "GT5 (partial)"
+            else -> "GT5"
         }
     }
 
-    /** WHOOP 4 motion-derived daily totals are not independent minute deltas.
-     * Fuse only measured Huawei minutes; keep incomplete-day original totals separate. */
-    suspend fun contributions(context: Context): Map<String,DayContribution> = try {
+    /** Reuse the established WHOOP 4 gravity-delta proxy, but admit a delta only
+     * when its entire interval lies in Huawei-missing minutes. No allocation by
+     * elapsed clock time, no cross-device jumps and no assumed data in long gaps.
+     * The calibrated sum is rounded once, not separately for each minute. */
+    fun fuseMotion(huawei: List<HuaweiFitnessRead.Minute>, gravity: List<GravitySample>,
+        start: Long, end: Long, coefficient: Double?): DailyFusion? {
+        require(start >= 0 && start%60==0L && end%60==0L && end>start && end-start<=172800)
+        val native = huawei.filter { it.epochSeconds in start until end &&
+            it.epochSeconds%60==0L && it.steps!=null && it.steps in 0..500 }
+            .groupBy { it.epochSeconds }.mapNotNull { (ts,rows) ->
+                rows.mapNotNull { it.steps }.distinct().singleOrNull()?.let { ts to it }
+            }.toMap()
+        if(native.isEmpty()) return null // exact original WHOOP-only resolver remains authoritative
+        val seen = mutableSetOf<Long>()
+        var motion = 0.0
+        if(coefficient!=null && coefficient.isFinite() && coefficient>0) {
+            val points = gravity.filter { it.ts in start until end && it.x.isFinite() &&
+                it.y.isFinite() && it.z.isFinite() }.sortedBy { it.ts }.distinctBy { it.ts }
+            for((a,b) in points.zipWithNext()) {
+                if(a.deviceId!=b.deviceId || b.ts-a.ts !in 1L..90L) continue
+                val first = a.ts-a.ts%60
+                val last = b.ts-b.ts%60
+                if((first..last step 60).any { it in native }) continue
+                val dx=a.x-b.x; val dy=a.y-b.y; val dz=a.z-b.z
+                val delta=sqrt(dx*dx+dy*dy+dz*dz)
+                if(!delta.isFinite()) continue
+                motion+=delta
+                // A pair witnesses movement between timestamps; only actual sample
+                // minutes are counted as observed, not interpolated intermediate minutes.
+                seen.add(first); seen.add(last)
+            }
+        }
+        val fallback = if(coefficient!=null && coefficient.isFinite() && coefficient>0)
+            (motion*coefficient).coerceIn(0.0,StepsEstimateEngine.MAX_DAILY_STEPS.toDouble()).roundToLong()
+            else 0L
+        val total = native.values.sumOf { it.toLong() } + fallback
+        if(total>200_000) return null
+        return DailyFusion(total,native.size,seen.size,((end-start)/60).toInt()-native.size-seen.size)
+    }
+
+    /** One daily projection consumed by Today, Progress and Steps detail.
+     * Incomplete coverage is labeled, not filled with fabricated readings. */
+    suspend fun fusedDays(context: Context,repository: WhoopRepository,whoopId: String,
+        coefficient: Double?): Map<String,DailyFusion> = try {
         withContext(Dispatchers.IO) {
             val key = HuaweiTimelineSource.verifiedDeviceKey(context) ?: return@withContext emptyMap()
             val zone = ZoneId.systemDefault()
@@ -113,6 +158,7 @@ internal object HuaweiStepSource {
                 var day = Instant.ofEpochSecond(first).atZone(zone).toLocalDate()
                 buildMap {
                     while(day<=today) {
+                        kotlinx.coroutines.currentCoroutineContext().ensureActive()
                         val start = day.atStartOfDay(zone).toEpochSecond()
                         val end = minOf(day.plusDays(1).atStartOfDay(zone).toEpochSecond(),endNow)
                         if(end>start && end-start<=172800) {
@@ -123,12 +169,12 @@ internal object HuaweiStepSource {
                                     addAll(db.minutes(key,cursor,next))
                                     cursor = next
                                 }
-                            }.filter { it.steps != null && it.steps in 0..500 && it.epochSeconds%60==0L }
-                            if(rows.isNotEmpty()) {
-                                val fused = fuseMinutes(rows,emptyList(),start,end)
-                                if(fused.observedSteps<=200000) put(day.toString(),DayContribution(
-                                    fused.observedSteps,fused.huaweiMinutes,((end-start)/60).toInt(),
-                                    rows.minOf { it.epochSeconds },rows.maxOf { it.epochSeconds }))
+                            }
+                            if(rows.any { it.steps!=null && it.steps in 0..500 && it.epochSeconds%60==0L }) {
+                                val motion = if(coefficient!=null && coefficient.isFinite() && coefficient>0)
+                                    repository.gravitySamplesUnion(whoopId,start,end-1,100_000)
+                                    else emptyList()
+                                fuseMotion(rows,motion,start,end,coefficient)?.let { put(day.toString(),it) }
                             }
                         }
                         day=day.plusDays(1)

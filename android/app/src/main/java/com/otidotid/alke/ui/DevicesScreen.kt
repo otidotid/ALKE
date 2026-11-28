@@ -230,6 +230,13 @@ fun DevicesScreen(
             }
         }
 
+        // Explicit experimental physical test is available on the owner-only Personal tier.
+        // Never expose it in Demo or the public non-debug full release.
+        if (!com.otidotid.alke.BuildConfig.ENABLE_DEMO &&
+            (com.otidotid.alke.BuildConfig.DEBUG || com.otidotid.alke.BuildConfig.TIER == "personal")) {
+            item { HuaweiDiagnosticCard() }
+        }
+
         if (devices == null) {
             // The registry resolves a beat after launch. Show a calm pending note in that brief window.
             item {

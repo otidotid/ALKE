@@ -160,6 +160,67 @@ object RouteExport {
         return out.toByteArray()
     }
 
+    /** Recorded-only FIT for Strava. Unlike the legacy polyline exporter, this
+     * path never interpolates timestamps or makes up sensor readings. */
+    data class RecordedPoint(val timestamp: Long,val lat: Double?=null,val lon: Double?=null,val hr: Int?=null)
+
+    fun recordedFit(points: List<RecordedPoint>, startTs: Long,endTs: Long,sport: String?,
+        distanceM: Double?,energyKcal: Double?): ByteArray {
+        require(startTs>=FIT_EPOCH && endTs>startTs && endTs-startTs<=7*86400L)
+        require(points.size in 2..200_000 && points.all { p ->
+            p.timestamp in startTs..endTs && (p.lat==null)==(p.lon==null) &&
+                (p.lat==null || (p.lat.isFinite() && p.lat in -90.0..90.0 &&
+                    p.lon!=null && p.lon.isFinite() && p.lon in -180.0..180.0)) &&
+                (p.hr==null || p.hr in 25..250) && (p.lat!=null || p.hr!=null)
+        } && points.zipWithNext().all { (a,b) -> a.timestamp<b.timestamp })
+        val body=ByteArrayOutputStream()
+        body.defn(0,0,listOf(F(0,1,0x00),F(1,2,0x84),F(4,4,0x86)))
+        body.u8(0);body.u8(4);body.u16(255);body.u32(fitTime(startTs))
+        val time=F(253,4,0x86)
+        val lat=F(0,4,0x85);val lon=F(1,4,0x85);val hr=F(3,1,0x02)
+        body.defn(1,20,listOf(time,lat,lon))
+        body.defn(5,20,listOf(time,hr))
+        body.defn(6,20,listOf(time,lat,lon,hr))
+        body.defn(7,21,listOf(time,F(0,1,0x00),F(1,1,0x00)))
+        body.u8(7);body.u32(fitTime(startTs));body.u8(0);body.u8(0)
+        for(p in points) {
+            body.u8(if(p.lat!=null) { if(p.hr!=null) 6 else 1 } else 5)
+            body.u32(fitTime(p.timestamp))
+            if(p.lat!=null) { body.s32(semicircles(p.lat));body.s32(semicircles(requireNotNull(p.lon))) }
+            p.hr?.let { body.u8(it) }
+        }
+        body.u8(7);body.u32(fitTime(endTs));body.u8(0);body.u8(4)
+        val elapsed=(endTs-startTs)*1000
+        val distance=distanceM?.takeIf { it.isFinite() && it in 0.0..1_000_000.0 }?.let { (it*100).roundToLong() }
+        val calories=energyKcal?.takeIf { it.isFinite() && it in 0.0..65534.0 }?.roundToLong()?.toInt()
+        val canon=canonicalSport(sport)
+        val fitSportCode=when(canon) {
+            "hike" -> 17
+            "indoor running","trail running" -> 1
+            "indoor cycling" -> 2
+            "indoor walking" -> 11
+            "weight training","strength training","traditionalstrengthtraining","yoga","pilates" -> 10
+            else -> fitSport(canon)
+        }
+        val lap=listOf(time,F(2,4,0x86),F(7,4,0x86),F(8,4,0x86),F(9,4,0x86))
+        body.defn(2,19,lap)
+        body.u8(2);body.u32(fitTime(endTs));body.u32(fitTime(startTs));body.u32(elapsed);body.u32(elapsed)
+        body.u32(distance ?: 0xffffffffL)
+        val sf=mutableListOf(time,F(2,4,0x86),F(7,4,0x86),F(8,4,0x86),F(5,1,0x00),F(26,2,0x84))
+        val sd=ByteArrayOutputStream()
+        sd.u32(fitTime(endTs));sd.u32(fitTime(startTs));sd.u32(elapsed);sd.u32(elapsed);sd.u8(fitSportCode);sd.u16(1)
+        distance?.let { sf.add(F(9,4,0x86));sd.u32(it) }
+        calories?.let { sf.add(F(11,2,0x84));sd.u16(it) }
+        body.defn(3,18,sf);body.u8(3);body.write(sd.toByteArray())
+        body.defn(4,34,listOf(time,F(1,4,0x86),F(2,2,0x84),F(3,1,0x00),F(4,1,0x00),F(5,1,0x00)))
+        body.u8(4);body.u32(fitTime(endTs));body.u32(elapsed);body.u16(1);body.u8(0);body.u8(26);body.u8(1)
+        val bytes=body.toByteArray()
+        val out=ByteArrayOutputStream()
+        out.u8(12);out.u8(0x20);out.u16(2140);out.u32(bytes.size.toLong())
+        out.write(byteArrayOf(46,70,73,84));out.write(bytes);out.u16(fitCrc(out.toByteArray()))
+        return out.toByteArray()
+    }
+
     // ── Timing / units ────────────────────────────────────────────────────────────────────────────────
 
     /** Per-point Unix seconds, spread evenly across [startTs, endTs] (start for a single point). */

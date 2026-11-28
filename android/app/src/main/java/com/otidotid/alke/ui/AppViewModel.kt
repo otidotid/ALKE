@@ -2281,7 +2281,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             } else {
                 WorkoutEditing.dedupCrossSource(filteredRows)
             }
-            val sorted = deduped.sortedByDescending { it.startTs }
+            val sorted = com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.merge(
+                appContext,deduped,0L,now).sortedByDescending { it.startTs }
             _workouts.value = sorted
             // Post-workout summary (#517) — opt-in, default OFF. The newest session (by start) drives a
             // one-shot Effort + duration + avg-HR notification when it's strictly newer than the last one
@@ -2424,6 +2425,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  not available on Android (no cheap windowed step source), so a 4.0 window simply shows no steps. */
     suspend fun workoutSteps(from: Long, to: Long): Int? {
         if (to <= from) return null
+        com.otidotid.alke.multidevice.huawei.HuaweiStepSource.workoutWindow(appContext, from, to)?.let { return it }
         val samples = runCatching { repository.stepSamples(deviceId, from, to) }.getOrDefault(emptyList())
         val ticks = com.otidotid.alke.analytics.StepsCounter.stepsInWindow(samples) ?: return null
         val scaled = (ticks.toDouble() / maxOf(profileStore.stepTicksPerStep, 0.5)).roundToInt()

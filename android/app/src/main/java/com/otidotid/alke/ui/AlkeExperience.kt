@@ -203,7 +203,8 @@ private fun AlkeHeader(
     val activeIsOura by vm.activeIsOura.collectAsStateWithLifecycle()
     val ringBattery by vm.ouraBatteryPct.collectAsStateWithLifecycle()
     val activeName by vm.activeDeviceName.collectAsStateWithLifecycle()
-    val syncing = live.backfilling || live.analyzingHistory
+    val huawei by com.otidotid.alke.multidevice.huawei.HuaweiConnectionController.state.collectAsStateWithLifecycle()
+    val syncing = live.backfilling || live.analyzingHistory || huawei.syncing
     // No perpetual battery pulse while idle. The ALKE sync halo below is
     // driven solely by the real BLE/history-sync state.
     val hasSyncError = !syncing && !live.lastSyncError.isNullOrBlank()
@@ -298,6 +299,14 @@ private fun AlkeHeader(
             )
         }
 
+        // Preserve single-device appearance; when Huawei authenticates, display separate readings.
+        if (huawei.authenticated || (huawei.running && huawei.previouslyAuthenticated)) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp), horizontalAlignment = Alignment.End) {
+                AlkeDualBatteryLine(if (activeIsOura) "RING" else "WHOOP", battery,
+                    !activeIsOura && live.charging == true)
+                AlkeDualBatteryLine("GT5", huawei.batteryPercent, false, huawei.authenticated)
+            }
+        } else {
         // Option A: one matte battery chip, icon first, percentage second.
         // The value still comes from the currently connected device, never cached charge.
         val batteryChipShape = RoundedCornerShape(50.dp)
@@ -329,6 +338,7 @@ private fun AlkeHeader(
                 maxLines = 1,
             )
         }
+        }
     }
     if (showSyncHub) {
         ModalBottomSheet(
@@ -345,6 +355,7 @@ private fun AlkeHeader(
                     when {
                         live.analyzingHistory -> "Updating your health metrics"
                         live.backfilling -> "Syncing wearable history"
+                        huawei.syncing -> "Syncing Huawei history"
                         hasSyncError -> "Sync needs attention"
                         live.connected -> "Wearable connected"
                         else -> "Wearable disconnected"
@@ -352,6 +363,7 @@ private fun AlkeHeader(
                     color = if (hasSyncError) A.gold else A.cyan,
                     fontSize = 14.sp,
                 )
+                if (huawei.authenticated) Text("Huawei GT5 · authenticated", color = A.cyan, fontSize = 12.sp)
                 if (hasSyncError) Text(live.lastSyncError.orEmpty(), color = A.muted, fontSize = 12.sp)
                 live.lastSyncAt?.let { timestamp ->
                     val time = Instant.ofEpochSecond(timestamp).atZone(ZoneId.systemDefault())
@@ -372,6 +384,23 @@ private fun AlkeHeader(
                     onClick = { showSyncHub = false; onDevices() })
             }
         }
+    }
+}
+
+@Composable
+private fun AlkeDualBatteryLine(name: String, percent: Int?, charging: Boolean, connected: Boolean = true) {
+    Row(
+        Modifier.clip(RoundedCornerShape(50.dp)).background(Color(0xFF1B222D))
+            .border(1.dp, Color(0xFF303B48), RoundedCornerShape(50.dp))
+            .semantics { stateDescription = "$name battery ${percent?.let { "$it percent" } ?: "unavailable"}" }
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Text(name, color = if (connected) A.muted else A.muted.copy(alpha = 0.6f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        AlkeBatteryGlyph(percent, charging, Modifier.size(width = 23.dp, height = 13.dp))
+        Text(percent?.let { "$it%" } ?: "—", color = if (percent == null) A.muted else A.white,
+            fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
     }
 }
 
@@ -817,8 +846,9 @@ fun AlkeTodayExperience(
     // The existing Steps detail resolver provides real, imported, and estimated
     // readings with the same precedence as Progress. Show ONLY today's reading
     // in the Today tile; a prior date must never masquerade as today's steps.
+    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.stepRevision.collectAsStateWithLifecycle()
     val stepsModel by produceState<VitalDetailModel?>(
-        initialValue = null, key1 = vm.activeStrapId, key2 = recentDays,
+        initialValue = null, key1 = vm.activeStrapId, key2 = recentDays, key3 = huaweiStepsRevision,
     ) {
         value = runCatching { buildSeriesVitalDetail(vm, "steps_est") }.getOrNull()
     }
@@ -838,7 +868,8 @@ fun AlkeTodayExperience(
     val recovery = day?.recovery?.takeIf { it.isFinite() && it in 0.0..100.0 }
     val dateText = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault()))
     val workouts by vm.workouts.collectAsStateWithLifecycle()
-    LaunchedEffect(vm) { vm.loadWorkouts() }
+    val huaweiWorkoutRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
+    LaunchedEffect(vm,huaweiWorkoutRevision) { vm.loadWorkouts() }
     val todayWorkouts = workouts.filter {
         Instant.ofEpochSecond(it.startTs).atZone(ZoneId.systemDefault()).toLocalDate() == LocalDate.now()
     }
@@ -953,6 +984,10 @@ fun AlkeTodayExperience(
             AlkeMetricTile("Active Time", workoutMinutes?.let { niceMinutes(it) } ?: "—",
                 Icons.Filled.MonitorHeart, Modifier.weight(1f), A.blue, onTrain)
         }
+        stepsModel?.readings?.lastOrNull { it.day == LocalDate.now().toString() &&
+            it.source.startsWith("GT5") }?.let { reading ->
+            Text("Steps · ${reading.source}", color = A.muted, fontSize = 10.sp)
+        }
         Text("Active Time reflects recorded workouts; unavailable activity is never estimated.",
             color = A.muted, fontSize = 10.sp)
         // Tapping this compact real/latest BPM card retains the existing detailed
@@ -1018,7 +1053,8 @@ fun AlkeTrainingExperience(
     }
     var showAddDialog by remember { mutableStateOf(false) }
     val activityDataRevision by com.otidotid.alke.ai.CloudActivitySettings.dataRevision.collectAsStateWithLifecycle()
-    LaunchedEffect(vm, activityDataRevision) { vm.loadWorkouts() }
+    val huaweiWorkoutRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
+    LaunchedEffect(vm, activityDataRevision,huaweiWorkoutRevision) { vm.loadWorkouts() }
 
     AlkePage {
         Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)
@@ -1675,8 +1711,9 @@ fun AlkeProgressExperience(
     // Reuse the original steps-history data resolver: real wearable measurements
     // first, then Apple/Health Connect imports, then the motion-model estimate.
     // One source of truth for both this overview and its detail chart.
+    val huaweiStepsRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.stepRevision.collectAsStateWithLifecycle()
     val stepsModel by produceState<VitalDetailModel?>(
-        initialValue = null, key1 = vm.activeStrapId, key2 = days,
+        initialValue = null, key1 = vm.activeStrapId, key2 = days, key3 = huaweiStepsRevision,
     ) {
         value = runCatching { buildSeriesVitalDetail(vm, "steps_est") }.getOrNull()
     }

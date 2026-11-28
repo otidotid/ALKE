@@ -146,7 +146,11 @@ jobs:
             --tests 'com.otidotid.alke.analytics.StepsEstimateEngineTest' \
             --tests 'com.otidotid.alke.analytics.StepsCounterTest' \
             --tests 'com.otidotid.alke.ui.HypopneaTodaySelectionTest' \
-            --tests 'com.otidotid.alke.analytics.SleepEpisodeReconciliationTest'
+            --tests 'com.otidotid.alke.analytics.SleepEpisodeReconciliationTest' \
+            --tests 'com.otidotid.alke.multidevice.huawei.*' || {
+              find app/build/test-results -name '*Huawei*Test*.xml' -exec sh -c 'grep -q "<failure" "$1" && cat "$1" || true' _ {} \;
+              exit 1
+            }
       - name: Save rendered HR widget previews for visual regression review
         if: always()
         uses: actions/upload-artifact@v4
@@ -184,12 +188,12 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Collect Android SDK signature verifier for offline Personal signing
-        if: github.head_ref == 'alke/v598-realtime-audit' || github.head_ref == 'alke/v627-sleep-intelligence' || github.head_ref == 'alke/v628-sleep-ui-polish' || github.head_ref == 'alke/v629-post-sync-activity' || github.head_ref == 'alke/v630-me-experience' || github.head_ref == 'alke/v632-sleep-scoring-recovery'
+        if: github.head_ref == 'alke/v598-realtime-audit' || github.head_ref == 'alke/v627-sleep-intelligence' || github.head_ref == 'alke/v628-sleep-ui-polish' || github.head_ref == 'alke/v629-post-sync-activity' || github.head_ref == 'alke/v630-me-experience' || github.head_ref == 'alke/v632-sleep-scoring-recovery' || github.head_ref == 'alke/huawei-gt5-foundation'
         run: |
           signer=$(find "$ANDROID_HOME/build-tools" -path '*/lib/apksigner.jar' | sort -V | tail -1)
           cp "$signer" "$RUNNER_TEMP/apksigner.jar"
       - uses: actions/upload-artifact@v4
-        if: github.head_ref == 'alke/v598-realtime-audit' || github.head_ref == 'alke/v627-sleep-intelligence' || github.head_ref == 'alke/v628-sleep-ui-polish' || github.head_ref == 'alke/v629-post-sync-activity' || github.head_ref == 'alke/v630-me-experience' || github.head_ref == 'alke/v632-sleep-scoring-recovery'
+        if: github.head_ref == 'alke/v598-realtime-audit' || github.head_ref == 'alke/v627-sleep-intelligence' || github.head_ref == 'alke/v628-sleep-ui-polish' || github.head_ref == 'alke/v629-post-sync-activity' || github.head_ref == 'alke/v630-me-experience' || github.head_ref == 'alke/v632-sleep-scoring-recovery' || github.head_ref == 'alke/huawei-gt5-foundation'
         with:
           name: Android-SDK-apksigner
           path: ${{ runner.temp }}/apksigner.jar

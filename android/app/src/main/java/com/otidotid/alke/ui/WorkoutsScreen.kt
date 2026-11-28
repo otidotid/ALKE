@@ -547,6 +547,7 @@ private fun isAiSession(row: WorkoutRow)=row.source==CloudActivityProtocol.WORKO
 private fun unifiedSource(row: WorkoutRow): String = when {
     isAiSession(row) -> "AI Detected"
     row.source.equals("health-connect",true) -> "Health Connect"
+    row.source == com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.SOURCE -> "Huawei GT5"
     WorkoutEditing.classify(row.source)==WorkoutSource.MANUAL -> "Manual"
     WorkoutEditing.classify(row.source)==WorkoutSource.DETECTED -> "Detected"
     else -> when(WorkoutEditing.classify(row.source)) {
@@ -2016,6 +2017,7 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
                 SourceBadge(srcLabel, tint = srcTint)
             }
             CardDivider()
+            StravaExportAction(vm,row)
             DetailRow("Time", timeRangeLabel(row.startTs, row.endTs))
             DetailRow("Duration", durationLabel(row.durationS))
             DetailRow("Avg HR", if (row.avgHr != null) "${row.avgHr} bpm" else if(measuredOnly) "—" else "~${resolvedWorkoutAverageHr(row)} bpm")
@@ -2822,6 +2824,7 @@ internal fun workoutSourceLabel(deviceId: String, source: String): String {
     val src = source.lowercase()
     return when {
         src == "cloud-ai-alke" -> "AI"
+        src == com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.SOURCE -> "GT5"
         id == "health-connect" || src.contains("health-connect") -> "HC"
         id.contains("whoop") || src.contains("whoop") -> "Whoop"
         else -> "Apple"

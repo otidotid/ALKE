@@ -16,7 +16,9 @@ class PremiumV625DesignLockTest {
     }
     private fun ui(name:String)=File(root(),"android/app/src/main/java/com/otidotid/alke/ui/$name").readText()
     private fun gitBlob(file:File):String {
-        val bytes=file.readBytes()
+        return gitBlobBytes(file.readBytes())
+    }
+    private fun gitBlobBytes(bytes:ByteArray):String {
         val digest=MessageDigest.getInstance("SHA-1")
         digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.UTF_8))
         digest.update(bytes)
@@ -24,8 +26,9 @@ class PremiumV625DesignLockTest {
     }
     @Test fun approvedV624SurfacesRemainByteIdentical() {
         val expected=mapOf("WorkoutsScreen.kt" to "60e0b648ca8a93b774eb934e020a32dfca8bc650",
-            // v627 owner-approved daily Rest resolver and Charge contributor data wiring only.
-            "TodayScreen.kt" to "23fa0a65baaec61083b81e0f6a03f0888fb80140",
+            // v646 native Huawei HR timeline data selection and source disclosure only;
+            // the original v627 surface is independently locked below.
+            "TodayScreen.kt" to "56b345ed4044a7aa1cde96a440cd751ddd1b8433",
             "HrEventVisuals.kt" to "d0ded42f01dddf9ad342384e7a6b25f908d8ad26")
         expected.forEach { (name,sha) ->
             assertEquals(name,sha,gitBlob(File(root(),"android/app/src/main/java/com/otidotid/alke/ui/$name")))
@@ -33,8 +36,50 @@ class PremiumV625DesignLockTest {
         // v627: user approved only the daily Rest resolver change in Today and new Sleep Worker route.
         // Full WorkoutsScreen and HrEventVisuals hashes above remain unchanged.
         // v629: owner-approved post-sync cloud activity evidence and classification update.
-        // Pin the reviewed Worker blob; all three approved UI surface hashes remain unchanged.
+        // Pin the reviewed Worker blob; workouts and event visuals remain byte-identical.
         assertEquals("5a34dda12c4220283c026b8b46176d78081c634b",gitBlob(File(root(),"cloud-coach/worker.js")))
+    }
+    @Test fun huaweiTimelineOnlyChangesReviewedDataWiringAndSourceLabel() {
+        // Do not simply bless a new TodayScreen hash: reverse exactly the four
+        // reviewed edits, and require the entire rest of the file to match v627.
+        var original = ui("TodayScreen.kt")
+        fun undo(added: String, prior: String) {
+            assertEquals("Expected exactly one reviewed edit", 1, original.split(added).size - 1)
+            original = original.replace(added, prior)
+        }
+        undo(
+            "    var huaweiBucketStarts by remember { mutableStateOf<Set<Long>>(emptySet()) }\n" +
+                "    val timelineContext = LocalContext.current\n" +
+                "    val huaweiRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()\n",
+            "",
+        )
+        undo(
+            "dayCycleMode, activityRevision, if (alkeStyle) huaweiRevision else 0L) {",
+            "dayCycleMode, activityRevision) {",
+        )
+        undo(
+            """        if (alkeStyle) {
+            val timeline = com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.read(
+                timelineContext, viewModel.repo, viewModel.activeStrapId, start, end, HR_CARD_BUCKET_SECONDS)
+            buckets = timeline.buckets
+            huaweiBucketStarts = timeline.huaweiBucketStarts
+        } else {
+            buckets = viewModel.repo.hrBucketsUnion(
+                viewModel.activeStrapId, start, end, HR_CARD_BUCKET_SECONDS,
+            )
+            huaweiBucketStarts = emptySet()
+        }""",
+            """        buckets = viewModel.repo.hrBucketsUnion(
+            viewModel.activeStrapId, start, end, HR_CARD_BUCKET_SECONDS,
+        )""",
+        )
+        undo(
+            "                        if (winBuckets.any { it.bucket in huaweiBucketStarts })\n" +
+                "                            \"\$subtitle · Huawei priority / WHOOP fallback (minute data)\" else subtitle,",
+            "                        subtitle,",
+        )
+        assertEquals("Unchanged approved Today layout and chart", "23fa0a65baaec61083b81e0f6a03f0888fb80140",
+            gitBlobBytes(original.toByteArray(Charsets.UTF_8)))
     }
     @Test fun consolidatedRoutesAndExistingPinIds() {
         val nav=ui("AppRoot.kt")

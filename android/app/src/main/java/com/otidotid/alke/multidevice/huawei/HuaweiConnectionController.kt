@@ -14,7 +14,8 @@ import kotlinx.coroutines.delay
 
 /** App-process-owned test connection, independent of the Devices screen and WHOOP. */
 internal object HuaweiConnectionController {
-    data class State(val running: Boolean = false, val report: String? = null)
+    data class State(val running: Boolean = false, val report: String? = null,
+        val authenticated: Boolean = false, val batteryPercent: Int? = null, val syncing: Boolean = false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutableState = MutableStateFlow(State())
     val state = mutableState.asStateFlow()
@@ -30,9 +31,13 @@ internal object HuaweiConnectionController {
                 var failures = 0
                 var result: String
                 while (true) {
-                    result = HuaweiPairingDiagnostic.run(context.applicationContext, device, allowFirstBind) {
-                        mutableState.value = State(true, it)
-                    }
+                    result = HuaweiPairingDiagnostic.run(context.applicationContext, device, allowFirstBind,
+                        onStatus = { percent, syncing ->
+                            mutableState.value = mutableState.value.copy(authenticated = percent != null,
+                                batteryPercent = percent?.takeIf { it in 0..100 }, syncing = syncing)
+                        }, onVerified = {
+                            mutableState.value = mutableState.value.copy(running = true, report = it)
+                        })
                     // Never automatically repeat first bind or account/reset decisions.
                     allowFirstBind = false
                     if (result == HuaweiPairingDiagnostic.SESSION_ROTATION) {

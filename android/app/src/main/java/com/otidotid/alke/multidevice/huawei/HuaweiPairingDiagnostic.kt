@@ -30,6 +30,7 @@ internal object HuaweiPairingDiagnostic {
     private class HuaweiSessionRotation : IOException()
 
     suspend fun run(context: Context, device: BluetoothDevice, allowFirstBind: Boolean,
+        onStatus: (Int?, Boolean) -> Unit = { _, _ -> },
         onVerified: (String) -> Unit = {}): String = attemptLock.withLock {
         coroutineScope {
             val link = HuaweiRfcommTransport(device)
@@ -39,7 +40,7 @@ internal object HuaweiPairingDiagnostic {
             try {
                 withContext(Dispatchers.IO) {
                     val attemptContext = coroutineContext
-                    attempt(context, device, link, allowFirstBind, onVerified) { attemptContext.ensureActive() }
+                    attempt(context, device, link, allowFirstBind, onStatus, onVerified) { attemptContext.ensureActive() }
                 }
             } finally {
                 link.close()
@@ -49,7 +50,8 @@ internal object HuaweiPairingDiagnostic {
     }
 
     private fun attempt(context: Context, device: BluetoothDevice, link: HuaweiRfcommTransport,
-        allowFirstBind: Boolean, onVerified: (String) -> Unit, ensureActive: () -> Unit): String {
+        allowFirstBind: Boolean, onStatus: (Int?, Boolean) -> Unit,
+        onVerified: (String) -> Unit, ensureActive: () -> Unit): String {
         val expired = AtomicBoolean(false)
         val watchdog = Executors.newSingleThreadScheduledExecutor()
         val timeout = watchdog.schedule({
@@ -95,6 +97,7 @@ internal object HuaweiPairingDiagnostic {
                     timeout.cancel(false)
                     checkActive()
                     sessionStarted = true
+                    onStatus(info.batteryPercent, true)
                     val batteryMode = if (info.batteryEncrypted) "GCM" else "plaintext"
                     val connect = when {
                         info.initialization?.connectSupported != true -> "not advertised"
@@ -110,7 +113,11 @@ internal object HuaweiPairingDiagnostic {
                     val localStore = HuaweiFitnessStore(context.applicationContext)
                     fitnessStore = localStore
                     val sessionStart = android.os.SystemClock.elapsedRealtime()
+                    var charge = info.batteryPercent
+                    var nextBattery = android.os.SystemClock.elapsedRealtime() + 300_000L
                     var nextHistory = 0L
+                    var backfillEnd = 0L
+                    var olderWindows = 0
                     var historyCount: Int? = null
                     var sourcePreview = "HR source comparison unavailable."
                     var historySummary = "Sleep and workout not yet read."
@@ -119,6 +126,13 @@ internal object HuaweiPairingDiagnostic {
                         checkActive()
                         if (android.os.SystemClock.elapsedRealtime() - sessionStart >= 30 * 60 * 1000L)
                             throw HuaweiSessionRotation()
+                        onStatus(charge, true)
+                        val elapsed = android.os.SystemClock.elapsedRealtime()
+                        if (elapsed >= nextBattery) {
+                            charge = fitness.batteryPercent()
+                            nextBattery = elapsed + 300_000L
+                            onStatus(charge, true)
+                        }
                         val before = System.currentTimeMillis()
                         val zone = java.time.ZoneId.systemDefault()
                         val day = java.time.Instant.ofEpochMilli(before).atZone(zone).toLocalDate()
@@ -135,6 +149,7 @@ internal object HuaweiPairingDiagnostic {
                             localStore.saveMinutes(deviceKey, start, end, minutes)
                             val stored = localStore.minutes(deviceKey, start, end)
                             historyCount = stored.size
+                            if (backfillEnd == 0L) backfillEnd = start
                             // Read-only source selection on minute windows. Do not alter native WHOOP scoring.
                             sourcePreview = runCatching {
                                 val app = context.applicationContext as com.otidotid.alke.AlkeApplication
@@ -147,6 +162,15 @@ internal object HuaweiPairingDiagnostic {
                                 "HR source preview: Huawei $primary, WHOOP ${chosen.size - primary} minute windows."
                             }.getOrDefault("HR source preview unavailable.")
                             nextHistory = now + 900
+                        }
+                        // One completed older hour per poll, without summing or advancing on failure.
+                        // A new connection restarts this bounded 24h recovery; idempotent upserts protect overlap.
+                        if (backfillEnd > 0L && olderWindows < 23) {
+                            val olderStart = backfillEnd - 3600
+                            val older = fitness.minutes(olderStart, backfillEnd)
+                            localStore.saveMinutes(deviceKey, olderStart, backfillEnd, older)
+                            backfillEnd = olderStart
+                            olderWindows++
                         }
                         if (!historyRead) {
                             val end = now - now % 60
@@ -167,6 +191,7 @@ internal object HuaweiPairingDiagnostic {
                         val historyText = historyCount?.let { "GCM-verified minute records stored: $it." }
                             ?: "Minute history unavailable."
                         onVerified("$header\n$totalsText\n$historyText\n$sourcePreview\n$historySummary\nSaved in separate Huawei store; not merged into ALKE scores.\n$notes")
+                        onStatus(charge, false)
                         // Check cancellation frequently. No second reader or background thread per poll.
                         repeat(120) {
                             checkActive()
@@ -192,6 +217,7 @@ internal object HuaweiPairingDiagnostic {
             val failure = if (expired.get()) "timed out" else "failed or unsupported"
             return "$stage: $failure. ${protocol.lastResponse}\n${transport.trace.summary()}"
         } finally {
+            onStatus(null, false)
             fitnessStore?.close()
             binding?.close()
             timeout.cancel(false)

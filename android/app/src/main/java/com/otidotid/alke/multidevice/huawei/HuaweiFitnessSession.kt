@@ -25,6 +25,22 @@ internal class HuaweiFitnessSession(
         }
     }
 
+    /** Battery is the known mixed-mode read; only after authenticated ProductInfo. */
+    fun batteryPercent(): Int {
+        val service = HuaweiDeviceInfo.SERVICE
+        val command = HuaweiDeviceInfo.BATTERY
+        transport.resetTrace()
+        transport.send(reads.requestInitialization(service, command, HuaweiDeviceInfo.query(command)))
+        return reads.receiveInitialization(transport.receive(command, service, 8000)).use { reply ->
+            if (!reply.encrypted) {
+                val fields = HuaweiTlv.decode(reply.payload)
+                require(fields.all { it.tag in 1..3 || it.tag == 0x7f } &&
+                    HuaweiTlv.one(fields, 1)?.size == 1)
+            }
+            HuaweiDeviceInfo.battery(HuaweiLinkFrames.Message(service, command, reply.payload))
+        }
+    }
+
     fun totals(): HuaweiFitnessRead.Totals =
         query(HuaweiFitnessRead.TOTALS, HuaweiFitnessRead.totalsRequest(), parse = HuaweiFitnessRead::totals)
 

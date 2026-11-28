@@ -203,7 +203,8 @@ private fun AlkeHeader(
     val activeIsOura by vm.activeIsOura.collectAsStateWithLifecycle()
     val ringBattery by vm.ouraBatteryPct.collectAsStateWithLifecycle()
     val activeName by vm.activeDeviceName.collectAsStateWithLifecycle()
-    val syncing = live.backfilling || live.analyzingHistory
+    val huawei by com.otidotid.alke.multidevice.huawei.HuaweiConnectionController.state.collectAsStateWithLifecycle()
+    val syncing = live.backfilling || live.analyzingHistory || huawei.syncing
     // No perpetual battery pulse while idle. The ALKE sync halo below is
     // driven solely by the real BLE/history-sync state.
     val hasSyncError = !syncing && !live.lastSyncError.isNullOrBlank()
@@ -298,6 +299,14 @@ private fun AlkeHeader(
             )
         }
 
+        // Preserve single-device appearance; when Huawei authenticates, display separate readings.
+        if (huawei.authenticated) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp), horizontalAlignment = Alignment.End) {
+                AlkeDualBatteryLine(if (activeIsOura) "RING" else "WHOOP", battery,
+                    !activeIsOura && live.charging == true)
+                AlkeDualBatteryLine("GT5", huawei.batteryPercent, false)
+            }
+        } else {
         // Option A: one matte battery chip, icon first, percentage second.
         // The value still comes from the currently connected device, never cached charge.
         val batteryChipShape = RoundedCornerShape(50.dp)
@@ -329,6 +338,7 @@ private fun AlkeHeader(
                 maxLines = 1,
             )
         }
+        }
     }
     if (showSyncHub) {
         ModalBottomSheet(
@@ -345,6 +355,7 @@ private fun AlkeHeader(
                     when {
                         live.analyzingHistory -> "Updating your health metrics"
                         live.backfilling -> "Syncing wearable history"
+                        huawei.syncing -> "Syncing Huawei history"
                         hasSyncError -> "Sync needs attention"
                         live.connected -> "Wearable connected"
                         else -> "Wearable disconnected"
@@ -352,6 +363,7 @@ private fun AlkeHeader(
                     color = if (hasSyncError) A.gold else A.cyan,
                     fontSize = 14.sp,
                 )
+                if (huawei.authenticated) Text("Huawei GT5 · authenticated", color = A.cyan, fontSize = 12.sp)
                 if (hasSyncError) Text(live.lastSyncError.orEmpty(), color = A.muted, fontSize = 12.sp)
                 live.lastSyncAt?.let { timestamp ->
                     val time = Instant.ofEpochSecond(timestamp).atZone(ZoneId.systemDefault())
@@ -372,6 +384,23 @@ private fun AlkeHeader(
                     onClick = { showSyncHub = false; onDevices() })
             }
         }
+    }
+}
+
+@Composable
+private fun AlkeDualBatteryLine(name: String, percent: Int?, charging: Boolean) {
+    Row(
+        Modifier.clip(RoundedCornerShape(50.dp)).background(Color(0xFF1B222D))
+            .border(1.dp, Color(0xFF303B48), RoundedCornerShape(50.dp))
+            .semantics { stateDescription = "$name battery ${percent?.let { "$it percent" } ?: "unavailable"}" }
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Text(name, color = A.muted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        AlkeBatteryGlyph(percent, charging, Modifier.size(width = 23.dp, height = 13.dp))
+        Text(percent?.let { "$it%" } ?: "—", color = if (percent == null) A.muted else A.white,
+            fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
     }
 }
 

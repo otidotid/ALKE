@@ -132,7 +132,7 @@ internal class HuaweiInitialization(
         private val SUCCESS = byteArrayOf(0, 1, 0x86.toByte(), 0xa0.toByte())
 
         fun allowed(service: Int, command: Int) =
-            (service == 1 && command in setOf(2, 3, 0x31, 0x35, 0x37, 0x3d, 0x3e)) ||
+            (service == 1 && command in setOf(2, 3, 8, 0x31, 0x35, 0x37, 0x3d, 0x3e)) ||
                 (service == 0x1a && command == 5) || (service == 7 && command in setOf(3, 10, 11, 12, 13)) ||
                 (service == 0x17 && command in setOf(7, 8, 10, 12))
 

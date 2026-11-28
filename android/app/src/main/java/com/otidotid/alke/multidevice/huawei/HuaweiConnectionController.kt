@@ -22,13 +22,14 @@ internal object HuaweiConnectionController {
     private var job: Job? = null
 
     // Both entry points are invoked on the UI thread; do not start two sockets.
-    fun connect(context: Context, device: BluetoothDevice, firstBind: Boolean) {
+    fun connect(context: Context, device: BluetoothDevice, firstBind: Boolean, testFiles: Boolean = false) {
         if (job?.isActive == true || mutableState.value.running) return
         mutableState.value = State(true, "Connecting Huawei GT 5...")
         job = scope.launch {
             try {
                 var allowFirstBind = firstBind
                 var failures = 0
+                var fileProbe = testFiles
                 var result: String
                 while (true) {
                     result = HuaweiPairingDiagnostic.run(context.applicationContext, device, allowFirstBind,
@@ -37,7 +38,9 @@ internal object HuaweiConnectionController {
                                 batteryPercent = percent?.takeIf { it in 0..100 }, syncing = syncing)
                         }, onVerified = {
                             mutableState.value = mutableState.value.copy(running = true, report = it)
-                        })
+                        }, testFiles = fileProbe)
+                    // Explicit file probe is attempted only once, never retried on rotation/link loss.
+                    fileProbe = false
                     // Never automatically repeat first bind or account/reset decisions.
                     allowFirstBind = false
                     if (result == HuaweiPairingDiagnostic.SESSION_ROTATION) {

@@ -45,9 +45,9 @@ internal fun HuaweiDiagnosticCard() {
     val busy = probeBusy || connection.running
     var pendingBind by remember { mutableStateOf<BluetoothDevice?>(null) }
 
-    fun authenticate(device: BluetoothDevice, firstBind: Boolean) {
+    fun authenticate(device: BluetoothDevice, firstBind: Boolean, testFiles: Boolean = false) {
         report = null
-        HuaweiConnectionController.connect(context.applicationContext, device, firstBind)
+        HuaweiConnectionController.connect(context.applicationContext, device, firstBind, testFiles)
     }
 
     pendingBind?.let { device ->
@@ -105,6 +105,9 @@ internal fun HuaweiDiagnosticCard() {
                 }) { Text("Probe " + (runCatching { device.name }.getOrNull() ?: "Huawei GT 5")) }
                 TextButton(enabled = !busy, onClick = { authenticate(device, false) }) {
                     Text("Resume / test saved ALKE binding")
+                }
+                TextButton(enabled = !busy, onClick = { authenticate(device, false, true) }) {
+                    Text("Test GPS & TruSleep files (experimental)")
                 }
                 TextButton(enabled = !busy, onClick = { pendingBind = device }) {
                     Text("Test first-time ALKE binding")

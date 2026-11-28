@@ -31,7 +31,7 @@ internal object HuaweiPairingDiagnostic {
 
     suspend fun run(context: Context, device: BluetoothDevice, allowFirstBind: Boolean,
         onStatus: (Boolean, Int?, Boolean) -> Unit = { _, _, _ -> },
-        onVerified: (String) -> Unit = {}): String = attemptLock.withLock {
+        onVerified: (String) -> Unit = {}, testFiles: Boolean = false): String = attemptLock.withLock {
         coroutineScope {
             val link = HuaweiRfcommTransport(device)
             val closeOnCancellation = launch(start = CoroutineStart.UNDISPATCHED) {
@@ -40,7 +40,7 @@ internal object HuaweiPairingDiagnostic {
             try {
                 withContext(Dispatchers.IO) {
                     val attemptContext = coroutineContext
-                    attempt(context, device, link, allowFirstBind, onStatus, onVerified) { attemptContext.ensureActive() }
+                    attempt(context, device, link, allowFirstBind, onStatus, onVerified, testFiles) { attemptContext.ensureActive() }
                 }
             } finally {
                 link.close()
@@ -51,7 +51,7 @@ internal object HuaweiPairingDiagnostic {
 
     private fun attempt(context: Context, device: BluetoothDevice, link: HuaweiRfcommTransport,
         allowFirstBind: Boolean, onStatus: (Boolean, Int?, Boolean) -> Unit,
-        onVerified: (String) -> Unit, ensureActive: () -> Unit): String {
+        onVerified: (String) -> Unit, testFiles: Boolean, ensureActive: () -> Unit): String {
         val expired = AtomicBoolean(false)
         val watchdog = Executors.newSingleThreadScheduledExecutor()
         val timeout = watchdog.schedule({
@@ -125,7 +125,10 @@ internal object HuaweiPairingDiagnostic {
                     var historyCount: Int? = null
                     var sourcePreview = "HR source comparison unavailable."
                     var historySummary = "Sleep and workout not yet read."
-                    var historyRead = false
+                    var nextNativeHistory = 0L
+                    var fileProbePending = testFiles
+                    var sleepRejected = false
+                    var workoutsRejected = false
                     var minuteRejected = false
                     var totalsRejected = false
                     var telemetryNotes = ""
@@ -192,18 +195,28 @@ internal object HuaweiPairingDiagnostic {
                                 olderWindows++
                             }
                         }
-                        if (!historyRead) {
+                        if (elapsed >= nextNativeHistory) {
                             val end = now - now % 60
                             val start = end - 86400
-                            val sleep = if (fitness.supportsLegacySleep()) optionalFitness("Legacy sleep") { fitness.legacySleep(start, end) } else null
+                            val sleep = if (!sleepRejected && fitness.supportsLegacySleep()) {
+                                optionalFitness("Legacy sleep") { fitness.legacySleep(start, end) }.also { if (it == null) sleepRejected = true }
+                            } else null
                             sleep?.let { localStore.saveSleep(deviceKey, it) }
-                            val workouts = if (fitness.supportsWorkoutSummaries()) optionalFitness("Workout history") { fitness.workoutBundles(start, end) } else null
+                            val workouts = if (!workoutsRejected && fitness.supportsWorkoutSummaries()) {
+                                optionalFitness("Workout history") { fitness.workoutBundles(start, end) }.also { if (it == null) workoutsRejected = true }
+                            } else null
                             workouts?.let {
                                 localStore.saveWorkouts(deviceKey, it.map { bundle -> bundle.summary })
                                 localStore.saveWorkoutDetails(deviceKey, it)
                             }
                             historySummary = "Legacy sleep intervals: ${sleep?.size ?: "unavailable"}; workout summaries: ${workouts?.size ?: "unavailable"}; workout samples: ${workouts?.sumOf { it.samples.size } ?: 0}; pace splits: ${workouts?.sumOf { it.splits.size } ?: 0}."
-                            historyRead = true
+                            if (fileProbePending) {
+                                fileProbePending = false
+                                onVerified("$header\nExperimental file diagnostic in progress.")
+                                telemetryNotes += "\n" + HuaweiNativeFileDiagnostic.run(fitness.nativeFiles(),localStore,
+                                    deviceKey,start,end,workouts.orEmpty().map { it.summary })
+                            }
+                            nextNativeHistory = android.os.SystemClock.elapsedRealtime() + 15*60*1000L
                         }
                         val totalsText = totals?.let {
                             "Huawei totals: steps=${it.steps ?: "unavailable"}, distance=${it.distanceMeters ?: "unavailable"} m."

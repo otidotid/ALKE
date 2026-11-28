@@ -34,6 +34,42 @@ internal object HuaweiStepSource {
         return Coverage(start,endExclusive,observed.size,observed.sumOf { it.toLong() })
     }
 
+    data class MinuteCount(val start: Long, val steps: Int)
+    data class Fusion(val huaweiMinutes: Int, val fallbackMinutes: Int, val missingMinutes: Int,
+        val observedSteps: Long) {
+        val complete get() = missingMinutes == 0
+        val completeSteps: Long? get() = observedSteps.takeIf { complete && it <= 200_000 }
+    }
+
+    /** Only independently observed aligned minute deltas can fill a gap. A daily
+     * WHOOP estimate cannot be converted to minute counts or added to this result. */
+    fun fuseMinutes(huawei: List<HuaweiFitnessRead.Minute>, fallback: List<MinuteCount>,
+        start: Long, end: Long): Fusion {
+        require(start >= 0 && start % 60 == 0L && end % 60 == 0L &&
+            end > start && end-start <= 172800L)
+        fun valid(rows: List<MinuteCount>) = rows.filter {
+            it.start in start until end && it.start % 60 == 0L && it.steps in 0..500
+        }.groupBy { it.start }.mapNotNull { (ts, values) ->
+            values.map { it.steps }.distinct().singleOrNull()?.let { ts to it }
+        }.toMap()
+        val native = valid(huawei.mapNotNull { row -> row.steps?.let { MinuteCount(row.epochSeconds,it) } })
+        val secondary = valid(fallback)
+        var primaryCount = 0
+        var secondaryCount = 0
+        var missing = 0
+        var total = 0L
+        for (ts in start until end step 60) {
+            val a = native[ts]
+            val b = secondary[ts]
+            when {
+                a != null -> { primaryCount++; total += a }
+                b != null -> { secondaryCount++; total += b }
+                else -> missing++
+            }
+        }
+        return Fusion(primaryCount,secondaryCount,missing,total)
+    }
+
     /** Complete historical calendar days only; an in-progress partial day does not displace
      * a full-window WHOOP estimate. Explicit zero is valid; absent data is not zero. */
     fun completeDays(rows: List<HuaweiFitnessRead.Minute>, zone: ZoneId, now: Long): Map<String, Long> {

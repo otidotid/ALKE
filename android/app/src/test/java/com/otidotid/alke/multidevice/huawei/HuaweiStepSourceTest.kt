@@ -26,6 +26,25 @@ class HuaweiStepSourceTest {
         assertFalse(HuaweiStepSource.coverage(listOf(minute(0,10)),1,61).complete)
     }
 
+    @Test fun partialFusionDoesNotDoubleCountAndLeavesUncoveredMinutesUnknown() {
+        val h = listOf(minute(0,0),minute(60,12),minute(60,12),minute(120,null))
+        val w = listOf(HuaweiStepSource.MinuteCount(0,20),HuaweiStepSource.MinuteCount(60,25),
+            HuaweiStepSource.MinuteCount(120,7))
+        val complete = HuaweiStepSource.fuseMinutes(h,w,0,180)
+        assertEquals(HuaweiStepSource.Fusion(2,1,0,19),complete)
+        assertEquals(19L,complete.completeSteps)
+        val incomplete = HuaweiStepSource.fuseMinutes(h,w,0,240)
+        assertEquals(1,incomplete.missingMinutes)
+        assertNull(incomplete.completeSteps)
+    }
+
+    @Test fun conflictingNativeMinuteUsesOnlyIndependentValidFallback() {
+        val h = listOf(minute(0,1),minute(0,2))
+        assertEquals(3L,HuaweiStepSource.fuseMinutes(h,listOf(
+            HuaweiStepSource.MinuteCount(0,3)),0,60).completeSteps)
+        assertNull(HuaweiStepSource.fuseMinutes(h,emptyList(),0,60).completeSteps)
+    }
+
     @Test fun completeCalendarDayOnlyAndDstIsHandled() {
         val zone = ZoneId.of("America/New_York")
         val date = LocalDate.of(2026,3,8)

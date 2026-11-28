@@ -18,7 +18,7 @@ import java.util.Locale
 internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
     context.applicationContext,
     File(context.noBackupFilesDir, "alke-huawei-fitness-v1.db").absolutePath,
-    null, 3,
+    null, 4,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE minute (device TEXT NOT NULL, ts INTEGER NOT NULL, steps INTEGER, hr INTEGER, spo2 INTEGER, PRIMARY KEY(device, ts))")
@@ -26,12 +26,62 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
         db.execSQL("CREATE INDEX minute_ts ON minute(ts)")
         createHistoryTables(db)
         createWorkoutDetailTables(db)
+        createGpsTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        require(oldVersion in 1..2 && newVersion == 3) { "Explicit Huawei fitness migration required" }
+        require(oldVersion in 1..3 && newVersion == 4) { "Explicit Huawei fitness migration required" }
         if (oldVersion == 1) createHistoryTables(db)
-        createWorkoutDetailTables(db)
+        if (oldVersion < 3) createWorkoutDetailTables(db)
+        createGpsTable(db)
+    }
+
+    private fun createGpsTable(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE workout_gps_candidate (device TEXT NOT NULL, start INTEGER NOT NULL, number INTEGER NOT NULL, ts INTEGER NOT NULL, latitude REAL NOT NULL, longitude REAL NOT NULL, altitude_raw INTEGER, PRIMARY KEY(device,start,number,ts))")
+    }
+
+    /**
+     * Diagnostic staging only. A verified complete file and matching stored workout
+     * are required. An empty or invalid read must not erase a previously staged route.
+     */
+    fun saveGpsCandidate(device: String, summary: HuaweiHistoryRead.WorkoutSummary, completeFile: ByteArray): Int {
+        require(device.matches(Regex("[0-9a-f]{64}")))
+        val points = HuaweiGpsRead.decode(completeFile, summary.start, summary.end)
+        if (points.isEmpty()) return 0
+        val db = writableDatabase
+        val args = arrayOf(device,summary.start.toString(),summary.number.toString())
+        db.beginTransaction()
+        try {
+            db.query("workout_summary",arrayOf("end"),"device=? AND start=? AND number=?",
+                args,null,null,null).use { cursor ->
+                require(cursor.moveToFirst() && cursor.getLong(0) == summary.end) {
+                    "Huawei GPS workout identity mismatch"
+                }
+            }
+            db.delete("workout_gps_candidate","device=? AND start=? AND number=?",args)
+            for (point in points) {
+                val values = ContentValues().apply {
+                    put("device",device); put("start",summary.start); put("number",summary.number)
+                    put("ts",point.timestamp); put("latitude",point.latitude); put("longitude",point.longitude)
+                    put("altitude_raw",point.altitudeRaw)
+                }
+                check(db.insertOrThrow("workout_gps_candidate",null,values) != -1L)
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+        return points.size
+    }
+
+    fun gpsCandidate(device: String, start: Long, number: Int): List<HuaweiGpsRead.Point> {
+        require(device.matches(Regex("[0-9a-f]{64}")) && start >= 0 && number in 0..32767)
+        return readableDatabase.query("workout_gps_candidate",
+            arrayOf("ts","latitude","longitude","altitude_raw"),"device=? AND start=? AND number=?",
+            arrayOf(device,start.toString(),number.toString()),null,null,"ts ASC").use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) add(HuaweiGpsRead.Point(cursor.getLong(0),
+                    cursor.getDouble(1),cursor.getDouble(2),cursor.intOrNull(3)))
+            }
+        }
     }
 
     private fun createHistoryTables(db: SQLiteDatabase) {

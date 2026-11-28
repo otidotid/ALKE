@@ -13,7 +13,14 @@ internal object HuaweiNativeFileDiagnostic {
                 try {
                     val count = try { store.saveGpsCandidate(device,workout,gps) }
                         catch (_: IllegalArgumentException) { null }
-                    report += "GPS candidate points: ${count ?: "unsupported layout"}."
+                    report += "GPS candidate points: ${count ?: "unsupported layout"}; native sport code ${workout.nativeType}; watch summary distance ${workout.distanceMeters ?: "unknown"} m."
+                    if(count!=null && count>=2) {
+                        val points=store.gpsCandidate(device,workout.start,workout.number)
+                        val distance=com.otidotid.alke.analytics.RouteMath.totalMeters(points.map {
+                            com.otidotid.alke.analytics.RouteMath.LatLng(it.latitude,it.longitude)
+                        })
+                        report += "Decoded route distance: ${kotlin.math.round(distance).toLong()} m; geometry check: ${HuaweiWorkoutIntegration.route(workout,points)!=null}."
+                    }
                 } finally { gps.fill(0) }
             } catch (_: HuaweiFileUnavailable) {
                 report += "GPS file unavailable on watch."

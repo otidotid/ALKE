@@ -93,7 +93,28 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
             if(window!=null) markWindow(db,device,"workout",window,bundles.all { it.detailsComplete })
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
+        // Notify presentation only once the combined summary/detail transaction commits.
+        if(bundles.isNotEmpty()) HuaweiTimelineSource.changed(hrChanged=true,stepsChanged=false)
     }
+
+    fun workoutSummaries(device: String,from: Long,to: Long): List<HuaweiHistoryRead.WorkoutSummary> =
+        readableDatabase.query("workout_summary",
+            arrayOf("number","start","end","native_type","status","distance","steps","calories_raw","elapsed","active"),
+            "device=? AND start<=? AND end>=?",arrayOf(device,to.toString(),from.toString()),
+            null,null,"start DESC").use { c ->
+            buildList {
+                fun longOrNull(i: Int): Long? = if(c.isNull(i)) null else c.getLong(i)
+                while(c.moveToNext()) add(HuaweiHistoryRead.WorkoutSummary(c.getInt(0),c.getLong(1),c.getLong(2),
+                    c.intOrNull(3),c.intOrNull(4),longOrNull(5),longOrNull(6),longOrNull(7),longOrNull(8),longOrNull(9)))
+            }
+        }
+
+    fun workoutHr(device: String,w: HuaweiHistoryRead.WorkoutSummary): Pair<Int?,Int?> =
+        readableDatabase.rawQuery("SELECT AVG(hr),MAX(hr) FROM workout_sample WHERE device=? AND start=? AND number=? AND ts BETWEEN ? AND ? AND hr BETWEEN 25 AND 250",
+            arrayOf(device,w.start.toString(),w.number.toString(),w.start.toString(),w.end.toString())).use { c ->
+            if(c.moveToFirst() && !c.isNull(0)) kotlin.math.round(c.getDouble(0)).toInt() to c.getInt(1)
+            else null to null
+        }
 
     fun latestRecord(device: String): Long? {
         val db = readableDatabase
@@ -177,6 +198,7 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
             }
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
+        HuaweiTimelineSource.changed(hrChanged=true,stepsChanged=false)
         return points.size
     }
 

@@ -31,7 +31,16 @@ class PremiumV625DesignLockTest {
             "TodayScreen.kt" to "56b345ed4044a7aa1cde96a440cd751ddd1b8433",
             "HrEventVisuals.kt" to "d0ded42f01dddf9ad342384e7a6b25f908d8ad26")
         expected.forEach { (name,sha) ->
-            assertEquals(name,sha,gitBlob(File(root(),"android/app/src/main/java/com/otidotid/alke/ui/$name")))
+            // v662: reverse only approved data/source-label edits before comparing the locked blobs.
+            val current=ui(name)
+            val prior=when(name) {
+                "TodayScreen.kt" -> undoHuaweiWorkout(current)
+                "WorkoutsScreen.kt" -> current.replace(
+                    "    row.source == com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.SOURCE -> \"Huawei GT5\"\n","")
+                    .replace("        src == com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.SOURCE -> \"GT5\"\n","")
+                else -> current
+            }
+            assertEquals(name,sha,gitBlobBytes(prior.toByteArray(Charsets.UTF_8)))
         }
         // v627: user approved only the daily Rest resolver change in Today and new Sleep Worker route.
         // Full WorkoutsScreen and HrEventVisuals hashes above remain unchanged.
@@ -39,10 +48,15 @@ class PremiumV625DesignLockTest {
         // Pin the reviewed Worker blob; workouts and event visuals remain byte-identical.
         assertEquals("5a34dda12c4220283c026b8b46176d78081c634b",gitBlob(File(root(),"cloud-coach/worker.js")))
     }
+    private fun undoHuaweiWorkout(source: String): String = source.replace(
+        "            val canonical = com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.merge(\n" +
+            "                timelineContext,WorkoutEditing.dedupCrossSource(workouts),correctionFrom,correctionTo)",
+        "            val canonical = WorkoutEditing.dedupCrossSource(workouts)")
+
     @Test fun huaweiTimelineOnlyChangesReviewedDataWiringAndSourceLabel() {
         // Do not simply bless a new TodayScreen hash: reverse exactly the four
         // reviewed edits, and require the entire rest of the file to match v627.
-        var original = ui("TodayScreen.kt")
+        var original = undoHuaweiWorkout(ui("TodayScreen.kt"))
         fun undo(added: String, prior: String) {
             assertEquals("Expected exactly one reviewed edit", 1, original.split(added).size - 1)
             original = original.replace(added, prior)

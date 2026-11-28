@@ -119,6 +119,7 @@ internal object HuaweiPairingDiagnostic {
                     val localStore = HuaweiFitnessStore(context.applicationContext)
                     fitnessStore = localStore
                     HuaweiTimelineSource.selectVerifiedDevice(context.applicationContext, deviceKey)
+                    HuaweiWorkoutIntegration.observeFirmware(context,deviceKey,info.product.firmware)
                     val sessionStart = android.os.SystemClock.elapsedRealtime()
                     var charge = info.batteryPercent
                     // Do not reissue a timed-out command on the same stream: a late reply
@@ -131,6 +132,7 @@ internal object HuaweiPairingDiagnostic {
                     var historySummary = "Sleep and workout not yet read."
                     var nextNativeHistory = 0L
                     var fileProbePending = testFiles
+                    val attemptedGps = mutableSetOf<Pair<Long,Int>>()
                     var sleepRejected = false
                     var workoutsRejected = false
                     var minuteRejected = false
@@ -232,6 +234,27 @@ internal object HuaweiPairingDiagnostic {
                                     deviceKey,start,end,workouts.orEmpty().map { it.summary })
                             }
                             nextNativeHistory = android.os.SystemClock.elapsedRealtime() + 15*60*1000L
+                        }
+                        // Opt-in is scoped to the verified watch firmware. Fetch at most one
+                        // missing route per poll, never retry the same failed file in this session.
+                        if(HuaweiWorkoutIntegration.enabled(context,deviceKey) && fitness.nativeFiles().supported()) {
+                            val candidate=localStore.workoutSummaries(deviceKey,now-7*86400L,now).firstOrNull { w ->
+                                HuaweiWorkoutIntegration.gpsEligible(w.nativeType) &&
+                                    (w.start to w.number) !in attemptedGps &&
+                                    localStore.gpsCandidate(deviceKey,w.start,w.number).isEmpty()
+                            }
+                            if(candidate!=null) {
+                                attemptedGps.add(candidate.start to candidate.number)
+                                onVerified("$header\nReading one GT5 workout route.")
+                                try {
+                                    val gps=fitness.nativeFiles().read(HuaweiFileRead.Kind.GPS,0,0,candidate.number)
+                                    try { localStore.saveGpsCandidate(deviceKey,candidate,gps) }
+                                    catch(_: IllegalArgumentException) { telemetryNotes+="\nGPS layout unsupported for workout." }
+                                    finally { gps.fill(0) }
+                                } catch(_: HuaweiFileUnavailable) {
+                                    telemetryNotes+="\nGPS file unavailable on watch."
+                                }
+                            }
                         }
                         val totalsText = totals?.let {
                             "Huawei totals: steps=${it.steps ?: "unavailable"}, distance=${it.distanceMeters ?: "unavailable"} m."

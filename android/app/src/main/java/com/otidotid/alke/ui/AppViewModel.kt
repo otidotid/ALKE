@@ -2281,7 +2281,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             } else {
                 WorkoutEditing.dedupCrossSource(filteredRows)
             }
-            val sorted = deduped.sortedByDescending { it.startTs }
+            val sorted = com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.merge(
+                appContext,deduped,0L,now).sortedByDescending { it.startTs }
             _workouts.value = sorted
             // Post-workout summary (#517) — opt-in, default OFF. The newest session (by start) drives a
             // one-shot Effort + duration + avg-HR notification when it's strictly newer than the last one

@@ -6737,7 +6737,8 @@ internal fun HeartRateTrendCard(
             val workouts = viewModel.repo.workoutsAllSources(viewModel.deviceId, correctionFrom, correctionTo) +
                 viewModel.repo.detectedWorkoutsUnion(viewModel.activeStrapId,correctionFrom,correctionTo)
                     .filter { it.source == com.otidotid.alke.ai.CloudActivityProtocol.WORKOUT_SOURCE }
-            val canonical = WorkoutEditing.dedupCrossSource(workouts)
+            val canonical = com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.merge(
+                timelineContext,WorkoutEditing.dedupCrossSource(workouts),correctionFrom,correctionTo)
             viewModel.repo.applySessionCorrections(canonical + viewModel.repo.cloudDailyActivityRows(correctionFrom,correctionTo))
                 .filter { it.startTs <= end && it.endTs >= start }
         }.getOrDefault(emptyList())

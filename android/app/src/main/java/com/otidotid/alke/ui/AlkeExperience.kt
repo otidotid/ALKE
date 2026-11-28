@@ -868,7 +868,8 @@ fun AlkeTodayExperience(
     val recovery = day?.recovery?.takeIf { it.isFinite() && it in 0.0..100.0 }
     val dateText = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault()))
     val workouts by vm.workouts.collectAsStateWithLifecycle()
-    LaunchedEffect(vm) { vm.loadWorkouts() }
+    val huaweiWorkoutRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
+    LaunchedEffect(vm,huaweiWorkoutRevision) { vm.loadWorkouts() }
     val todayWorkouts = workouts.filter {
         Instant.ofEpochSecond(it.startTs).atZone(ZoneId.systemDefault()).toLocalDate() == LocalDate.now()
     }
@@ -1052,7 +1053,8 @@ fun AlkeTrainingExperience(
     }
     var showAddDialog by remember { mutableStateOf(false) }
     val activityDataRevision by com.otidotid.alke.ai.CloudActivitySettings.dataRevision.collectAsStateWithLifecycle()
-    LaunchedEffect(vm, activityDataRevision) { vm.loadWorkouts() }
+    val huaweiWorkoutRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
+    LaunchedEffect(vm, activityDataRevision,huaweiWorkoutRevision) { vm.loadWorkouts() }
 
     AlkePage {
         Text("Train", color = A.white, fontSize = 32.sp, fontWeight = FontWeight.Bold)

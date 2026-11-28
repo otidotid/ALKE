@@ -27,6 +27,14 @@ class HuaweiTimelineSourceTest {
         assertEquals(setOf(0L), result.huaweiBucketStarts)
     }
 
+    @Test fun confirmedOffWristMinuteUsesWhoopWithoutRewritingOtherMinutes() {
+        val original=listOf(bucket(0,70.0),bucket(60,71.0))
+        val result=HuaweiTimelineSource.combine(original,original,
+            listOf(minute(0,80),minute(60,81)),60,setOf(60L))
+        assertEquals(listOf(bucket(0,80.0),bucket(60,71.0)),result.buckets)
+        assertEquals(setOf(0L),result.huaweiBucketStarts)
+    }
+
     @Test fun historicalHuaweiOnlyAddsObservedBucketsWithoutFillingGaps() {
         val result = HuaweiTimelineSource.combine(emptyList(), emptyList(),
             listOf(minute(60, 70), minute(660, 90)), 300)

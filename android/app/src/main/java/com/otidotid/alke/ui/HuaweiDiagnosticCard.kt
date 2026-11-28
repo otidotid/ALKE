@@ -114,6 +114,29 @@ internal fun HuaweiDiagnosticCard() {
                 }
             }
             if (connection.running) TextButton(onClick = { HuaweiConnectionController.disconnect() }) { Text("Disconnect Huawei") }
+            val workoutRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
+            val verifiedKey = remember(workoutRevision) {
+                com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.verifiedDeviceKey(context)
+            }
+            if(verifiedKey!=null && connection.authenticated) {
+                val enabled = remember(workoutRevision,verifiedKey) {
+                    com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.enabled(context,verifiedKey)
+                }
+                var confirmWorkout by remember { mutableStateOf(false) }
+                TextButton(onClick = {
+                    if(enabled) com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.setEnabled(context,verifiedKey,false)
+                    else confirmWorkout=true
+                }) { Text(if(enabled) "Disable GT5 workout integration" else "Enable verified GT5 workout integration") }
+                if(confirmWorkout) AlertDialog(
+                    onDismissRequest={ confirmWorkout=false },
+                    title={ Text("Confirm GT5 workout comparison") },
+                    text={ Text("Enable only after comparing one real GT5 workout type, start/end time, distance and GPS route with the diagnostic. This experimental setting applies to this firmware; firmware changes disable it.") },
+                    confirmButton={ TextButton(onClick={
+                        com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.setEnabled(context,verifiedKey,true)
+                        confirmWorkout=false
+                    }) { Text("Comparison passed") } },
+                    dismissButton={ TextButton(onClick={confirmWorkout=false}) { Text("Cancel") } })
+            }
             HuaweiRecoveryCard(enabled = !busy)
             if (probeBusy) Text("Checking Bluetooth…")
             (report ?: connection.report)?.let { result ->

@@ -34,6 +34,35 @@ internal object HuaweiLinkFrames {
         return bytes + byteArrayOf((crc shr 8).toByte(), crc.toByte())
     }
 
+    /**
+     * Slice a command to the negotiated complete-frame byte budget, including header and CRC.
+     * Each fragment carries its own CRC; only the first carries service/command bytes.
+     * The wire documentation is linked in the class header.
+     */
+    fun encodeWithin(service: Int, command: Int, payload: ByteArray, maxFrameBytes: Int): List<ByteArray> {
+        require(service in 0..255 && command in 0..255)
+        require(payload.size <= MAX_BODY - 2 && maxFrameBytes in 9..32772)
+        val body = byteArrayOf(service.toByte(), command.toByte()) + payload
+        if (body.size + 6 <= maxFrameBytes) return listOf(encode(service, command, payload))
+        val capacity = maxFrameBytes - 7
+        val count = (body.size + capacity - 1) / capacity
+        require(count in 2..256) { "Too many Huawei slices" }
+        return (0 until count).map { index ->
+            val start = index * capacity
+            val part = body.copyOfRange(start, minOf(start + capacity, body.size))
+            val length = part.size + 2
+            val flag = when (index) {
+                0 -> 1
+                count - 1 -> 3
+                else -> 2
+            }
+            val bytes = byteArrayOf(0x5a, (length shr 8).toByte(), length.toByte(),
+                flag.toByte(), index.toByte()) + part
+            val crc = crcXmodem(bytes)
+            bytes + byteArrayOf((crc shr 8).toByte(), crc.toByte())
+        }
+    }
+
     data class Message(val service: Int, val command: Int, val payload: ByteArray)
 
     /** One decoder per transport session; discard/reset on any malformed frame. */

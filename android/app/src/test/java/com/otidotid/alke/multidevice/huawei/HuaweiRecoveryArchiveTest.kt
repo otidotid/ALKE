@@ -14,6 +14,23 @@ import java.io.File
 @Config(application = Application::class, sdk = [34])
 @SQLiteMode(SQLiteMode.Mode.NATIVE)
 class HuaweiRecoveryArchiveTest {
+    @Test fun snapshotIncludesCommittedWalRows() {
+        val context = RuntimeEnvironment.getApplication()
+        val device = HuaweiFitnessStore.deviceKey("11:22:33:44:55:66")
+        val password = "test-only-passphrase".toCharArray()
+        val encrypted = File(context.cacheDir,"huawei-wal-test.alkeenc")
+        try {
+            HuaweiFitnessStore(context).use { live ->
+                live.setWriteAheadLoggingEnabled(true)
+                live.saveMinutes(device,60,120,listOf(HuaweiFitnessRead.Minute(60,17,70,null)))
+                HuaweiRecoveryArchive.export(context,encrypted,password)
+                live.writableDatabase.delete("minute","device=?",arrayOf(device))
+                assertEquals(1L,HuaweiRecoveryArchive.restoreMissing(context,encrypted,password))
+                assertEquals(17,live.minutes(device,60,120).single().steps)
+            }
+        } finally { encrypted.delete(); password.fill('\u0000') }
+    }
+
     @Test fun encryptedRoundTripMergesMissingRowsWithoutReplacingExisting() {
         val context = RuntimeEnvironment.getApplication()
         val device = HuaweiFitnessStore.deviceKey("AA:BB:CC:DD:EE:FF")

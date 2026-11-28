@@ -146,7 +146,11 @@ jobs:
             --tests 'com.otidotid.alke.analytics.StepsEstimateEngineTest' \
             --tests 'com.otidotid.alke.analytics.StepsCounterTest' \
             --tests 'com.otidotid.alke.ui.HypopneaTodaySelectionTest' \
-            --tests 'com.otidotid.alke.analytics.SleepEpisodeReconciliationTest'
+            --tests 'com.otidotid.alke.analytics.SleepEpisodeReconciliationTest' \
+            --tests 'com.otidotid.alke.multidevice.huawei.*' || {
+              find app/build/test-results -name '*Huawei*Test*.xml' -exec sh -c 'grep -q "<failure" "$1" && cat "$1" || true' _ {} \;
+              exit 1
+            }
       - name: Save rendered HR widget previews for visual regression review
         if: always()
         uses: actions/upload-artifact@v4

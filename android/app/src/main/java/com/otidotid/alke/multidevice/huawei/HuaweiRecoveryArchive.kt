@@ -39,17 +39,21 @@ internal object HuaweiRecoveryArchive {
         }
         val actual = objects.filter { it.first == "table" }.map { it.second }.toSet()
         // Android's standard locale bookkeeping is not a sensor or credential table.
-        require(actual - "android_metadata" == tables.keys)
-        require(objects.all { it.first == "table" || it == ("index" to "minute_ts") })
+        require(actual - "android_metadata" == tables.keys) { "Unexpected Huawei archive tables" }
+        require(objects.all { it.first == "table" || it == ("index" to "minute_ts") }) {
+            "Unexpected Huawei archive schema object"
+        }
         for ((table,columns) in tables) {
             val names = db.rawQuery("PRAGMA table_info($table)",null).use { c ->
                 buildList { while (c.moveToNext()) add(c.getString(1)) }
             }
-            require(names == columns.split(','))
+            require(names == columns.split(',')) { "Unexpected Huawei archive columns: $table" }
         }
         validateDomains(db)
         db.rawQuery("PRAGMA quick_check",null).use { c ->
-            require(c.moveToFirst() && c.getString(0) == "ok" && !c.moveToNext())
+            require(c.moveToFirst() && c.getString(0) == "ok" && !c.moveToNext()) {
+                "Huawei archive integrity check failed"
+            }
         }
     }
 
@@ -100,7 +104,7 @@ internal object HuaweiRecoveryArchive {
     }
 
     private fun checkedFile(file: File) {
-        require(file.isFile && file.length() in 1..MAX_BYTES)
+        require(file.isFile && file.length() in 1..MAX_BYTES) { "Huawei archive size invalid" }
         SQLiteDatabase.openDatabase(file.path,null,SQLiteDatabase.OPEN_READONLY).use(::validate)
     }
 
@@ -108,23 +112,50 @@ internal object HuaweiRecoveryArchive {
         val temp = File.createTempFile("huawei-snapshot-",".sqlite",context.cacheDir)
         try {
             HuaweiFitnessStore(context).use { store ->
-                val db = store.writableDatabase
-                db.beginTransaction()
-                try {
-                    // A rollback-journal database is stable while this writer lock is held.
-                    // Do not copy a WAL database's main file and silently lose committed data.
-                    db.rawQuery("PRAGMA journal_mode",null).use { c ->
-                        require(c.moveToFirst() && c.getString(0).lowercase() == "delete")
+                val source = store.writableDatabase
+                // Export a canonical SQLite snapshot, not a byte copy of a live database.
+                // SQLite transactions include committed WAL data and prevent concurrent writes
+                // from changing the selected rows while the snapshot is built.
+                SQLiteDatabase.openOrCreateDatabase(temp, null).use { snapshot ->
+                    source.beginTransaction()
+                    try {
+                        snapshot.beginTransaction()
+                        try {
+                            store.onCreate(snapshot)
+                            snapshot.version = VERSION
+                            for ((table, columns) in tables) {
+                                source.query(table,columns.split(',').toTypedArray(),null,null,null,null,null).use { c ->
+                                    while (c.moveToNext()) {
+                                        val row = android.content.ContentValues()
+                                        DatabaseUtils.cursorRowToContentValues(c,row)
+                                        check(snapshot.insertOrThrow(table,null,row) != -1L)
+                                    }
+                                }
+                                require(snapshot.pageSize > 0 && temp.length() <= MAX_BYTES) {
+                                    "Huawei snapshot exceeds size limit"
+                                }
+                            }
+                            snapshot.setTransactionSuccessful()
+                        } finally { snapshot.endTransaction() }
+                        source.setTransactionSuccessful()
+                    } finally { source.endTransaction() }
+                    // The destination is a private snapshot, not the live DB. Flush any
+                    // journal before archiving its main file; fail closed if still busy.
+                    snapshot.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)",null).use { c ->
+                        require(c.moveToFirst() && c.getInt(0) == 0) {
+                            "Huawei snapshot checkpoint failed"
+                        }
                     }
-                    val source = File(db.path)
-                    require(source.length() in 1..MAX_BYTES)
-                    source.copyTo(temp,overwrite=true)
-                    db.setTransactionSuccessful()
-                } finally { db.endTransaction() }
+                }
             }
             checkedFile(temp)
             ArchiveEncryption.encrypt(temp,encryptedDestination,passphrase)
-        } finally { temp.delete() }
+        } finally {
+            temp.delete()
+            File(temp.path+"-wal").delete()
+            File(temp.path+"-shm").delete()
+            File(temp.path+"-journal").delete()
+        }
     }
 
     private fun boundedCopy(input: InputStream, output: OutputStream): Long {

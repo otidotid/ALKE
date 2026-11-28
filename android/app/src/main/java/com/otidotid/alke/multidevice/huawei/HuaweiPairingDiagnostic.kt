@@ -96,7 +96,13 @@ internal object HuaweiPairingDiagnostic {
                         store.saveVerifiedBinding(address, it)
                     }
                 })
-            return "Huawei authentication and encrypted readback verified. Battery: ${info.batteryPercent}%."
+            val batteryMode = if (info.batteryEncrypted) "GCM" else "plaintext"
+            val connect = when {
+                !info.connectStatusAcknowledged -> "not advertised"
+                info.connectStatusEncrypted -> "GCM acknowledged"
+                else -> "plaintext acknowledged"
+            }
+            return "Huawei session authenticated (GCM ProductInfo). Battery: ${info.batteryPercent}% ($batteryMode). ConnectStatus: $connect. Confirm watch screen."
         } catch (e: CancellationException) {
             throw e
         } catch (_: HuaweiPairingProtocol.BindingRequired) {

@@ -56,6 +56,49 @@ class HuaweiSessionReadsTest {
         }
     }
 
+    @Test fun observedGt5PlainBatteryAndInitializationAfterEncryptedProduct() {
+        HuaweiSessionReads(key, 512).use { reads ->
+            reads.request(7)
+            reads.receive(encrypted(7, product, 1))
+            reads.request(5)
+            reads.receive(HuaweiLinkFrames.Message(1, 5, byteArrayOf(1, 4, 0, 0, 0, 1)))
+            reads.request(8)
+            reads.receive(HuaweiLinkFrames.Message(1, 8, byteArrayOf(1, 1, 73)))
+            assertEquals(73, requireNotNull(reads.readback()).batteryPercent)
+            assertFalse(requireNotNull(reads.readback()).batteryEncrypted)
+            reads.request(2)
+            reads.receive(HuaweiLinkFrames.Message(1, 2, byteArrayOf(2, 3, 1, 1, 0)))
+            reads.request(3)
+            reads.receive(HuaweiLinkFrames.Message(1, 3,
+                byteArrayOf(0x81.toByte(), 6, 2, 1, 1, 4, 1, 1)))
+            assertEquals(true, reads.connectStatusSupported)
+            reads.request(0x35)
+            reads.receive(HuaweiLinkFrames.Message(1, 0x35,
+                byteArrayOf(0x7f, 4, 0, 1, 0x86.toByte(), 0xa0.toByte())))
+            val result = requireNotNull(reads.readback())
+            assertTrue(result.connectStatusAcknowledged)
+            assertFalse(result.connectStatusEncrypted)
+        }
+    }
+
+    @Test fun plaintextBatteryDoesNotPermitInvalidCiphertextOrMalformedReply() {
+        val invalid = listOf(
+            HuaweiLinkFrames.Message(1, 8, byteArrayOf(1, 1, 101)),
+            HuaweiLinkFrames.Message(1, 8, byteArrayOf(1, 1, 73, 0x7c, 1, 1)),
+            HuaweiLinkFrames.Message(1, 8, byteArrayOf(1, 1, 73, 1, 1, 74)),
+            encrypted(8, byteArrayOf(1, 1, 73), 2, ByteArray(32)),
+        )
+        for (reply in invalid) {
+            HuaweiSessionReads(key, 512).use { reads ->
+                reads.request(7)
+                reads.receive(encrypted(7, product, 1))
+                reads.request(8)
+                assertTrue(runCatching { reads.receive(reply) }.isFailure)
+                assertTrue(runCatching { reads.readback() }.isFailure)
+            }
+        }
+    }
+
     @Test fun plaintextAndWrongKeyAreRejected() {
         HuaweiSessionReads(key, 512).use { reads ->
             reads.request(7)

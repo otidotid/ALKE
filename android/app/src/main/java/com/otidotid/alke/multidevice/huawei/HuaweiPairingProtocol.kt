@@ -67,12 +67,14 @@ internal class HuaweiPairingProtocol(private val transport: HuaweiHiChainTranspo
                         }
                     }
                     read(HuaweiDeviceInfo.PRODUCT, "Encrypted ProductInfo")
-                    read(HuaweiDeviceInfo.BATTERY, "Encrypted BatteryLevel")
+                    read(HuaweiDeviceInfo.TIME, "Watch clock initialization")
+                    read(HuaweiDeviceInfo.BATTERY, "BatteryLevel readback")
+                    read(HuaweiDeviceInfo.SERVICES, "Supported services discovery")
                     // Do not claim finalization merely from the terminal HiChain response.
                     // Ask for support of the documented connection-status command first.
-                    read(HuaweiDeviceInfo.COMMANDS, "Authenticated ConnectStatus capability")
+                    read(HuaweiDeviceInfo.COMMANDS, "ConnectStatus capability")
                     if (reads.connectStatusSupported == true) {
-                        read(HuaweiDeviceInfo.CONNECT_STATUS, "Authenticated ConnectStatus finalization")
+                        read(HuaweiDeviceInfo.CONNECT_STATUS, "ConnectStatus finalization")
                     }
                     requireNotNull(reads.readback())
                 }

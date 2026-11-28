@@ -37,7 +37,7 @@ class HuaweiPairingProtocolTest {
         assertArrayEquals(DEVICE_TOKEN, saved)
         assertEquals(
             listOf("link", "status", "security:5", "pin", "iso:1", "iso:2", "iso:3", "pending", "iso:4",
-                "iso:17", "iso:18", "iso:19", "product", "battery", "connect capability", "connect status", "verified"),
+                "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "connect capability", "connect status", "verified"),
             watch.events,
         )
 
@@ -48,7 +48,7 @@ class HuaweiPairingProtocolTest {
                 { error("Reconnect attempted to overwrite a verified binding") })
         }
         assertEquals(paired, reconnected)
-        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "battery", "connect capability", "connect status"),
+        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "connect capability", "connect status"),
             watch.events)
     }
 
@@ -72,7 +72,7 @@ class HuaweiPairingProtocolTest {
                 })
         }
         assertEquals(73, resumed.batteryPercent)
-        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "battery", "connect capability", "connect status", "verified"),
+        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "connect capability", "connect status", "verified"),
             watch.events)
     }
 
@@ -144,23 +144,35 @@ class HuaweiPairingProtocolTest {
                         encryptedReply(command, tlv(7, "6.0.0.119".toByteArray()) +
                             tlv(10, "VLI-B19".toByteArray()) + tlv(0x11, ByteArray(135) { 0x41 }))
                     }
+                    5 -> {
+                        events += "clock"
+                        val clock = fields(decryptRequest(body))
+                        assertEquals(4, clock.getValue(1).size)
+                        assertEquals(2, clock.getValue(2).size)
+                        packet(command, tlv(1, clock.getValue(1)))
+                    }
+                    2 -> {
+                        events += "services"
+                        assertArrayEquals(bytes(1, 3, 1, 7, 0x24), decryptRequest(body))
+                        packet(command, bytes(2, 3, 1, 1, 0))
+                    }
                     8 -> {
                         events += "battery"
                         assertArrayEquals(bytes(1, 0), decryptRequest(body))
                         if (dropNextBattery) {
                             dropNextBattery = false
                             byteArrayOf()
-                        } else encryptedReply(command, bytes(1, 1, 73))
+                        } else packet(command, bytes(1, 1, 73))
                     }
                     3 -> {
                         events += "connect capability"
                         assertArrayEquals(bytes(0x81, 6, 2, 1, 1, 3, 1, 0x35), decryptRequest(body))
-                        encryptedReply(command, bytes(0x81, 6, 2, 1, 1, 4, 1, 1))
+                        packet(command, bytes(0x81, 6, 2, 1, 1, 4, 1, 1))
                     }
                     0x35 -> {
                         events += "connect status"
                         assertArrayEquals(bytes(1, 1, 1), decryptRequest(body))
-                        encryptedReply(command, bytes(0x7f, 4, 0, 1, 0x86, 0xa0))
+                        packet(command, bytes(0x7f, 4, 0, 1, 0x86, 0xa0))
                     }
                     else -> error("Unexpected LPv2 command $command")
                 }

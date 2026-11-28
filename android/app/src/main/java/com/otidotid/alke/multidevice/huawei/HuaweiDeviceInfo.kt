@@ -3,10 +3,12 @@ package com.otidotid.alke.multidevice.huawei
 /**
  * Read-only LPv2 command facts from DeviceConfig.ProductInfo/BatteryLevel/
  * SupportedServices. No device settings or account modifications.
- * These parsers accept plaintext only AFTER the session layer decrypts it.
+ * The session layer requires GCM ProductInfo before any command-scoped
+ * plaintext initialization response is accepted.
  */
 internal object HuaweiDeviceInfo {
     const val SERVICE = 1
+    const val TIME = 5
     const val PRODUCT = 7
     const val BATTERY = 8
     const val SERVICES = 2
@@ -17,6 +19,14 @@ internal object HuaweiDeviceInfo {
     data class Product(val model: String, val firmware: String)
 
     fun query(command: Int): ByteArray = when (command) {
+        TIME -> {
+            val now = System.currentTimeMillis()
+            val offset = java.util.TimeZone.getDefault().getOffset(now) / 1000
+            val hours = if (offset < 0) (-offset / 3600) or 128 else offset / 3600
+            val clock = java.nio.ByteBuffer.allocate(4).putInt((now / 1000).toInt()).array()
+            HuaweiTlv.encode(HuaweiTlv.Field(1, clock),
+                HuaweiTlv.Field(2, byteArrayOf(hours.toByte(), (offset / 60 % 60).toByte())))
+        }
         PRODUCT -> byteArrayOf(7, 0, 10, 0)
         BATTERY -> byteArrayOf(1, 0)
         COMMANDS -> byteArrayOf(0x81.toByte(), 6, 2, 1, 1, 3, 1, CONNECT_STATUS.toByte())
@@ -58,6 +68,12 @@ internal object HuaweiDeviceInfo {
 
     private fun successOrAbsent(fields: List<HuaweiTlv.Field>): Boolean =
         HuaweiTlv.one(fields, 0x7f)?.contentEquals(byteArrayOf(0, 1, 0x86.toByte(), 0xa0.toByte())) ?: true
+
+    fun timeAcknowledged(message: HuaweiLinkFrames.Message) {
+        val f = fields(message, TIME)
+        val time = HuaweiTlv.one(f, 1)
+        require(time?.size == 4 || HuaweiTlv.one(f, 0x7f) != null) { "Invalid clock response" }
+    }
 
     fun supportsConnectStatus(message: HuaweiLinkFrames.Message): Boolean {
         val f = fields(message, COMMANDS)

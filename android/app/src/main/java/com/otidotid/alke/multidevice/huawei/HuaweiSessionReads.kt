@@ -6,8 +6,9 @@ import java.security.SecureRandom
 /**
  * Read-only GCM verification of a candidate reconnect session. A terminal
  * HiChain packet alone cannot publish connection state or authorize storage.
- * This class requires both product and battery responses under the candidate
- * key on the current transport. It never reads health data or saves a key.
+ * GCM ProductInfo proves possession of the candidate key. Some firmware
+ * returns battery and initialization data in cleartext after authentication.
+ * Such replies are command-scoped observations, not independent key proof.
  *
  * GCM envelopes on this protocol do not authenticate the outer command header;
  * commands are therefore strictly serialized and matched to the pending read.
@@ -27,6 +28,10 @@ internal class HuaweiSessionReads(
     private var pending: Int? = null
     private var product: HuaweiDeviceInfo.Product? = null
     private var battery: Int? = null
+    private var batteryEncrypted = false
+    private var statusEncrypted = false
+    private var timeSynchronized = false
+    private var servicesDiscovered = false
     var lastMetadata = ""
         private set
     var connectStatusSupported: Boolean? = null
@@ -34,15 +39,23 @@ internal class HuaweiSessionReads(
     var connectStatusAcknowledged = false
         private set
 
-    data class Readback(val product: HuaweiDeviceInfo.Product, val batteryPercent: Int)
+    data class Readback(
+        val product: HuaweiDeviceInfo.Product,
+        val batteryPercent: Int,
+        val batteryEncrypted: Boolean,
+        val connectStatusAcknowledged: Boolean,
+        val connectStatusEncrypted: Boolean,
+    )
 
     fun request(command: Int): List<ByteArray> = guarded {
         check(!closed && pending == null)
         // Do not expose other commands until the minimal readback is verified.
         require(when {
             product == null -> command == HuaweiDeviceInfo.PRODUCT
-            battery == null -> command == HuaweiDeviceInfo.BATTERY
-            connectStatusSupported == null -> command == HuaweiDeviceInfo.COMMANDS
+            battery == null -> command == HuaweiDeviceInfo.BATTERY ||
+                (command == HuaweiDeviceInfo.TIME && !timeSynchronized)
+            connectStatusSupported == null -> command == HuaweiDeviceInfo.COMMANDS ||
+                (command == HuaweiDeviceInfo.SERVICES && !servicesDiscovered)
             else -> connectStatusSupported == true && !connectStatusAcknowledged &&
                 command == HuaweiDeviceInfo.CONNECT_STATUS
         })
@@ -61,19 +74,52 @@ internal class HuaweiSessionReads(
         val expected = checkNotNull(pending)
         require(message.service == HuaweiDeviceInfo.SERVICE && message.command == expected)
         lastMetadata = "Outer " + metadata(message.payload)
-        val iv = requireNotNull(HuaweiTlv.one(HuaweiTlv.decode(message.payload), 0x7d))
-        remember(iv)
-        val plain = HuaweiEncryptedPayload.open(HuaweiEncryptedPayload.Mode.GCM, secret, message.payload)
+        val outer = HuaweiTlv.decode(message.payload)
+        val encrypted = outer.any { it.tag in 0x7c..0x7e }
+        val plain = if (encrypted) {
+            val iv = requireNotNull(HuaweiTlv.one(outer, 0x7d))
+            remember(iv)
+            HuaweiEncryptedPayload.open(HuaweiEncryptedPayload.Mode.GCM, secret, message.payload)
+        } else {
+            // Never downgrade a malformed/invalid ciphertext. ProductInfo
+            // cannot take this branch even when a watch sends plaintext.
+            require(product != null)
+            require(when (expected) {
+                HuaweiDeviceInfo.BATTERY -> outer.isNotEmpty() &&
+                    outer.all { it.tag in 1..3 || it.tag == 0x7f } &&
+                    HuaweiTlv.one(outer, 1)?.size == 1
+                HuaweiDeviceInfo.TIME -> outer.isNotEmpty() &&
+                    outer.all { it.tag in 1..2 || it.tag == 0x7f }
+                HuaweiDeviceInfo.SERVICES -> outer.all { it.tag == 2 || it.tag == 0x7f }
+                HuaweiDeviceInfo.COMMANDS -> outer.all { it.tag == 0x81 || it.tag == 0x7f }
+                HuaweiDeviceInfo.CONNECT_STATUS -> outer.size == 1 && outer[0].tag == 0x7f
+                else -> false
+            }) { "Unexpected plaintext response" }
+            message.payload.copyOf()
+        }
         try {
-            lastMetadata += "; GCM verified; inner " + metadata(plain)
+            lastMetadata += if (encrypted) "; GCM verified; inner " + metadata(plain)
+                else "; plaintext device reply after GCM ProductInfo"
             val decoded = HuaweiLinkFrames.Message(message.service, message.command, plain)
             when (expected) {
                 HuaweiDeviceInfo.PRODUCT -> product = HuaweiDeviceInfo.product(decoded)
-                HuaweiDeviceInfo.BATTERY -> battery = HuaweiDeviceInfo.battery(decoded)
+                HuaweiDeviceInfo.BATTERY -> {
+                    battery = HuaweiDeviceInfo.battery(decoded)
+                    batteryEncrypted = encrypted
+                }
+                HuaweiDeviceInfo.TIME -> {
+                    HuaweiDeviceInfo.timeAcknowledged(decoded)
+                    timeSynchronized = true
+                }
+                HuaweiDeviceInfo.SERVICES -> {
+                    HuaweiDeviceInfo.services(decoded)
+                    servicesDiscovered = true
+                }
                 HuaweiDeviceInfo.COMMANDS -> connectStatusSupported = HuaweiDeviceInfo.supportsConnectStatus(decoded)
                 HuaweiDeviceInfo.CONNECT_STATUS -> {
                     HuaweiDeviceInfo.connectAcknowledged(decoded)
                     connectStatusAcknowledged = true
+                    statusEncrypted = encrypted
                 }
                 else -> error("Unexpected Huawei read")
             }
@@ -87,7 +133,7 @@ internal class HuaweiSessionReads(
         check(!closed)
         val p = product ?: return null
         val b = battery ?: return null
-        return Readback(p, b)
+        return Readback(p, b, batteryEncrypted, connectStatusAcknowledged, statusEncrypted)
     }
 
     private fun metadata(payload: ByteArray): String = runCatching {

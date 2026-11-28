@@ -27,15 +27,26 @@ internal class HuaweiSessionReads(
     private var pending: Int? = null
     private var product: HuaweiDeviceInfo.Product? = null
     private var battery: Int? = null
+    var lastMetadata = ""
+        private set
+    var connectStatusSupported: Boolean? = null
+        private set
+    var connectStatusAcknowledged = false
+        private set
 
     data class Readback(val product: HuaweiDeviceInfo.Product, val batteryPercent: Int)
 
     fun request(command: Int): List<ByteArray> = guarded {
         check(!closed && pending == null)
         // Do not expose other commands until the minimal readback is verified.
-        require(command == HuaweiDeviceInfo.PRODUCT || command == HuaweiDeviceInfo.BATTERY)
-        require(if (product == null) command == HuaweiDeviceInfo.PRODUCT
-            else battery == null && command == HuaweiDeviceInfo.BATTERY)
+        require(when {
+            product == null -> command == HuaweiDeviceInfo.PRODUCT
+            battery == null -> command == HuaweiDeviceInfo.BATTERY
+            connectStatusSupported == null -> command == HuaweiDeviceInfo.COMMANDS
+            else -> connectStatusSupported == true && !connectStatusAcknowledged &&
+                command == HuaweiDeviceInfo.CONNECT_STATUS
+        })
+        lastMetadata = ""
         // LPv2 service requests use a 16-byte IV. HiChain's ISO exchange has its own nonce format.
         val iv = ByteArray(16).also(random::nextBytes)
         remember(iv)
@@ -49,14 +60,21 @@ internal class HuaweiSessionReads(
         check(!closed)
         val expected = checkNotNull(pending)
         require(message.service == HuaweiDeviceInfo.SERVICE && message.command == expected)
+        lastMetadata = "Outer " + metadata(message.payload)
         val iv = requireNotNull(HuaweiTlv.one(HuaweiTlv.decode(message.payload), 0x7d))
         remember(iv)
         val plain = HuaweiEncryptedPayload.open(HuaweiEncryptedPayload.Mode.GCM, secret, message.payload)
         try {
+            lastMetadata += "; GCM verified; inner " + metadata(plain)
             val decoded = HuaweiLinkFrames.Message(message.service, message.command, plain)
             when (expected) {
                 HuaweiDeviceInfo.PRODUCT -> product = HuaweiDeviceInfo.product(decoded)
                 HuaweiDeviceInfo.BATTERY -> battery = HuaweiDeviceInfo.battery(decoded)
+                HuaweiDeviceInfo.COMMANDS -> connectStatusSupported = HuaweiDeviceInfo.supportsConnectStatus(decoded)
+                HuaweiDeviceInfo.CONNECT_STATUS -> {
+                    HuaweiDeviceInfo.connectAcknowledged(decoded)
+                    connectStatusAcknowledged = true
+                }
                 else -> error("Unexpected Huawei read")
             }
             pending = null
@@ -71,6 +89,15 @@ internal class HuaweiSessionReads(
         val b = battery ?: return null
         return Readback(p, b)
     }
+
+    private fun metadata(payload: ByteArray): String = runCatching {
+        val fields = HuaweiTlv.decode(payload)
+        val tags = fields.joinToString(",") { "%02X:%d".format(java.util.Locale.ROOT, it.tag, it.value.size) }
+        val status = HuaweiTlv.one(fields, 0x7f)?.takeIf { it.size == 4 }?.let {
+            java.nio.ByteBuffer.wrap(it).int.toUInt().toString(16)
+        }
+        "tags:lengths=$tags" + if (status == null) "" else "; status=0x$status"
+    }.getOrDefault("malformed TLV (content withheld)")
 
     private fun remember(iv: ByteArray) {
         require(iv.size == 12 || iv.size == 16)

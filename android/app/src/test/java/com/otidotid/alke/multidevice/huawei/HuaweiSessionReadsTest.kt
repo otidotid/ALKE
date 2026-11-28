@@ -38,6 +38,24 @@ class HuaweiSessionReadsTest {
         }
     }
 
+    @Test fun batteryVariantsAndConnectStatusRequireAuthenticatedReplies() {
+        HuaweiSessionReads(key, 512).use { reads ->
+            reads.request(7)
+            reads.receive(encrypted(7, product, 1))
+            reads.request(8)
+            reads.receive(encrypted(8, byteArrayOf(1, 2, 76, 0, 2, 1, 75,
+                0x7f, 4, 0, 1, 0x86.toByte(), 0xa0.toByte()), 2))
+            assertEquals(75, requireNotNull(reads.readback()).batteryPercent)
+            assertArrayEquals(byteArrayOf(0x81.toByte(), 6, 2, 1, 1, 3, 1, 0x35),
+                requestPayload(reads, 3))
+            reads.receive(encrypted(3, byteArrayOf(0x81.toByte(), 6, 2, 1, 1, 4, 1, 1), 3))
+            assertEquals(true, reads.connectStatusSupported)
+            assertArrayEquals(byteArrayOf(1, 1, 1), requestPayload(reads, 0x35))
+            reads.receive(encrypted(0x35, byteArrayOf(0x7f, 4, 0, 1, 0x86.toByte(), 0xa0.toByte()), 4))
+            assertTrue(reads.connectStatusAcknowledged)
+        }
+    }
+
     @Test fun plaintextAndWrongKeyAreRejected() {
         HuaweiSessionReads(key, 512).use { reads ->
             reads.request(7)

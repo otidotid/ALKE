@@ -37,7 +37,7 @@ class HuaweiPairingProtocolTest {
         assertArrayEquals(DEVICE_TOKEN, saved)
         assertEquals(
             listOf("link", "status", "security:5", "pin", "iso:1", "iso:2", "iso:3", "pending", "iso:4",
-                "iso:17", "iso:18", "iso:19", "product", "battery", "verified"),
+                "iso:17", "iso:18", "iso:19", "product", "battery", "connect capability", "connect status", "verified"),
             watch.events,
         )
 
@@ -72,7 +72,7 @@ class HuaweiPairingProtocolTest {
                 })
         }
         assertEquals(73, resumed.batteryPercent)
-        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "battery", "verified"),
+        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "battery", "connect capability", "connect status", "verified"),
             watch.events)
     }
 
@@ -151,6 +151,16 @@ class HuaweiPairingProtocolTest {
                             dropNextBattery = false
                             byteArrayOf()
                         } else encryptedReply(command, bytes(1, 1, 73))
+                    }
+                    3 -> {
+                        events += "connect capability"
+                        assertArrayEquals(bytes(0x81, 6, 2, 1, 1, 3, 1, 0x35), decryptRequest(body))
+                        encryptedReply(command, bytes(0x81, 6, 2, 1, 1, 4, 1, 1))
+                    }
+                    0x35 -> {
+                        events += "connect status"
+                        assertArrayEquals(bytes(1, 1, 1), decryptRequest(body))
+                        encryptedReply(command, bytes(0x7f, 4, 0, 1, 0x86, 0xa0))
                     }
                     else -> error("Unexpected LPv2 command $command")
                 }

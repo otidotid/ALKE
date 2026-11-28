@@ -153,3 +153,7 @@ without obtaining compatible permissions or resolving the licensing model.
 Use documented wire facts and independently written code. OpenHarmony's
 Apache-2.0 license may permit reuse of relevant components subject to its
 conditions; it is not evidence of drop-in compatibility.
+
+## v637 physical readback and v638 candidate
+
+The owner reported encrypted readback failure with two outgoing frames (100 bytes), 425 incoming bytes and no transport error. The watch displayed Pairing failed. The serialized implementation sends BatteryLevel only after authenticating and parsing ProductInfo, so the trace narrows the failure to BatteryLevel handling or later readback. The exact battery response shape was not captured. v638 handles documented first-byte/multi-level battery fields and success status, preserves GCM authentication and adds tag/length-only readback diagnostics. After both encrypted reads, it queries support for DeviceConfig ConnectStatus (01/03 then 01/35) and sends the documented connected-state request only when advertised, requiring an authenticated success acknowledgement. This is a targeted finalization candidate, not evidence that all GT 5 initialization is complete; account, time, setup and sensor settings still require hardware evidence. No health sync or production merge is authorized by these simulated checks.

@@ -10,6 +10,8 @@ internal object HuaweiDeviceInfo {
     const val PRODUCT = 7
     const val BATTERY = 8
     const val SERVICES = 2
+    const val COMMANDS = 3
+    const val CONNECT_STATUS = 0x35
     private val queriedServices = byteArrayOf(1, 7, 0x24)
 
     data class Product(val model: String, val firmware: String)
@@ -17,6 +19,8 @@ internal object HuaweiDeviceInfo {
     fun query(command: Int): ByteArray = when (command) {
         PRODUCT -> byteArrayOf(7, 0, 10, 0)
         BATTERY -> byteArrayOf(1, 0)
+        COMMANDS -> byteArrayOf(0x81.toByte(), 6, 2, 1, 1, 3, 1, CONNECT_STATUS.toByte())
+        CONNECT_STATUS -> byteArrayOf(1, 1, 1)
         // Only advertise service IDs needed by ALKE; not a claim of device support.
         SERVICES -> byteArrayOf(1, queriedServices.size.toByte()) + queriedServices
         else -> error("Unsupported Huawei read command")
@@ -25,7 +29,7 @@ internal object HuaweiDeviceInfo {
     private fun fields(message: HuaweiLinkFrames.Message, expected: Int): List<HuaweiTlv.Field> {
         require(message.service == SERVICE && message.command == expected)
         return HuaweiTlv.decode(message.payload).also {
-            require(HuaweiTlv.one(it, 0x7f) == null) { "Huawei command rejected" }
+            require(successOrAbsent(it)) { "Huawei command rejected" }
         }
     }
 
@@ -45,7 +49,30 @@ internal object HuaweiDeviceInfo {
 
     fun battery(message: HuaweiLinkFrames.Message): Int {
         val f = fields(message, BATTERY)
-        return requireNotNull(HuaweiTlv.unsigned(f, 1, 1)).also { require(it in 0..100) }
+        // Huawei's battery response reads the first byte and may carry a multi-battery array.
+        val primary = requireNotNull(HuaweiTlv.one(f, 1))
+        require(primary.isNotEmpty())
+        val levels = HuaweiTlv.one(f, 2)?.takeIf { it.isNotEmpty() } ?: primary
+        return (levels[0].toInt() and 255).also { require(it in 0..100) }
+    }
+
+    private fun successOrAbsent(fields: List<HuaweiTlv.Field>): Boolean =
+        HuaweiTlv.one(fields, 0x7f)?.contentEquals(byteArrayOf(0, 1, 0x86.toByte(), 0xa0.toByte())) ?: true
+
+    fun supportsConnectStatus(message: HuaweiLinkFrames.Message): Boolean {
+        val f = fields(message, COMMANDS)
+        val nested = HuaweiTlv.decode(requireNotNull(HuaweiTlv.one(f, 0x81)))
+        require(HuaweiTlv.one(nested, 2)?.contentEquals(byteArrayOf(1)) == true)
+        val flags = requireNotNull(HuaweiTlv.one(nested, 4))
+        require(flags.size == 1 && (flags[0].toInt() and 255) in 0..1)
+        return flags[0] == 1.toByte()
+    }
+
+    fun connectAcknowledged(message: HuaweiLinkFrames.Message) {
+        val f = fields(message, CONNECT_STATUS)
+        require(HuaweiTlv.one(f, 0x7f)?.contentEquals(byteArrayOf(0, 1, 0x86.toByte(), 0xa0.toByte())) == true) {
+            "Connect status acknowledgement absent"
+        }
     }
 
     fun services(message: HuaweiLinkFrames.Message): Set<Int> {

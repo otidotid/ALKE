@@ -54,13 +54,25 @@ internal class HuaweiPairingProtocol(private val transport: HuaweiHiChainTranspo
             val reconnectCredential = requireNotNull(bound ?: credential)
             val key = exchange(HuaweiIsoExchange.Operation.RECONNECT, reconnectCredential, identity, frameBudget)
             val info = try {
-                stage = "Encrypted device readback"
-                lastResponse = ""
-                transport.resetTrace()
                 HuaweiSessionReads(key, frameBudget).use { reads ->
-                    for (command in listOf(HuaweiDeviceInfo.PRODUCT, HuaweiDeviceInfo.BATTERY)) {
+                    fun read(command: Int, label: String) {
+                        stage = label
+                        lastResponse = ""
+                        transport.resetTrace()
                         transport.send(reads.request(command))
-                        reads.receive(transport.receive(command))
+                        try {
+                            reads.receive(transport.receive(command))
+                        } finally {
+                            lastResponse = reads.lastMetadata
+                        }
+                    }
+                    read(HuaweiDeviceInfo.PRODUCT, "Encrypted ProductInfo")
+                    read(HuaweiDeviceInfo.BATTERY, "Encrypted BatteryLevel")
+                    // Do not claim finalization merely from the terminal HiChain response.
+                    // Ask for support of the documented connection-status command first.
+                    read(HuaweiDeviceInfo.COMMANDS, "Authenticated ConnectStatus capability")
+                    if (reads.connectStatusSupported == true) {
+                        read(HuaweiDeviceInfo.CONNECT_STATUS, "Authenticated ConnectStatus finalization")
                     }
                     requireNotNull(reads.readback())
                 }

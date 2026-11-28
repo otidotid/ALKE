@@ -977,7 +977,8 @@ object IntelligenceEngine {
             AnalyticsEngine.sleepSessionFromProvided(SleepSession(owner, episode.start, episode.end, stagesJSON = json))
                 ?.copy(cloudEpisodeType = episode.type)
         }
-        return priorSleep.filter { cloudDay?.owns(it.start) != true } + stagedCloud
+        // Consent enables cloud classification; it is not evidence that local sleep is absent.
+        return priorSleep + stagedCloud
     }
 
     /**
@@ -1337,7 +1338,6 @@ object IntelligenceEngine {
                 repo.cloudSleep?.history(owner, windowStart, nowSeconds)
             }
             val cloudDay = sleepHistory?.takeIf { it.touches(from, to) }
-            val cloudOnly = cloudDay?.covers(from, to) == true
 
             // ── #1005 BATTERY: per-day reuse (see [dayScanCache]) ───────────────────────────────────
             // Reuse this night's already-scored result when its scored inputs are provably unchanged since we
@@ -1527,7 +1527,7 @@ object IntelligenceEngine {
             // night" is checked rather than assumed. A day that HAS stored sessions is left alone whoever
             // owns it: inferring a night from heart rate when the device recorded a real one would be
             // strictly worse evidence replacing better.
-            val priorSleep = resolvePriorSleep(repo, owner, importedDeviceId, from, to, day, cloudOnly, grav, hr, rr, resp, ::dayDiag)
+            val priorSleep = resolvePriorSleep(repo, owner, importedDeviceId, from, to, day, false, grav, hr, rr, resp, ::dayDiag)
 
             val tScore0 = System.nanoTime()
             dayPrepNanos += tScore0 - tPrep0
@@ -1573,8 +1573,6 @@ object IntelligenceEngine {
                 useMotionAwareWake = useMotionAwareWake,
                 // #804 Fix A: the owner's own device-provided hypnogram (empty for WHOOP/non-ring days).
                 providedSleep = providedSleep,
-                cloudOwnsStart = cloudDay?.let { it::owns },
-                skipLocalSleepDetection = cloudOnly,
                 // Sleep & Rest test mode (Test Centre E5): thread the trace sink straight through. null (the
                 // default) keeps analyzeDay's byte-identical untraced path; when the caller passed a non-null
                 // sink (mode on), detectSleep's gate trace + the Rest sub-score line route to the .sleep-tagged

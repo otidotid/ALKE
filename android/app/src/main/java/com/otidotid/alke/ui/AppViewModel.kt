@@ -1243,6 +1243,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // moves the complete raw-input fingerprint, so skip the heavy 21-day rescore when every scoring stream is unchanged
                 // since the last COMPLETED run. Mirrors the Swift analyzeRecent(force:false) gate; the watermark
                 // advances only on success (below), so an interrupted run can never hide unscored data.
+                // A BLE offload/analysis already owns the immediate refresh. Recheck shortly
+                // instead of queuing another seven-day pass with a stale fingerprint.
+                if (ble.state.value.backfilling || ble.state.value.analyzingHistory) {
+                    withTimeoutOrNull(30_000L) { analyzeKick.receive() }
+                    continue
+                }
                 val analyzeFp = repository.analysisFingerprint()
                 // #1538: attribute the tick that is about to run. An idle-tick pass previously emitted NO
                 // trigger line at all — a "re-score: done" with nothing before it — so a strap log could not

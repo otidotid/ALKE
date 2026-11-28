@@ -473,10 +473,7 @@ object AnalyticsEngine {
                     avgHRV = s.avgHRV ?: SleepStager.sessionAvgHRV(s.start, s.end, rrSorted),
                 )
             }
-            val keptDetected = refinedSessions.filter { d ->
-                enrichedProvided.none { it.start < d.end && d.start < it.end }
-            }
-            keptDetected + enrichedProvided
+            reconcileSleepEpisodes(refinedSessions, enrichedProvided)
         }
         // Sessions attributed to `day` = those whose end falls on `day` (LOCAL day, #277). `day` is
         // the caller's local-day key; attribute by the same offset so the bucket and the key agree.

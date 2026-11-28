@@ -64,16 +64,48 @@ internal class HuaweiFitnessSession(
         return rows.values.sortedBy { it.start }
     }
 
-    fun workoutSummaries(start: Long, end: Long): List<HuaweiHistoryRead.WorkoutSummary> {
+    data class WorkoutBundle(val summary: HuaweiHistoryRead.WorkoutSummary,
+        val samples: List<HuaweiWorkoutDetail.Sample>, val splits: List<HuaweiWorkoutDetail.Split>)
+
+    fun workoutSummaries(start: Long, end: Long): List<HuaweiHistoryRead.WorkoutSummary> =
+        workoutBundles(start, end, includeDetails = false).map { it.summary }
+
+    fun workoutBundles(start: Long, end: Long, includeDetails: Boolean = true): List<WorkoutBundle> {
         require(supportsWorkoutSummaries() && end - start in 1..86400)
         val refs = query(HuaweiHistoryRead.WORKOUT_LIST, HuaweiHistoryRead.workoutListRequest(start, end),
             service = 0x17, parse = HuaweiHistoryRead::workoutList)
         require(refs.size <= 64)
+        var remainingPages = 256
         return refs.mapNotNull { ref ->
             val row = query(HuaweiHistoryRead.WORKOUT_TOTALS, HuaweiHistoryRead.workoutTotalsRequest(ref.number),
                 service = 0x17, parse = HuaweiHistoryRead::workoutSummary)
             require(row.number == ref.number)
-            row.takeIf { it.start < end && it.end > start }
+            if (row.start >= end || row.end <= start) return@mapNotNull null
+            val samples = sortedMapOf<Long, HuaweiWorkoutDetail.Sample>()
+            val splits = mutableListOf<HuaweiWorkoutDetail.Split>()
+            if (includeDetails && HuaweiWorkoutDetail.DATA in workoutCommands && ref.dataPages <= remainingPages) {
+                repeat(ref.dataPages) { index ->
+                    val page = query(HuaweiWorkoutDetail.DATA, HuaweiWorkoutDetail.request(ref.number, index, false),
+                        service = 0x17, parse = HuaweiWorkoutDetail::data)
+                    require(page.number == ref.number && page.page == index)
+                    for (sample in page.samples) {
+                        if (sample.timestamp !in row.start..row.end) continue
+                        val previous = samples.put(sample.timestamp, sample)
+                        require(previous == null || previous == sample)
+                    }
+                }
+                remainingPages -= ref.dataPages
+            }
+            if (includeDetails && HuaweiWorkoutDetail.PACE in workoutCommands && ref.pacePages <= remainingPages) {
+                repeat(ref.pacePages) { index ->
+                    val page = query(HuaweiWorkoutDetail.PACE, HuaweiWorkoutDetail.request(ref.number, index, true),
+                        service = 0x17, parse = HuaweiWorkoutDetail::pace)
+                    require(page.number == ref.number && page.page == index)
+                    splits.addAll(page.splits)
+                }
+                remainingPages -= ref.pacePages
+            }
+            WorkoutBundle(row, samples.values.toList(), splits.toList())
         }
     }
 }

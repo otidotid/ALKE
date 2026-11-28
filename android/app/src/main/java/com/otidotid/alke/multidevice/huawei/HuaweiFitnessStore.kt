@@ -18,23 +18,71 @@ import java.util.Locale
 internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
     context.applicationContext,
     File(context.noBackupFilesDir, "alke-huawei-fitness-v1.db").absolutePath,
-    null, 2,
+    null, 3,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE minute (device TEXT NOT NULL, ts INTEGER NOT NULL, steps INTEGER, hr INTEGER, spo2 INTEGER, PRIMARY KEY(device, ts))")
         db.execSQL("CREATE TABLE totals (device TEXT NOT NULL, day TEXT NOT NULL, observed INTEGER NOT NULL, steps INTEGER, distance INTEGER, PRIMARY KEY(device, day))")
         db.execSQL("CREATE INDEX minute_ts ON minute(ts)")
         createHistoryTables(db)
+        createWorkoutDetailTables(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        require(oldVersion == 1 && newVersion == 2) { "Explicit Huawei fitness migration required" }
-        createHistoryTables(db)
+        require(oldVersion in 1..2 && newVersion == 3) { "Explicit Huawei fitness migration required" }
+        if (oldVersion == 1) createHistoryTables(db)
+        createWorkoutDetailTables(db)
     }
 
     private fun createHistoryTables(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE legacy_sleep (device TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, native_type INTEGER NOT NULL, PRIMARY KEY(device, start))")
         db.execSQL("CREATE TABLE workout_summary (device TEXT NOT NULL, start INTEGER NOT NULL, number INTEGER NOT NULL, end INTEGER NOT NULL, native_type INTEGER, status INTEGER, distance INTEGER, steps INTEGER, calories_raw INTEGER, elapsed INTEGER, active INTEGER, PRIMARY KEY(device, start, number))")
+    }
+
+    private fun createWorkoutDetailTables(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE workout_sample (device TEXT NOT NULL, start INTEGER NOT NULL, number INTEGER NOT NULL, ts INTEGER NOT NULL, hr INTEGER, speed_raw INTEGER, step_rate_raw INTEGER, altitude_raw INTEGER, cadence_raw INTEGER, PRIMARY KEY(device,start,number,ts))")
+        db.execSQL("CREATE TABLE workout_pace (device TEXT NOT NULL, start INTEGER NOT NULL, number INTEGER NOT NULL, ordinal INTEGER NOT NULL, distance_raw INTEGER NOT NULL, native_type INTEGER NOT NULL, pace_raw INTEGER NOT NULL, point_index INTEGER, correction_raw INTEGER, PRIMARY KEY(device,start,number,ordinal))")
+    }
+
+    fun saveWorkoutDetails(device: String, bundles: List<HuaweiFitnessSession.WorkoutBundle>) {
+        require(device.matches(Regex("[0-9a-f]{64}")))
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (bundle in bundles) {
+                val summary = bundle.summary
+                for (sample in bundle.samples) {
+                    require(sample.timestamp in summary.start..summary.end)
+                    val values = ContentValues().apply {
+                        put("device",device); put("start",summary.start); put("number",summary.number)
+                        put("ts",sample.timestamp)
+                        sample.heartRate?.let { put("hr",it) }
+                        sample.speedRaw?.let { put("speed_raw",it) }
+                        sample.stepRateRaw?.let { put("step_rate_raw",it) }
+                        sample.altitudeRaw?.let { put("altitude_raw",it) }
+                        sample.cadenceRaw?.let { put("cadence_raw",it) }
+                    }
+                    val updated = db.update("workout_sample", values, "device=? AND start=? AND number=? AND ts=?",
+                        arrayOf(device,summary.start.toString(),summary.number.toString(),sample.timestamp.toString()))
+                    if (updated == 0) check(db.insertOrThrow("workout_sample",null,values) != -1L)
+                }
+                // Nonempty lists are complete fetches, never a truncated prefix.
+                if (bundle.splits.isNotEmpty()) {
+                    db.delete("workout_pace","device=? AND start=? AND number=?",
+                        arrayOf(device,summary.start.toString(),summary.number.toString()))
+                    bundle.splits.forEachIndexed { i, split ->
+                        val values = ContentValues().apply {
+                            put("device",device); put("start",summary.start); put("number",summary.number)
+                            put("ordinal",i); put("distance_raw",split.distanceRaw)
+                            put("native_type",split.nativeType); put("pace_raw",split.paceRaw)
+                            put("point_index",split.pointIndex); put("correction_raw",split.correctionRaw)
+                        }
+                        check(db.insertOrThrow("workout_pace",null,values) != -1L)
+                    }
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
     }
 
     fun saveSleep(device: String, rows: List<HuaweiHistoryRead.SleepInterval>) {

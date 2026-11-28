@@ -296,10 +296,10 @@ class HuaweiPairingProtocolTest {
                     }
                     3 -> {
                         events += "commands"
-                        assertArrayEquals(bytes(0x81, 33, 2, 1, 1, 3, 4, 0x30, 0x31, 0x35, 0x37,
-                            2, 1, 7, 3, 5, 3, 10, 11, 12, 13, 2, 1, 0x17, 3, 2, 7, 8, 2, 1, 0x1a, 3, 2, 5, 6), decryptRequest(body))
-                        packet(command, bytes(0x81, 33, 2, 1, 1, 4, 4, 1, 1, 1, 1,
-                            2, 1, 7, 4, 5, 1, 1, 1, 1, 1, 2, 1, 0x17, 4, 2, 1, 1, 2, 1, 0x1a, 4, 2, 1, 1))
+                        assertArrayEquals(bytes(0x81, 35, 2, 1, 1, 3, 4, 0x30, 0x31, 0x35, 0x37,
+                            2, 1, 7, 3, 5, 3, 10, 11, 12, 13, 2, 1, 0x17, 3, 4, 7, 8, 10, 12, 2, 1, 0x1a, 3, 2, 5, 6), decryptRequest(body))
+                        packet(command, bytes(0x81, 35, 2, 1, 1, 4, 4, 1, 1, 1, 1,
+                            2, 1, 7, 4, 5, 1, 1, 1, 1, 1, 2, 1, 0x17, 4, 4, 1, 1, 1, 1, 2, 1, 0x1a, 4, 2, 1, 1))
                     }
                     0x37 -> {
                         events += "expand"

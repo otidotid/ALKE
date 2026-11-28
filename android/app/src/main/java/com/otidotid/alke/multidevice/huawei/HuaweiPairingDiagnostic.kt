@@ -153,9 +153,12 @@ internal object HuaweiPairingDiagnostic {
                             val start = end - 86400
                             val sleep = if (fitness.supportsLegacySleep()) fitness.legacySleep(start, end) else null
                             sleep?.let { localStore.saveSleep(deviceKey, it) }
-                            val workouts = if (fitness.supportsWorkoutSummaries()) fitness.workoutSummaries(start, end) else null
-                            workouts?.let { localStore.saveWorkouts(deviceKey, it) }
-                            historySummary = "Legacy sleep intervals: ${sleep?.size ?: "not advertised"}; workout summaries: ${workouts?.size ?: "not advertised"}."
+                            val workouts = if (fitness.supportsWorkoutSummaries()) fitness.workoutBundles(start, end) else null
+                            workouts?.let {
+                                localStore.saveWorkouts(deviceKey, it.map { bundle -> bundle.summary })
+                                localStore.saveWorkoutDetails(deviceKey, it)
+                            }
+                            historySummary = "Legacy sleep intervals: ${sleep?.size ?: "not advertised"}; workout summaries: ${workouts?.size ?: "not advertised"}; workout samples: ${workouts?.sumOf { it.samples.size } ?: 0}; pace splits: ${workouts?.sumOf { it.splits.size } ?: 0}."
                             historyRead = true
                         }
                         val totalsText = totals?.let {

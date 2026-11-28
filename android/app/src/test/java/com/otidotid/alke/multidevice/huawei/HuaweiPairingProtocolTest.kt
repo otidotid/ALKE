@@ -208,6 +208,33 @@ class HuaweiPairingProtocolTest {
         assertTrue(watch.events.contains("workout pace rejected"))
     }
 
+    @Test fun fileBurstAcceptsInterleavedAckAndAuthenticatedBlocks() {
+        val watch = Watch()
+        watch.open().use { link ->
+            protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {}, {},
+                onSession = { _, fitness ->
+                    assertTrue(fitness.nativeFiles().supported())
+                    assertArrayEquals(bytes(1,2,3,4,5),
+                        fitness.nativeFiles().read(HuaweiFileRead.Kind.GPS,0,0,4))
+                    assertEquals(123,fitness.totals().steps)
+                })
+        }
+        assertTrue("file complete" in watch.events)
+    }
+
+    @Test fun fileBurstRejectsPlaintextAndNeverCompletes() {
+        val watch = Watch().apply { fileFault = true }
+        watch.open().use { link ->
+            assertThrows(IllegalArgumentException::class.java) {
+                protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {}, {},
+                    onSession = { _, fitness ->
+                        fitness.nativeFiles().read(HuaweiFileRead.Kind.GPS,0,0,4)
+                    })
+            }
+        }
+        assertTrue("file complete" !in watch.events)
+    }
+
     @Test fun rejectsPlaintextFitnessEvenAfterGcmProductInfo() {
         val watch = Watch().apply { plainFitness = true }
         watch.open().use { link ->
@@ -232,6 +259,7 @@ class HuaweiPairingProtocolTest {
         var onlyInitiatingCommands = false
         var rejectSleepCount = false
         var rejectWorkoutDetails = false
+        var fileFault = false
         private var bound = false
 
         fun open() = Link()
@@ -248,7 +276,7 @@ class HuaweiPairingProtocolTest {
                 assertEquals(frame.size - 5, ByteBuffer.wrap(frame, 1, 2).short.toInt())
                 assertEquals(0, unsigned(frame[3]))
                 val service = unsigned(frame[4])
-                assertTrue(service in setOf(1, 7, 0x17, 0x1a))
+                assertTrue(service in setOf(1, 7, 0x17, 0x1a, 0x2c))
                 assertEquals(crc(frame.copyOfRange(0, frame.size - 2)),
                     ByteBuffer.wrap(frame, frame.size - 2, 2).short.toInt() and 0xffff)
                 val command = unsigned(frame[5])
@@ -293,6 +321,33 @@ class HuaweiPairingProtocolTest {
                                 0x83, 11, 4, 1, 6, 5, 6, 0, 0, 0, 60, 0, 1), service = 7)
                         }
                         else -> error("Unexpected fitness command")
+                    }
+                } else if (service == 0x2c) {
+                    val plain = decryptRequest(body)
+                    when (command) {
+                        1 -> {
+                            assertArrayEquals(bytes(1,9,52,95,103,112,115,46,98,105,110,2,1,17,
+                                5,4,0,0,0,0,6,4,0,0,0,0),plain)
+                            encryptedReply(1,bytes(1,9,52,95,103,112,115,46,98,105,110,2,1,17,
+                                3,1,7,4,4,0,0,0,5),service)
+                        }
+                        3 -> {
+                            assertArrayEquals(bytes(1,1,7,2,0,3,0,4,0,5,0),plain)
+                            encryptedReply(3,bytes(1,1,7,2,1,5,3,2,0,3,4,4,0,0,0,5,5,1,0),service)
+                        }
+                        4 -> {
+                            assertArrayEquals(bytes(1,1,7,2,4,0,0,0,0,3,4,0,0,0,5),plain)
+                            encryptedReply(5,bytes(7,0,0,0,0,0,1,2),service) +
+                                encryptedReply(4,bytes(0x7f,4,0,1,0x86,0xa0),service) +
+                                (if (fileFault) packet(5,bytes(7,0,0,0,2,0,3,4,5),service)
+                                else encryptedReply(5,bytes(7,0,0,0,2,0,3,4,5),service,1))
+                        }
+                        6 -> {
+                            assertArrayEquals(bytes(1,1,7,2,1,1),plain)
+                            events += "file complete"
+                            byteArrayOf()
+                        }
+                        else -> error("Unexpected file command")
                     }
                 } else if (service == 0x17) {
                     when (command) {
@@ -383,14 +438,14 @@ class HuaweiPairingProtocolTest {
                     }
                     3 -> {
                         events += "commands"
-                        assertArrayEquals(bytes(0x81, 35, 2, 1, 1, 3, 4, 0x30, 0x31, 0x35, 0x37,
-                            2, 1, 7, 3, 5, 3, 10, 11, 12, 13, 2, 1, 0x17, 3, 4, 7, 8, 10, 12, 2, 1, 0x1a, 3, 2, 5, 6), decryptRequest(body))
-                        packet(command, bytes(0x81, 35, 2, 1, 1, 4, 4, 1, 1, 1, 1,
+                        assertArrayEquals(bytes(0x81, 45, 2, 1, 1, 3, 4, 0x30, 0x31, 0x35, 0x37,
+                            2, 1, 7, 3, 5, 3, 10, 11, 12, 13, 2, 1, 0x17, 3, 4, 7, 8, 10, 12, 2, 1, 0x1a, 3, 2, 5, 6, 2, 1, 0x2c, 3, 5, 1, 3, 4, 5, 6), decryptRequest(body))
+                        packet(command, bytes(0x81, 45, 2, 1, 1, 4, 4, 1, 1, 1, 1,
                             2, 1, 7, 4, 5, 1, 1, if (onlyInitiatingCommands) 0 else 1,
                             if (onlyInitiatingCommands) 0 else 1, if (onlyInitiatingCommands) 0 else 1,
                             2, 1, 0x17, 4, 4, 1, if (onlyInitiatingCommands) 0 else 1,
                             if (onlyInitiatingCommands) 0 else 1, if (onlyInitiatingCommands) 0 else 1,
-                            2, 1, 0x1a, 4, 2, 1, 1))
+                            2, 1, 0x1a, 4, 2, 1, 1, 2, 1, 0x2c, 4, 5, 1, 1, 1, 1, 1))
                     }
                     0x37 -> {
                         events += "expand"
@@ -514,8 +569,8 @@ class HuaweiPairingProtocolTest {
                 return gcm(Cipher.DECRYPT_MODE, deviceSessionKey, iv, encrypted.getValue(0x7e))
             }
 
-            private fun encryptedReply(command: Int, plain: ByteArray, service: Int = 1): ByteArray {
-                val iv = ByteArray(16) { if (it == 0) service.toByte() else command.toByte() }
+            private fun encryptedReply(command: Int, plain: ByteArray, service: Int = 1, sequence: Int = 0): ByteArray {
+                val iv = ByteArray(16) { if (it == 0) service.toByte() else if (it == 1 && sequence != 0) sequence.toByte() else command.toByte() }
                 val ciphertext = gcm(Cipher.ENCRYPT_MODE, deviceSessionKey, iv, plain)
                 return packet(command, bytes(0x7c, 1, 1) + tlv(0x7d, iv) + tlv(0x7e, ciphertext), service)
             }

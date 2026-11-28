@@ -24,6 +24,7 @@ internal class HuaweiInitialization(
         val notes: List<String>,
         val fitnessCommands: Set<Int> = emptySet(),
         val workoutCommands: Set<Int> = emptySet(),
+        val fileCommands: Set<Int> = emptySet(),
     )
 
     private val notes = mutableListOf<String>()
@@ -40,6 +41,7 @@ internal class HuaweiInitialization(
         if (7 in serviceFlags) requested[7] = byteArrayOf(3, 10, 11, 12, 13)
         if (0x17 in serviceFlags) requested[0x17] = byteArrayOf(7, 8, 10, 12)
         if (0x1a in serviceFlags) requested[0x1a] = byteArrayOf(5, 6)
+        if (0x2c in serviceFlags) requested[0x2c] = byteArrayOf(1, 3, 4, 5, 6)
         val commands = query(1, 3, commandQuery(requested), "Supported commands", true) { f, _ ->
             parseCommands(f, requested)
         } ?: error("Required command discovery")
@@ -95,7 +97,7 @@ internal class HuaweiInitialization(
             } else null
 
         if (connect != null && !connect.first) notes += "ConnectStatus: no explicit success acknowledgement."
-        return Report(serviceFlags, connectSupported, connect?.first == true, connect?.let { it.first && it.second } == true, notes.toList(), commands[7].orEmpty(), commands[0x17].orEmpty())
+        return Report(serviceFlags, connectSupported, connect?.first == true, connect?.let { it.first && it.second } == true, notes.toList(), commands[7].orEmpty(), commands[0x17].orEmpty(), commands[0x2c].orEmpty())
     }
 
     private fun <T : Any> query(service: Int, command: Int, body: ByteArray, label: String,
@@ -138,7 +140,8 @@ internal class HuaweiInitialization(
         fun allowed(service: Int, command: Int) =
             (service == 1 && command in setOf(2, 3, 8, 0x31, 0x35, 0x37, 0x3d, 0x3e)) ||
                 (service == 0x1a && command == 5) || (service == 7 && command in setOf(3, 10, 11, 12, 13)) ||
-                (service == 0x17 && command in setOf(7, 8, 10, 12))
+                (service == 0x17 && command in setOf(7, 8, 10, 12)) ||
+                (service == 0x2c && command in setOf(1, 3, 4, 6))
 
         private fun fields(vararg values: Pair<Int, ByteArray>) =
             HuaweiTlv.encode(*values.map { HuaweiTlv.Field(it.first, it.second) }.toTypedArray())

@@ -62,9 +62,12 @@ internal class HuaweiHiChainTransport(
         ignoredLate.add(service to command)
     }
 
-    fun receive(command: Int, service: Int = 1, timeoutMillis: Long = 30_000): HuaweiLinkFrames.Message {
-        require(timeoutMillis in 1..60_000)
-        ignoredLate.remove(service to command)
+    fun receive(command: Int, service: Int = 1, timeoutMillis: Long = 30_000): HuaweiLinkFrames.Message =
+        receiveAny(setOf(command), service, timeoutMillis)
+
+    fun receiveAny(commands: Set<Int>, service: Int, timeoutMillis: Long): HuaweiLinkFrames.Message {
+        require(commands.isNotEmpty() && timeoutMillis in 1..60_000)
+        commands.forEach { ignoredLate.remove(service to it) }
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
         while (true) {
             ensureActive()
@@ -78,14 +81,15 @@ internal class HuaweiHiChainTransport(
             }
 
             val message = pending.removeFirst()
-            if (trace.matches(message, command, service)) return message
+            if (message.service == service && message.command in commands) return message
+            trace.matches(message, commands.first(), service)
             if (message.service == 0x1a && message.command == 0x06)
                 throw HuaweiAccountSelectionRequired()
 
             val media = message.service == 0x25 && message.command in setOf(1, 3)
             val batteryPush = message.service == 1 && message.command == 0x27
             val late = (message.service to message.command) in ignoredLate
-            if ((!media && !batteryPush && !late && command != 0x28) || trace.unmatched > MAX_UNMATCHED) {
+            if ((!media && !batteryPush && !late && commands != setOf(0x28)) || trace.unmatched > MAX_UNMATCHED) {
                 throw IOException("Unexpected Huawei response")
             }
         }

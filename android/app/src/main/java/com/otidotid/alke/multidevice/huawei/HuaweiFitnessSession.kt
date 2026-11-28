@@ -11,8 +11,12 @@ internal class HuaweiFitnessSession(
     private val transport: HuaweiHiChainTransport,
     private val commands: Set<Int>,
     private val workoutCommands: Set<Int> = emptySet(),
+    private val fileCommands: Set<Int> = emptySet(),
 ) {
     fun supports(command: Int) = command in commands
+
+    /** Diagnostic-only API; no automatic file retrieval or scoring. */
+    fun nativeFiles() = HuaweiFileSession(reads, transport, fileCommands)
 
     fun supportsMinuteHistory() = supports(HuaweiFitnessRead.COUNT)
     // Gadgetbridge initiates legacy sleep count for the fitness-history service;

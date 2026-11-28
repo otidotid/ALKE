@@ -182,6 +182,19 @@ internal class HuaweiSessionReads(
         InitializationReply(plain, encrypted)
     }
 
+    /** Only a pending 0x2c/04 burst may consume authenticated raw block packets. */
+    fun receiveFileBurst(message: HuaweiLinkFrames.Message): InitializationReply = guarded {
+        check(!closed && initializationPending == (HuaweiFileRead.SERVICE to HuaweiFileRead.REQUEST))
+        require(message.service == HuaweiFileRead.SERVICE &&
+            message.command in setOf(HuaweiFileRead.REQUEST, HuaweiFileRead.BLOCK))
+        val envelope = HuaweiTlv.decode(message.payload)
+        val iv = requireNotNull(HuaweiTlv.one(envelope, 0x7d))
+        remember(iv)
+        // The block payload is raw bytes. Never interpret it as TLV or fall back to plaintext.
+        InitializationReply(HuaweiEncryptedPayload.open(HuaweiEncryptedPayload.Mode.GCM,
+            secret, message.payload), true)
+    }
+
     fun finishInitializationWithoutReply(service: Int, command: Int) {
         check(!closed && initializationPending == (service to command))
         initializationPending = null

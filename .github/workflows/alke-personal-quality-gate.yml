@@ -183,12 +183,12 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Collect Android SDK signature verifier for offline Personal signing
-        if: github.head_ref == 'alke/v598-realtime-audit' || github.head_ref == 'alke/v627-sleep-intelligence' || github.head_ref == 'alke/v628-sleep-ui-polish' || github.head_ref == 'alke/v629-post-sync-activity' || github.head_ref == 'alke/v630-me-experience'
+        if: github.head_ref == 'alke/v598-realtime-audit' || github.head_ref == 'alke/v627-sleep-intelligence' || github.head_ref == 'alke/v628-sleep-ui-polish' || github.head_ref == 'alke/v629-post-sync-activity' || github.head_ref == 'alke/v630-me-experience' || github.head_ref == 'alke/huawei-gt5-foundation'
         run: |
           signer=$(find "$ANDROID_HOME/build-tools" -path '*/lib/apksigner.jar' | sort -V | tail -1)
           cp "$signer" "$RUNNER_TEMP/apksigner.jar"
       - uses: actions/upload-artifact@v4
-        if: github.head_ref == 'alke/v598-realtime-audit' || github.head_ref == 'alke/v627-sleep-intelligence' || github.head_ref == 'alke/v628-sleep-ui-polish' || github.head_ref == 'alke/v629-post-sync-activity' || github.head_ref == 'alke/v630-me-experience'
+        if: github.head_ref == 'alke/v598-realtime-audit' || github.head_ref == 'alke/v627-sleep-intelligence' || github.head_ref == 'alke/v628-sleep-ui-polish' || github.head_ref == 'alke/v629-post-sync-activity' || github.head_ref == 'alke/v630-me-experience' || github.head_ref == 'alke/huawei-gt5-foundation'
         with:
           name: Android-SDK-apksigner
           path: ${{ runner.temp }}/apksigner.jar

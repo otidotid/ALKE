@@ -18,7 +18,7 @@ import java.util.Locale
 internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
     context.applicationContext,
     File(context.noBackupFilesDir, "alke-huawei-fitness-v1.db").absolutePath,
-    null, 4,
+    null, 5,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE minute (device TEXT NOT NULL, ts INTEGER NOT NULL, steps INTEGER, hr INTEGER, spo2 INTEGER, PRIMARY KEY(device, ts))")
@@ -27,13 +27,58 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
         createHistoryTables(db)
         createWorkoutDetailTables(db)
         createGpsTable(db)
+        createTruSleepTables(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        require(oldVersion in 1..3 && newVersion == 4) { "Explicit Huawei fitness migration required" }
+        require(oldVersion in 1..4 && newVersion == 5) { "Explicit Huawei fitness migration required" }
         if (oldVersion == 1) createHistoryTables(db)
         if (oldVersion < 3) createWorkoutDetailTables(db)
-        createGpsTable(db)
+        if (oldVersion < 4) createGpsTable(db)
+        createTruSleepTables(db)
+    }
+
+    private fun createTruSleepTables(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE trusleep_state_candidate (device TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL, native_metadata BLOB NOT NULL, PRIMARY KEY(device,start,end))")
+        db.execSQL("CREATE TABLE trusleep_acc_candidate (device TEXT NOT NULL, ts INTEGER NOT NULL, x_raw INTEGER NOT NULL, y_raw INTEGER NOT NULL, z_raw INTEGER NOT NULL, PRIMARY KEY(device,ts))")
+        db.execSQL("CREATE TABLE trusleep_ppg_candidate (device TEXT NOT NULL, ts_ms INTEGER NOT NULL, amplitude_raw INTEGER NOT NULL, PRIMARY KEY(device,ts_ms))")
+    }
+
+    /** Diagnostic-only staging, after complete authenticated transfers of both files. */
+    fun saveTruSleepCandidate(device: String, stateFile: ByteArray, dataFile: ByteArray,
+        start: Long, end: Long): HuaweiTruSleepRead.Counts {
+        require(device.matches(Regex("[0-9a-f]{64}")))
+        val decoded = HuaweiTruSleepRead.decode(stateFile,dataFile,start,end)
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (row in decoded.states) {
+                val values = ContentValues().apply {
+                    put("device",device); put("start",row.start); put("end",row.end)
+                    put("native_metadata",row.metadata)
+                }
+                check(db.insertWithOnConflict("trusleep_state_candidate",null,values,
+                    SQLiteDatabase.CONFLICT_REPLACE) != -1L)
+            }
+            for (row in decoded.acc) {
+                val values = ContentValues().apply {
+                    put("device",device); put("ts",row.timestamp)
+                    put("x_raw",row.x); put("y_raw",row.y); put("z_raw",row.z)
+                }
+                check(db.insertWithOnConflict("trusleep_acc_candidate",null,values,
+                    SQLiteDatabase.CONFLICT_REPLACE) != -1L)
+            }
+            for (row in decoded.ppg) {
+                val values = ContentValues().apply {
+                    put("device",device); put("ts_ms",row.timestampMillis)
+                    put("amplitude_raw",row.amplitudeRaw)
+                }
+                check(db.insertWithOnConflict("trusleep_ppg_candidate",null,values,
+                    SQLiteDatabase.CONFLICT_REPLACE) != -1L)
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+        return HuaweiTruSleepRead.Counts(decoded.states.size,decoded.acc.size,decoded.ppg.size)
     }
 
     private fun createGpsTable(db: SQLiteDatabase) {

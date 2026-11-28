@@ -45,8 +45,8 @@ android {
         minSdk = 26
         targetSdk = 34
         // ALKE Alpha 1: user-test build; no production signing or data migration changes.
-        versionCode = 641
-        versionName = "1.0.0-alpha.22.51-huawei-fitness-session"
+        versionCode = 642
+        versionName = "1.0.0-alpha.22.52-huawei-source-staging"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_COACH_BASE_URL", "\"${cloudCoachBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")

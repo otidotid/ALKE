@@ -10,6 +10,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 /** App-process-owned test connection, independent of the Devices screen and WHOOP. */
 internal object HuaweiConnectionController {
@@ -25,8 +26,23 @@ internal object HuaweiConnectionController {
         mutableState.value = State(true, "Connecting Huawei GT 5...")
         job = scope.launch {
             try {
-                val result = HuaweiPairingDiagnostic.run(context.applicationContext, device, firstBind) {
-                    mutableState.value = State(true, it)
+                var allowFirstBind = firstBind
+                var failures = 0
+                var result: String
+                while (true) {
+                    result = HuaweiPairingDiagnostic.run(context.applicationContext, device, allowFirstBind) {
+                        mutableState.value = State(true, it)
+                    }
+                    // Never automatically repeat first bind or account/reset decisions.
+                    allowFirstBind = false
+                    if (result == HuaweiPairingDiagnostic.SESSION_ROTATION) {
+                        failures = 0
+                        mutableState.value = State(true, "Refreshing Huawei authenticated session...")
+                        continue
+                    }
+                    if (result != HuaweiPairingDiagnostic.SESSION_LINK_LOST || ++failures > 3) break
+                    mutableState.value = State(true, "Huawei link lost; reconnecting saved binding ($failures/3).")
+                    delay(2000L * failures)
                 }
                 mutableState.value = State(false, result)
             } catch (e: CancellationException) {

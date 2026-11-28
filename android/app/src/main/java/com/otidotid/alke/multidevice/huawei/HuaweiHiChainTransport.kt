@@ -28,6 +28,7 @@ internal class HuaweiHiChainTransport(
 
     fun resetTrace() {
         trace = HuaweiHandshakeTrace()
+        remaining = MAX_RECEIVE_BYTES
     }
 
     /** The negotiated MTU limits individual writes, while the slice size limits LPv2 frames. */

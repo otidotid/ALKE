@@ -105,6 +105,30 @@ class HuaweiPairingProtocolTest {
         assertTrue("wear" in watch.events)
     }
 
+    @Test fun firstBindReadsFitnessOnSameAuthenticatedSocket() {
+        val watch = Watch()
+        watch.open().use { link ->
+            protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {},
+                { watch.events += "verified" }, onSession = { _, fitness ->
+                    assertEquals(123, fitness.totals().steps)
+                    assertEquals(listOf(HuaweiFitnessRead.Minute(60, 42, 72, 98)),
+                        fitness.minutes(60, 120))
+                })
+        }
+        assertEquals(listOf("verified", "fitness totals", "fitness count", "fitness page"),
+            watch.events.takeLast(4))
+    }
+
+    @Test fun rejectsPlaintextFitnessEvenAfterGcmProductInfo() {
+        val watch = Watch().apply { plainFitness = true }
+        watch.open().use { link ->
+            assertThrows(IOException::class.java) {
+                protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {}, {},
+                    onSession = { _, fitness -> fitness.totals() })
+            }
+        }
+    }
+
     private fun protocol(link: Watch.Link) = HuaweiPairingProtocol(HuaweiHiChainTransport(link) {})
 
     private class Watch {
@@ -113,6 +137,7 @@ class HuaweiPairingProtocolTest {
         var differentAccount = false
         var silentConnectStatus = false
         var lateSetupReply = false
+        var plainFitness = false
         private var bound = false
 
         fun open() = Link()
@@ -129,7 +154,7 @@ class HuaweiPairingProtocolTest {
                 assertEquals(frame.size - 5, ByteBuffer.wrap(frame, 1, 2).short.toInt())
                 assertEquals(0, unsigned(frame[3]))
                 val service = unsigned(frame[4])
-                assertTrue(service in setOf(1, 0x1a))
+                assertTrue(service in setOf(1, 7, 0x1a))
                 assertEquals(crc(frame.copyOfRange(0, frame.size - 2)),
                     ByteBuffer.wrap(frame, frame.size - 2, 2).short.toInt() and 0xffff)
                 val command = unsigned(frame[5])
@@ -139,6 +164,29 @@ class HuaweiPairingProtocolTest {
                     events += "account"
                     assertArrayEquals(bytes(1, 1, 0, 3, 1, 1), decryptRequest(body))
                     packet(command, bytes(2, 1, if (differentAccount) 1 else 0), service = 0x1a)
+                } else if (service == 7) {
+                    when (command) {
+                        3 -> {
+                            events += "fitness totals"
+                            assertArrayEquals(bytes(1, 0), decryptRequest(body))
+                            val data = bytes(0x81, 8, 0x83, 6, 5, 4, 0, 0, 0, 123)
+                            if (plainFitness) packet(command, data, service = 7)
+                            else encryptedReply(command, data, service = 7)
+                        }
+                        10 -> {
+                            events += "fitness count"
+                            assertArrayEquals(bytes(0x81, 0, 3, 4, 0, 0, 0, 60, 4, 4, 0, 0, 0, 120),
+                                decryptRequest(body))
+                            encryptedReply(command, bytes(0x81, 4, 2, 2, 0, 1), service = 7)
+                        }
+                        11 -> {
+                            events += "fitness page"
+                            assertArrayEquals(bytes(0x81, 4, 2, 2, 0, 0), decryptRequest(body))
+                            encryptedReply(command, bytes(0x81, 23, 2, 2, 0, 0, 3, 4, 0, 0, 0, 60,
+                                0x84, 11, 5, 1, 0, 6, 6, 0xc2, 1, 0, 42, 72, 98), service = 7)
+                        }
+                        else -> error("Unexpected fitness command")
+                    }
                 } else when (command) {
                     1 -> {
                         events += "link"
@@ -330,10 +378,10 @@ class HuaweiPairingProtocolTest {
                 return gcm(Cipher.DECRYPT_MODE, deviceSessionKey, iv, encrypted.getValue(0x7e))
             }
 
-            private fun encryptedReply(command: Int, plain: ByteArray): ByteArray {
-                val iv = ByteArray(16) { command.toByte() }
+            private fun encryptedReply(command: Int, plain: ByteArray, service: Int = 1): ByteArray {
+                val iv = ByteArray(16) { if (it == 0) service.toByte() else command.toByte() }
                 val ciphertext = gcm(Cipher.ENCRYPT_MODE, deviceSessionKey, iv, plain)
-                return packet(command, bytes(0x7c, 1, 1) + tlv(0x7d, iv) + tlv(0x7e, ciphertext))
+                return packet(command, bytes(0x7c, 1, 1) + tlv(0x7d, iv) + tlv(0x7e, ciphertext), service)
             }
 
             override fun read(buffer: ByteArray, timeoutMillis: Long): Int {

@@ -25,6 +25,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 @SuppressLint("MissingPermission")
 internal object HuaweiPairingDiagnostic {
     private val attemptLock = Mutex()
+    const val SESSION_ROTATION = "Huawei session rotation requested."
+    const val SESSION_LINK_LOST = "Huawei fitness session Bluetooth link lost."
+    private class HuaweiSessionRotation : IOException()
 
     suspend fun run(context: Context, device: BluetoothDevice, allowFirstBind: Boolean,
         onVerified: (String) -> Unit = {}): String = attemptLock.withLock {
@@ -62,11 +65,13 @@ internal object HuaweiPairingDiagnostic {
         var binding: HuaweiCredentialStore.Binding? = null
         var checkingBinding = true
         var sessionStarted = false
+        var fitnessStore: HuaweiFitnessStore? = null
         try {
             require(HuaweiRfcommTransport.isGt5Name(device.name))
             require(device.bondState == BluetoothDevice.BOND_BONDED)
             val store = HuaweiCredentialStore(context.applicationContext)
             val address = device.address
+            val deviceKey = HuaweiFitnessStore.deviceKey(address)
             val pending = store.loadPending(address)
             binding = pending ?: store.load(address)
             if (binding == null && !allowFirstBind) return "First-time binding requires your confirmation."
@@ -102,25 +107,51 @@ internal object HuaweiPairingDiagnostic {
                     onVerified("$header\nReading advertised fitness capabilities.\n$notes")
                     // Keep the session alive and read only known, advertised commands.
                     // No automatic sensor changes, agreement acceptance or WHOOP switching.
+                    val localStore = HuaweiFitnessStore(context.applicationContext)
+                    fitnessStore = localStore
+                    val sessionStart = android.os.SystemClock.elapsedRealtime()
                     var nextHistory = 0L
                     var historyCount: Int? = null
+                    var sourcePreview = "HR source comparison unavailable."
                     while (true) {
                         checkActive()
+                        if (android.os.SystemClock.elapsedRealtime() - sessionStart >= 30 * 60 * 1000L)
+                            throw HuaweiSessionRotation()
+                        val before = System.currentTimeMillis()
+                        val zone = java.time.ZoneId.systemDefault()
+                        val day = java.time.Instant.ofEpochMilli(before).atZone(zone).toLocalDate()
                         val totals = if (fitness.supports(HuaweiFitnessRead.TOTALS)) fitness.totals() else null
                         val now = System.currentTimeMillis() / 1000
+                        if (totals != null && java.time.Instant.ofEpochSecond(now).atZone(zone).toLocalDate() == day)
+                            localStore.saveTotals(deviceKey, day.toString(), now, totals)
                         if (now >= nextHistory && fitness.supports(HuaweiFitnessRead.COUNT) &&
                             fitness.supports(HuaweiFitnessRead.PAGE)) {
                             // A bounded recent window, with no invented intervals or cursor advancement.
-                            val minutes = fitness.minutes(now - 3600, now)
-                            historyCount = minutes.size
+                            val end = now - now % 60
+                            val start = end - 3600
+                            val minutes = fitness.minutes(start, end)
+                            localStore.saveMinutes(deviceKey, start, end, minutes)
+                            val stored = localStore.minutes(deviceKey, start, end)
+                            historyCount = stored.size
+                            // Read-only source selection on minute windows. Do not alter native WHOOP scoring.
+                            sourcePreview = runCatching {
+                                val app = context.applicationContext as com.otidotid.alke.AlkeApplication
+                                val buckets = kotlinx.coroutines.runBlocking {
+                                    app.repository.hrBucketsUnion(app.activeDeviceId, start, end - 1, 60)
+                                }
+                                val chosen = HuaweiHrSelection.select(stored,
+                                    buckets.map { HuaweiHrSelection.WhoopMinute(it.bucket, it.avgBpm) })
+                                val primary = chosen.count { it.source == com.otidotid.alke.multidevice.WearableSourcePolicy.Source.HUAWEI }
+                                "HR source preview: Huawei $primary, WHOOP ${chosen.size - primary} minute windows."
+                            }.getOrDefault("HR source preview unavailable.")
                             nextHistory = now + 900
                         }
                         val totalsText = totals?.let {
                             "Huawei totals: steps=${it.steps ?: "unavailable"}, distance=${it.distanceMeters ?: "unavailable"} m."
                         } ?: "Huawei totals not advertised."
-                        val historyText = historyCount?.let { "GCM-verified recent minute records: $it." }
+                        val historyText = historyCount?.let { "GCM-verified minute records stored: $it." }
                             ?: "Minute history unavailable."
-                        onVerified("$header\n$totalsText\n$historyText\nDiagnostic only; not merged into ALKE scores.\n$notes")
+                        onVerified("$header\n$totalsText\n$historyText\n$sourcePreview\nSaved in separate Huawei store; not merged into ALKE scores.\n$notes")
                         // Check cancellation frequently. No second reader or background thread per poll.
                         repeat(120) {
                             checkActive()
@@ -131,17 +162,22 @@ internal object HuaweiPairingDiagnostic {
             return "Huawei session ended."
         } catch (e: CancellationException) {
             throw e
+        } catch (_: HuaweiSessionRotation) {
+            return SESSION_ROTATION
         } catch (_: HuaweiAccountSelectionRequired) {
             return "Watch requests account selection. ALKE will not confirm a reset or switch account."
         } catch (_: HuaweiPairingProtocol.BindingRequired) {
             return "The watch requests a new pairing. Use first-time ALKE binding to confirm."
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             ensureActive()
+            if (sessionStarted && e is IOException && transport.trace.summary().contains("failure=socket"))
+                return SESSION_LINK_LOST
             val stage = if (checkingBinding) "Checking saved binding" else if (sessionStarted)
                 "Huawei fitness session" else protocol.stage
             val failure = if (expired.get()) "timed out" else "failed or unsupported"
             return "$stage: $failure. ${protocol.lastResponse}\n${transport.trace.summary()}"
         } finally {
+            fitnessStore?.close()
             binding?.close()
             timeout.cancel(false)
             link.close()

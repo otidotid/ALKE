@@ -109,6 +109,12 @@ internal class HuaweiFitnessStore(context: Context) : SQLiteOpenHelper(
             }
         }
 
+    fun workoutHrRecords(device: String,w: HuaweiHistoryRead.WorkoutSummary): List<Pair<Long,Int>> =
+        readableDatabase.rawQuery("SELECT ts,hr FROM workout_sample WHERE device=? AND start=? AND number=? AND ts BETWEEN ? AND ? AND hr BETWEEN 25 AND 250 ORDER BY ts",
+            arrayOf(device,w.start.toString(),w.number.toString(),w.start.toString(),w.end.toString())).use { c ->
+            buildList { while(c.moveToNext()) add(c.getLong(0) to c.getInt(1)) }
+        }
+
     fun workoutHr(device: String,w: HuaweiHistoryRead.WorkoutSummary): Pair<Int?,Int?> =
         readableDatabase.rawQuery("SELECT AVG(hr),MAX(hr) FROM workout_sample WHERE device=? AND start=? AND number=? AND ts BETWEEN ? AND ? AND hr BETWEEN 25 AND 250",
             arrayOf(device,w.start.toString(),w.number.toString(),w.start.toString(),w.end.toString())).use { c ->

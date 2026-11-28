@@ -2017,6 +2017,7 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
                 SourceBadge(srcLabel, tint = srcTint)
             }
             CardDivider()
+            StravaExportAction(vm,row)
             DetailRow("Time", timeRangeLabel(row.startTs, row.endTs))
             DetailRow("Duration", durationLabel(row.durationS))
             DetailRow("Avg HR", if (row.avgHr != null) "${row.avgHr} bpm" else if(measuredOnly) "—" else "~${resolvedWorkoutAverageHr(row)} bpm")

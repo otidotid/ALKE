@@ -38,6 +38,7 @@ class PremiumV625DesignLockTest {
                 "WorkoutsScreen.kt" -> current.replace(
                     "    row.source == com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.SOURCE -> \"Huawei GT5\"\n","")
                     .replace("        src == com.otidotid.alke.multidevice.huawei.HuaweiWorkoutIntegration.SOURCE -> \"GT5\"\n","")
+                    .replace("            StravaExportAction(vm,row)\n","")
                 else -> current
             }
             assertEquals(name,sha,gitBlobBytes(prior.toByteArray(Charsets.UTF_8)))

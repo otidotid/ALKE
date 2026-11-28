@@ -9,7 +9,8 @@ import java.io.Closeable
  *
  * A terminal packet is not a cryptographic ACK. A separate authenticated
  * product read is required before publishing connected or storing a bind
- * credential. An unverified terminal never releases a key.
+ * credential. A terminal may release a provisional key only to the opt-in
+ * verification coordinator, not to the registry or persistent storage.
  */
 internal class HuaweiHiChainSession(
     private val operation: HuaweiIsoExchange.Operation,
@@ -18,10 +19,12 @@ internal class HuaweiHiChainSession(
     group: String,
     requestId: Long,
     frameBudget: Int,
+    private val allowProvisionalReadback: Boolean = false,
 ) : Closeable {
     private val wire = HuaweiHiChainWire(operation, requestId, identity, group, frameBudget)
     private val exchange = HuaweiIsoExchange(operation, credential, identity.toByteArray(Charsets.US_ASCII))
     enum class Phase { NEW, WAIT_PEER, WAIT_MAC, WAIT_TOKEN, WAIT_TERMINAL, TERMINAL_UNVERIFIED, CLOSED }
+    private var candidate: ByteArray? = null
     var phase = Phase.NEW
         private set
 
@@ -59,13 +62,21 @@ internal class HuaweiHiChainSession(
             }
             Phase.WAIT_TERMINAL -> {
                 require(reply === HuaweiHiChainWire.Reply.TerminalUnverified) { "Unexpected terminal response" }
-                // Until the real GT5 ACK shape is verified, discard all candidate keys.
-                exchange.close()
+                // This is NOT authenticated. Only the experimental coordinator may
+                // take the candidate for a subsequent proof/readback on this transport.
+                if (allowProvisionalReadback) candidate = exchange.finish()
+                else exchange.close()
                 phase = Phase.TERMINAL_UNVERIFIED
                 emptyList()
             }
             else -> error("HiChain transaction is not awaiting a response")
         }
+    }
+
+    /** One-time transfer for the coordinator, never a connected-state assertion. */
+    fun takeProvisionalForVerification(): ByteArray = guarded {
+        check(phase == Phase.TERMINAL_UNVERIFIED && allowProvisionalReadback)
+        checkNotNull(candidate).also { candidate = null }
     }
 
     private inline fun <T> guarded(block: () -> T): T {
@@ -78,6 +89,8 @@ internal class HuaweiHiChainSession(
     }
 
     override fun close() {
+        candidate?.fill(0)
+        candidate = null
         exchange.close()
         phase = Phase.CLOSED
     }

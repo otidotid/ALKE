@@ -34,15 +34,26 @@ class HuaweiSecurityNegotiationTest {
         }.isFailure)
     }
 
-    @Test fun firstBindReconnectAndUnknownAreDistinct() {
+    @Test fun hiChainModesAndUnknownAreDistinct() {
         fun response(vararg fields: Byte) = HuaweiSecurityNegotiation.parse(
             HuaweiLinkFrames.Message(1, 0x33, fields)
         )
         val first = byteArrayOf(1, 1, 4, 2, 1, 1)
-        assertEquals(HuaweiSecurityNegotiation.NextStep.FIRST_BIND, response(*first))
-        assertEquals(HuaweiSecurityNegotiation.NextStep.RECONNECT, response(1, 1, 4, 2, 1, 2))
-        assertEquals(HuaweiSecurityNegotiation.NextStep.UNSUPPORTED, response(1, 1, 4, 2, 1, 3))
-        assertEquals(HuaweiSecurityNegotiation.NextStep.UNSUPPORTED, response(*first, 0x7f, 1, 1))
+        assertEquals(HuaweiSecurityNegotiation.AuthMode.HICHAIN3_VARIANT_5, response(*first))
+        assertEquals(HuaweiSecurityNegotiation.AuthMode.HICHAIN3_VARIANT_6, response(1, 1, 4, 2, 1, 2))
+        assertEquals(HuaweiSecurityNegotiation.AuthMode.UNSUPPORTED, response(1, 1, 4, 2, 1, 3))
+        assertEquals(HuaweiSecurityNegotiation.AuthMode.UNSUPPORTED, response(*first, 0x7f, 1, 1))
         assertTrue(runCatching { response(*first, 2, 1, 2) }.isFailure)
+    }
+
+    @Test fun firstBindingRequiresConsentAndReconnectRequiresVerifiedCredential() {
+        for (mode in listOf(HuaweiSecurityNegotiation.AuthMode.HICHAIN3_VARIANT_5,
+            HuaweiSecurityNegotiation.AuthMode.HICHAIN3_VARIANT_6)) {
+            assertNull(HuaweiSecurityNegotiation.operation(mode, false, false))
+            assertEquals(HuaweiIsoExchange.Operation.BIND, HuaweiSecurityNegotiation.operation(mode, false, true))
+            assertEquals(HuaweiIsoExchange.Operation.RECONNECT, HuaweiSecurityNegotiation.operation(mode, true, false))
+            assertEquals(HuaweiIsoExchange.Operation.RECONNECT, HuaweiSecurityNegotiation.operation(mode, true, true))
+        }
+        assertNull(HuaweiSecurityNegotiation.operation(HuaweiSecurityNegotiation.AuthMode.UNSUPPORTED, true, true))
     }
 }

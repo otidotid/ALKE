@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.otidotid.alke.multidevice.huawei.HuaweiLinkProbe
+import com.otidotid.alke.multidevice.huawei.HuaweiPairingDiagnostic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -38,11 +40,39 @@ internal fun HuaweiDiagnosticCard() {
     var candidates by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
     var report by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var pendingBind by remember { mutableStateOf<BluetoothDevice?>(null) }
+
+    fun authenticate(device: BluetoothDevice, firstBind: Boolean) {
+        busy = true
+        report = null
+        scope.launch {
+            try {
+                report = HuaweiPairingDiagnostic.run(context.applicationContext, device, firstBind)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                report = "Huawei authentication diagnostic could not be completed."
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    pendingBind?.let { device ->
+        AlertDialog(onDismissRequest = { pendingBind = null },
+            title = { Text("Bind Huawei GT 5 to ALKE?") },
+            text = { Text("This experimental first bind may replace the Huawei Health binding. Confirm on the watch if requested. ALKE will not reset the watch or change WHOOP settings. No health sync yet.") },
+            confirmButton = { TextButton(onClick = {
+                pendingBind = null
+                authenticate(device, true)
+            }) { Text("Start binding test") } },
+            dismissButton = { TextButton(onClick = { pendingBind = null }) { Text("Cancel") } })
+    }
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Huawei GT 5 — connection diagnostic")
-            Text("Development only. Tests the Bluetooth link, not pairing or health sync. WHOOP settings remain unchanged.")
+            Text("Development only. Test the Bluetooth link or explicitly test authentication. No health sync. WHOOP settings remain unchanged.")
             HuaweiSystemPairButton(enabled = !busy) { report = it }
             Button(enabled = !busy, onClick = {
                 busy = true
@@ -81,8 +111,14 @@ internal fun HuaweiDiagnosticCard() {
                         }
                     }
                 }) { Text("Probe " + (runCatching { device.name }.getOrNull() ?: "Huawei GT 5")) }
+                TextButton(enabled = !busy, onClick = { authenticate(device, false) }) {
+                    Text("Test saved ALKE binding")
+                }
+                TextButton(enabled = !busy, onClick = { pendingBind = device }) {
+                    Text("Test first-time ALKE binding")
+                }
             }
-            if (busy) Text("Checking Bluetooth…")
+            if (busy) Text("Checking Bluetooth — confirm on watch if requested…")
             report?.let { result ->
                 Text(result)
                 TextButton(onClick = {

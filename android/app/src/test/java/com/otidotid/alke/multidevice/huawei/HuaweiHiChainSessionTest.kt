@@ -5,7 +5,6 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import java.io.ByteArrayOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 class HuaweiHiChainSessionTest {
@@ -26,17 +25,8 @@ class HuaweiHiChainSessionTest {
     }
     private fun reply(payload: JSONObject): HuaweiLinkFrames.Message {
         val json = JSONObject().put("payload", payload).toString().toByteArray(Charsets.UTF_8)
-        val out = ByteArrayOutputStream()
-        out.write(1)
-        var size = json.size
-        while (size >= 128) {
-            out.write((size and 127) or 128)
-            size = size ushr 7
-        }
-        out.write(size)
-        out.write(json)
-        out.write(byteArrayOf(4, 1, 0))
-        return HuaweiLinkFrames.Message(1, 0x28, out.toByteArray())
+        return HuaweiLinkFrames.Message(1, 0x28, HuaweiTlv.encode(
+            HuaweiTlv.Field(1, json), HuaweiTlv.Field(4, byteArrayOf(0))))
     }
 
     private fun throughPeer(s: HuaweiHiChainSession): ByteArray {

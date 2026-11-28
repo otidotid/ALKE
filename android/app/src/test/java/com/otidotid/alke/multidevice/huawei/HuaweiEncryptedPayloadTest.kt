@@ -14,6 +14,9 @@ class HuaweiEncryptedPayloadTest {
         for (mode in HuaweiEncryptedPayload.Mode.values()) {
             val iv = ByteArray(16) { (it + 32).toByte() }
             val packet = HuaweiEncryptedPayload.seal(mode, key, iv, plaintext)
+            val ciphertextSize = if (mode == HuaweiEncryptedPayload.Mode.GCM) 216 else 208
+            assertArrayEquals(byteArrayOf(0x7e, 0x81.toByte(), (ciphertextSize - 128).toByte()),
+                packet.copyOfRange(21, 24))
             assertArrayEquals(plaintext, HuaweiEncryptedPayload.open(mode, key, packet))
         }
     }
@@ -31,6 +34,7 @@ class HuaweiEncryptedPayloadTest {
     @Test fun unknownProtocolDoesNotDowngrade() {
         val base = HuaweiAuthCapabilities.Parameters(2, 1022, 990, 1, 4, 0, 0, 0)
         assertEquals(HuaweiEncryptedPayload.Mode.GCM, HuaweiEncryptedPayload.modeFor(base))
+        assertEquals(HuaweiEncryptedPayload.Mode.GCM, HuaweiEncryptedPayload.modeFor(base.copy(encryptMethod = null)))
         assertEquals(HuaweiEncryptedPayload.Mode.CBC,
             HuaweiEncryptedPayload.modeFor(base.copy(supportType = 0)))
         assertNull(HuaweiEncryptedPayload.modeFor(base.copy(supportType = null)))

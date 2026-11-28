@@ -44,6 +44,17 @@ class HuaweiCredentialStoreTest {
         }
     }
 
+    @Test fun pendingEncryptedBindingCannotBeOpenedAsVerified() {
+        val pending = HuaweiCredentialStore.scope("00:11:22:33:44:55", pending = true)
+        HuaweiCredentialStore.Binding(identity, ByteArray(32) { 23 }).use { binding ->
+            val encoded = HuaweiCredentialStore.seal(key, pending, binding)
+            assertTrue(runCatching { HuaweiCredentialStore.open(key, scope, encoded) }.isFailure)
+            HuaweiCredentialStore.open(key, pending, encoded).use { restored ->
+                assertArrayEquals(binding.credential, restored.credential)
+            }
+        }
+    }
+
     @Test fun closingBindingClearsCredentialBytes() {
         val raw = ByteArray(32) { 23 }
         val binding = HuaweiCredentialStore.Binding(identity, raw)

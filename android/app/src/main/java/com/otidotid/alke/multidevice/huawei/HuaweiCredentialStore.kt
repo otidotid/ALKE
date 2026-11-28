@@ -19,8 +19,8 @@ import javax.crypto.spec.GCMParameterSpec
  * by a non-exportable Android Keystore AES key. It is NOT part of ALKE's Room,
  * cloud backup, WHOOP pairing, or logs. No session key is stored here.
  *
- * Only a coordinator which has completed reconnect and verified readback may
- * call saveVerifiedBinding. This class is not yet connected to the pairing UI.
+ * The pending slot holds a candidate after the authenticated bind token arrives.
+ * Only reconnect proof and encrypted readback promote it to a verified binding.
  */
 internal class HuaweiCredentialStore(context: Context) {
     private val directory = File(context.noBackupFilesDir, "huawei-bindings-v1")
@@ -34,27 +34,44 @@ internal class HuaweiCredentialStore(context: Context) {
     }
 
     fun saveVerifiedBinding(deviceAddress: String, binding: Binding) = synchronized(lock) {
-        val scope = scope(deviceAddress)
+        save(scope(deviceAddress), binding)
+        file(scope(deviceAddress, pending = true)).delete()
+    }
+
+    fun savePendingBinding(deviceAddress: String, binding: Binding) = synchronized(lock) {
+        save(scope(deviceAddress, pending = true), binding)
+    }
+
+    private fun save(scope: ByteArray, binding: Binding) {
         val encoded = seal(key(create = true), scope, binding)
-        check(directory.isDirectory || directory.mkdirs()) { "Huawei storage unavailable" }
-        val file = file(scope)
-        val stream = file.startWrite()
         try {
-            stream.write(encoded)
-            file.finishWrite(stream)
-        } catch (e: Exception) {
-            file.failWrite(stream)
-            throw e
+            check(directory.isDirectory || directory.mkdirs()) { "Huawei storage unavailable" }
+            val file = file(scope)
+            val stream = file.startWrite()
+            try {
+                stream.write(encoded)
+                file.finishWrite(stream)
+            } catch (e: Exception) {
+                file.failWrite(stream)
+                throw e
+            }
         } finally {
             encoded.fill(0)
         }
     }
 
     fun load(deviceAddress: String): Binding? = synchronized(lock) {
-        val scope = scope(deviceAddress)
+        load(scope(deviceAddress))
+    }
+
+    fun loadPending(deviceAddress: String): Binding? = synchronized(lock) {
+        load(scope(deviceAddress, pending = true))
+    }
+
+    private fun load(scope: ByteArray): Binding? {
         val file = file(scope)
         if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists())
-            return@synchronized null
+            return null
         val encoded = file.openRead().use { stream ->
             val buffer = ByteArray(128)
             var length = 0
@@ -66,7 +83,7 @@ internal class HuaweiCredentialStore(context: Context) {
             require(length < buffer.size) { "Invalid Huawei credential file" }
             buffer.copyOf(length)
         }
-        try {
+        return try {
             open(key(create = false), scope, encoded)
         } finally {
             encoded.fill(0)
@@ -76,6 +93,7 @@ internal class HuaweiCredentialStore(context: Context) {
     /** Explicit forget operation, isolated to the requested Huawei address. */
     fun forget(deviceAddress: String) = synchronized(lock) {
         file(scope(deviceAddress)).delete()
+        file(scope(deviceAddress, pending = true)).delete()
     }
 
     private fun file(scope: ByteArray): AtomicFile = AtomicFile(File(directory,
@@ -103,10 +121,11 @@ internal class HuaweiCredentialStore(context: Context) {
         private val lock = Any()
         private const val VERSION: Byte = 1
 
-        internal fun scope(address: String): ByteArray {
+        internal fun scope(address: String, pending: Boolean = false): ByteArray {
             require(address.matches(Regex("(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}")))
+            val domain = if (pending) "alke-huawei-pending-v1:" else "alke-huawei-v1:"
             return MessageDigest.getInstance("SHA-256").digest(
-                ("alke-huawei-v1:" + address.uppercase(Locale.ROOT)).toByteArray(Charsets.US_ASCII))
+                (domain + address.uppercase(Locale.ROOT)).toByteArray(Charsets.US_ASCII))
         }
 
         internal fun seal(key: SecretKey, scope: ByteArray, binding: Binding): ByteArray {

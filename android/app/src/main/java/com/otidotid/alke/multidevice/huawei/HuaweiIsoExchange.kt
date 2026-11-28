@@ -100,6 +100,11 @@ internal class HuaweiIsoExchange(
         }
     }
 
+    fun copyPendingBindCredential(): ByteArray {
+        check(operation == Operation.BIND && phase == Phase.TOKEN_RECEIVED)
+        return provisional.copyOf()
+    }
+
     fun result(): Encrypted {
         check((operation == Operation.BIND && phase == Phase.TOKEN_RECEIVED) ||
             (operation == Operation.RECONNECT && phase == Phase.MAC_VERIFIED))

@@ -9,11 +9,31 @@ import org.junit.Test
 class HuaweiAuthCapabilitiesTest {
     @Test fun extendedLengthAndRepeatedTags() {
         val value = ByteArray(130) { 3 }
-        val fields = HuaweiTlv.decode(byteArrayOf(7, 0x82.toByte(), 1) + value +
+        val fields = HuaweiTlv.decode(byteArrayOf(7, 0x81.toByte(), 2) + value +
             byteArrayOf(7, 1, 9))
         assertEquals(2, fields.size)
         assertArrayEquals(value, fields.first().value)
         assertTrue(runCatching { HuaweiTlv.one(fields, 7) }.isFailure)
+    }
+
+    @Test fun wireLengthsUseMostSignificantGroupFirst() {
+        val fixtures = mapOf(
+            0 to byteArrayOf(0),
+            127 to byteArrayOf(127),
+            128 to byteArrayOf(0x81.toByte(), 0),
+            523 to byteArrayOf(0x84.toByte(), 0x0b),
+            671 to byteArrayOf(0x85.toByte(), 0x1f),
+            16384 to byteArrayOf(0x81.toByte(), 0x80.toByte(), 0),
+        )
+        fixtures.forEach { (size, length) ->
+            val value = ByteArray(size) { 65 }
+            val expected = byteArrayOf(1) + length + value
+            assertArrayEquals(expected, HuaweiTlv.encode(HuaweiTlv.Field(1, value)))
+            assertArrayEquals(value, HuaweiTlv.decode(expected).single().value)
+        }
+        assertTrue(runCatching {
+            HuaweiTlv.decode(byteArrayOf(1, 0x9f.toByte(), 5) + ByteArray(671))
+        }.isFailure)
     }
 
     @Test fun malformedLengthsRejected() {

@@ -5,7 +5,6 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
 @RunWith(RobolectricTestRunner::class)
@@ -17,19 +16,20 @@ class HuaweiHiChainWireTest {
 
     private fun response(payload: JSONObject, id: Long = requestId, op: Int = 1): HuaweiLinkFrames.Message {
         val bytes = JSONObject().put("payload", payload).toString().toByteArray(Charsets.UTF_8)
-        val out = ByteArrayOutputStream()
-        out.write(1)
-        var length = bytes.size
-        do {
-            val low = length and 127
-            length = length ushr 7
-            out.write(low or if (length == 0) 0 else 128)
-        } while (length != 0)
-        out.write(bytes)
-        out.write(byteArrayOf(2, 1, op.toByte(), 3, 8))
-        out.write(ByteBuffer.allocate(8).putLong(id).array())
-        out.write(byteArrayOf(4, 1, 0))
-        return HuaweiLinkFrames.Message(1, 0x28, out.toByteArray())
+        return HuaweiLinkFrames.Message(1, 0x28, HuaweiTlv.encode(
+            HuaweiTlv.Field(1, bytes),
+            HuaweiTlv.Field(2, byteArrayOf(op.toByte())),
+            HuaweiTlv.Field(3, ByteBuffer.allocate(8).putLong(id).array()),
+            HuaweiTlv.Field(4, byteArrayOf(0)),
+        ))
+    }
+
+    @Test fun classicBindStartFitsOneFrameWithHuaweiWireLength() {
+        val frame = HuaweiHiChainWire(HuaweiIsoExchange.Operation.BIND, 1_700_000_000_000L,
+            identity, group, 1022).start(HuaweiIsoExchange.Start(ByteArray(16), ByteArray(32))).single()
+        assertEquals(695, frame.size)
+        assertArrayEquals(byteArrayOf(0x5a, 0x02, 0xb2.toByte(), 0, 1, 0x28, 1, 0x85.toByte(), 0x1f),
+            frame.copyOfRange(0, 9))
     }
 
     @Test fun bindStartCarriesWireIdentityAndBoundedFrames() {
@@ -58,6 +58,12 @@ class HuaweiHiChainWireTest {
         assertEquals(17, json.getInt("message"))
         assertFalse(json.has("peerDeviceId"))
         assertEquals(group, json.getJSONObject("payload").getString("serviceType"))
+        val result = wire(HuaweiIsoExchange.Operation.RECONNECT)
+            .result(HuaweiIsoExchange.Encrypted(ByteArray(12), ByteArray(20)))
+            .flatMap(decoder::feed).single()
+        val resultFields = HuaweiTlv.decode(result.payload)
+        val resultJson = JSONObject(requireNotNull(HuaweiTlv.one(resultFields, 1)).toString(Charsets.UTF_8))
+        assertEquals(0x13, resultJson.getInt("message"))
     }
 
     @Test fun peerProofParsingRejectsMismatchesAndErrors() {
@@ -69,6 +75,7 @@ class HuaweiHiChainWireTest {
         assertEquals(2, parsed.identity.size)
         assertEquals(32, parsed.proof.size)
         assertTrue(runCatching { codec.decode(response(payload, id = requestId + 1)) }.isFailure)
+        assertTrue(runCatching { codec.decode(response(payload, id = 0)) }.isFailure)
         assertTrue(runCatching { codec.decode(response(payload, op = 2)) }.isFailure)
         assertTrue(runCatching { codec.decode(response(payload.put("errorCode", -1))) }.isFailure)
     }
@@ -77,6 +84,10 @@ class HuaweiHiChainWireTest {
         val codec = wire(HuaweiIsoExchange.Operation.BIND)
         assertSame(HuaweiHiChainWire.Reply.TerminalUnverified,
             codec.decode(HuaweiLinkFrames.Message(1, 0x28, byteArrayOf(4, 1, 2))))
+        fun terminal(id: Long) = HuaweiLinkFrames.Message(1, 0x28,
+            byteArrayOf(2, 1, 1, 3, 8) + ByteBuffer.allocate(8).putLong(id).array() + byteArrayOf(4, 1, 2))
+        assertSame(HuaweiHiChainWire.Reply.TerminalUnverified, codec.decode(terminal(0)))
+        assertTrue(runCatching { codec.decode(terminal(requestId + 1)) }.isFailure)
         assertTrue(runCatching {
             codec.decode(HuaweiLinkFrames.Message(1, 0x28, byteArrayOf(4, 1, 3)))
         }.isFailure)

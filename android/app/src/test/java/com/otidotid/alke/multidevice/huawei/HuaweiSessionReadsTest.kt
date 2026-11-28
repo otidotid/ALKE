@@ -10,21 +10,26 @@ class HuaweiSessionReadsTest {
 
     private fun encrypted(command: Int, data: ByteArray, counter: Int,
         secret: ByteArray = key): HuaweiLinkFrames.Message {
-        val iv = ByteArray(12) { counter.toByte() }
+        val iv = ByteArray(16) { counter.toByte() }
         return HuaweiLinkFrames.Message(1, command,
             HuaweiEncryptedPayload.seal(HuaweiEncryptedPayload.Mode.GCM, secret, iv, data))
     }
 
+    private fun requestPayload(reads: HuaweiSessionReads, command: Int): ByteArray {
+        val frame = HuaweiLinkFrames.Decoder().feed(reads.request(command).single()).single()
+        assertEquals(command, frame.command)
+        val iv = HuaweiTlv.one(HuaweiTlv.decode(frame.payload), 0x7d)
+        assertEquals(16, requireNotNull(iv).size)
+        return HuaweiEncryptedPayload.open(HuaweiEncryptedPayload.Mode.GCM, key, frame.payload)
+    }
+
     @Test fun requiresBothEncryptedReadsBeforeReadback() {
         HuaweiSessionReads(key, 512).use { reads ->
-            val frame = HuaweiLinkFrames.Decoder().feed(reads.request(7).single()).single()
-            assertEquals(7, frame.command)
-            assertArrayEquals(byteArrayOf(7, 0, 10, 0),
-                HuaweiEncryptedPayload.open(HuaweiEncryptedPayload.Mode.GCM, key, frame.payload))
+            assertArrayEquals(byteArrayOf(7, 0, 10, 0), requestPayload(reads, 7))
             assertNull(reads.readback())
             reads.receive(encrypted(7, product, 1))
             assertNull(reads.readback())
-            reads.request(8)
+            assertArrayEquals(byteArrayOf(1, 0), requestPayload(reads, 8))
             reads.receive(encrypted(8, byteArrayOf(1, 1, 76), 2))
             val result = requireNotNull(reads.readback())
             assertEquals("GT 5", result.product.model)
@@ -64,6 +69,18 @@ class HuaweiSessionReadsTest {
         }
     }
 
+    @Test fun acceptsTrailingProductPaddingAndRejectsInteriorNul() {
+        val paddedProduct = byteArrayOf(7, 4) + "1.0\u0000".toByteArray() +
+            byteArrayOf(10, 7) + "GT 5 \u0000\u0000".toByteArray()
+        assertEquals(HuaweiDeviceInfo.Product("GT 5", "1.0"), HuaweiDeviceInfo.product(
+            HuaweiLinkFrames.Message(1, 7, paddedProduct)))
+        val malformedProduct = byteArrayOf(7, 3) + "1.0".toByteArray() +
+            byteArrayOf(10, 4) + "GT\u00005".toByteArray()
+        assertThrows(IllegalArgumentException::class.java) {
+            HuaweiDeviceInfo.product(HuaweiLinkFrames.Message(1, 7, malformedProduct))
+        }
+    }
+
     @Test fun outOfOrderResponseAndConcurrentRequestAreRejected() {
         HuaweiSessionReads(key, 512).use { reads ->
             reads.request(7)
@@ -78,7 +95,13 @@ class HuaweiSessionReadsTest {
     }
 
     @Test fun discoveryReportsOnlyAdvertisedServices() {
-        assertEquals(setOf(1, 7), HuaweiDeviceInfo.services(
-            HuaweiLinkFrames.Message(1, 2, byteArrayOf(2, 4, 1, 7, 7, 0))))
+        assertArrayEquals(byteArrayOf(1, 3, 1, 7, 0x24), HuaweiDeviceInfo.query(2))
+        assertEquals(setOf(1, 0x24), HuaweiDeviceInfo.services(
+            HuaweiLinkFrames.Message(1, 2, byteArrayOf(2, 3, 1, 0, 1))))
+        assertEquals(setOf(7), HuaweiDeviceInfo.services(
+            HuaweiLinkFrames.Message(1, 2, byteArrayOf(2, 2, 0, 1))))
+        assertThrows(IllegalArgumentException::class.java) {
+            HuaweiDeviceInfo.services(HuaweiLinkFrames.Message(1, 2, byteArrayOf(2, 4, 1, 0, 1, 1)))
+        }
     }
 }

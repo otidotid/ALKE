@@ -11,11 +11,12 @@ import java.io.ByteArrayOutputStream
 internal object HuaweiSecurityNegotiation {
     enum class AuthMode { HICHAIN3_VARIANT_5, HICHAIN3_VARIANT_6, UNSUPPORTED }
 
-    /** A supported mode is not evidence of binding state. Require explicit first-bind consent. */
-    fun operation(mode: AuthMode, hasVerifiedCredential: Boolean, allowFirstBind: Boolean): HuaweiIsoExchange.Operation? {
+    /** Variant 5 can indicate a stale binding. The saved-binding action may still attempt proof. */
+    fun operation(mode: AuthMode, hasCredential: Boolean, allowFirstBind: Boolean): HuaweiIsoExchange.Operation? {
         if (mode == AuthMode.UNSUPPORTED) return null
         return when {
-            hasVerifiedCredential -> HuaweiIsoExchange.Operation.RECONNECT
+            hasCredential && (mode == AuthMode.HICHAIN3_VARIANT_6 || !allowFirstBind) ->
+                HuaweiIsoExchange.Operation.RECONNECT
             allowFirstBind -> HuaweiIsoExchange.Operation.BIND
             else -> null
         }
@@ -52,7 +53,7 @@ internal object HuaweiSecurityNegotiation {
         if (fields.any { it.tag == 0x7f }) return AuthMode.UNSUPPORTED
         if (HuaweiTlv.unsigned(fields, 1, 1) != 4) return AuthMode.UNSUPPORTED
         // Public LPv2 observations: type 4 plus selector 1/2 denotes HiChain3 mode 5/6.
-        // Neither selector establishes whether this client already has a valid credential.
+        // Reconnect still requires locally stored material and a fresh peer proof.
         return when (HuaweiTlv.unsigned(fields, 2, 1)) {
             1 -> AuthMode.HICHAIN3_VARIANT_5
             2 -> AuthMode.HICHAIN3_VARIANT_6

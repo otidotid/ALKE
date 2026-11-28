@@ -46,14 +46,17 @@ class HuaweiSecurityNegotiationTest {
         assertTrue(runCatching { response(*first, 2, 1, 2) }.isFailure)
     }
 
-    @Test fun firstBindingRequiresConsentAndReconnectRequiresVerifiedCredential() {
-        for (mode in listOf(HuaweiSecurityNegotiation.AuthMode.HICHAIN3_VARIANT_5,
-            HuaweiSecurityNegotiation.AuthMode.HICHAIN3_VARIANT_6)) {
+    @Test fun firstBindingRequiresConsentAndReconnectRequiresLocalCredential() {
+        val first = HuaweiSecurityNegotiation.AuthMode.HICHAIN3_VARIANT_5
+        val reconnect = HuaweiSecurityNegotiation.AuthMode.HICHAIN3_VARIANT_6
+        for (mode in listOf(first, reconnect)) {
             assertNull(HuaweiSecurityNegotiation.operation(mode, false, false))
             assertEquals(HuaweiIsoExchange.Operation.BIND, HuaweiSecurityNegotiation.operation(mode, false, true))
-            assertEquals(HuaweiIsoExchange.Operation.RECONNECT, HuaweiSecurityNegotiation.operation(mode, true, false))
-            assertEquals(HuaweiIsoExchange.Operation.RECONNECT, HuaweiSecurityNegotiation.operation(mode, true, true))
         }
+        assertEquals(HuaweiIsoExchange.Operation.RECONNECT, HuaweiSecurityNegotiation.operation(first, true, false))
+        assertEquals(HuaweiIsoExchange.Operation.BIND, HuaweiSecurityNegotiation.operation(first, true, true))
+        assertEquals(HuaweiIsoExchange.Operation.RECONNECT, HuaweiSecurityNegotiation.operation(reconnect, true, false))
+        assertEquals(HuaweiIsoExchange.Operation.RECONNECT, HuaweiSecurityNegotiation.operation(reconnect, true, true))
         assertNull(HuaweiSecurityNegotiation.operation(HuaweiSecurityNegotiation.AuthMode.UNSUPPORTED, true, true))
     }
 }

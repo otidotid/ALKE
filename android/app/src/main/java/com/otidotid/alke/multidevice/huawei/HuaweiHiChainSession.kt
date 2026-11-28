@@ -20,6 +20,7 @@ internal class HuaweiHiChainSession(
     requestId: Long,
     frameBudget: Int,
     private val allowProvisionalReadback: Boolean = false,
+    private val savePendingBind: ((ByteArray) -> Unit)? = null,
 ) : Closeable {
     private val wire = HuaweiHiChainWire(operation, requestId, identity, group, frameBudget)
     private val exchange = HuaweiIsoExchange(operation, credential, identity.toByteArray(Charsets.US_ASCII))
@@ -58,6 +59,10 @@ internal class HuaweiHiChainSession(
             Phase.WAIT_TOKEN -> {
                 require(reply is HuaweiHiChainWire.Reply.Token) { "Unexpected token response" }
                 exchange.acceptBindToken(reply.nonce, reply.bytes)
+                savePendingBind?.let { save ->
+                    val credential = exchange.copyPendingBindCredential()
+                    try { save(credential) } finally { credential.fill(0) }
+                }
                 wire.result(exchange.result()).also { phase = Phase.WAIT_TERMINAL }
             }
             Phase.WAIT_TERMINAL -> {

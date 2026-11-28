@@ -1,6 +1,5 @@
 package com.otidotid.alke.multidevice.huawei
 
-import java.io.ByteArrayOutputStream
 import java.security.GeneralSecurityException
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
@@ -19,19 +18,19 @@ internal object HuaweiEncryptedPayload {
 
     fun modeFor(parameters: HuaweiAuthCapabilities.Parameters): Mode? = when {
         parameters.supportType !in 0..4 -> null
-        parameters.encryptMethod !in 0..1 -> null
-        parameters.supportType == 4 || parameters.encryptMethod == 1 -> Mode.GCM
+        parameters.effectiveEncryptMethod !in 0..1 -> null
+        parameters.supportType == 4 || parameters.effectiveEncryptMethod == 1 -> Mode.GCM
         else -> Mode.CBC
     }
 
     fun seal(mode: Mode, key: ByteArray, iv: ByteArray, payload: ByteArray): ByteArray {
         require(payload.size <= HuaweiLinkFrames.MAX_BODY - 128)
         val encrypted = crypt(mode, Cipher.ENCRYPT_MODE, key, iv, payload)
-        val buffer = ByteArrayOutputStream()
-        append(buffer, 0x7c, byteArrayOf(1))
-        append(buffer, 0x7d, iv)
-        append(buffer, 0x7e, encrypted)
-        return buffer.toByteArray()
+        return HuaweiTlv.encode(
+            HuaweiTlv.Field(0x7c, byteArrayOf(1)),
+            HuaweiTlv.Field(0x7d, iv),
+            HuaweiTlv.Field(0x7e, encrypted),
+        )
     }
 
     @Throws(GeneralSecurityException::class)
@@ -42,17 +41,6 @@ internal object HuaweiEncryptedPayload {
         val iv = requireNotNull(HuaweiTlv.one(fields, 0x7d))
         val encrypted = requireNotNull(HuaweiTlv.one(fields, 0x7e))
         return crypt(mode, Cipher.DECRYPT_MODE, key, iv, encrypted)
-    }
-
-    private fun append(out: ByteArrayOutputStream, tag: Int, value: ByteArray) {
-        out.write(tag)
-        var length = value.size
-        while (length >= 128) {
-            out.write((length and 127) or 128)
-            length = length ushr 7
-        }
-        out.write(length)
-        out.write(value)
     }
 
     private fun crypt(mode: Mode, operation: Int, key: ByteArray, iv: ByteArray, input: ByteArray): ByteArray {

@@ -107,35 +107,15 @@ internal object HuaweiLinkProbe {
      */
     fun describe(message: HuaweiLinkFrames.Message): String {
         require(message.service == 1 && message.command == 1)
-        val metadata = ArrayList<String>()
-        val payload = message.payload
-        var i = 0
-        while (i < payload.size) {
-            if (payload.size - i < 2) {
-                metadata.add("truncated")
-                break
+        val metadata = runCatching {
+            HuaweiTlv.decode(message.payload).joinToString(", ") {
+                "%02X:%d".format(java.util.Locale.ROOT, it.tag, it.value.size)
             }
-            val tag = payload[i++].toInt() and 255
-            var length = 0
-            var shift = 0
-            var ended = false
-            while (i < payload.size && shift <= 21) {
-                val b = payload[i++].toInt() and 255
-                length = length or ((b and 127) shl shift)
-                if (b and 128 == 0) { ended = true; break }
-                shift += 7
-            }
-            if (!ended || length > payload.size - i) {
-                metadata.add("unsupported TLV length")
-                break
-            }
-            metadata.add("%02X:%d".format(java.util.Locale.ROOT, tag, length))
-            i += length
-        }
+        }.getOrDefault("unsupported TLV length")
         val legacy = runCatching { HuaweiLinkNegotiation.parseLegacyResponse(message) }.getOrNull()
         return buildString {
             append("Huawei RFCOMM LinkParams response received.\n")
-            append("TLV tags:lengths: ").append(metadata.joinToString(", ")).append('\n')
+            append("TLV tags:lengths: ").append(metadata).append('\n')
             val modern = runCatching { HuaweiAuthCapabilities.parse(message) }.getOrNull()
             if (modern != null) {
                 append("Device support type: ").append(modern.supportType ?: "unknown").append('\n')

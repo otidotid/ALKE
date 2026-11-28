@@ -36,7 +36,8 @@ internal class HuaweiSessionReads(
         require(command == HuaweiDeviceInfo.PRODUCT || command == HuaweiDeviceInfo.BATTERY)
         require(if (product == null) command == HuaweiDeviceInfo.PRODUCT
             else battery == null && command == HuaweiDeviceInfo.BATTERY)
-        val iv = ByteArray(12).also(random::nextBytes)
+        // LPv2 service requests use a 16-byte IV. HiChain's ISO exchange has its own nonce format.
+        val iv = ByteArray(16).also(random::nextBytes)
         remember(iv)
         val payload = HuaweiEncryptedPayload.seal(HuaweiEncryptedPayload.Mode.GCM,
             secret, iv, HuaweiDeviceInfo.query(command))

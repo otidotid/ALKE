@@ -1,14 +1,12 @@
 package com.otidotid.alke.multidevice.huawei
 
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
 /**
  * Independent codec for the documented 01/28 ISO exchange fields.
  * Reference: public LPv2 interoperability observations and DeviceConfig.HiChain.
- * No credential acquisition, device mutation, or logging. Unknown terminal
- * responses remain unverified until a GT5 trace establishes the ACK contract.
+ * A terminal response is only a completion marker for the ISO exchange.
  */
 internal class HuaweiHiChainWire(
     private val operation: HuaweiIsoExchange.Operation,
@@ -50,7 +48,8 @@ internal class HuaweiHiChainWire(
 
     fun result(value: HuaweiIsoExchange.Encrypted): List<ByteArray> {
         require(value.nonce.size == 12 && value.bytes.size == 20)
-        return request(4, JSONObject().put("nonce", hex(value.nonce))
+        // Op 2 omits the token exchange and sends its result as message 0x13.
+        return request(if (bind) 4 else 3, JSONObject().put("nonce", hex(value.nonce))
             .put("encResult", hex(value.bytes)).put("operationCode", op))
     }
 
@@ -66,11 +65,12 @@ internal class HuaweiHiChainWire(
         } else if (step <= 2) {
             envelope.put("isDeviceLevel", false)
         }
-        val fields = ByteArrayOutputStream()
-        append(fields, 1, envelope.toString().toByteArray(Charsets.UTF_8))
-        append(fields, 2, byteArrayOf(op.toByte()))
-        append(fields, 3, ByteBuffer.allocate(8).putLong(requestId).array())
-        return HuaweiLinkFrames.encodeWithin(1, 0x28, fields.toByteArray(), frameBudget)
+        val fields = HuaweiTlv.encode(
+            HuaweiTlv.Field(1, envelope.toString().toByteArray(Charsets.UTF_8)),
+            HuaweiTlv.Field(2, byteArrayOf(op.toByte())),
+            HuaweiTlv.Field(3, ByteBuffer.allocate(8).putLong(requestId).array()),
+        )
+        return HuaweiLinkFrames.encodeWithin(1, 0x28, fields, frameBudget)
     }
 
     sealed class Reply {
@@ -86,15 +86,17 @@ internal class HuaweiHiChainWire(
         val fields = HuaweiTlv.decode(message.payload)
         require(HuaweiTlv.one(fields, 0x7f) == null) { "HiChain rejected" }
         HuaweiTlv.unsigned(fields, 2, 1)?.let { require(it == op) { "Operation mismatch" } }
-        HuaweiTlv.one(fields, 3)?.let {
-            require(it.size == 8 && ByteBuffer.wrap(it).long == requestId) { "Request mismatch" }
-        }
         val type = requireNotNull(HuaweiTlv.unsigned(fields, 4, 1))
+        HuaweiTlv.one(fields, 3)?.let {
+            require(it.size == Long.SIZE_BYTES) { "Invalid HiChain request ID" }
+            val responseId = ByteBuffer.wrap(it).long
+            require(responseId == requestId || (type == 2 && responseId == 0L)) { "Request mismatch" }
+        }
         if (type == 2) return Reply.TerminalUnverified
         require(type == 0) { "Unknown HiChain response type" }
         val raw = requireNotNull(HuaweiTlv.one(fields, 1))
         require(raw.size in 2..8192)
-        val json = JSONObject(raw.toString(Charsets.UTF_8))
+        val json = JSONObject(raw.toString(Charsets.UTF_8).trimEnd('\u0000'))
         if (json.has("requestId")) require(json.getString("requestId") == requestId.toString())
         val payload = json.getJSONObject("payload")
         for (part in listOf(json, payload)) {
@@ -129,10 +131,10 @@ internal class HuaweiHiChainWire(
                 val status = HuaweiTlv.one(fields, 0x7f)?.let {
                     if (it.size in 1..4) it.fold(0L) { n, b -> (n shl 8) or (b.toLong() and 255) } else null
                 }
-                val jsonError = runCatching {
-                    val bytes = HuaweiTlv.one(fields, 1) ?: return@runCatching null
-                    if (bytes.size !in 2..8192 || type != 0) return@runCatching null
-                    val json = JSONObject(bytes.toString(Charsets.UTF_8))
+                val jsonError = runCatching jsonError@{
+                    val bytes = HuaweiTlv.one(fields, 1) ?: return@jsonError null
+                    if (bytes.size !in 2..8192 || type != 0) return@jsonError null
+                    val json = JSONObject(bytes.toString(Charsets.UTF_8).trimEnd('\u0000'))
                     val payload = json.optJSONObject("payload")
                     when {
                         payload?.has("errorCode") == true -> payload.getInt("errorCode")
@@ -149,16 +151,6 @@ internal class HuaweiHiChainWire(
             require(value.length % 2 == 0 && value.length / 2 in sizes &&
                 value.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' })
             return ByteArray(value.length / 2) { value.substring(2 * it, 2 * it + 2).toInt(16).toByte() }
-        }
-        private fun append(out: ByteArrayOutputStream, tag: Int, value: ByteArray) {
-            out.write(tag)
-            var n = value.size
-            do {
-                val low = n and 127
-                n = n ushr 7
-                out.write(low or if (n == 0) 0 else 128)
-            } while (n != 0)
-            out.write(value)
         }
     }
 }

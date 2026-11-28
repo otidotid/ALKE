@@ -1,12 +1,31 @@
 package com.otidotid.alke.multidevice.huawei
 
+import java.io.ByteArrayOutputStream
+
 /**
- * Wire-field decoder for LPv2. Independent implementation of documented tag/length
- * facts. Supports little-endian base-128 lengths and retains repeated fields.
+ * LPv2 encodes lengths as base-128 groups, most significant group first.
  * Treat container values as opaque until a command-specific parser examines them.
  */
 internal object HuaweiTlv {
     class Field(val tag: Int, val value: ByteArray)
+
+    fun encode(vararg fields: Field): ByteArray {
+        val output = ByteArrayOutputStream()
+        for (field in fields) {
+            val length = field.value.size
+            require(field.tag in 0..255 && length <= HuaweiLinkFrames.MAX_BODY)
+            output.write(field.tag)
+            var highestShift = 0
+            while (length ushr (highestShift + 7) != 0) highestShift += 7
+            for (shift in highestShift downTo 7 step 7) {
+                output.write(((length ushr shift) and 127) or 128)
+            }
+            output.write(length and 127)
+            output.write(field.value)
+            require(output.size() <= HuaweiLinkFrames.MAX_BODY)
+        }
+        return output.toByteArray()
+    }
 
     fun decode(payload: ByteArray): List<Field> {
         require(payload.size <= HuaweiLinkFrames.MAX_BODY)
@@ -15,15 +34,14 @@ internal object HuaweiTlv {
         while (pos < payload.size) {
             val tag = payload[pos++].toInt() and 255
             var length = 0
-            var shift = 0
             while (true) {
-                require(pos < payload.size && shift <= 21) { "Invalid TLV length" }
+                require(pos < payload.size) { "Invalid TLV length" }
                 val octet = payload[pos++].toInt() and 255
-                length = length or ((octet and 127) shl shift)
+                require(length != 0 || octet != 128) { "Noncanonical TLV length" }
+                length = (length shl 7) or (octet and 127)
+                require(length <= payload.size - pos) { "Truncated TLV value" }
                 if (octet and 128 == 0) break
-                shift += 7
             }
-            require(length <= payload.size - pos) { "Truncated TLV value" }
             fields.add(Field(tag, payload.copyOfRange(pos, pos + length)))
             pos += length
         }

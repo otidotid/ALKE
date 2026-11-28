@@ -19,6 +19,7 @@ internal class HuaweiPairingProtocol(private val transport: HuaweiHiChainTranspo
         savePending: (ByteArray) -> Unit,
         saveVerified: (ByteArray) -> Unit,
         deviceName: String = "Huawei Watch GT 5",
+        onSession: ((HuaweiSessionReads.Readback, HuaweiFitnessSession) -> Unit)? = null,
     ): HuaweiSessionReads.Readback {
         require(!pending || credential != null)
         stage = "Link parameters"
@@ -77,18 +78,21 @@ internal class HuaweiPairingProtocol(private val transport: HuaweiHiChainTranspo
                     read(HuaweiDeviceInfo.BATTERY, "BatteryLevel readback")
                     val init = HuaweiInitialization(reads, transport,
                         { stage = it }, { lastResponse = it }).run(deviceName)
-                    requireNotNull(reads.readback()).copy(
+                    val verified = requireNotNull(reads.readback()).copy(
                         connectStatusAcknowledged = init.connectReply,
                         connectStatusEncrypted = init.connectEncrypted,
                         initialization = init,
                     )
+                    if (bound != null || pending) {
+                        stage = "Saving verified binding"
+                        saveVerified(reconnectCredential)
+                    }
+                    // Never expose the key or socket beyond the serialized owner.
+                    onSession?.invoke(verified, HuaweiFitnessSession(reads, transport, init.fitnessCommands))
+                    verified
                 }
             } finally {
                 key.fill(0)
-            }
-            if (bound != null || pending) {
-                stage = "Saving verified binding"
-                saveVerified(reconnectCredential)
             }
             return info
         } finally {

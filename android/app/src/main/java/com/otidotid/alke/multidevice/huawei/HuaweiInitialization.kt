@@ -22,6 +22,7 @@ internal class HuaweiInitialization(
         val connectReply: Boolean,
         val connectEncrypted: Boolean,
         val notes: List<String>,
+        val fitnessCommands: Set<Int> = emptySet(),
     )
 
     private val notes = mutableListOf<String>()
@@ -35,6 +36,7 @@ internal class HuaweiInitialization(
                 .map { it.toInt() and 255 }.toSet() + 1
         } ?: error("Required service discovery")
         val requested = linkedMapOf(1 to DEVICE_COMMANDS)
+        if (7 in serviceFlags) requested[7] = byteArrayOf(3, 10, 11)
         if (0x1a in serviceFlags) requested[0x1a] = byteArrayOf(5, 6)
         val commands = query(1, 3, commandQuery(requested), "Supported commands", true) { f, _ ->
             parseCommands(f, requested)
@@ -87,7 +89,7 @@ internal class HuaweiInitialization(
             notes += "Device setup sent (one-way)."
             query(1, 0x3d, fields(1 to byteArrayOf()), "Wear status", false) { _, _ -> true }
         }
-        return Report(serviceFlags, connectSupported, connect != null, connect == true, notes.toList())
+        return Report(serviceFlags, connectSupported, connect != null, connect == true, notes.toList(), commands[7].orEmpty())
     }
 
     private fun <T : Any> query(service: Int, command: Int, body: ByteArray, label: String,
@@ -129,7 +131,7 @@ internal class HuaweiInitialization(
 
         fun allowed(service: Int, command: Int) =
             (service == 1 && command in setOf(2, 3, 0x31, 0x35, 0x37, 0x3d, 0x3e)) ||
-                (service == 0x1a && command == 5)
+                (service == 0x1a && command == 5) || (service == 7 && command in setOf(3, 10, 11))
 
         private fun fields(vararg values: Pair<Int, ByteArray>) =
             HuaweiTlv.encode(*values.map { HuaweiTlv.Field(it.first, it.second) }.toTypedArray())

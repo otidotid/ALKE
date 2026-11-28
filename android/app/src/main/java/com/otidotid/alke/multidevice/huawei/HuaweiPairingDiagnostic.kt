@@ -126,6 +126,15 @@ internal object HuaweiPairingDiagnostic {
                     var sourcePreview = "HR source comparison unavailable."
                     var historySummary = "Sleep and workout not yet read."
                     var historyRead = false
+                    var minuteRejected = false
+                    var totalsRejected = false
+                    var telemetryNotes = ""
+                    fun <T> optionalFitness(label: String, block: () -> T): T? = try {
+                        block()
+                    } catch (_: HuaweiFitnessRejected) {
+                        telemetryNotes += "\n$label rejected by authenticated watch."
+                        null
+                    }
                     while (true) {
                         checkActive()
                         if (android.os.SystemClock.elapsedRealtime() - sessionStart >= 30 * 60 * 1000L)
@@ -140,17 +149,21 @@ internal object HuaweiPairingDiagnostic {
                         val before = System.currentTimeMillis()
                         val zone = java.time.ZoneId.systemDefault()
                         val day = java.time.Instant.ofEpochMilli(before).atZone(zone).toLocalDate()
-                        val totals = if (fitness.supports(HuaweiFitnessRead.TOTALS)) fitness.totals() else null
+                        val totals = if (!totalsRejected && fitness.supports(HuaweiFitnessRead.TOTALS)) {
+                            optionalFitness("Fitness totals") { fitness.totals() }.also {
+                                if (it == null) totalsRejected = true
+                            }
+                        } else null
                         val now = System.currentTimeMillis() / 1000
                         if (totals != null && java.time.Instant.ofEpochSecond(now).atZone(zone).toLocalDate() == day)
                             localStore.saveTotals(deviceKey, day.toString(), now, totals)
-                        if (now >= nextHistory && fitness.supports(HuaweiFitnessRead.COUNT) &&
-                            fitness.supports(HuaweiFitnessRead.PAGE)) {
+                        if (now >= nextHistory && !minuteRejected && fitness.supportsMinuteHistory()) {
                             // A bounded recent window, with no invented intervals or cursor advancement.
                             val end = now - now % 60
                             val start = end - 3600
-                            val minutes = fitness.minutes(start, end)
-                            localStore.saveMinutes(deviceKey, start, end, minutes)
+                            val minutes = optionalFitness("Minute history") { fitness.minutes(start, end) }
+                            if (minutes == null) minuteRejected = true
+                            else localStore.saveMinutes(deviceKey, start, end, minutes)
                             val stored = localStore.minutes(deviceKey, start, end)
                             historyCount = stored.size
                             if (backfillEnd == 0L) backfillEnd = start
@@ -169,32 +182,35 @@ internal object HuaweiPairingDiagnostic {
                         }
                         // One completed older hour per poll, without summing or advancing on failure.
                         // A new connection restarts this bounded 24h recovery; idempotent upserts protect overlap.
-                        if (backfillEnd > 0L && olderWindows < 23) {
+                        if (!minuteRejected && backfillEnd > 0L && olderWindows < 23) {
                             val olderStart = backfillEnd - 3600
-                            val older = fitness.minutes(olderStart, backfillEnd)
-                            localStore.saveMinutes(deviceKey, olderStart, backfillEnd, older)
-                            backfillEnd = olderStart
-                            olderWindows++
+                            val older = optionalFitness("Older minute history") { fitness.minutes(olderStart, backfillEnd) }
+                            if (older == null) minuteRejected = true
+                            else {
+                                localStore.saveMinutes(deviceKey, olderStart, backfillEnd, older)
+                                backfillEnd = olderStart
+                                olderWindows++
+                            }
                         }
                         if (!historyRead) {
                             val end = now - now % 60
                             val start = end - 86400
-                            val sleep = if (fitness.supportsLegacySleep()) fitness.legacySleep(start, end) else null
+                            val sleep = if (fitness.supportsLegacySleep()) optionalFitness("Legacy sleep") { fitness.legacySleep(start, end) } else null
                             sleep?.let { localStore.saveSleep(deviceKey, it) }
-                            val workouts = if (fitness.supportsWorkoutSummaries()) fitness.workoutBundles(start, end) else null
+                            val workouts = if (fitness.supportsWorkoutSummaries()) optionalFitness("Workout history") { fitness.workoutBundles(start, end) } else null
                             workouts?.let {
                                 localStore.saveWorkouts(deviceKey, it.map { bundle -> bundle.summary })
                                 localStore.saveWorkoutDetails(deviceKey, it)
                             }
-                            historySummary = "Legacy sleep intervals: ${sleep?.size ?: "not advertised"}; workout summaries: ${workouts?.size ?: "not advertised"}; workout samples: ${workouts?.sumOf { it.samples.size } ?: 0}; pace splits: ${workouts?.sumOf { it.splits.size } ?: 0}."
+                            historySummary = "Legacy sleep intervals: ${sleep?.size ?: "unavailable"}; workout summaries: ${workouts?.size ?: "unavailable"}; workout samples: ${workouts?.sumOf { it.samples.size } ?: 0}; pace splits: ${workouts?.sumOf { it.splits.size } ?: 0}."
                             historyRead = true
                         }
                         val totalsText = totals?.let {
                             "Huawei totals: steps=${it.steps ?: "unavailable"}, distance=${it.distanceMeters ?: "unavailable"} m."
-                        } ?: "Huawei totals not advertised."
+                        } ?: "Huawei totals unavailable."
                         val historyText = historyCount?.let { "GCM-verified minute records stored: $it." }
                             ?: "Minute history unavailable."
-                        onVerified("$header\n$totalsText\n$historyText\n$sourcePreview\n$historySummary\nSaved in separate Huawei store; historical HR timeline uses verified minute data. Scores unchanged.\n$notes")
+                        onVerified("$header\n$totalsText\n$historyText\n$sourcePreview\n$historySummary\nSaved in separate Huawei store; historical HR timeline uses verified minute data. Scores unchanged.\n$notes$telemetryNotes")
                         onStatus(true, charge, false)
                         // Check cancellation frequently. No second reader or background thread per poll.
                         repeat(120) {

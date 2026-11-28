@@ -167,6 +167,31 @@ class HuaweiPairingProtocolTest {
             watch.events.takeLast(4))
     }
 
+    @Test fun followsCountDirectedPagesEvenWhenContinuationFlagsAreAbsent() {
+        val watch = Watch().apply { onlyInitiatingCommands = true }
+        watch.open().use { link ->
+            protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {}, {},
+                onSession = { _, fitness ->
+                    assertTrue(fitness.supportsMinuteHistory())
+                    assertEquals(1, fitness.minutes(60, 120).size)
+                    assertEquals(1, fitness.legacySleep(60, 120).size)
+                    assertEquals(1, fitness.workoutBundles(60, 120).size)
+                })
+        }
+    }
+
+    @Test fun authenticatedOptionalRejectionLeavesSocketUsable() {
+        val watch = Watch().apply { rejectSleepCount = true }
+        watch.open().use { link ->
+            protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {}, {},
+                onSession = { _, fitness ->
+                    assertThrows(HuaweiFitnessRejected::class.java) { fitness.legacySleep(60, 120) }
+                    assertEquals(123, fitness.totals().steps)
+                    assertEquals(1, fitness.workoutSummaries(60, 120).size)
+                })
+        }
+    }
+
     @Test fun rejectsPlaintextFitnessEvenAfterGcmProductInfo() {
         val watch = Watch().apply { plainFitness = true }
         watch.open().use { link ->
@@ -188,6 +213,8 @@ class HuaweiPairingProtocolTest {
         var silentConnectStatus = false
         var lateSetupReply = false
         var plainFitness = false
+        var onlyInitiatingCommands = false
+        var rejectSleepCount = false
         private var bound = false
 
         fun open() = Link()
@@ -239,7 +266,8 @@ class HuaweiPairingProtocolTest {
                             events += "sleep count"
                             assertArrayEquals(bytes(0x81, 0, 3, 4, 0, 0, 0, 60, 4, 4, 0, 0, 0, 120),
                                 decryptRequest(body))
-                            encryptedReply(command, bytes(0x81, 4, 2, 2, 0, 1), service = 7)
+                            if (rejectSleepCount) encryptedReply(command, bytes(0x7f, 4, 0, 1, 0x86, 0xa1), service = 7)
+                            else encryptedReply(command, bytes(0x81, 4, 2, 2, 0, 1), service = 7)
                         }
                         13 -> {
                             events += "sleep page"
@@ -334,7 +362,11 @@ class HuaweiPairingProtocolTest {
                         assertArrayEquals(bytes(0x81, 35, 2, 1, 1, 3, 4, 0x30, 0x31, 0x35, 0x37,
                             2, 1, 7, 3, 5, 3, 10, 11, 12, 13, 2, 1, 0x17, 3, 4, 7, 8, 10, 12, 2, 1, 0x1a, 3, 2, 5, 6), decryptRequest(body))
                         packet(command, bytes(0x81, 35, 2, 1, 1, 4, 4, 1, 1, 1, 1,
-                            2, 1, 7, 4, 5, 1, 1, 1, 1, 1, 2, 1, 0x17, 4, 4, 1, 1, 1, 1, 2, 1, 0x1a, 4, 2, 1, 1))
+                            2, 1, 7, 4, 5, 1, 1, if (onlyInitiatingCommands) 0 else 1,
+                            if (onlyInitiatingCommands) 0 else 1, if (onlyInitiatingCommands) 0 else 1,
+                            2, 1, 0x17, 4, 4, 1, if (onlyInitiatingCommands) 0 else 1,
+                            if (onlyInitiatingCommands) 0 else 1, if (onlyInitiatingCommands) 0 else 1,
+                            2, 1, 0x1a, 4, 2, 1, 1))
                     }
                     0x37 -> {
                         events += "expand"

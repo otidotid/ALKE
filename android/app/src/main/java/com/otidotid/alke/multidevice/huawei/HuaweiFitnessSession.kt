@@ -2,6 +2,9 @@ package com.otidotid.alke.multidevice.huawei
 
 import java.io.IOException
 
+/** Explicit authenticated device rejection, not a transport or cryptographic failure. */
+internal class HuaweiFitnessRejected(val service: Int, val command: Int) : IOException("Huawei fitness command rejected")
+
 /** Same authenticated socket/key for serialized read-only fitness queries. */
 internal class HuaweiFitnessSession(
     private val reads: HuaweiSessionReads,
@@ -11,16 +14,39 @@ internal class HuaweiFitnessSession(
 ) {
     fun supports(command: Int) = command in commands
 
-    fun supportsLegacySleep() = supports(HuaweiHistoryRead.SLEEP_COUNT) && supports(HuaweiHistoryRead.SLEEP_PAGE)
-    fun supportsWorkoutSummaries() = setOf(7, 8).all { it in workoutCommands }
+    fun supportsMinuteHistory() = supports(HuaweiFitnessRead.COUNT)
+    // Gadgetbridge initiates legacy sleep count for the fitness-history service;
+    // older firmware does not list the sleep/count pair in capability discovery.
+    fun supportsLegacySleep() = supports(HuaweiHistoryRead.SLEEP_COUNT) || supportsMinuteHistory()
+    fun supportsWorkoutSummaries() = HuaweiHistoryRead.WORKOUT_LIST in workoutCommands
+
+    private fun permits(service: Int, command: Int): Boolean = when (service) {
+        7 -> when (command) {
+            HuaweiFitnessRead.PAGE -> supportsMinuteHistory()
+            HuaweiHistoryRead.SLEEP_COUNT, HuaweiHistoryRead.SLEEP_PAGE -> supportsLegacySleep()
+            else -> supports(command)
+        }
+        0x17 -> when (command) {
+            HuaweiHistoryRead.WORKOUT_TOTALS, HuaweiWorkoutDetail.DATA, HuaweiWorkoutDetail.PACE ->
+                supportsWorkoutSummaries()
+            else -> command in workoutCommands
+        }
+        else -> false
+    }
 
     private fun <T> query(command: Int, body: ByteArray, service: Int = 7, parse: (ByteArray) -> T): T {
-        require(if (service == 7) supports(command) else service == 0x17 && command in workoutCommands)
+        require(permits(service, command))
         transport.resetTrace()
         transport.send(reads.requestInitialization(service, command, body))
         return reads.receiveInitialization(transport.receive(command, service, 8000)).use {
             // Health records must be GCM-authenticated; never trust plaintext for scores.
             if (!it.encrypted) throw IOException("Unauthenticated fitness response")
+            val status = HuaweiTlv.one(HuaweiTlv.decode(it.payload), 0x7f)
+            if (status != null) {
+                require(status.size == 4)
+                if (!status.contentEquals(byteArrayOf(0, 1, 0x86.toByte(), 0xa0.toByte())))
+                    throw HuaweiFitnessRejected(service,command)
+            }
             parse(it.payload)
         }
     }
@@ -45,7 +71,7 @@ internal class HuaweiFitnessSession(
         query(HuaweiFitnessRead.TOTALS, HuaweiFitnessRead.totalsRequest(), parse = HuaweiFitnessRead::totals)
 
     fun minutes(start: Long, end: Long, maxPages: Int = 96): List<HuaweiFitnessRead.Minute> {
-        require(maxPages in 1..256 && end - start in 1..86400)
+        require(supportsMinuteHistory() && maxPages in 1..256 && end - start in 1..86400)
         val count = query(HuaweiFitnessRead.COUNT, HuaweiFitnessRead.countRequest(start, end), parse = HuaweiFitnessRead::count)
         require(count <= maxPages) { "Fitness page limit; use a shorter time window" }
         val records = sortedMapOf<Long, HuaweiFitnessRead.Minute>()
@@ -99,7 +125,7 @@ internal class HuaweiFitnessSession(
             if (row.start >= end || row.end <= start) return@mapNotNull null
             val samples = sortedMapOf<Long, HuaweiWorkoutDetail.Sample>()
             val splits = mutableListOf<HuaweiWorkoutDetail.Split>()
-            if (includeDetails && HuaweiWorkoutDetail.DATA in workoutCommands && ref.dataPages <= remainingPages) {
+            if (includeDetails && ref.dataPages <= remainingPages) {
                 repeat(ref.dataPages) { index ->
                     val page = query(HuaweiWorkoutDetail.DATA, HuaweiWorkoutDetail.request(ref.number, index, false),
                         service = 0x17, parse = HuaweiWorkoutDetail::data)
@@ -112,7 +138,7 @@ internal class HuaweiFitnessSession(
                 }
                 remainingPages -= ref.dataPages
             }
-            if (includeDetails && HuaweiWorkoutDetail.PACE in workoutCommands && ref.pacePages <= remainingPages) {
+            if (includeDetails && ref.pacePages <= remainingPages) {
                 repeat(ref.pacePages) { index ->
                     val page = query(HuaweiWorkoutDetail.PACE, HuaweiWorkoutDetail.request(ref.number, index, true),
                         service = 0x17, parse = HuaweiWorkoutDetail::pace)

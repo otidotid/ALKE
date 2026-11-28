@@ -6,6 +6,13 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import java.io.IOException
 import java.util.UUID
+import java.net.SocketTimeoutException
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -23,6 +30,9 @@ internal class HuaweiRfcommTransport(
     private val closed = AtomicBoolean(false)
     private val guard = Any()
     @Volatile private var socket: BluetoothSocket? = null
+    private val reader = Executors.newSingleThreadExecutor()
+    // Accessed only by the serialized protocol worker. A deadline never starts a second socket read.
+    private var inFlightRead: Future<ByteArray>? = null
 
     @Throws(IOException::class)
     fun connect() {
@@ -47,6 +57,35 @@ internal class HuaweiRfcommTransport(
     }
 
     @Throws(IOException::class)
+    override fun read(buffer: ByteArray, timeoutMillis: Long): Int {
+        require(buffer.isNotEmpty() && timeoutMillis > 0)
+        val future = inFlightRead ?: reader.submit(Callable {
+            val chunk = ByteArray(buffer.size)
+            val n = connectedSocket().inputStream.read(chunk)
+            if (n <= 0) byteArrayOf() else chunk.copyOf(n)
+        }).also { inFlightRead = it }
+        val chunk = try {
+            future.get(timeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (_: TimeoutException) {
+            // Keep the pending reader. The next request can drain a late response.
+            throw SocketTimeoutException("Huawei request deadline")
+        } catch (e: ExecutionException) {
+            inFlightRead = null
+            throw IOException("Huawei socket read failed", e.cause)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw IOException("Huawei socket read interrupted", e)
+        } catch (e: java.util.concurrent.CancellationException) {
+            throw IOException("Huawei socket closed", e)
+        }
+        inFlightRead = null
+        if (chunk.isEmpty()) return -1
+        require(chunk.size <= buffer.size)
+        chunk.copyInto(buffer)
+        return chunk.size
+    }
+
+    @Throws(IOException::class)
     @Synchronized
     override fun write(frame: ByteArray) {
         require(frame.isNotEmpty())
@@ -65,6 +104,7 @@ internal class HuaweiRfcommTransport(
         if (closed.compareAndSet(false, true)) {
             val pending = synchronized(guard) { socket.also { socket = null } }
             try { pending?.close() } catch (_: IOException) { }
+            reader.shutdownNow()
         }
     }
 

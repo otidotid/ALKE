@@ -37,7 +37,7 @@ class HuaweiPairingProtocolTest {
         assertArrayEquals(DEVICE_TOKEN, saved)
         assertEquals(
             listOf("link", "status", "security:5", "pin", "iso:1", "iso:2", "iso:3", "pending", "iso:4",
-                "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "connect capability", "connect status", "verified"),
+                "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "commands", "expand", "account", "settings", "connect status", "setup", "wear", "verified"),
             watch.events,
         )
 
@@ -48,7 +48,7 @@ class HuaweiPairingProtocolTest {
                 { error("Reconnect attempted to overwrite a verified binding") })
         }
         assertEquals(paired, reconnected)
-        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "connect capability", "connect status"),
+        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "commands", "expand", "account", "settings", "connect status", "setup", "wear"),
             watch.events)
     }
 
@@ -72,8 +72,37 @@ class HuaweiPairingProtocolTest {
                 })
         }
         assertEquals(73, resumed.batteryPercent)
-        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "connect capability", "connect status", "verified"),
+        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "commands", "expand", "account", "settings", "connect status", "setup", "wear", "verified"),
             watch.events)
+    }
+
+    @Test fun accountMismatchNeverSendsResetOrAgreementAndDoesNotPromoteBinding() {
+        val watch = Watch().apply { differentAccount = true }
+        watch.open().use { link ->
+            assertThrows(HuaweiAccountSelectionRequired::class.java) {
+                protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {},
+                    { error("Account mismatch must not promote the pending binding") })
+            }
+        }
+        assertEquals("account", watch.events.last())
+        assertTrue("setup" !in watch.events)
+        assertTrue("connect status" !in watch.events)
+    }
+
+    @Test fun optionalConnectTimeoutAndLateSetupReplyDoNotAbortAuthentication() {
+        val watch = Watch().apply {
+            silentConnectStatus = true
+            lateSetupReply = true
+        }
+        val result = watch.open().use { link ->
+            protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {}, {})
+        }
+        val init = requireNotNull(result.initialization)
+        assertTrue(init.connectSupported)
+        assertTrue(!init.connectReply)
+        assertTrue(init.notes.any { it.contains("no reply") })
+        assertTrue(init.notes.any { it.contains("not sent without explicit consent") })
+        assertTrue("wear" in watch.events)
     }
 
     private fun protocol(link: Watch.Link) = HuaweiPairingProtocol(HuaweiHiChainTransport(link) {})
@@ -81,6 +110,9 @@ class HuaweiPairingProtocolTest {
     private class Watch {
         val events = mutableListOf<String>()
         var dropNextBattery = false
+        var differentAccount = false
+        var silentConnectStatus = false
+        var lateSetupReply = false
         private var bound = false
 
         fun open() = Link()
@@ -96,12 +128,18 @@ class HuaweiPairingProtocolTest {
                 assertEquals(0x5a, unsigned(frame[0]))
                 assertEquals(frame.size - 5, ByteBuffer.wrap(frame, 1, 2).short.toInt())
                 assertEquals(0, unsigned(frame[3]))
-                assertEquals(1, unsigned(frame[4]))
+                val service = unsigned(frame[4])
+                assertTrue(service in setOf(1, 0x1a))
                 assertEquals(crc(frame.copyOfRange(0, frame.size - 2)),
                     ByteBuffer.wrap(frame, frame.size - 2, 2).short.toInt() and 0xffff)
                 val command = unsigned(frame[5])
                 val body = frame.copyOfRange(6, frame.size - 2)
-                reply = when (command) {
+                reply = if (service == 0x1a) {
+                    assertEquals(5, command)
+                    events += "account"
+                    assertArrayEquals(bytes(1, 1, 0, 3, 1, 1), decryptRequest(body))
+                    packet(command, bytes(2, 1, if (differentAccount) 1 else 0), service = 0x1a)
+                } else when (command) {
                     1 -> {
                         events += "link"
                         assertArrayEquals(bytes(1, 0, 2, 0, 3, 0, 4, 0), body)
@@ -153,8 +191,8 @@ class HuaweiPairingProtocolTest {
                     }
                     2 -> {
                         events += "services"
-                        assertArrayEquals(bytes(1, 3, 1, 7, 0x24), decryptRequest(body))
-                        packet(command, bytes(2, 3, 1, 1, 0))
+                        assertArrayEquals(bytes(1, 10, 1, 7, 0x0a, 0x17, 0x19, 0x1a, 0x20, 0x24, 0x2c, 0x34), decryptRequest(body))
+                        packet(command, bytes(2, 10, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1))
                     }
                     8 -> {
                         events += "battery"
@@ -165,14 +203,44 @@ class HuaweiPairingProtocolTest {
                         } else packet(command, bytes(1, 1, 73))
                     }
                     3 -> {
-                        events += "connect capability"
-                        assertArrayEquals(bytes(0x81, 6, 2, 1, 1, 3, 1, 0x35), decryptRequest(body))
-                        packet(command, bytes(0x81, 6, 2, 1, 1, 4, 1, 1))
+                        events += "commands"
+                        assertArrayEquals(bytes(0x81, 16, 2, 1, 1, 3, 4, 0x30, 0x31, 0x35, 0x37,
+                            2, 1, 0x1a, 3, 2, 5, 6), decryptRequest(body))
+                        packet(command, bytes(0x81, 16, 2, 1, 1, 4, 4, 1, 1, 1, 1,
+                            2, 1, 0x1a, 4, 2, 1, 1))
+                    }
+                    0x37 -> {
+                        events += "expand"
+                        assertArrayEquals(bytes(1, 0), decryptRequest(body))
+                        val bits = ByteArray(22)
+                        bits[13] = 32 // capability 109
+                        bits[21] = 16 // capability 172
+                        encryptedReply(command, tlv(1, bits))
+                    }
+                    0x31 -> {
+                        events += "settings"
+                        assertArrayEquals(bytes(1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0), decryptRequest(body))
+                        packet(command, bytes(2, 1, 0x0a))
+                    }
+                    0x3e -> {
+                        events += "setup"
+                        val setup = fields(decryptRequest(body))
+                        assertArrayEquals(bytes(1), setup.getValue(1))
+                        assertArrayEquals("Huawei Watch GT 5".toByteArray(), setup.getValue(2))
+                        assertArrayEquals(bytes(0), setup.getValue(3))
+                        // The actual setup request can be one-way; don't block on it.
+                        byteArrayOf()
+                    }
+                    0x3d -> {
+                        events += "wear"
+                        assertArrayEquals(bytes(1, 0), decryptRequest(body))
+                        val wear = packet(command, bytes(1, 1, 1))
+                        if (lateSetupReply) packet(0x3e, bytes(0x7f, 4, 0, 1, 0x86, 0xa0)) + wear else wear
                     }
                     0x35 -> {
                         events += "connect status"
                         assertArrayEquals(bytes(1, 1, 1), decryptRequest(body))
-                        packet(command, bytes(0x7f, 4, 0, 1, 0x86, 0xa0))
+                        if (silentConnectStatus) byteArrayOf() else packet(command, bytes(0x7f, 4, 0, 1, 0x86, 0xa0))
                     }
                     else -> error("Unexpected LPv2 command $command")
                 }
@@ -266,6 +334,12 @@ class HuaweiPairingProtocolTest {
                 val iv = ByteArray(16) { command.toByte() }
                 val ciphertext = gcm(Cipher.ENCRYPT_MODE, deviceSessionKey, iv, plain)
                 return packet(command, bytes(0x7c, 1, 1) + tlv(0x7d, iv) + tlv(0x7e, ciphertext))
+            }
+
+            override fun read(buffer: ByteArray, timeoutMillis: Long): Int {
+                if (offset == reply.size && silentConnectStatus && events.lastOrNull() == "connect status")
+                    throw java.net.SocketTimeoutException("Simulated optional timeout")
+                return read(buffer)
             }
 
             override fun read(buffer: ByteArray): Int {

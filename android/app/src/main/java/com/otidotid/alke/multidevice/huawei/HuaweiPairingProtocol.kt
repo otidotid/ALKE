@@ -18,6 +18,7 @@ internal class HuaweiPairingProtocol(private val transport: HuaweiHiChainTranspo
         allowFirstBind: Boolean,
         savePending: (ByteArray) -> Unit,
         saveVerified: (ByteArray) -> Unit,
+        deviceName: String = "Huawei Watch GT 5",
     ): HuaweiSessionReads.Readback {
         require(!pending || credential != null)
         stage = "Link parameters"
@@ -61,22 +62,26 @@ internal class HuaweiPairingProtocol(private val transport: HuaweiHiChainTranspo
                         transport.resetTrace()
                         transport.send(reads.request(command))
                         try {
-                            reads.receive(transport.receive(command))
+                            reads.receive(transport.receive(command, timeoutMillis = if (command == HuaweiDeviceInfo.TIME) 3000 else 8000))
                         } finally {
                             lastResponse = reads.lastMetadata
                         }
                     }
                     read(HuaweiDeviceInfo.PRODUCT, "Encrypted ProductInfo")
-                    read(HuaweiDeviceInfo.TIME, "Watch clock initialization")
-                    read(HuaweiDeviceInfo.BATTERY, "BatteryLevel readback")
-                    read(HuaweiDeviceInfo.SERVICES, "Supported services discovery")
-                    // Do not claim finalization merely from the terminal HiChain response.
-                    // Ask for support of the documented connection-status command first.
-                    read(HuaweiDeviceInfo.COMMANDS, "ConnectStatus capability")
-                    if (reads.connectStatusSupported == true) {
-                        read(HuaweiDeviceInfo.CONNECT_STATUS, "ConnectStatus finalization")
+                    try {
+                        read(HuaweiDeviceInfo.TIME, "Watch clock initialization")
+                    } catch (_: java.net.SocketTimeoutException) {
+                        reads.skipClockTimeout()
+                        transport.ignoreLateReply(1, HuaweiDeviceInfo.TIME)
                     }
-                    requireNotNull(reads.readback())
+                    read(HuaweiDeviceInfo.BATTERY, "BatteryLevel readback")
+                    val init = HuaweiInitialization(reads, transport,
+                        { stage = it }, { lastResponse = it }).run(deviceName)
+                    requireNotNull(reads.readback()).copy(
+                        connectStatusAcknowledged = init.connectReply,
+                        connectStatusEncrypted = init.connectEncrypted,
+                        initialization = init,
+                    )
                 }
             } finally {
                 key.fill(0)

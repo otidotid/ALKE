@@ -42,6 +42,20 @@ class HuaweiHiChainTransportTest {
         assertEquals(9, saturated.trace.unmatched)
     }
 
+    @Test fun routesBatteryPushAndLateOneWayReplyAndMatchesAccountService() {
+        val push = HuaweiLinkFrames.encode(1, 0x27, byteArrayOf(1, 1, 73))
+        val late = HuaweiLinkFrames.encode(1, 0x3e, byteArrayOf())
+        val account = HuaweiLinkFrames.encode(0x1a, 5, byteArrayOf(2, 1, 0))
+        val channel = HuaweiHiChainTransport(ScriptedLink(push + late + account)) {}
+        channel.ignoreLateReply(1, 0x3e)
+        assertEquals(0x1a, channel.receive(5, 0x1a).service)
+        assertEquals(2, channel.trace.unmatched)
+        val accountSelection = HuaweiLinkFrames.encode(0x1a, 6, byteArrayOf(1, 1, 0))
+        assertThrows(HuaweiAccountSelectionRequired::class.java) {
+            HuaweiHiChainTransport(ScriptedLink(accountSelection)) {}.receive(5, 0x1a)
+        }
+    }
+
     @Test fun recordsSocketFailureAndSentFramesWithoutRecordingPayload() {
         val frame = HuaweiLinkFrames.encode(1, 0x28, ByteArray(42))
         val link = ScriptedLink(readFailure = IOException("PRIVATE DETAIL"))

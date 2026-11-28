@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -26,7 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal object HuaweiPairingDiagnostic {
     private val attemptLock = Mutex()
 
-    suspend fun run(context: Context, device: BluetoothDevice, allowFirstBind: Boolean): String =
+    suspend fun run(context: Context, device: BluetoothDevice, allowFirstBind: Boolean,
+        onVerified: (String) -> Unit = {}): String =
         attemptLock.withLock {
             coroutineScope {
                 val link = HuaweiRfcommTransport(device)
@@ -37,12 +39,19 @@ internal object HuaweiPairingDiagnostic {
                         link.close()
                     }
                 }
+                val keepOpen = AtomicBoolean(false)
                 try {
-                    withContext(Dispatchers.IO) {
+                    val result = withContext(Dispatchers.IO) {
                         val attemptContext = coroutineContext
-                        attempt(context, device, link, allowFirstBind) { attemptContext.ensureActive() }
+                        attempt(context, device, link, allowFirstBind, keepOpen) { attemptContext.ensureActive() }
                     }
+                    if (keepOpen.get()) {
+                        onVerified(result + "\nConnection test held open briefly; check the watch now.")
+                        delay(20_000)
+                    }
+                    result
                 } finally {
+                    link.close()
                     closeOnCancellation.cancel()
                 }
             }
@@ -53,6 +62,7 @@ internal object HuaweiPairingDiagnostic {
         device: BluetoothDevice,
         link: HuaweiRfcommTransport,
         allowFirstBind: Boolean,
+        keepOpen: AtomicBoolean,
         ensureActive: () -> Unit,
     ): String {
         val expired = AtomicBoolean(false)
@@ -60,7 +70,7 @@ internal object HuaweiPairingDiagnostic {
         val timeout = watchdog.schedule({
             expired.set(true)
             link.close()
-        }, 60, TimeUnit.SECONDS)
+        }, 90, TimeUnit.SECONDS)
         fun checkActive() {
             ensureActive()
             if (expired.get()) throw IOException("Huawei pairing timeout")
@@ -95,16 +105,21 @@ internal object HuaweiPairingDiagnostic {
                     HuaweiCredentialStore.Binding(identity, credential.copyOf()).use {
                         store.saveVerifiedBinding(address, it)
                     }
-                })
+                }, deviceName = device.name ?: "Huawei Watch GT 5")
             val batteryMode = if (info.batteryEncrypted) "GCM" else "plaintext"
             val connect = when {
-                !info.connectStatusAcknowledged -> "not advertised"
-                info.connectStatusEncrypted -> "GCM acknowledged"
-                else -> "plaintext acknowledged"
+                info.initialization?.connectSupported != true -> "not advertised"
+                !info.connectStatusAcknowledged -> "no successful reply"
+                info.connectStatusEncrypted -> "GCM reply"
+                else -> "plaintext reply"
             }
-            return "Huawei session authenticated (GCM ProductInfo). Battery: ${info.batteryPercent}% ($batteryMode). ConnectStatus: $connect. Confirm watch screen."
+            val details = info.initialization?.notes.orEmpty().joinToString("\n")
+            keepOpen.set(true)
+            return "Huawei session authenticated (GCM ProductInfo). Battery: ${info.batteryPercent}% ($batteryMode). ConnectStatus: $connect. Watch UI still requires verification.\n$details"
         } catch (e: CancellationException) {
             throw e
+        } catch (_: HuaweiAccountSelectionRequired) {
+            return "Watch requests account selection. ALKE will not confirm a reset or switch account."
         } catch (_: HuaweiPairingProtocol.BindingRequired) {
             return "The watch requests a new pairing. Use first-time ALKE binding to confirm."
         } catch (_: Exception) {
@@ -115,7 +130,7 @@ internal object HuaweiPairingDiagnostic {
         } finally {
             binding?.close()
             timeout.cancel(false)
-            link.close()
+            if (!keepOpen.get()) link.close()
             watchdog.shutdownNow()
         }
     }

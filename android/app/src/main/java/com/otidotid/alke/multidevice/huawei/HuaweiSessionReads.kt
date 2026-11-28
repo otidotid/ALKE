@@ -26,6 +26,7 @@ internal class HuaweiSessionReads(
     private val seenIv = mutableListOf<ByteArray>()
     private var closed = false
     private var pending: Int? = null
+    private var initializationPending: Pair<Int, Int>? = null
     private var product: HuaweiDeviceInfo.Product? = null
     private var battery: Int? = null
     private var batteryEncrypted = false
@@ -45,10 +46,11 @@ internal class HuaweiSessionReads(
         val batteryEncrypted: Boolean,
         val connectStatusAcknowledged: Boolean,
         val connectStatusEncrypted: Boolean,
+        val initialization: HuaweiInitialization.Report? = null,
     )
 
     fun request(command: Int): List<ByteArray> = guarded {
-        check(!closed && pending == null)
+        check(!closed && pending == null && initializationPending == null)
         // Do not expose other commands until the minimal readback is verified.
         require(when {
             product == null -> command == HuaweiDeviceInfo.PRODUCT
@@ -129,6 +131,53 @@ internal class HuaweiSessionReads(
         }
     }
 
+    /** The known optional clock step can be skipped on a real response timeout. */
+    fun skipClockTimeout() {
+        check(!closed && product != null && pending == HuaweiDeviceInfo.TIME)
+        pending = null
+    }
+
+    fun requestInitialization(service: Int, command: Int, body: ByteArray): List<ByteArray> = guarded {
+        check(!closed && product != null && battery != null && pending == null && initializationPending == null)
+        require(HuaweiInitialization.allowed(service, command))
+        lastMetadata = ""
+        val iv = ByteArray(16).also(random::nextBytes)
+        remember(iv)
+        val encrypted = HuaweiEncryptedPayload.seal(HuaweiEncryptedPayload.Mode.GCM, secret, iv, body)
+        HuaweiLinkFrames.encodeWithin(service, command, encrypted, frameBudget)
+            .also { initializationPending = service to command }
+    }
+
+    class InitializationReply(val payload: ByteArray, val encrypted: Boolean) : Closeable {
+        override fun close() { payload.fill(0) }
+    }
+
+    /** This is only a command-scoped reply. The caller validates its schema and status. */
+    fun receiveInitialization(message: HuaweiLinkFrames.Message): InitializationReply = guarded {
+        check(!closed && initializationPending == (message.service to message.command))
+        lastMetadata = "Outer " + metadata(message.payload)
+        val outer = HuaweiTlv.decode(message.payload)
+        val encrypted = outer.any { it.tag in 0x7c..0x7e }
+        val plain = if (encrypted) {
+            val iv = requireNotNull(HuaweiTlv.one(outer, 0x7d))
+            remember(iv)
+            HuaweiEncryptedPayload.open(HuaweiEncryptedPayload.Mode.GCM, secret, message.payload)
+        } else {
+            // No fallback from invalid GCM; proof was established by ProductInfo.
+            require(product != null)
+            message.payload.copyOf()
+        }
+        lastMetadata += if (encrypted) "; GCM verified; inner " + metadata(plain)
+            else "; plaintext initialization reply"
+        initializationPending = null
+        InitializationReply(plain, encrypted)
+    }
+
+    fun finishInitializationWithoutReply(service: Int, command: Int) {
+        check(!closed && initializationPending == (service to command))
+        initializationPending = null
+    }
+
     fun readback(): Readback? {
         check(!closed)
         val p = product ?: return null
@@ -166,6 +215,7 @@ internal class HuaweiSessionReads(
         seenIv.clear()
         closed = true
         pending = null
+        initializationPending = null
         product = null
         battery = null
     }

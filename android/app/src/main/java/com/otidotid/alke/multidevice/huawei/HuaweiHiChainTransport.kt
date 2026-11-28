@@ -2,6 +2,8 @@ package com.otidotid.alke.multidevice.huawei
 
 import java.io.Closeable
 import java.io.IOException
+import java.net.SocketTimeoutException
+import java.util.concurrent.TimeUnit
 
 /** Serial LPv2 exchanges on one socket. The owner provides cancellation and closes the link. */
 internal class HuaweiHiChainTransport(
@@ -10,6 +12,7 @@ internal class HuaweiHiChainTransport(
 ) {
     interface Link : Closeable {
         fun read(buffer: ByteArray): Int
+        fun read(buffer: ByteArray, timeoutMillis: Long): Int = read(buffer)
         fun write(frame: ByteArray)
     }
 
@@ -18,6 +21,7 @@ internal class HuaweiHiChainTransport(
     private val buffer = ByteArray(4096)
     private var remaining = MAX_RECEIVE_BYTES
     private var mtu = MAX_MTU
+    private val ignoredLate = mutableSetOf<Pair<Int, Int>>()
 
     var trace = HuaweiHandshakeTrace()
         private set
@@ -46,26 +50,48 @@ internal class HuaweiHiChainTransport(
         }
     }
 
-    fun receive(command: Int): HuaweiLinkFrames.Message {
+    /** A late optional or one-way response cannot become the next command's reply. */
+    fun ignoreLateReply(service: Int, command: Int) {
+        require(ignoredLate.size < 16)
+        ignoredLate.add(service to command)
+    }
+
+    fun receive(command: Int, service: Int = 1, timeoutMillis: Long = 30_000): HuaweiLinkFrames.Message {
+        require(timeoutMillis in 1..60_000)
+        ignoredLate.remove(service to command)
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
         while (true) {
             ensureActive()
-            while (pending.isEmpty()) readMessages()
+            while (pending.isEmpty()) {
+                val left = deadline - System.nanoTime()
+                if (left <= 0) {
+                    trace.failure("response timeout")
+                    throw SocketTimeoutException("Huawei response deadline")
+                }
+                readMessages(maxOf(1, TimeUnit.NANOSECONDS.toMillis(left)))
+            }
 
             val message = pending.removeFirst()
-            if (trace.matches(message, command)) return message
+            if (trace.matches(message, command, service)) return message
+            if (message.service == 0x1a && message.command == 0x06)
+                throw HuaweiAccountSelectionRequired()
 
-            // A watch can send media controls on the shared link. Leave them unhandled here.
-            val musicControl = message.service == 0x25 && message.command == 0x03
-            if ((!musicControl && command != 0x28) || trace.unmatched > MAX_UNMATCHED) {
+            val media = message.service == 0x25 && message.command in setOf(1, 3)
+            val batteryPush = message.service == 1 && message.command == 0x27
+            val late = (message.service to message.command) in ignoredLate
+            if ((!media && !batteryPush && !late && command != 0x28) || trace.unmatched > MAX_UNMATCHED) {
                 throw IOException("Unexpected Huawei response")
             }
         }
     }
 
-    private fun readMessages() {
+    private fun readMessages(timeoutMillis: Long) {
         ensureActive()
         val count = try {
-            link.read(buffer)
+            link.read(buffer, timeoutMillis)
+        } catch (e: SocketTimeoutException) {
+            trace.failure("response timeout")
+            throw e
         } catch (e: IOException) {
             trace.failure("socket read failed")
             throw e

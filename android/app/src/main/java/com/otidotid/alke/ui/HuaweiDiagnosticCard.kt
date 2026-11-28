@@ -47,7 +47,7 @@ internal fun HuaweiDiagnosticCard() {
         report = null
         scope.launch {
             try {
-                report = HuaweiPairingDiagnostic.run(context.applicationContext, device, firstBind)
+                report = HuaweiPairingDiagnostic.run(context.applicationContext, device, firstBind) { report = it }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -112,7 +112,7 @@ internal fun HuaweiDiagnosticCard() {
                     }
                 }) { Text("Probe " + (runCatching { device.name }.getOrNull() ?: "Huawei GT 5")) }
                 TextButton(enabled = !busy, onClick = { authenticate(device, false) }) {
-                    Text("Test saved ALKE binding")
+                    Text("Resume / test saved ALKE binding")
                 }
                 TextButton(enabled = !busy, onClick = { pendingBind = device }) {
                     Text("Test first-time ALKE binding")

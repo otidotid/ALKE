@@ -48,7 +48,7 @@ class HuaweiPairingProtocolTest {
                 { error("Reconnect attempted to overwrite a verified binding") })
         }
         assertEquals(paired, reconnected)
-        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "battery"),
+        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "battery", "connect capability", "connect status"),
             watch.events)
     }
 

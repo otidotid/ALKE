@@ -9,7 +9,17 @@ import java.io.ByteArrayOutputStream
  * This command selects a handshake; it does NOT bind or authenticate.
  */
 internal object HuaweiSecurityNegotiation {
-    enum class NextStep { FIRST_BIND, RECONNECT, UNSUPPORTED }
+    enum class AuthMode { HICHAIN3_VARIANT_5, HICHAIN3_VARIANT_6, UNSUPPORTED }
+
+    /** A supported mode is not evidence of binding state. Require explicit first-bind consent. */
+    fun operation(mode: AuthMode, hasVerifiedCredential: Boolean, allowFirstBind: Boolean): HuaweiIsoExchange.Operation? {
+        if (mode == AuthMode.UNSUPPORTED) return null
+        return when {
+            hasVerifiedCredential -> HuaweiIsoExchange.Operation.RECONNECT
+            allowFirstBind -> HuaweiIsoExchange.Operation.BIND
+            else -> null
+        }
+    }
 
     fun request(parameters: HuaweiAuthCapabilities.Parameters, clientId: String, model: String): ByteArray {
         require(parameters.supportType == 4)
@@ -35,16 +45,18 @@ internal object HuaweiSecurityNegotiation {
         return HuaweiLinkFrames.encode(1, 0x33, out.toByteArray())
     }
 
-    fun parse(message: HuaweiLinkFrames.Message): NextStep {
+    fun parse(message: HuaweiLinkFrames.Message): AuthMode {
         require(message.service == 1 && message.command == 0x33)
         val fields = HuaweiTlv.decode(message.payload)
         // A status/error response is never proof of a successful negotiation.
-        if (fields.any { it.tag == 0x7f }) return NextStep.UNSUPPORTED
-        if (HuaweiTlv.unsigned(fields, 1, 1) != 4) return NextStep.UNSUPPORTED
+        if (fields.any { it.tag == 0x7f }) return AuthMode.UNSUPPORTED
+        if (HuaweiTlv.unsigned(fields, 1, 1) != 4) return AuthMode.UNSUPPORTED
+        // Public LPv2 observations: type 4 plus selector 1/2 denotes HiChain3 mode 5/6.
+        // Neither selector establishes whether this client already has a valid credential.
         return when (HuaweiTlv.unsigned(fields, 2, 1)) {
-            1 -> NextStep.FIRST_BIND
-            2 -> NextStep.RECONNECT
-            else -> NextStep.UNSUPPORTED
+            1 -> AuthMode.HICHAIN3_VARIANT_5
+            2 -> AuthMode.HICHAIN3_VARIANT_6
+            else -> AuthMode.UNSUPPORTED
         }
     }
 }

@@ -6643,6 +6643,9 @@ internal fun HeartRateTrendCard(
     // trend keeps the evening's curve, window start at the logical day's own midnight, "since midnight"
     // subtitle, "Today" label, rather than blanking to an empty new-calendar-day axis (#144).
     var buckets by remember { mutableStateOf<List<HrBucket>>(emptyList()) }
+    var huaweiBucketStarts by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    val timelineContext = LocalContext.current
+    val huaweiRevision by com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.revision.collectAsStateWithLifecycle()
     // The night's sleep session overlapping the HR window + the day's workouts, the Overview-HR
     // marker layers (sleep band, Charge at wake, sport glyphs at HR peaks). Loaded off the main
     // thread alongside the buckets; each marker self-hides when its data is absent. (PR #285)
@@ -6674,7 +6677,7 @@ internal fun HeartRateTrendCard(
     // Re-load when the day list changes (an import updates it), when the day selector moves, and, via the
     // sync tokens, when a strap offload banks fresh HR samples for the current window. Also on first compose.
     val activityRevision by com.otidotid.alke.ai.CloudActivitySettings.dataRevision.collectAsStateWithLifecycle()
-    LaunchedEffect(days, selectedDay, today, live.lastSyncAt, live.syncChunksThisSession, dayCycleMode, activityRevision) {
+    LaunchedEffect(days, selectedDay, today, live.lastSyncAt, live.syncChunksThisSession, dayCycleMode, activityRevision, if (alkeStyle) huaweiRevision else 0L) {
         val zone = ZoneId.systemDefault()
         val calendarStart = selectedDay.atStartOfDay(zone).toEpochSecond()
         val nextStart = selectedDay.plusDays(1).atStartOfDay(zone).toEpochSecond()
@@ -6693,9 +6696,17 @@ internal fun HeartRateTrendCard(
         // #908: the Today HR curve reads the active strap ∪ canonical "my-whoop" union, NOT a hardcoded
         // "my-whoop". A strap re-added via the device manager banks live HR under its own fresh id, so a
         // pinned read showed the "no heart rate banked yet today" empty state. Single-WHOOP ⇒ one id ⇒ same.
-        buckets = viewModel.repo.hrBucketsUnion(
-            viewModel.activeStrapId, start, end, HR_CARD_BUCKET_SECONDS,
-        )
+        if (alkeStyle) {
+            val timeline = com.otidotid.alke.multidevice.huawei.HuaweiTimelineSource.read(
+                timelineContext, viewModel.repo, viewModel.activeStrapId, start, end, HR_CARD_BUCKET_SECONDS)
+            buckets = timeline.buckets
+            huaweiBucketStarts = timeline.huaweiBucketStarts
+        } else {
+            buckets = viewModel.repo.hrBucketsUnion(
+                viewModel.activeStrapId, start, end, HR_CARD_BUCKET_SECONDS,
+            )
+            huaweiBucketStarts = emptySet()
+        }
         // The sleep that ended within the chart window (the night before / this morning), anchors
         // the band + the Charge-at-wake marker. A wide lower bound catches an onset before midnight.
         // Resolves the day's bridged MAIN-night span via `mainSleepSpan` (the SAME resolver the Sleep
@@ -6831,7 +6842,8 @@ internal fun HeartRateTrendCard(
                         else -> uiString(R.string.today_hr_average_last_window, uiString(hrWindow.labelRes))
                     }
                     Text(
-                        subtitle,
+                        if (winBuckets.any { it.bucket in huaweiBucketStarts })
+                            "$subtitle · Huawei priority / WHOOP fallback (minute data)" else subtitle,
                         style = AlkeType.footnote,
                         color = if (alkeStyle) Color(0xFF9BB9C5) else Palette.textTertiary,
                     )

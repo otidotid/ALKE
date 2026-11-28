@@ -112,6 +112,7 @@ internal object HuaweiPairingDiagnostic {
                     // No automatic sensor changes, agreement acceptance or WHOOP switching.
                     val localStore = HuaweiFitnessStore(context.applicationContext)
                     fitnessStore = localStore
+                    HuaweiTimelineSource.selectVerifiedDevice(context.applicationContext, deviceKey)
                     val sessionStart = android.os.SystemClock.elapsedRealtime()
                     var charge = info.batteryPercent
                     var nextBattery = android.os.SystemClock.elapsedRealtime() + 300_000L
@@ -190,7 +191,7 @@ internal object HuaweiPairingDiagnostic {
                         } ?: "Huawei totals not advertised."
                         val historyText = historyCount?.let { "GCM-verified minute records stored: $it." }
                             ?: "Minute history unavailable."
-                        onVerified("$header\n$totalsText\n$historyText\n$sourcePreview\n$historySummary\nSaved in separate Huawei store; not merged into ALKE scores.\n$notes")
+                        onVerified("$header\n$totalsText\n$historyText\n$sourcePreview\n$historySummary\nSaved in separate Huawei store; historical HR timeline uses verified minute data. Scores unchanged.\n$notes")
                         onStatus(charge, false)
                         // Check cancellation frequently. No second reader or background thread per poll.
                         repeat(120) {

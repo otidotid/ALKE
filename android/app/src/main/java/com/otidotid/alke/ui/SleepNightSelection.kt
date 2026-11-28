@@ -77,11 +77,8 @@ internal fun selectNight(
     val heroGroup = group.dropWhile {
         it.effectiveStartTs < onsetTsForHero && isPreOnsetAwakeStub(it, groupRefAsleepMin)
     }
-    val utcKey = AnalyticsEngine.dayString(session.endTs)
-    val localKey = localDayString(session.endTs)
-    val dayKey = listOf(utcKey, localKey).firstOrNull { key ->
-        days.any { it.day == key && (it.deepMin ?: 0.0) + (it.remMin ?: 0.0) + (it.lightMin ?: 0.0) > 0.0 }
-    } ?: utcKey
+    // The scoring engine persists local wake-day keys. UTC-first can select yesterday's valid row.
+    val dayKey = localDayString(group.maxOfOrNull { it.endTs } ?: session.endTs)
     // Lay every fragment's persisted segments end-to-end so a biphasic night draws as one continuous
     // hypnogram, and SUM their stage minutes for the hero. Built from `heroGroup` (the group minus a leading
     // spurious stub, #736) so the chart and minutes start at the displayed bedtime. Null for a single-block

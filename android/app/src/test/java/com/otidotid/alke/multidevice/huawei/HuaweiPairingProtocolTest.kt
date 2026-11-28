@@ -37,7 +37,7 @@ class HuaweiPairingProtocolTest {
         assertArrayEquals(DEVICE_TOKEN, saved)
         assertEquals(
             listOf("link", "status", "security:5", "pin", "iso:1", "iso:2", "iso:3", "pending", "iso:4",
-                "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "commands", "expand", "account", "settings", "connect status", "setup", "wear", "verified"),
+                "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "commands", "expand", "account", "settings", "setup", "wear", "connect status", "verified"),
             watch.events,
         )
 
@@ -48,7 +48,7 @@ class HuaweiPairingProtocolTest {
                 { error("Reconnect attempted to overwrite a verified binding") })
         }
         assertEquals(paired, reconnected)
-        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "commands", "expand", "account", "settings", "connect status", "setup", "wear"),
+        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "commands", "expand", "account", "settings", "setup", "wear", "connect status"),
             watch.events)
     }
 
@@ -72,8 +72,30 @@ class HuaweiPairingProtocolTest {
                 })
         }
         assertEquals(73, resumed.batteryPercent)
-        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "commands", "expand", "account", "settings", "connect status", "setup", "wear", "verified"),
+        assertEquals(listOf("link", "status", "security:6", "iso:17", "iso:18", "iso:19", "product", "clock", "battery", "services", "commands", "expand", "account", "settings", "setup", "wear", "connect status", "verified"),
             watch.events)
+    }
+
+    @Test fun batteryTimeoutDoesNotBlockAuthenticatedInitialization() {
+        val watch = Watch().apply { silentBattery = true }
+        var saved: ByteArray? = null
+        val result = watch.open().use { link ->
+            protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {},
+                { saved = it.copyOf() })
+        }
+        assertEquals(null, result.batteryPercent)
+        assertArrayEquals(DEVICE_TOKEN, saved)
+        assertTrue(result.connectStatusAcknowledged)
+        assertEquals("connect status", watch.events.last())
+    }
+
+    @Test fun aReplyWithoutExplicitConnectSuccessIsNotAnAcknowledgement() {
+        val watch = Watch().apply { unconfirmedConnect = true }
+        val result = watch.open().use { link ->
+            protocol(link).authenticate(IDENTITY, MODEL, null, false, true, {}, {})
+        }
+        assertTrue(!result.connectStatusAcknowledged)
+        assertTrue(requireNotNull(result.initialization).notes.any { it.contains("no explicit success") })
     }
 
     @Test fun accountMismatchNeverSendsResetOrAgreementAndDoesNotPromoteBinding() {
@@ -160,6 +182,8 @@ class HuaweiPairingProtocolTest {
     private class Watch {
         val events = mutableListOf<String>()
         var dropNextBattery = false
+        var silentBattery = false
+        var unconfirmedConnect = false
         var differentAccount = false
         var silentConnectStatus = false
         var lateSetupReply = false
@@ -300,7 +324,7 @@ class HuaweiPairingProtocolTest {
                     8 -> {
                         events += "battery"
                         assertArrayEquals(bytes(1, 0), decryptRequest(body))
-                        if (dropNextBattery) {
+                        if (silentBattery) byteArrayOf() else if (dropNextBattery) {
                             dropNextBattery = false
                             byteArrayOf()
                         } else packet(command, bytes(1, 1, 73))
@@ -343,7 +367,8 @@ class HuaweiPairingProtocolTest {
                     0x35 -> {
                         events += "connect status"
                         assertArrayEquals(bytes(1, 1, 1), decryptRequest(body))
-                        if (silentConnectStatus) byteArrayOf() else packet(command, bytes(0x7f, 4, 0, 1, 0x86, 0xa0))
+                        if (silentConnectStatus) byteArrayOf() else if (unconfirmedConnect)
+                            packet(command, bytes(1, 1, 1)) else packet(command, bytes(0x7f, 4, 0, 1, 0x86, 0xa0))
                     }
                     else -> error("Unexpected LPv2 command $command")
                 }
@@ -440,7 +465,8 @@ class HuaweiPairingProtocolTest {
             }
 
             override fun read(buffer: ByteArray, timeoutMillis: Long): Int {
-                if (offset == reply.size && silentConnectStatus && events.lastOrNull() == "connect status")
+                if (offset == reply.size && ((silentConnectStatus && events.lastOrNull() == "connect status") ||
+                    (silentBattery && events.lastOrNull() == "battery")))
                     throw java.net.SocketTimeoutException("Simulated optional timeout")
                 return read(buffer)
             }

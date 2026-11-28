@@ -32,8 +32,8 @@ internal object HuaweiConnectionController {
                 var result: String
                 while (true) {
                     result = HuaweiPairingDiagnostic.run(context.applicationContext, device, allowFirstBind,
-                        onStatus = { percent, syncing ->
-                            mutableState.value = mutableState.value.copy(authenticated = percent != null,
+                        onStatus = { authenticated, percent, syncing ->
+                            mutableState.value = mutableState.value.copy(authenticated = authenticated,
                                 batteryPercent = percent?.takeIf { it in 0..100 }, syncing = syncing)
                         }, onVerified = {
                             mutableState.value = mutableState.value.copy(running = true, report = it)

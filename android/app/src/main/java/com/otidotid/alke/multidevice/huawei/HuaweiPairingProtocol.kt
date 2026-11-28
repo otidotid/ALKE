@@ -75,7 +75,12 @@ internal class HuaweiPairingProtocol(private val transport: HuaweiHiChainTranspo
                         reads.skipClockTimeout()
                         transport.ignoreLateReply(1, HuaweiDeviceInfo.TIME)
                     }
-                    read(HuaweiDeviceInfo.BATTERY, "BatteryLevel readback")
+                    try {
+                        read(HuaweiDeviceInfo.BATTERY, "BatteryLevel readback")
+                    } catch (_: java.net.SocketTimeoutException) {
+                        reads.skipBatteryTimeout()
+                        transport.ignoreLateReply(1, HuaweiDeviceInfo.BATTERY)
+                    }
                     val init = HuaweiInitialization(reads, transport,
                         { stage = it }, { lastResponse = it }).run(deviceName)
                     val verified = requireNotNull(reads.readback()).copy(

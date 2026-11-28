@@ -74,9 +74,6 @@ internal class HuaweiInitialization(
             fields(*Array(6) { (it + 1) to byteArrayOf() }), "Settings capabilities", false) { _, _ -> true }
 
         if (supports(1, 0x30)) notes += "Agreement command advertised; not sent without explicit consent."
-        val connectSupported = supports(1, 0x35)
-        val connect = if (connectSupported) query(1, 0x35, fields(1 to byteArrayOf(1)),
-            "ConnectStatus finalization", false) { _, encrypted -> encrypted } else null
 
         if (bit(109)) {
             // The reference marks this device setup command as one-way (no response expected).
@@ -91,7 +88,14 @@ internal class HuaweiInitialization(
             notes += "Device setup sent (one-way)."
             query(1, 0x3d, fields(1 to byteArrayOf()), "Wear status", false) { _, _ -> true }
         }
-        return Report(serviceFlags, connectSupported, connect != null, connect == true, notes.toList(), commands[7].orEmpty(), commands[0x17].orEmpty())
+        val connectSupported = supports(1, 0x35)
+        val connect = if (connectSupported) query(1, 0x35, fields(1 to byteArrayOf(1)),
+            "ConnectStatus finalization", false) { fields, encrypted ->
+                (HuaweiTlv.one(fields, 0x7f)?.contentEquals(SUCCESS) == true) to encrypted
+            } else null
+
+        if (connect != null && !connect.first) notes += "ConnectStatus: no explicit success acknowledgement."
+        return Report(serviceFlags, connectSupported, connect?.first == true, connect?.let { it.first && it.second } == true, notes.toList(), commands[7].orEmpty(), commands[0x17].orEmpty())
     }
 
     private fun <T : Any> query(service: Int, command: Int, body: ByteArray, label: String,

@@ -29,6 +29,7 @@ internal class HuaweiSessionReads(
     private var initializationPending: Pair<Int, Int>? = null
     private var product: HuaweiDeviceInfo.Product? = null
     private var battery: Int? = null
+    private var batteryAttempted = false
     private var batteryEncrypted = false
     private var statusEncrypted = false
     private var timeSynchronized = false
@@ -42,7 +43,7 @@ internal class HuaweiSessionReads(
 
     data class Readback(
         val product: HuaweiDeviceInfo.Product,
-        val batteryPercent: Int,
+        val batteryPercent: Int?,
         val batteryEncrypted: Boolean,
         val connectStatusAcknowledged: Boolean,
         val connectStatusEncrypted: Boolean,
@@ -54,7 +55,7 @@ internal class HuaweiSessionReads(
         // Do not expose other commands until the minimal readback is verified.
         require(when {
             product == null -> command == HuaweiDeviceInfo.PRODUCT
-            battery == null -> command == HuaweiDeviceInfo.BATTERY ||
+            !batteryAttempted -> command == HuaweiDeviceInfo.BATTERY ||
                 (command == HuaweiDeviceInfo.TIME && !timeSynchronized)
             connectStatusSupported == null -> command == HuaweiDeviceInfo.COMMANDS ||
                 (command == HuaweiDeviceInfo.SERVICES && !servicesDiscovered)
@@ -107,6 +108,7 @@ internal class HuaweiSessionReads(
                 HuaweiDeviceInfo.PRODUCT -> product = HuaweiDeviceInfo.product(decoded)
                 HuaweiDeviceInfo.BATTERY -> {
                     battery = HuaweiDeviceInfo.battery(decoded)
+                    batteryAttempted = true
                     batteryEncrypted = encrypted
                 }
                 HuaweiDeviceInfo.TIME -> {
@@ -137,8 +139,15 @@ internal class HuaweiSessionReads(
         pending = null
     }
 
+    /** A real timeout after key proof is missing telemetry, not failed authentication. */
+    fun skipBatteryTimeout() {
+        check(!closed && product != null && pending == HuaweiDeviceInfo.BATTERY && !batteryAttempted)
+        pending = null
+        batteryAttempted = true
+    }
+
     fun requestInitialization(service: Int, command: Int, body: ByteArray): List<ByteArray> = guarded {
-        check(!closed && product != null && battery != null && pending == null && initializationPending == null)
+        check(!closed && product != null && batteryAttempted && pending == null && initializationPending == null)
         require(HuaweiInitialization.allowed(service, command))
         lastMetadata = ""
         val iv = ByteArray(16).also(random::nextBytes)
@@ -181,8 +190,8 @@ internal class HuaweiSessionReads(
     fun readback(): Readback? {
         check(!closed)
         val p = product ?: return null
-        val b = battery ?: return null
-        return Readback(p, b, batteryEncrypted, connectStatusAcknowledged, statusEncrypted)
+        if (!batteryAttempted) return null
+        return Readback(p, battery, batteryEncrypted, connectStatusAcknowledged, statusEncrypted)
     }
 
     private fun metadata(payload: ByteArray): String = runCatching {

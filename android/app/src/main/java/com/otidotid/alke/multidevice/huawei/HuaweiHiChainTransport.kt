@@ -44,7 +44,12 @@ internal class HuaweiHiChainTransport(
             while (offset < frame.size) {
                 ensureActive()
                 val end = minOf(frame.size, offset + mtu)
-                link.write(if (offset == 0 && end == frame.size) frame else frame.copyOfRange(offset, end))
+                try {
+                    link.write(if (offset == 0 && end == frame.size) frame else frame.copyOfRange(offset, end))
+                } catch (e: IOException) {
+                    trace.failure("socket write failed")
+                    throw e
+                }
                 offset = end
             }
             trace.sent(frame.size)

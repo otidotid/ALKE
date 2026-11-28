@@ -13,7 +13,7 @@ internal class HuaweiHandshakeTrace {
     fun sent(size: Int) { sentFrames++; sentBytes += size }
     fun received(size: Int) { readBytes += size }
     fun failure(category: String) {
-        require(category in setOf("socket read failed", "socket EOF", "read interrupted", "invalid LPv2 frame", "response timeout"))
+        require(category in setOf("socket read failed", "socket write failed", "socket EOF", "read interrupted", "invalid LPv2 frame", "response timeout"))
         lastFailure = category
     }
 
@@ -24,6 +24,10 @@ internal class HuaweiHandshakeTrace {
             java.util.Locale.ROOT, message.service, message.command, message.payload.size))
         return false
     }
+
+    fun isRetryableLinkFailure(): Boolean = lastFailure in setOf(
+        "socket read failed", "socket write failed", "socket EOF", "response timeout",
+    )
 
     fun summary(): String = "Transport: sent=$sentFrames frames/$sentBytes bytes; received=$readBytes bytes; " +
         "unmatched=$unmatched; other=${other.joinToString(", ").ifEmpty { "none" }}; failure=${lastFailure ?: "none"}"

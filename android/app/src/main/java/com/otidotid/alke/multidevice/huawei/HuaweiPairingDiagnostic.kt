@@ -30,7 +30,7 @@ internal object HuaweiPairingDiagnostic {
     private class HuaweiSessionRotation : IOException()
 
     suspend fun run(context: Context, device: BluetoothDevice, allowFirstBind: Boolean,
-        onStatus: (Int?, Boolean) -> Unit = { _, _ -> },
+        onStatus: (Boolean, Int?, Boolean) -> Unit = { _, _, _ -> },
         onVerified: (String) -> Unit = {}): String = attemptLock.withLock {
         coroutineScope {
             val link = HuaweiRfcommTransport(device)
@@ -50,7 +50,7 @@ internal object HuaweiPairingDiagnostic {
     }
 
     private fun attempt(context: Context, device: BluetoothDevice, link: HuaweiRfcommTransport,
-        allowFirstBind: Boolean, onStatus: (Int?, Boolean) -> Unit,
+        allowFirstBind: Boolean, onStatus: (Boolean, Int?, Boolean) -> Unit,
         onVerified: (String) -> Unit, ensureActive: () -> Unit): String {
         val expired = AtomicBoolean(false)
         val watchdog = Executors.newSingleThreadScheduledExecutor()
@@ -67,6 +67,7 @@ internal object HuaweiPairingDiagnostic {
         var binding: HuaweiCredentialStore.Binding? = null
         var checkingBinding = true
         var sessionStarted = false
+        var canResume = false
         var fitnessStore: HuaweiFitnessStore? = null
         try {
             require(HuaweiRfcommTransport.isGt5Name(device.name))
@@ -76,6 +77,7 @@ internal object HuaweiPairingDiagnostic {
             val deviceKey = HuaweiFitnessStore.deviceKey(address)
             val pending = store.loadPending(address)
             binding = pending ?: store.load(address)
+            canResume = binding != null
             if (binding == null && !allowFirstBind) return "First-time binding requires your confirmation."
             val identity = binding?.identity ?: UUID.randomUUID().toString().replace("-", "").uppercase(Locale.ROOT)
             val model = Build.MODEL.take(30).ifBlank { "Android" }
@@ -86,6 +88,7 @@ internal object HuaweiPairingDiagnostic {
                     checkActive()
                     HuaweiCredentialStore.Binding(identity, credential.copyOf()).use {
                         store.savePendingBinding(address, it)
+                        canResume = true
                     }
                 },
                 saveVerified = { credential ->
@@ -97,7 +100,7 @@ internal object HuaweiPairingDiagnostic {
                     timeout.cancel(false)
                     checkActive()
                     sessionStarted = true
-                    onStatus(info.batteryPercent, true)
+                    onStatus(true, info.batteryPercent, true)
                     val batteryMode = if (info.batteryEncrypted) "GCM" else "plaintext"
                     val connect = when {
                         info.initialization?.connectSupported != true -> "not advertised"
@@ -105,7 +108,7 @@ internal object HuaweiPairingDiagnostic {
                         info.connectStatusEncrypted -> "GCM reply"
                         else -> "plaintext reply"
                     }
-                    val header = "Huawei authenticated (GCM ProductInfo). Battery at connection: ${info.batteryPercent}% ($batteryMode). ConnectStatus: $connect. Watch UI not yet verified."
+                    val header = "Huawei authenticated (GCM ProductInfo). Battery at connection: ${info.batteryPercent?.let { "$it% ($batteryMode)" } ?: "unavailable"}. ConnectStatus: $connect. Watch UI not yet verified."
                     val notes = info.initialization?.notes.orEmpty().joinToString("\n")
                     onVerified("$header\nReading advertised fitness capabilities.\n$notes")
                     // Keep the session alive and read only known, advertised commands.
@@ -115,7 +118,7 @@ internal object HuaweiPairingDiagnostic {
                     HuaweiTimelineSource.selectVerifiedDevice(context.applicationContext, deviceKey)
                     val sessionStart = android.os.SystemClock.elapsedRealtime()
                     var charge = info.batteryPercent
-                    var nextBattery = android.os.SystemClock.elapsedRealtime() + 300_000L
+                    var nextBattery = if (charge != null) android.os.SystemClock.elapsedRealtime() + 300_000L else Long.MAX_VALUE
                     var nextHistory = 0L
                     var backfillEnd = 0L
                     var olderWindows = 0
@@ -127,12 +130,12 @@ internal object HuaweiPairingDiagnostic {
                         checkActive()
                         if (android.os.SystemClock.elapsedRealtime() - sessionStart >= 30 * 60 * 1000L)
                             throw HuaweiSessionRotation()
-                        onStatus(charge, true)
+                        onStatus(true, charge, true)
                         val elapsed = android.os.SystemClock.elapsedRealtime()
                         if (elapsed >= nextBattery) {
                             charge = fitness.batteryPercent()
                             nextBattery = elapsed + 300_000L
-                            onStatus(charge, true)
+                            onStatus(true, charge, true)
                         }
                         val before = System.currentTimeMillis()
                         val zone = java.time.ZoneId.systemDefault()
@@ -192,7 +195,7 @@ internal object HuaweiPairingDiagnostic {
                         val historyText = historyCount?.let { "GCM-verified minute records stored: $it." }
                             ?: "Minute history unavailable."
                         onVerified("$header\n$totalsText\n$historyText\n$sourcePreview\n$historySummary\nSaved in separate Huawei store; historical HR timeline uses verified minute data. Scores unchanged.\n$notes")
-                        onStatus(charge, false)
+                        onStatus(true, charge, false)
                         // Check cancellation frequently. No second reader or background thread per poll.
                         repeat(120) {
                             checkActive()
@@ -211,19 +214,20 @@ internal object HuaweiPairingDiagnostic {
             return "The watch requests a new pairing. Use first-time ALKE binding to confirm."
         } catch (e: Exception) {
             ensureActive()
-            if (sessionStarted && e is IOException && transport.trace.summary().contains("failure=socket"))
+            if (canResume && e is IOException && (transport.trace.isRetryableLinkFailure() || expired.get()))
                 return SESSION_LINK_LOST
             val stage = if (checkingBinding) "Checking saved binding" else if (sessionStarted)
                 "Huawei fitness session" else protocol.stage
             val failure = if (expired.get()) "timed out" else "failed or unsupported"
             return "$stage: $failure. ${protocol.lastResponse}\n${transport.trace.summary()}"
         } finally {
-            onStatus(null, false)
-            fitnessStore?.close()
-            binding?.close()
-            timeout.cancel(false)
-            link.close()
-            watchdog.shutdownNow()
+            onStatus(false, null, false)
+            try { fitnessStore?.close() } finally {
+                binding?.close()
+                timeout.cancel(false)
+                link.close()
+                watchdog.shutdownNow()
+            }
         }
     }
 }
